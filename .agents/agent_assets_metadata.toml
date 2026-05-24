@@ -1,0 +1,14 @@
+uploads = []
+generated = []
+
+[[outputs]]
+id = "GTyOr6MRMblW6tEtNgKFY"
+uri = "file://exports/annonces.csv"
+type = "table"
+title = "Annonces TogoMarket"
+
+[[outputs]]
+id = "LJzcCJnJPItR9nrw2MH77"
+uri = "file://exports/commandes.csv"
+type = "table"
+title = "Commandes TogoMarket"
