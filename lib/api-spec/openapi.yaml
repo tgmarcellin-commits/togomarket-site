@@ -1,22 +1,28 @@
 openapi: 3.1.0
 info:
-  # Do not change the title, if the title changes, the import paths will be broken
   title: Api
   version: 0.1.0
-  description: API specification
+  description: TogoMarket API
 servers:
   - url: /api
     description: Base API path
 tags:
   - name: health
     description: Health operations
+  - name: listings
+    description: Marketplace listing operations
+  - name: orders
+    description: Custom order operations
+  - name: admin
+    description: Admin operations
+  - name: stats
+    description: Statistics operations
 paths:
   /healthz:
     get:
       operationId: healthCheck
       tags: [health]
       summary: Health check
-      description: Returns server health status
       responses:
         "200":
           description: Healthy
@@ -24,13 +30,251 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/HealthStatus"
+
+  /listings:
+    get:
+      operationId: getListings
+      tags: [listings]
+      summary: Get all listings
+      parameters:
+        - name: sector
+          in: query
+          required: false
+          schema:
+            type: string
+        - name: search
+          in: query
+          required: false
+          schema:
+            type: string
+      responses:
+        "200":
+          description: List of listings
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/Listing"
+    post:
+      operationId: createListing
+      tags: [listings]
+      summary: Create a new listing
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/ListingInput"
+      responses:
+        "201":
+          description: Listing created
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Listing"
+
+  /admin/listings/delete:
+    post:
+      operationId: adminDeleteListing
+      tags: [admin]
+      summary: Delete a listing (admin only)
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/AdminDeleteInput"
+      responses:
+        "200":
+          description: Deleted
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/DeleteResult"
+        "403":
+          description: Forbidden
+
+  /orders:
+    post:
+      operationId: createOrder
+      tags: [orders]
+      summary: Submit a custom order request
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/OrderInput"
+      responses:
+        "201":
+          description: Order submitted
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Order"
+
+  /admin/verify:
+    post:
+      operationId: verifyAdmin
+      tags: [admin]
+      summary: Verify admin password
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/AdminVerifyInput"
+      responses:
+        "200":
+          description: Verification result
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AdminVerifyResult"
+
+  /stats:
+    get:
+      operationId: getStats
+      tags: [stats]
+      summary: Get marketplace statistics
+      responses:
+        "200":
+          description: Stats
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/MarketStats"
+
 components:
   schemas:
     HealthStatus:
       type: object
+      required: [status]
       properties:
         status:
           type: string
-      required:
-        - status
 
+    Listing:
+      type: object
+      required: [id, name, price, location, sector, createdAt, images]
+      properties:
+        id:
+          type: integer
+        name:
+          type: string
+        price:
+          type: number
+        location:
+          type: string
+        sector:
+          type: string
+        images:
+          type: array
+          items:
+            type: string
+        createdAt:
+          type: string
+        phone:
+          type: ["string", "null"]
+
+    ListingInput:
+      type: object
+      required: [name, price, location, sector, phone, images]
+      properties:
+        name:
+          type: string
+        price:
+          type: number
+        location:
+          type: string
+        sector:
+          type: string
+          enum: [AgriMarket, Immobilier, Automobile, Divers]
+        phone:
+          type: string
+        images:
+          type: array
+          items:
+            type: string
+          maxItems: 4
+
+    DeleteResult:
+      type: object
+      required: [success]
+      properties:
+        success:
+          type: boolean
+
+    Order:
+      type: object
+      required: [id, lastName, firstName, phone, description, createdAt]
+      properties:
+        id:
+          type: integer
+        lastName:
+          type: string
+        firstName:
+          type: string
+        phone:
+          type: string
+        description:
+          type: string
+        createdAt:
+          type: string
+
+    OrderInput:
+      type: object
+      required: [lastName, firstName, phone, description]
+      properties:
+        lastName:
+          type: string
+        firstName:
+          type: string
+        phone:
+          type: string
+        description:
+          type: string
+
+    AdminDeleteInput:
+      type: object
+      required: [id, password]
+      properties:
+        id:
+          type: integer
+        password:
+          type: string
+
+    AdminVerifyInput:
+      type: object
+      required: [password]
+      properties:
+        password:
+          type: string
+
+    AdminVerifyResult:
+      type: object
+      required: [success]
+      properties:
+        success:
+          type: boolean
+
+    MarketStats:
+      type: object
+      required: [total, bysector]
+      properties:
+        total:
+          type: integer
+        bysector:
+          type: array
+          items:
+            $ref: "#/components/schemas/SectorStat"
+
+    SectorStat:
+      type: object
+      required: [sector, count]
+      properties:
+        sector:
+          type: string
+        count:
+          type: integer
