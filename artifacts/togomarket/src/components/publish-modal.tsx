@@ -189,7 +189,7 @@ export function PublishModal({ open, onOpenChange }: PublishModalProps) {
             </div>
 
             <div>
-              <FormLabel>Images (Max 4)</FormLabel>
+              <label className="text-sm font-medium leading-none">Images (Max 4)</label>
               <div className="mt-2 flex flex-wrap gap-3">
                 {images.map((img, idx) => (
                   <div key={idx} className="relative w-20 h-20 rounded-md overflow-hidden border border-border">
