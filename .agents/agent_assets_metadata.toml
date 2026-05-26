@@ -12,3 +12,9 @@ id = "LJzcCJnJPItR9nrw2MH77"
 uri = "file://exports/commandes.csv"
 type = "table"
 title = "Commandes TogoMarket"
+
+[[outputs]]
+id = "AOjQAeJ0CMcyeLnnA6N3C"
+uri = "file://togomarket-pro.zip"
+type = "unspecified"
+title = "TogoMarket Pro — Code source complet"
