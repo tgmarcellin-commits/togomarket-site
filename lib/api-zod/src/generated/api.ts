@@ -91,6 +91,27 @@ export const VerifyAdminResponse = zod.object({
 
 
 /**
+ * @summary Get platform settings
+ */
+export const GetAdminSettingsResponse = zod.object({
+  "commissionRate": zod.number()
+})
+
+
+/**
+ * @summary Update platform settings (admin only)
+ */
+export const UpdateAdminSettingsBody = zod.object({
+  "password": zod.string(),
+  "commissionRate": zod.number()
+})
+
+export const UpdateAdminSettingsResponse = zod.object({
+  "commissionRate": zod.number()
+})
+
+
+/**
  * @summary Get marketplace statistics
  */
 export const GetStatsResponse = zod.object({

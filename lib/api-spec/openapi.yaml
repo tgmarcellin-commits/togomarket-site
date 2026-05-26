@@ -133,6 +133,38 @@ paths:
               schema:
                 $ref: "#/components/schemas/AdminVerifyResult"
 
+  /admin/settings:
+    get:
+      operationId: getAdminSettings
+      tags: [admin]
+      summary: Get platform settings
+      responses:
+        "200":
+          description: Settings
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/PlatformSettings"
+    post:
+      operationId: updateAdminSettings
+      tags: [admin]
+      summary: Update platform settings (admin only)
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/UpdateSettingsInput"
+      responses:
+        "200":
+          description: Updated settings
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/PlatformSettings"
+        "403":
+          description: Forbidden
+
   /stats:
     get:
       operationId: getStats
@@ -258,6 +290,22 @@ components:
       properties:
         success:
           type: boolean
+
+    PlatformSettings:
+      type: object
+      required: [commissionRate]
+      properties:
+        commissionRate:
+          type: integer
+
+    UpdateSettingsInput:
+      type: object
+      required: [password, commissionRate]
+      properties:
+        password:
+          type: string
+        commissionRate:
+          type: integer
 
     MarketStats:
       type: object

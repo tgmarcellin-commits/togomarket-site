@@ -74,6 +74,15 @@ export interface AdminVerifyResult {
   success: boolean;
 }
 
+export interface PlatformSettings {
+  commissionRate: number;
+}
+
+export interface UpdateSettingsInput {
+  password: string;
+  commissionRate: number;
+}
+
 export interface SectorStat {
   sector: string;
   count: number;

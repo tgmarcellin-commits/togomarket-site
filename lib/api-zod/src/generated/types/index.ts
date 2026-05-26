@@ -18,4 +18,6 @@ export * from './listingInputSector';
 export * from './marketStats';
 export * from './order';
 export * from './orderInput';
+export * from './platformSettings';
 export * from './sectorStat';
+export * from './updateSettingsInput';
