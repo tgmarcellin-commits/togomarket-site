@@ -61,15 +61,18 @@ export default function Home() {
       <header className="sticky top-0 z-50 w-full border-b bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60 shadow-sm">
         <div className="container mx-auto px-4 h-16 flex items-center justify-between">
           <div
-            className="font-bold text-2xl tracking-tight flex items-center gap-1 cursor-pointer"
+            className="flex items-center gap-2 cursor-pointer"
             onClick={() => {
               setSector(undefined);
               setSearch("");
               setSearchInput("");
             }}
           >
-            <span className="text-foreground">Togo</span>
-            <span className="text-primary">Market</span>
+            <img src="/logo.jpg" alt="TogoMarket" className="h-9 w-9 rounded-lg object-cover" />
+            <span className="font-bold text-2xl tracking-tight">
+              <span className="text-foreground">Togo</span>
+              <span className="text-primary">Market</span>
+            </span>
           </div>
           <Button
             onClick={() => setIsPublishModalOpen(true)}
