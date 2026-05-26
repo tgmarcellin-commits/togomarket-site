@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useRef } from "react";
 import {
   useGetListings,
   getGetListingsQueryKey,
@@ -22,6 +22,8 @@ export default function Home() {
   const [isPublishModalOpen, setIsPublishModalOpen] = useState(false);
   const [isOrderModalOpen, setIsOrderModalOpen] = useState(false);
   const [isAdminModalOpen, setIsAdminModalOpen] = useState(false);
+  const [logoTapCount, setLogoTapCount] = useState(0);
+  const logoTapTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const [isAdmin, setIsAdmin] = useState(false);
   const [adminPassword, setAdminPassword] = useState("");
@@ -66,6 +68,15 @@ export default function Home() {
               setSector(undefined);
               setSearch("");
               setSearchInput("");
+              const next = logoTapCount + 1;
+              setLogoTapCount(next);
+              if (logoTapTimer.current) clearTimeout(logoTapTimer.current);
+              if (next >= 5) {
+                setLogoTapCount(0);
+                setIsAdminModalOpen(true);
+              } else {
+                logoTapTimer.current = setTimeout(() => setLogoTapCount(0), 2000);
+              }
             }}
           >
             <img src="/logo.jpg" alt="TogoMarket" className="h-9 w-9 rounded-lg object-cover flex-shrink-0" />
@@ -200,15 +211,9 @@ export default function Home() {
       {/* Footer */}
       <footer className="mt-auto border-t bg-card py-8 pb-32">
         <div className="container mx-auto px-4 text-center">
-          <p className="text-muted-foreground text-sm mb-4">
+          <p className="text-muted-foreground text-sm">
             © 2026 TogoMarket. Tous droits réservés.
           </p>
-          <button
-            onClick={() => setIsAdminModalOpen(true)}
-            className="text-xs text-muted-foreground/60 hover:text-foreground transition-colors"
-          >
-            Gérer la plateforme
-          </button>
         </div>
       </footer>
 
