@@ -18,3 +18,9 @@ id = "AOjQAeJ0CMcyeLnnA6N3C"
 uri = "file://togomarket-pro.zip"
 type = "unspecified"
 title = "TogoMarket Pro — Code source complet"
+
+[[outputs]]
+id = "yVuoGnk67Q49WntYOFxcm"
+uri = "file://togomarket-data.zip"
+type = "unspecified"
+title = "TogoMarket — Dump base de données (.sql)"
