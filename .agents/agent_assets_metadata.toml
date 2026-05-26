@@ -24,3 +24,9 @@ id = "yVuoGnk67Q49WntYOFxcm"
 uri = "file://togomarket-data.zip"
 type = "unspecified"
 title = "TogoMarket — Dump base de données (.sql)"
+
+[[outputs]]
+id = "vkJQBlmY2t1ef45zCXL5i"
+uri = "file://togomarket-complet.zip"
+type = "unspecified"
+title = "TogoMarket — Code source + Base de données"
