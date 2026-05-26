@@ -68,9 +68,7 @@ export default function Home() {
               setSearchInput("");
             }}
           >
-            <div className="h-9 w-9 rounded-lg overflow-hidden flex-shrink-0">
-              <img src="/logo.jpg" alt="TogoMarket" className="w-full h-full object-cover scale-[1.8] object-center" />
-            </div>
+            <img src="/logo.jpg" alt="TogoMarket" className="h-9 w-9 rounded-lg object-cover flex-shrink-0" />
             <span className="font-bold text-2xl tracking-tight">
               <span className="text-foreground">Togo</span>
               <span className="text-primary">Market</span>
