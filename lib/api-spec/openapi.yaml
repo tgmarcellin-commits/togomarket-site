@@ -133,6 +133,50 @@ paths:
               schema:
                 $ref: "#/components/schemas/AdminVerifyResult"
 
+  /admin/listings/approve:
+    post:
+      operationId: adminApproveListing
+      tags: [admin]
+      summary: Approve a pending listing (admin only)
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/AdminApproveInput"
+      responses:
+        "200":
+          description: Approved
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/DeleteResult"
+        "403":
+          description: Forbidden
+
+  /admin/listings/pending:
+    post:
+      operationId: adminGetPendingListings
+      tags: [admin]
+      summary: Get listings pending approval (admin only)
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/AdminPasswordInput"
+      responses:
+        "200":
+          description: Pending listings
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/Listing"
+        "403":
+          description: Forbidden
+
   /admin/settings:
     get:
       operationId: getAdminSettings
@@ -189,7 +233,7 @@ components:
 
     Listing:
       type: object
-      required: [id, name, price, location, sector, createdAt, images]
+      required: [id, name, price, location, sector, createdAt, images, approved]
       properties:
         id:
           type: integer
@@ -209,10 +253,12 @@ components:
           type: string
         phone:
           type: ["string", "null"]
+        approved:
+          type: boolean
 
     ListingInput:
       type: object
-      required: [name, price, location, sector, phone, images]
+      required: [name, price, location, sector, phone, images, publishCode]
       properties:
         name:
           type: string
@@ -230,6 +276,8 @@ components:
           items:
             type: string
           maxItems: 4
+        publishCode:
+          type: string
 
     DeleteResult:
       type: object
@@ -291,21 +339,41 @@ components:
         success:
           type: boolean
 
+    AdminApproveInput:
+      type: object
+      required: [id, password]
+      properties:
+        id:
+          type: integer
+        password:
+          type: string
+
+    AdminPasswordInput:
+      type: object
+      required: [password]
+      properties:
+        password:
+          type: string
+
     PlatformSettings:
       type: object
-      required: [commissionRate]
+      required: [commissionRate, publishCode]
       properties:
         commissionRate:
           type: integer
+        publishCode:
+          type: string
 
     UpdateSettingsInput:
       type: object
-      required: [password, commissionRate]
+      required: [password, commissionRate, publishCode]
       properties:
         password:
           type: string
         commissionRate:
           type: integer
+        publishCode:
+          type: string
 
     MarketStats:
       type: object

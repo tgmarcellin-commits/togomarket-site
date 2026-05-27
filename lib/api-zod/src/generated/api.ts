@@ -32,7 +32,8 @@ export const GetListingsResponseItem = zod.object({
   "sector": zod.string(),
   "images": zod.array(zod.string()),
   "createdAt": zod.string(),
-  "phone": zod.string().nullish()
+  "phone": zod.string().nullish(),
+  "approved": zod.boolean()
 })
 export const GetListingsResponse = zod.array(GetListingsResponseItem)
 
@@ -50,7 +51,8 @@ export const CreateListingBody = zod.object({
   "location": zod.string(),
   "sector": zod.enum(['AgriMarket', 'Immobilier', 'Automobile', 'Divers']),
   "phone": zod.string(),
-  "images": zod.array(zod.string()).max(createListingBodyImagesMax)
+  "images": zod.array(zod.string()).max(createListingBodyImagesMax),
+  "publishCode": zod.string()
 })
 
 
@@ -91,10 +93,45 @@ export const VerifyAdminResponse = zod.object({
 
 
 /**
+ * @summary Approve a pending listing (admin only)
+ */
+export const AdminApproveListingBody = zod.object({
+  "id": zod.number(),
+  "password": zod.string()
+})
+
+export const AdminApproveListingResponse = zod.object({
+  "success": zod.boolean()
+})
+
+
+/**
+ * @summary Get listings pending approval (admin only)
+ */
+export const AdminGetPendingListingsBody = zod.object({
+  "password": zod.string()
+})
+
+export const AdminGetPendingListingsResponseItem = zod.object({
+  "id": zod.number(),
+  "name": zod.string(),
+  "price": zod.number(),
+  "location": zod.string(),
+  "sector": zod.string(),
+  "images": zod.array(zod.string()),
+  "createdAt": zod.string(),
+  "phone": zod.string().nullish(),
+  "approved": zod.boolean()
+})
+export const AdminGetPendingListingsResponse = zod.array(AdminGetPendingListingsResponseItem)
+
+
+/**
  * @summary Get platform settings
  */
 export const GetAdminSettingsResponse = zod.object({
-  "commissionRate": zod.number()
+  "commissionRate": zod.number(),
+  "publishCode": zod.string()
 })
 
 
@@ -103,11 +140,13 @@ export const GetAdminSettingsResponse = zod.object({
  */
 export const UpdateAdminSettingsBody = zod.object({
   "password": zod.string(),
-  "commissionRate": zod.number()
+  "commissionRate": zod.number(),
+  "publishCode": zod.string()
 })
 
 export const UpdateAdminSettingsResponse = zod.object({
-  "commissionRate": zod.number()
+  "commissionRate": zod.number(),
+  "publishCode": zod.string()
 })
 
 

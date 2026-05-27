@@ -15,4 +15,5 @@ export interface ListingInput {
   phone: string;
   /** @maxItems 4 */
   images: string[];
+  publishCode: string;
 }

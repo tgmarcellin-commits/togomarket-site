@@ -6,8 +6,7 @@
  * OpenAPI spec version: 0.1.0
  */
 
-export interface UpdateSettingsInput {
+export interface AdminApproveInput {
+  id: number;
   password: string;
-  commissionRate: number;
-  publishCode: string;
 }

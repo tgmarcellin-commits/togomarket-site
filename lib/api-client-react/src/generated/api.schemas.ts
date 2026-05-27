@@ -19,6 +19,7 @@ export interface Listing {
   createdAt: string;
   /** @nullable */
   phone?: string | null;
+  approved: boolean;
 }
 
 export type ListingInputSector = typeof ListingInputSector[keyof typeof ListingInputSector];
@@ -39,6 +40,7 @@ export interface ListingInput {
   phone: string;
   /** @maxItems 4 */
   images: string[];
+  publishCode: string;
 }
 
 export interface DeleteResult {
@@ -74,13 +76,24 @@ export interface AdminVerifyResult {
   success: boolean;
 }
 
+export interface AdminApproveInput {
+  id: number;
+  password: string;
+}
+
+export interface AdminPasswordInput {
+  password: string;
+}
+
 export interface PlatformSettings {
   commissionRate: number;
+  publishCode: string;
 }
 
 export interface UpdateSettingsInput {
   password: string;
   commissionRate: number;
+  publishCode: string;
 }
 
 export interface SectorStat {

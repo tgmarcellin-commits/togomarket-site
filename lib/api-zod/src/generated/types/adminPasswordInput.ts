@@ -6,8 +6,6 @@
  * OpenAPI spec version: 0.1.0
  */
 
-export interface UpdateSettingsInput {
+export interface AdminPasswordInput {
   password: string;
-  commissionRate: number;
-  publishCode: string;
 }

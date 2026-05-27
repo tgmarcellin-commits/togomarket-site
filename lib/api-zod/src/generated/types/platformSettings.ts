@@ -8,4 +8,5 @@
 
 export interface PlatformSettings {
   commissionRate: number;
+  publishCode: string;
 }

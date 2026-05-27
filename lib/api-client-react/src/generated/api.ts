@@ -20,7 +20,9 @@ import type {
 } from '@tanstack/react-query';
 
 import type {
+  AdminApproveInput,
   AdminDeleteInput,
+  AdminPasswordInput,
   AdminVerifyInput,
   AdminVerifyResult,
   DeleteResult,
@@ -490,6 +492,148 @@ export const useVerifyAdmin = <TError = ErrorType<unknown>,
         TContext
       > => {
       return useMutation(getVerifyAdminMutationOptions(options));
+    }
+
+export const getAdminApproveListingUrl = () => {
+
+
+
+
+  return `/api/admin/listings/approve`
+}
+
+/**
+ * @summary Approve a pending listing (admin only)
+ */
+export const adminApproveListing = async (adminApproveInput: AdminApproveInput, options?: RequestInit): Promise<DeleteResult> => {
+
+  return customFetch<DeleteResult>(getAdminApproveListingUrl(),
+  {
+    ...options,
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...options?.headers },
+    body: JSON.stringify(
+      adminApproveInput,)
+  }
+);}
+
+
+
+
+export const getAdminApproveListingMutationOptions = <TError = ErrorType<void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof adminApproveListing>>, TError,{data: BodyType<AdminApproveInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof adminApproveListing>>, TError,{data: BodyType<AdminApproveInput>}, TContext> => {
+
+const mutationKey = ['adminApproveListing'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof adminApproveListing>>, {data: BodyType<AdminApproveInput>}> = (props) => {
+          const {data} = props ?? {};
+
+          return  adminApproveListing(data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type AdminApproveListingMutationResult = NonNullable<Awaited<ReturnType<typeof adminApproveListing>>>
+    export type AdminApproveListingMutationBody = BodyType<AdminApproveInput>
+    export type AdminApproveListingMutationError = ErrorType<void>
+
+    /**
+ * @summary Approve a pending listing (admin only)
+ */
+export const useAdminApproveListing = <TError = ErrorType<void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof adminApproveListing>>, TError,{data: BodyType<AdminApproveInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof adminApproveListing>>,
+        TError,
+        {data: BodyType<AdminApproveInput>},
+        TContext
+      > => {
+      return useMutation(getAdminApproveListingMutationOptions(options));
+    }
+
+export const getAdminGetPendingListingsUrl = () => {
+
+
+
+
+  return `/api/admin/listings/pending`
+}
+
+/**
+ * @summary Get listings pending approval (admin only)
+ */
+export const adminGetPendingListings = async (adminPasswordInput: AdminPasswordInput, options?: RequestInit): Promise<Listing[]> => {
+
+  return customFetch<Listing[]>(getAdminGetPendingListingsUrl(),
+  {
+    ...options,
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...options?.headers },
+    body: JSON.stringify(
+      adminPasswordInput,)
+  }
+);}
+
+
+
+
+export const getAdminGetPendingListingsMutationOptions = <TError = ErrorType<void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof adminGetPendingListings>>, TError,{data: BodyType<AdminPasswordInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof adminGetPendingListings>>, TError,{data: BodyType<AdminPasswordInput>}, TContext> => {
+
+const mutationKey = ['adminGetPendingListings'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof adminGetPendingListings>>, {data: BodyType<AdminPasswordInput>}> = (props) => {
+          const {data} = props ?? {};
+
+          return  adminGetPendingListings(data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type AdminGetPendingListingsMutationResult = NonNullable<Awaited<ReturnType<typeof adminGetPendingListings>>>
+    export type AdminGetPendingListingsMutationBody = BodyType<AdminPasswordInput>
+    export type AdminGetPendingListingsMutationError = ErrorType<void>
+
+    /**
+ * @summary Get listings pending approval (admin only)
+ */
+export const useAdminGetPendingListings = <TError = ErrorType<void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof adminGetPendingListings>>, TError,{data: BodyType<AdminPasswordInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof adminGetPendingListings>>,
+        TError,
+        {data: BodyType<AdminPasswordInput>},
+        TContext
+      > => {
+      return useMutation(getAdminGetPendingListingsMutationOptions(options));
     }
 
 export const getGetAdminSettingsUrl = () => {

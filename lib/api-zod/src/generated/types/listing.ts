@@ -16,4 +16,5 @@ export interface Listing {
   createdAt: string;
   /** @nullable */
   phone?: string | null;
+  approved: boolean;
 }
