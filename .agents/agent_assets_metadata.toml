@@ -30,3 +30,15 @@ id = "vkJQBlmY2t1ef45zCXL5i"
 uri = "file://togomarket-complet.zip"
 type = "unspecified"
 title = "TogoMarket — Code source + Base de données"
+
+[[outputs]]
+id = "9U83pLP64KF5kh98Xpg9B"
+uri = "file://togomarket_code.tar.gz"
+type = "unspecified"
+title = "Code source TogoMarket"
+
+[[outputs]]
+id = "bo1QIqXFLvA-03r0AHm78"
+uri = "file://togomarket_complet.tar.gz"
+type = "unspecified"
+title = "Code + Base de données TogoMarket (complet)"
