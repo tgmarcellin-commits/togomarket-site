@@ -75,7 +75,7 @@ export function ListingCard({ listing, isAdmin, adminPassword, commissionRate }:
 
   return (
     <div className="group rounded-xl border bg-card text-card-foreground shadow-sm overflow-hidden flex flex-col h-full hover:shadow-md transition-all">
-      <div className="relative aspect-video w-full overflow-hidden bg-muted">
+      <div className="relative aspect-video w-full overflow-hidden bg-black">
         <div className="flex w-full h-full overflow-x-auto snap-x snap-mandatory scrollbar-hide">
           {listing.images && listing.images.length > 0 ? (
             listing.images.map((img, i) => (
@@ -83,7 +83,7 @@ export function ListingCard({ listing, isAdmin, adminPassword, commissionRate }:
                 key={i}
                 src={img}
                 alt={`${listing.name} ${i + 1}`}
-                className="w-full h-full object-cover snap-center flex-shrink-0"
+                className="w-full h-full object-contain snap-center flex-shrink-0"
               />
             ))
           ) : (
