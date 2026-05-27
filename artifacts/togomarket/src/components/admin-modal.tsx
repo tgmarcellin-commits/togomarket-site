@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { ImageViewer } from "@/components/image-viewer";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import * as z from "zod";
@@ -67,6 +68,13 @@ export function AdminModal({
   const [storedPassword, setStoredPassword] = useState(adminPassword ?? "");
   const [tab, setTab] = useState<DashTab>("pending");
   const [newCode, setNewCode] = useState("");
+  const [viewerImages, setViewerImages] = useState<string[]>([]);
+  const [viewerIndex, setViewerIndex] = useState(0);
+
+  const openViewer = (images: string[], index: number) => {
+    setViewerImages(images);
+    setViewerIndex(index);
+  };
 
   const form = useForm<LoginValues>({
     resolver: zodResolver(loginSchema),
@@ -199,6 +207,7 @@ export function AdminModal({
   };
 
   return (
+    <>
     <Dialog open={open} onOpenChange={handleClose}>
       <DialogContent className="sm:max-w-[500px] max-h-[90vh] overflow-y-auto">
         <DialogHeader>
@@ -275,13 +284,6 @@ export function AdminModal({
                   pendingListings.map((listing) => (
                     <div key={listing.id} className="border rounded-lg p-3 space-y-2">
                       <div className="flex items-start gap-3">
-                        {listing.images?.[0] && (
-                          <img
-                            src={listing.images[0]}
-                            alt={listing.name}
-                            className="w-14 h-14 rounded-md object-cover flex-shrink-0 border"
-                          />
-                        )}
                         <div className="flex-1 min-w-0">
                           <p className="font-semibold text-sm truncate">{listing.name}</p>
                           <p className="text-xs text-muted-foreground">{listing.sector} · {listing.location}</p>
@@ -291,6 +293,23 @@ export function AdminModal({
                           <p className="text-xs text-muted-foreground">Tél: {listing.phone}</p>
                         </div>
                       </div>
+                      {listing.images && listing.images.length > 0 && (
+                        <div className="flex gap-2 flex-wrap">
+                          {listing.images.map((img, i) => (
+                            <button
+                              key={i}
+                              onClick={() => openViewer(listing.images!, i)}
+                              className="relative w-16 h-16 rounded-md overflow-hidden border border-border hover:border-primary transition-colors flex-shrink-0 group/thumb"
+                            >
+                              <img src={img} alt={`Photo ${i + 1}`} className="w-full h-full object-cover" />
+                              <div className="absolute inset-0 bg-black/0 group-hover/thumb:bg-black/20 transition-colors flex items-center justify-center">
+                                <span className="text-white text-[10px] font-bold opacity-0 group-hover/thumb:opacity-100">Voir</span>
+                              </div>
+                            </button>
+                          ))}
+                        </div>
+                      )}
+                      
                       <div className="flex gap-2">
                         <Button
                           size="sm"
@@ -382,5 +401,14 @@ export function AdminModal({
         )}
       </DialogContent>
     </Dialog>
+
+    {viewerImages.length > 0 && (
+      <ImageViewer
+        images={viewerImages}
+        startIndex={viewerIndex}
+        onClose={() => setViewerImages([])}
+      />
+    )}
+    </>
   );
 }
