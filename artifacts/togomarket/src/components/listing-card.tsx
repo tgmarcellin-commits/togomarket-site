@@ -1,9 +1,11 @@
+import { useState } from "react";
 import type { Listing } from "@workspace/api-client-react";
 import { useAdminDeleteListing, getGetListingsQueryKey } from "@workspace/api-client-react";
 import { useQueryClient } from "@tanstack/react-query";
-import { MapPin, Phone, Trash2, Flag, Clock } from "lucide-react";
+import { MapPin, Phone, Trash2, Flag, Clock, ZoomIn } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import { ImageViewer } from "@/components/image-viewer";
 
 interface ListingCardProps {
   listing: Listing;
@@ -37,6 +39,13 @@ function calcCommission(price: number, rate: number): number {
 export function ListingCard({ listing, isAdmin, adminPassword, commissionRate }: ListingCardProps) {
   const queryClient = useQueryClient();
   const deleteMutation = useAdminDeleteListing();
+  const [viewerOpen, setViewerOpen] = useState(false);
+  const [viewerIndex, setViewerIndex] = useState(0);
+
+  const openViewer = (index: number) => {
+    setViewerIndex(index);
+    setViewerOpen(true);
+  };
 
   const handleDelete = () => {
     if (!adminPassword || !isAdmin) return;
@@ -74,8 +83,9 @@ export function ListingCard({ listing, isAdmin, adminPassword, commissionRate }:
       : `Débloquer le Contact — ${new Intl.NumberFormat("fr-FR").format(commission)} FCFA`;
 
   return (
+    <>
     <div className="group rounded-xl border bg-card text-card-foreground shadow-sm overflow-hidden flex flex-col h-full hover:shadow-md transition-all">
-      <div className="relative aspect-video w-full overflow-hidden bg-black">
+      <div className="relative aspect-video w-full overflow-hidden bg-black group/img">
         <div className="flex w-full h-full overflow-x-auto snap-x snap-mandatory scrollbar-hide">
           {listing.images && listing.images.length > 0 ? (
             listing.images.map((img, i) => (
@@ -83,7 +93,8 @@ export function ListingCard({ listing, isAdmin, adminPassword, commissionRate }:
                 key={i}
                 src={img}
                 alt={`${listing.name} ${i + 1}`}
-                className="w-full h-full object-contain snap-center flex-shrink-0"
+                className="w-full h-full object-contain snap-center flex-shrink-0 cursor-zoom-in"
+                onClick={() => openViewer(i)}
               />
             ))
           ) : (
@@ -92,6 +103,18 @@ export function ListingCard({ listing, isAdmin, adminPassword, commissionRate }:
             </div>
           )}
         </div>
+
+        {/* Indice cliquable */}
+        {listing.images && listing.images.length > 0 && (
+          <div
+            className="absolute inset-0 flex items-center justify-center opacity-0 group-hover/img:opacity-100 transition-opacity pointer-events-none"
+          >
+            <div className="bg-black/40 rounded-full p-2">
+              <ZoomIn className="w-6 h-6 text-white" />
+            </div>
+          </div>
+        )}
+
         <div className="absolute top-2 left-2 z-10">
           <Badge className={`border-none ${sectorColors[listing.sector] || "bg-gray-500"}`}>
             {listing.sector}
@@ -154,5 +177,14 @@ export function ListingCard({ listing, isAdmin, adminPassword, commissionRate }:
         </div>
       </div>
     </div>
+
+    {viewerOpen && listing.images && listing.images.length > 0 && (
+      <ImageViewer
+        images={listing.images}
+        startIndex={viewerIndex}
+        onClose={() => setViewerOpen(false)}
+      />
+    )}
+    </>
   );
 }
