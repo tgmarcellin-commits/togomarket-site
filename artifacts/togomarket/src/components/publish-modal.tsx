@@ -40,7 +40,12 @@ const formSchema = z.object({
       message: "Le titre ne doit pas contenir de numéro de téléphone.",
     }),
   price: z.coerce.number().min(1, "Prix invalide"),
-  location: z.string().min(2, "Lieu requis"),
+  location: z
+    .string()
+    .min(2, "Lieu requis")
+    .refine((val) => !PHONE_REGEX.test(val), {
+      message: "Le quartier/ville ne doit pas contenir de numéro de téléphone.",
+    }),
   sector: z.enum(["AgriMarket", "Immobilier", "Automobile", "Divers"]),
   phone: z.string().min(8, "Numéro requis"),
 });
