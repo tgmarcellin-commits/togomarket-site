@@ -42,3 +42,9 @@ id = "bo1QIqXFLvA-03r0AHm78"
 uri = "file://togomarket_complet.tar.gz"
 type = "unspecified"
 title = "Code + Base de données TogoMarket (complet)"
+
+[[outputs]]
+id = "aAVyPCD-4MA2Ga4TOkJmh"
+uri = "file://togomarket_essentiel.tar.gz"
+type = "unspecified"
+title = "TogoMarket — Code + Base de données (version légère)"
