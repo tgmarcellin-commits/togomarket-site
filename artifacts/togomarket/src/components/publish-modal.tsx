@@ -30,8 +30,15 @@ const codeSchema = z.object({
 });
 type CodeValues = z.infer<typeof codeSchema>;
 
+const PHONE_REGEX = /(?:\+?2[0-9]{2}|0)[0-9\s\-\.]{7,}/;
+
 const formSchema = z.object({
-  name: z.string().min(3, "Titre trop court"),
+  name: z
+    .string()
+    .min(3, "Titre trop court")
+    .refine((val) => !PHONE_REGEX.test(val), {
+      message: "Le titre ne doit pas contenir de numéro de téléphone.",
+    }),
   price: z.coerce.number().min(1, "Prix invalide"),
   location: z.string().min(2, "Lieu requis"),
   sector: z.enum(["AgriMarket", "Immobilier", "Automobile", "Divers"]),
@@ -194,9 +201,9 @@ export function PublishModal({ open, onOpenChange }: PublishModalProps) {
         ) : (
           <Form {...form}>
             <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4">
-              <div className="flex items-center gap-2 text-xs text-amber-600 bg-amber-50 border border-amber-200 rounded-md px-3 py-2">
-                <Lock className="w-3 h-3 flex-shrink-0" />
-                Votre annonce sera visible après validation de l'administrateur.
+              <div className="flex items-start gap-2 text-xs text-amber-700 bg-amber-50 border border-amber-200 rounded-md px-3 py-2.5">
+                <Lock className="w-3 h-3 flex-shrink-0 mt-0.5" />
+                <span>Votre annonce sera visible après validation. <strong>Toute annonce contenant un numéro de téléphone dans le titre ou sur les photos sera automatiquement rejetée.</strong></span>
               </div>
 
               <FormField
