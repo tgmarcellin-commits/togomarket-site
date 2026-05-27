@@ -2,7 +2,7 @@ import { useState } from "react";
 import type { Listing } from "@workspace/api-client-react";
 import { useAdminDeleteListing, getGetListingsQueryKey } from "@workspace/api-client-react";
 import { useQueryClient } from "@tanstack/react-query";
-import { MapPin, Phone, Trash2, Flag, Clock, ZoomIn } from "lucide-react";
+import { MapPin, Phone, Trash2, Clock, ZoomIn } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { ImageViewer } from "@/components/image-viewer";
@@ -122,10 +122,9 @@ export function ListingCard({ listing, isAdmin, adminPassword, commissionRate }:
         </div>
         <button
           onClick={handleReport}
-          title="Signaler cet article"
-          className="absolute top-2 right-2 z-10 bg-white/80 hover:bg-white text-red-500 rounded-full p-1.5 shadow transition-colors"
+          className="absolute bottom-2 right-2 z-10 bg-white/80 hover:bg-white text-red-500 rounded-md px-2 py-1 text-[11px] font-medium shadow transition-colors"
         >
-          <Flag className="w-3.5 h-3.5" />
+          Signaler cet article
         </button>
       </div>
 
