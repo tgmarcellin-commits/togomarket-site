@@ -30,7 +30,7 @@ const codeSchema = z.object({
 });
 type CodeValues = z.infer<typeof codeSchema>;
 
-const PHONE_REGEX = /(?:\+?2[0-9]{2}|0)[0-9\s\-\.]{7,}/;
+const PHONE_REGEX = /\d[\s\-\.]?\d[\s\-\.]?\d[\s\-\.]?\d[\s\-\.]?\d[\s\-\.]?\d[\s\-\.]?\d[\s\-\.]?\d/;
 
 const formSchema = z.object({
   name: z
