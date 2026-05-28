@@ -59,6 +59,7 @@ Plateforme de marketplace multi-secteurs pour le Togo — permet à n'importe qu
 - WhatsApp number: 22870703131 (hardcoded in frontend)
 - Default admin password: "17210" (override with ADMIN_PASSWORD env var)
 - Language: French
+- Commande pour envoyer les mises à jour vers GitHub : `./push.sh`
 
 ## Gotchas
 
