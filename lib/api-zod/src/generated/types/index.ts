@@ -7,6 +7,8 @@
  */
 
 export * from './ad';
+export * from './adminActivateVendorInput';
+export * from './adminActivateVendorResult';
 export * from './adminApproveInput';
 export * from './adminCreateAdInput';
 export * from './adminDeleteInput';
@@ -25,3 +27,9 @@ export * from './orderInput';
 export * from './platformSettings';
 export * from './sectorStat';
 export * from './updateSettingsInput';
+export * from './vendorLoginInput';
+export * from './vendorProfile';
+export * from './vendorProfileUpdateInput';
+export * from './vendorPublishCode';
+export * from './vendorRegisterInput';
+export * from './vendorRegisterResult';

@@ -21,6 +21,8 @@ import type {
 
 import type {
   Ad,
+  AdminActivateVendorInput,
+  AdminActivateVendorResult,
   AdminApproveInput,
   AdminCreateAdInput,
   AdminDeleteInput,
@@ -36,7 +38,12 @@ import type {
   Order,
   OrderInput,
   PlatformSettings,
-  UpdateSettingsInput
+  UpdateSettingsInput,
+  VendorLoginInput,
+  VendorProfile,
+  VendorProfileUpdateInput,
+  VendorRegisterInput,
+  VendorRegisterResult
 } from './api.schemas';
 
 import { customFetch } from '../custom-fetch';
@@ -1152,4 +1159,430 @@ export function useGetStats<TData = Awaited<ReturnType<typeof getStats>>, TError
 
 
 
+
+export const getVendorRegisterUrl = () => {
+
+
+
+
+  return `/api/vendors/register`
+}
+
+/**
+ * @summary Register a new vendor account
+ */
+export const vendorRegister = async (vendorRegisterInput: VendorRegisterInput, options?: RequestInit): Promise<VendorRegisterResult> => {
+
+  return customFetch<VendorRegisterResult>(getVendorRegisterUrl(),
+  {
+    ...options,
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...options?.headers },
+    body: JSON.stringify(
+      vendorRegisterInput,)
+  }
+);}
+
+
+
+
+export const getVendorRegisterMutationOptions = <TError = ErrorType<void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof vendorRegister>>, TError,{data: BodyType<VendorRegisterInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof vendorRegister>>, TError,{data: BodyType<VendorRegisterInput>}, TContext> => {
+
+const mutationKey = ['vendorRegister'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof vendorRegister>>, {data: BodyType<VendorRegisterInput>}> = (props) => {
+          const {data} = props ?? {};
+
+          return  vendorRegister(data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type VendorRegisterMutationResult = NonNullable<Awaited<ReturnType<typeof vendorRegister>>>
+    export type VendorRegisterMutationBody = BodyType<VendorRegisterInput>
+    export type VendorRegisterMutationError = ErrorType<void>
+
+    /**
+ * @summary Register a new vendor account
+ */
+export const useVendorRegister = <TError = ErrorType<void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof vendorRegister>>, TError,{data: BodyType<VendorRegisterInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof vendorRegister>>,
+        TError,
+        {data: BodyType<VendorRegisterInput>},
+        TContext
+      > => {
+      return useMutation(getVendorRegisterMutationOptions(options));
+    }
+
+export const getVendorLoginUrl = () => {
+
+
+
+
+  return `/api/vendors/login`
+}
+
+/**
+ * @summary Login as a vendor
+ */
+export const vendorLogin = async (vendorLoginInput: VendorLoginInput, options?: RequestInit): Promise<VendorProfile> => {
+
+  return customFetch<VendorProfile>(getVendorLoginUrl(),
+  {
+    ...options,
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...options?.headers },
+    body: JSON.stringify(
+      vendorLoginInput,)
+  }
+);}
+
+
+
+
+export const getVendorLoginMutationOptions = <TError = ErrorType<void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof vendorLogin>>, TError,{data: BodyType<VendorLoginInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof vendorLogin>>, TError,{data: BodyType<VendorLoginInput>}, TContext> => {
+
+const mutationKey = ['vendorLogin'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof vendorLogin>>, {data: BodyType<VendorLoginInput>}> = (props) => {
+          const {data} = props ?? {};
+
+          return  vendorLogin(data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type VendorLoginMutationResult = NonNullable<Awaited<ReturnType<typeof vendorLogin>>>
+    export type VendorLoginMutationBody = BodyType<VendorLoginInput>
+    export type VendorLoginMutationError = ErrorType<void>
+
+    /**
+ * @summary Login as a vendor
+ */
+export const useVendorLogin = <TError = ErrorType<void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof vendorLogin>>, TError,{data: BodyType<VendorLoginInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof vendorLogin>>,
+        TError,
+        {data: BodyType<VendorLoginInput>},
+        TContext
+      > => {
+      return useMutation(getVendorLoginMutationOptions(options));
+    }
+
+export const getVendorUpdateProfileUrl = () => {
+
+
+
+
+  return `/api/vendors/profile/update`
+}
+
+/**
+ * @summary Update vendor profile photo
+ */
+export const vendorUpdateProfile = async (vendorProfileUpdateInput: VendorProfileUpdateInput, options?: RequestInit): Promise<VendorProfile> => {
+
+  return customFetch<VendorProfile>(getVendorUpdateProfileUrl(),
+  {
+    ...options,
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...options?.headers },
+    body: JSON.stringify(
+      vendorProfileUpdateInput,)
+  }
+);}
+
+
+
+
+export const getVendorUpdateProfileMutationOptions = <TError = ErrorType<void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof vendorUpdateProfile>>, TError,{data: BodyType<VendorProfileUpdateInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof vendorUpdateProfile>>, TError,{data: BodyType<VendorProfileUpdateInput>}, TContext> => {
+
+const mutationKey = ['vendorUpdateProfile'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof vendorUpdateProfile>>, {data: BodyType<VendorProfileUpdateInput>}> = (props) => {
+          const {data} = props ?? {};
+
+          return  vendorUpdateProfile(data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type VendorUpdateProfileMutationResult = NonNullable<Awaited<ReturnType<typeof vendorUpdateProfile>>>
+    export type VendorUpdateProfileMutationBody = BodyType<VendorProfileUpdateInput>
+    export type VendorUpdateProfileMutationError = ErrorType<void>
+
+    /**
+ * @summary Update vendor profile photo
+ */
+export const useVendorUpdateProfile = <TError = ErrorType<void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof vendorUpdateProfile>>, TError,{data: BodyType<VendorProfileUpdateInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof vendorUpdateProfile>>,
+        TError,
+        {data: BodyType<VendorProfileUpdateInput>},
+        TContext
+      > => {
+      return useMutation(getVendorUpdateProfileMutationOptions(options));
+    }
+
+export const getAdminGetVendorsUrl = () => {
+
+
+
+
+  return `/api/admin/vendors`
+}
+
+/**
+ * @summary Get all vendor accounts (admin only)
+ */
+export const adminGetVendors = async (adminPasswordInput: AdminPasswordInput, options?: RequestInit): Promise<VendorProfile[]> => {
+
+  return customFetch<VendorProfile[]>(getAdminGetVendorsUrl(),
+  {
+    ...options,
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...options?.headers },
+    body: JSON.stringify(
+      adminPasswordInput,)
+  }
+);}
+
+
+
+
+export const getAdminGetVendorsMutationOptions = <TError = ErrorType<void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof adminGetVendors>>, TError,{data: BodyType<AdminPasswordInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof adminGetVendors>>, TError,{data: BodyType<AdminPasswordInput>}, TContext> => {
+
+const mutationKey = ['adminGetVendors'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof adminGetVendors>>, {data: BodyType<AdminPasswordInput>}> = (props) => {
+          const {data} = props ?? {};
+
+          return  adminGetVendors(data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type AdminGetVendorsMutationResult = NonNullable<Awaited<ReturnType<typeof adminGetVendors>>>
+    export type AdminGetVendorsMutationBody = BodyType<AdminPasswordInput>
+    export type AdminGetVendorsMutationError = ErrorType<void>
+
+    /**
+ * @summary Get all vendor accounts (admin only)
+ */
+export const useAdminGetVendors = <TError = ErrorType<void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof adminGetVendors>>, TError,{data: BodyType<AdminPasswordInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof adminGetVendors>>,
+        TError,
+        {data: BodyType<AdminPasswordInput>},
+        TContext
+      > => {
+      return useMutation(getAdminGetVendorsMutationOptions(options));
+    }
+
+export const getAdminActivateVendorUrl = () => {
+
+
+
+
+  return `/api/admin/vendors/activate`
+}
+
+/**
+ * @summary Activate a vendor account and generate first free publish code (admin only)
+ */
+export const adminActivateVendor = async (adminActivateVendorInput: AdminActivateVendorInput, options?: RequestInit): Promise<AdminActivateVendorResult> => {
+
+  return customFetch<AdminActivateVendorResult>(getAdminActivateVendorUrl(),
+  {
+    ...options,
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...options?.headers },
+    body: JSON.stringify(
+      adminActivateVendorInput,)
+  }
+);}
+
+
+
+
+export const getAdminActivateVendorMutationOptions = <TError = ErrorType<void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof adminActivateVendor>>, TError,{data: BodyType<AdminActivateVendorInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof adminActivateVendor>>, TError,{data: BodyType<AdminActivateVendorInput>}, TContext> => {
+
+const mutationKey = ['adminActivateVendor'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof adminActivateVendor>>, {data: BodyType<AdminActivateVendorInput>}> = (props) => {
+          const {data} = props ?? {};
+
+          return  adminActivateVendor(data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type AdminActivateVendorMutationResult = NonNullable<Awaited<ReturnType<typeof adminActivateVendor>>>
+    export type AdminActivateVendorMutationBody = BodyType<AdminActivateVendorInput>
+    export type AdminActivateVendorMutationError = ErrorType<void>
+
+    /**
+ * @summary Activate a vendor account and generate first free publish code (admin only)
+ */
+export const useAdminActivateVendor = <TError = ErrorType<void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof adminActivateVendor>>, TError,{data: BodyType<AdminActivateVendorInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof adminActivateVendor>>,
+        TError,
+        {data: BodyType<AdminActivateVendorInput>},
+        TContext
+      > => {
+      return useMutation(getAdminActivateVendorMutationOptions(options));
+    }
+
+export const getAdminGenerateVendorCodeUrl = () => {
+
+
+
+
+  return `/api/admin/vendors/generate-code`
+}
+
+/**
+ * @summary Generate a new publish code for a vendor (admin only, after payment)
+ */
+export const adminGenerateVendorCode = async (adminActivateVendorInput: AdminActivateVendorInput, options?: RequestInit): Promise<AdminActivateVendorResult> => {
+
+  return customFetch<AdminActivateVendorResult>(getAdminGenerateVendorCodeUrl(),
+  {
+    ...options,
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...options?.headers },
+    body: JSON.stringify(
+      adminActivateVendorInput,)
+  }
+);}
+
+
+
+
+export const getAdminGenerateVendorCodeMutationOptions = <TError = ErrorType<void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof adminGenerateVendorCode>>, TError,{data: BodyType<AdminActivateVendorInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof adminGenerateVendorCode>>, TError,{data: BodyType<AdminActivateVendorInput>}, TContext> => {
+
+const mutationKey = ['adminGenerateVendorCode'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof adminGenerateVendorCode>>, {data: BodyType<AdminActivateVendorInput>}> = (props) => {
+          const {data} = props ?? {};
+
+          return  adminGenerateVendorCode(data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type AdminGenerateVendorCodeMutationResult = NonNullable<Awaited<ReturnType<typeof adminGenerateVendorCode>>>
+    export type AdminGenerateVendorCodeMutationBody = BodyType<AdminActivateVendorInput>
+    export type AdminGenerateVendorCodeMutationError = ErrorType<void>
+
+    /**
+ * @summary Generate a new publish code for a vendor (admin only, after payment)
+ */
+export const useAdminGenerateVendorCode = <TError = ErrorType<void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof adminGenerateVendorCode>>, TError,{data: BodyType<AdminActivateVendorInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof adminGenerateVendorCode>>,
+        TError,
+        {data: BodyType<AdminActivateVendorInput>},
+        TContext
+      > => {
+      return useMutation(getAdminGenerateVendorCodeMutationOptions(options));
+    }
 

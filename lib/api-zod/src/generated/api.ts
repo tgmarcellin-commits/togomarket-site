@@ -50,9 +50,10 @@ export const CreateListingBody = zod.object({
   "price": zod.number(),
   "location": zod.string(),
   "sector": zod.enum(['AgriMarket', 'Immobilier', 'Automobile', 'Divers']),
-  "phone": zod.string(),
   "images": zod.array(zod.string()).max(createListingBodyImagesMax),
-  "publishCode": zod.string()
+  "vendorPhone": zod.string(),
+  "vendorPassword": zod.string(),
+  "vendorPublishCode": zod.string()
 })
 
 
@@ -218,6 +219,120 @@ export const GetStatsResponse = zod.object({
   "sector": zod.string(),
   "count": zod.number()
 }))
+})
+
+
+/**
+ * @summary Register a new vendor account
+ */
+export const VendorRegisterBody = zod.object({
+  "firstName": zod.string(),
+  "lastName": zod.string(),
+  "phone": zod.string(),
+  "password": zod.string()
+})
+
+
+/**
+ * @summary Login as a vendor
+ */
+export const VendorLoginBody = zod.object({
+  "phone": zod.string(),
+  "password": zod.string()
+})
+
+export const VendorLoginResponse = zod.object({
+  "id": zod.number(),
+  "firstName": zod.string(),
+  "lastName": zod.string(),
+  "phone": zod.string(),
+  "verified": zod.boolean(),
+  "profilePhoto": zod.string().nullish(),
+  "createdAt": zod.string(),
+  "publishCode": zod.union([zod.object({
+  "code": zod.string(),
+  "endDate": zod.string(),
+  "daysLeft": zod.number()
+}),zod.null()]).optional()
+})
+
+
+/**
+ * @summary Update vendor profile photo
+ */
+export const VendorUpdateProfileBody = zod.object({
+  "phone": zod.string(),
+  "password": zod.string(),
+  "profilePhoto": zod.string().nullish()
+})
+
+export const VendorUpdateProfileResponse = zod.object({
+  "id": zod.number(),
+  "firstName": zod.string(),
+  "lastName": zod.string(),
+  "phone": zod.string(),
+  "verified": zod.boolean(),
+  "profilePhoto": zod.string().nullish(),
+  "createdAt": zod.string(),
+  "publishCode": zod.union([zod.object({
+  "code": zod.string(),
+  "endDate": zod.string(),
+  "daysLeft": zod.number()
+}),zod.null()]).optional()
+})
+
+
+/**
+ * @summary Get all vendor accounts (admin only)
+ */
+export const AdminGetVendorsBody = zod.object({
+  "password": zod.string()
+})
+
+export const AdminGetVendorsResponseItem = zod.object({
+  "id": zod.number(),
+  "firstName": zod.string(),
+  "lastName": zod.string(),
+  "phone": zod.string(),
+  "verified": zod.boolean(),
+  "profilePhoto": zod.string().nullish(),
+  "createdAt": zod.string(),
+  "publishCode": zod.union([zod.object({
+  "code": zod.string(),
+  "endDate": zod.string(),
+  "daysLeft": zod.number()
+}),zod.null()]).optional()
+})
+export const AdminGetVendorsResponse = zod.array(AdminGetVendorsResponseItem)
+
+
+/**
+ * @summary Activate a vendor account and generate first free publish code (admin only)
+ */
+export const AdminActivateVendorBody = zod.object({
+  "password": zod.string(),
+  "vendorId": zod.number()
+})
+
+export const AdminActivateVendorResponse = zod.object({
+  "success": zod.boolean(),
+  "code": zod.string(),
+  "vendorPhone": zod.string()
+})
+
+
+/**
+ * @summary Generate a new publish code for a vendor (admin only, after payment)
+ */
+export const AdminGenerateVendorCodeBody = zod.object({
+  "password": zod.string(),
+  "vendorId": zod.number()
+})
+
+export const AdminGenerateVendorCodeResponse = zod.object({
+  "success": zod.boolean(),
+  "code": zod.string(),
+  "vendorPhone": zod.string()
 })
 
 

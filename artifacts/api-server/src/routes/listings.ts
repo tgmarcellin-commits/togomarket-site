@@ -1,6 +1,7 @@
 import { Router, type IRouter } from "express";
-import { eq, ilike, and, type SQL } from "drizzle-orm";
-import { db, listingsTable, platformSettingsTable } from "@workspace/db";
+import { eq, ilike, and, gt, desc, type SQL } from "drizzle-orm";
+import bcrypt from "bcryptjs";
+import { db, listingsTable, vendorsTable, publishCodesTable } from "@workspace/db";
 import {
   CreateListingBody,
   GetListingsQueryParams,
@@ -66,11 +67,41 @@ router.post("/listings", async (req, res): Promise<void> => {
     return;
   }
 
-  const settings = await db.select().from(platformSettingsTable).limit(1);
-  const expectedCode = settings[0]?.publishCode ?? "TOGO2026";
+  const { vendorPhone, vendorPassword, vendorPublishCode } = parsed.data;
 
-  if (parsed.data.publishCode !== expectedCode) {
-    res.status(403).json({ error: "Code de publication invalide" });
+  const vendors = await db
+    .select()
+    .from(vendorsTable)
+    .where(eq(vendorsTable.phone, vendorPhone))
+    .limit(1);
+
+  if (vendors.length === 0) {
+    res.status(403).json({ error: "Compte vendeur introuvable." });
+    return;
+  }
+
+  const vendor = vendors[0];
+  const passwordMatch = await bcrypt.compare(vendorPassword, vendor.passwordHash);
+  if (!passwordMatch) {
+    res.status(403).json({ error: "Mot de passe incorrect." });
+    return;
+  }
+
+  if (!vendor.verified) {
+    res.status(403).json({ error: "Votre compte n'est pas encore activé. Contactez l'administrateur." });
+    return;
+  }
+
+  const now = new Date();
+  const codes = await db
+    .select()
+    .from(publishCodesTable)
+    .where(and(eq(publishCodesTable.vendorId, vendor.id), gt(publishCodesTable.endDate, now)))
+    .orderBy(desc(publishCodesTable.endDate))
+    .limit(1);
+
+  if (codes.length === 0 || codes[0].code !== vendorPublishCode) {
+    res.status(403).json({ error: "Code de publication invalide ou expiré." });
     return;
   }
 
@@ -81,7 +112,7 @@ router.post("/listings", async (req, res): Promise<void> => {
       price: String(parsed.data.price),
       location: parsed.data.location,
       sector: parsed.data.sector,
-      phone: parsed.data.phone,
+      phone: vendor.phone,
       images: parsed.data.images,
       approved: false,
     })

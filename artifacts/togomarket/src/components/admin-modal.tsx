@@ -13,8 +13,12 @@ import {
   useAdminCreateAd,
   useAdminGetAllAds,
   useAdminDeleteAd,
+  useAdminGetVendors,
+  useAdminActivateVendor,
+  useAdminGenerateVendorCode,
   getGetAdminSettingsQueryKey,
   type Ad,
+  type VendorProfile,
 } from "@workspace/api-client-react";
 import { useQueryClient } from "@tanstack/react-query";
 import { Button } from "@/components/ui/button";
@@ -34,7 +38,7 @@ import {
 } from "@/components/ui/form";
 import { Input } from "@/components/ui/input";
 import { useToast } from "@/hooks/use-toast";
-import { Settings, LogOut, CheckCircle, Trash2, Clock, KeyRound, Megaphone, Plus, RefreshCw } from "lucide-react";
+import { Settings, LogOut, CheckCircle, Trash2, Clock, KeyRound, Megaphone, Plus, RefreshCw, Users } from "lucide-react";
 import { resizeImage } from "@/lib/image";
 
 const loginSchema = z.object({
@@ -58,7 +62,7 @@ const COMMISSION_OPTIONS = [
   { rate: 5, label: "5% (max 5 000 FCFA pour les articles > 100 000 FCFA)" },
 ];
 
-type DashTab = "pending" | "ads" | "settings";
+type DashTab = "pending" | "vendors" | "ads" | "settings";
 
 export function AdminModal({
   open,
@@ -82,9 +86,16 @@ export function AdminModal({
   const [adForm, setAdForm] = useState({ advertiserName: "", advertiserPhone: "", message: "", image: "" });
   const adImageRef = useRef<HTMLInputElement>(null);
 
+  const [vendors, setVendors] = useState<VendorProfile[]>([]);
+  const [vendorsLoading, setVendorsLoading] = useState(false);
+  const [generatedCode, setGeneratedCode] = useState<{ code: string; phone: string } | null>(null);
+
   const createAd = useAdminCreateAd();
   const getAllAds = useAdminGetAllAds();
   const deleteAd = useAdminDeleteAd();
+  const getVendors = useAdminGetVendors();
+  const activateVendor = useAdminActivateVendor();
+  const generateCode = useAdminGenerateVendorCode();
 
   const refetchAds = () => {
     if (!storedPassword) return;
@@ -96,6 +107,49 @@ export function AdminModal({
         onError: () => setAdsLoading(false),
       }
     );
+  };
+
+  const refetchVendors = () => {
+    if (!storedPassword) return;
+    setVendorsLoading(true);
+    getVendors.mutate(
+      { data: { password: storedPassword } },
+      {
+        onSuccess: (data) => { setVendors(data); setVendorsLoading(false); },
+        onError: () => setVendorsLoading(false),
+      }
+    );
+  };
+
+  const handleActivateVendor = (vendorId: number) => {
+    activateVendor.mutate(
+      { data: { password: storedPassword, vendorId } },
+      {
+        onSuccess: (res) => {
+          setGeneratedCode({ code: res.code, phone: res.vendorPhone });
+          refetchVendors();
+        },
+        onError: () => toast({ title: "Erreur lors de l'activation", variant: "destructive" }),
+      }
+    );
+  };
+
+  const handleGenerateCode = (vendorId: number) => {
+    generateCode.mutate(
+      { data: { password: storedPassword, vendorId } },
+      {
+        onSuccess: (res) => {
+          setGeneratedCode({ code: res.code, phone: res.vendorPhone });
+          refetchVendors();
+        },
+        onError: () => toast({ title: "Erreur lors de la génération du code", variant: "destructive" }),
+      }
+    );
+  };
+
+  const sendCodeWhatsApp = (code: string, phone: string) => {
+    const msg = `Bonjour ! Votre code de publication TogoMarket est : ${code}\nIl est valable 30 jours. Bonne vente !`;
+    window.open(`https://wa.me/${phone.replace(/\D/g, "")}?text=${encodeURIComponent(msg)}`, "_blank");
   };
 
   const isAdActive = (ad: Ad) => new Date(ad.endDate) > new Date();
@@ -322,17 +376,17 @@ export function AdminModal({
         ) : (
           <div className="pt-2 space-y-4">
             {/* Tabs */}
-            <div className="flex rounded-lg border overflow-hidden">
+            <div className="grid grid-cols-4 rounded-lg border overflow-hidden">
               <button
                 onClick={() => setTab("pending")}
-                className={`flex-1 py-2 text-xs font-medium flex items-center justify-center gap-1 transition-colors ${
+                className={`py-2 text-xs font-medium flex items-center justify-center gap-1 transition-colors ${
                   tab === "pending" ? "bg-primary text-primary-foreground" : "bg-background hover:bg-muted"
                 }`}
               >
                 <Clock className="w-3.5 h-3.5" />
-                En attente
+                <span className="hidden xs:inline">Annonces</span>
                 {pendingListings.length > 0 && (
-                  <span className={`ml-1 px-1.5 py-0.5 rounded-full text-xs font-bold ${
+                  <span className={`px-1.5 py-0.5 rounded-full text-[10px] font-bold ${
                     tab === "pending" ? "bg-white/20 text-white" : "bg-primary text-primary-foreground"
                   }`}>
                     {pendingListings.length}
@@ -340,8 +394,17 @@ export function AdminModal({
                 )}
               </button>
               <button
+                onClick={() => { setTab("vendors"); refetchVendors(); }}
+                className={`py-2 text-xs font-medium flex items-center justify-center gap-1 transition-colors ${
+                  tab === "vendors" ? "bg-primary text-primary-foreground" : "bg-background hover:bg-muted"
+                }`}
+              >
+                <Users className="w-3.5 h-3.5" />
+                Vendeurs
+              </button>
+              <button
                 onClick={() => { setTab("ads"); refetchAds(); }}
-                className={`flex-1 py-2 text-xs font-medium flex items-center justify-center gap-1 transition-colors ${
+                className={`py-2 text-xs font-medium flex items-center justify-center gap-1 transition-colors ${
                   tab === "ads" ? "bg-primary text-primary-foreground" : "bg-background hover:bg-muted"
                 }`}
               >
@@ -350,12 +413,12 @@ export function AdminModal({
               </button>
               <button
                 onClick={() => setTab("settings")}
-                className={`flex-1 py-2 text-xs font-medium flex items-center justify-center gap-1 transition-colors ${
+                className={`py-2 text-xs font-medium flex items-center justify-center gap-1 transition-colors ${
                   tab === "settings" ? "bg-primary text-primary-foreground" : "bg-background hover:bg-muted"
                 }`}
               >
                 <Settings className="w-3.5 h-3.5" />
-                Paramètres
+                Config
               </button>
             </div>
 
@@ -423,6 +486,101 @@ export function AdminModal({
                       </div>
                     </div>
                   ))
+                )}
+              </div>
+            )}
+
+            {/* Tab: Vendeurs */}
+            {tab === "vendors" && (
+              <div className="space-y-3">
+                {generatedCode && (
+                  <div className="bg-green-50 border border-green-200 rounded-lg p-3 space-y-2">
+                    <p className="text-xs font-semibold text-green-700">Code généré avec succès !</p>
+                    <div className="flex items-center gap-3">
+                      <span className="text-2xl font-mono font-extrabold text-green-800 tracking-widest">{generatedCode.code}</span>
+                      <Button
+                        size="sm"
+                        className="h-7 text-xs bg-green-500 hover:bg-green-600 text-white gap-1"
+                        onClick={() => sendCodeWhatsApp(generatedCode.code, generatedCode.phone)}
+                      >
+                        Envoyer sur WhatsApp
+                      </Button>
+                    </div>
+                    <button className="text-[10px] text-green-600 underline" onClick={() => setGeneratedCode(null)}>Fermer</button>
+                  </div>
+                )}
+                <div className="flex items-center justify-between">
+                  <p className="text-sm font-semibold">Vendeurs ({vendors.length})</p>
+                  <Button size="sm" variant="outline" onClick={refetchVendors} className="h-7 px-2">
+                    <RefreshCw className="w-3.5 h-3.5" />
+                  </Button>
+                </div>
+                {vendorsLoading ? (
+                  <p className="text-sm text-center text-muted-foreground py-6">Chargement...</p>
+                ) : vendors.length === 0 ? (
+                  <div className="text-center py-8 text-muted-foreground">
+                    <Users className="w-10 h-10 mx-auto mb-2 opacity-30" />
+                    <p className="text-sm">Aucun vendeur inscrit</p>
+                  </div>
+                ) : (
+                  <div className="space-y-2">
+                    {vendors.map((v) => {
+                      const hasCode = !!v.publishCode;
+                      const daysLeft = v.publishCode?.daysLeft ?? 0;
+                      return (
+                        <div key={v.id} className={`border rounded-lg p-3 space-y-2 ${!v.verified ? "bg-amber-50/50 border-amber-200" : ""}`}>
+                          <div className="flex items-start gap-2">
+                            {v.profilePhoto ? (
+                              <img src={v.profilePhoto} alt={v.firstName} className="w-9 h-9 rounded-full object-cover border flex-shrink-0" />
+                            ) : (
+                              <div className="w-9 h-9 bg-muted rounded-full flex items-center justify-center flex-shrink-0 text-xs font-bold text-muted-foreground">
+                                {v.firstName[0]}{v.lastName[0]}
+                              </div>
+                            )}
+                            <div className="flex-1 min-w-0">
+                              <div className="flex items-center gap-1.5 flex-wrap">
+                                <p className="text-sm font-semibold">{v.firstName} {v.lastName}</p>
+                                <span className={`text-[10px] px-1.5 py-0.5 rounded-full font-bold ${v.verified ? "bg-green-100 text-green-700" : "bg-amber-100 text-amber-700"}`}>
+                                  {v.verified ? "Vérifié" : "En attente"}
+                                </span>
+                              </div>
+                              <p className="text-xs text-muted-foreground">{v.phone}</p>
+                              {v.verified && (
+                                <p className={`text-[10px] mt-0.5 font-medium ${hasCode ? "text-green-600" : "text-red-500"}`}>
+                                  {hasCode ? `Code actif — ${daysLeft} jour(s) restant(s)` : "Aucun code actif"}
+                                </p>
+                              )}
+                            </div>
+                          </div>
+                          <div className="flex gap-2">
+                            {!v.verified && (
+                              <Button
+                                size="sm"
+                                className="flex-1 h-7 text-xs bg-green-600 hover:bg-green-700 text-white"
+                                onClick={() => handleActivateVendor(v.id)}
+                                disabled={activateVendor.isPending}
+                              >
+                                <CheckCircle className="w-3 h-3 mr-1" />
+                                Activer + Code gratuit
+                              </Button>
+                            )}
+                            {v.verified && (
+                              <Button
+                                size="sm"
+                                variant="outline"
+                                className="flex-1 h-7 text-xs"
+                                onClick={() => handleGenerateCode(v.id)}
+                                disabled={generateCode.isPending}
+                              >
+                                <KeyRound className="w-3 h-3 mr-1" />
+                                {hasCode ? "Nouveau code" : "Générer code"}
+                              </Button>
+                            )}
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
                 )}
               </div>
             )}

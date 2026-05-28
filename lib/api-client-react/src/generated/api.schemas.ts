@@ -56,10 +56,11 @@ export interface ListingInput {
   price: number;
   location: string;
   sector: ListingInputSector;
-  phone: string;
   /** @maxItems 4 */
   images: string[];
-  publishCode: string;
+  vendorPhone: string;
+  vendorPassword: string;
+  vendorPublishCode: string;
 }
 
 export interface DeleteResult {
@@ -123,6 +124,62 @@ export interface SectorStat {
 export interface MarketStats {
   total: number;
   bysector: SectorStat[];
+}
+
+export interface VendorPublishCode {
+  code: string;
+  endDate: string;
+  daysLeft: number;
+}
+
+export interface VendorProfile {
+  id: number;
+  firstName: string;
+  lastName: string;
+  phone: string;
+  verified: boolean;
+  /** @nullable */
+  profilePhoto?: string | null;
+  createdAt: string;
+  publishCode?: VendorPublishCode | null;
+}
+
+export interface VendorRegisterInput {
+  firstName: string;
+  lastName: string;
+  phone: string;
+  password: string;
+}
+
+export interface VendorRegisterResult {
+  id: number;
+  firstName: string;
+  lastName: string;
+  phone: string;
+  verifyCode: string;
+}
+
+export interface VendorLoginInput {
+  phone: string;
+  password: string;
+}
+
+export interface VendorProfileUpdateInput {
+  phone: string;
+  password: string;
+  /** @nullable */
+  profilePhoto?: string | null;
+}
+
+export interface AdminActivateVendorInput {
+  password: string;
+  vendorId: number;
+}
+
+export interface AdminActivateVendorResult {
+  success: boolean;
+  code: string;
+  vendorPhone: string;
 }
 
 export type GetListingsParams = {

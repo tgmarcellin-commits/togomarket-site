@@ -19,6 +19,8 @@ tags:
     description: Statistics operations
   - name: ads
     description: Advertisement operations
+  - name: vendors
+    description: Vendor account operations
 paths:
   /healthz:
     get:
@@ -304,6 +306,134 @@ paths:
               schema:
                 $ref: "#/components/schemas/MarketStats"
 
+  /vendors/register:
+    post:
+      operationId: vendorRegister
+      tags: [vendors]
+      summary: Register a new vendor account
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/VendorRegisterInput"
+      responses:
+        "201":
+          description: Vendor registered (pending admin activation)
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/VendorRegisterResult"
+        "409":
+          description: Phone number already registered
+
+  /vendors/login:
+    post:
+      operationId: vendorLogin
+      tags: [vendors]
+      summary: Login as a vendor
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/VendorLoginInput"
+      responses:
+        "200":
+          description: Vendor profile with publish code status
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/VendorProfile"
+        "401":
+          description: Invalid credentials
+
+  /vendors/profile/update:
+    post:
+      operationId: vendorUpdateProfile
+      tags: [vendors]
+      summary: Update vendor profile photo
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/VendorProfileUpdateInput"
+      responses:
+        "200":
+          description: Updated profile
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/VendorProfile"
+        "401":
+          description: Invalid credentials
+
+  /admin/vendors:
+    post:
+      operationId: adminGetVendors
+      tags: [admin, vendors]
+      summary: Get all vendor accounts (admin only)
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/AdminPasswordInput"
+      responses:
+        "200":
+          description: All vendors
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/VendorProfile"
+        "403":
+          description: Forbidden
+
+  /admin/vendors/activate:
+    post:
+      operationId: adminActivateVendor
+      tags: [admin, vendors]
+      summary: Activate a vendor account and generate first free publish code (admin only)
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/AdminActivateVendorInput"
+      responses:
+        "200":
+          description: Activated with generated code
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AdminActivateVendorResult"
+        "403":
+          description: Forbidden
+
+  /admin/vendors/generate-code:
+    post:
+      operationId: adminGenerateVendorCode
+      tags: [admin, vendors]
+      summary: Generate a new publish code for a vendor (admin only, after payment)
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/AdminActivateVendorInput"
+      responses:
+        "200":
+          description: New code generated
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AdminActivateVendorResult"
+        "403":
+          description: Forbidden
+
 components:
   schemas:
     Ad:
@@ -374,7 +504,7 @@ components:
 
     ListingInput:
       type: object
-      required: [name, price, location, sector, phone, images, publishCode]
+      required: [name, price, location, sector, images, vendorPhone, vendorPassword, vendorPublishCode]
       properties:
         name:
           type: string
@@ -385,14 +515,16 @@ components:
         sector:
           type: string
           enum: [AgriMarket, Immobilier, Automobile, Divers]
-        phone:
-          type: string
         images:
           type: array
           items:
             type: string
           maxItems: 4
-        publishCode:
+        vendorPhone:
+          type: string
+        vendorPassword:
+          type: string
+        vendorPublishCode:
           type: string
 
     DeleteResult:
@@ -510,3 +642,105 @@ components:
           type: string
         count:
           type: integer
+
+    VendorPublishCode:
+      type: object
+      required: [code, endDate, daysLeft]
+      properties:
+        code:
+          type: string
+        endDate:
+          type: string
+        daysLeft:
+          type: integer
+
+    VendorProfile:
+      type: object
+      required: [id, firstName, lastName, phone, verified, createdAt]
+      properties:
+        id:
+          type: integer
+        firstName:
+          type: string
+        lastName:
+          type: string
+        phone:
+          type: string
+        verified:
+          type: boolean
+        profilePhoto:
+          type: ["string", "null"]
+        createdAt:
+          type: string
+        publishCode:
+          oneOf:
+            - $ref: "#/components/schemas/VendorPublishCode"
+            - type: "null"
+
+    VendorRegisterInput:
+      type: object
+      required: [firstName, lastName, phone, password]
+      properties:
+        firstName:
+          type: string
+        lastName:
+          type: string
+        phone:
+          type: string
+        password:
+          type: string
+
+    VendorRegisterResult:
+      type: object
+      required: [id, firstName, lastName, phone, verifyCode]
+      properties:
+        id:
+          type: integer
+        firstName:
+          type: string
+        lastName:
+          type: string
+        phone:
+          type: string
+        verifyCode:
+          type: string
+
+    VendorLoginInput:
+      type: object
+      required: [phone, password]
+      properties:
+        phone:
+          type: string
+        password:
+          type: string
+
+    VendorProfileUpdateInput:
+      type: object
+      required: [phone, password]
+      properties:
+        phone:
+          type: string
+        password:
+          type: string
+        profilePhoto:
+          type: ["string", "null"]
+
+    AdminActivateVendorInput:
+      type: object
+      required: [password, vendorId]
+      properties:
+        password:
+          type: string
+        vendorId:
+          type: integer
+
+    AdminActivateVendorResult:
+      type: object
+      required: [success, code, vendorPhone]
+      properties:
+        success:
+          type: boolean
+        code:
+          type: string
+        vendorPhone:
+          type: string

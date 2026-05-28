@@ -9,6 +9,7 @@ import adminRouter from "./admin";
 import statsRouter from "./stats";
 import settingsRouter from "./settings";
 import adsRouter from "./ads";
+import vendorsRouter from "./vendors";
 
 const router: IRouter = Router();
 
@@ -19,6 +20,7 @@ router.use(adminRouter);
 router.use(statsRouter);
 router.use(settingsRouter);
 router.use(adsRouter);
+router.use(vendorsRouter);
 
 async function cleanupOldListings() {
   const cutoff = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000);

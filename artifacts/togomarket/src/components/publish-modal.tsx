@@ -2,7 +2,7 @@ import { useState } from "react";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import * as z from "zod";
-import { useCreateListing, getGetListingsQueryKey, useGetAdminSettings } from "@workspace/api-client-react";
+import { useCreateListing, getGetListingsQueryKey, type VendorProfile } from "@workspace/api-client-react";
 import { useQueryClient } from "@tanstack/react-query";
 import { Button } from "@/components/ui/button";
 import {
@@ -22,15 +22,15 @@ import {
 import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { resizeImage } from "@/lib/image";
-import { UploadCloud, X, Lock, KeyRound } from "lucide-react";
+import { UploadCloud, X, Lock, KeyRound, AlertCircle, UserCircle2 } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 
+const PHONE_REGEX = /\d[\s\-\.]?\d[\s\-\.]?\d[\s\-\.]?\d[\s\-\.]?\d[\s\-\.]?\d[\s\-\.]?\d[\s\-\.]?\d/;
+
 const codeSchema = z.object({
-  code: z.string().min(1, "Code requis"),
+  code: z.string().length(4, "Le code doit comporter 4 chiffres"),
 });
 type CodeValues = z.infer<typeof codeSchema>;
-
-const PHONE_REGEX = /\d[\s\-\.]?\d[\s\-\.]?\d[\s\-\.]?\d[\s\-\.]?\d[\s\-\.]?\d[\s\-\.]?\d[\s\-\.]?\d/;
 
 const formSchema = z.object({
   name: z
@@ -47,24 +47,25 @@ const formSchema = z.object({
       message: "Le quartier/ville ne doit pas contenir de numéro de téléphone.",
     }),
   sector: z.enum(["AgriMarket", "Immobilier", "Automobile", "Divers"]),
-  phone: z.string().min(8, "Numéro requis"),
 });
 type FormValues = z.infer<typeof formSchema>;
 
 interface PublishModalProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
+  vendor: VendorProfile | null;
+  vendorPassword: string;
+  onNeedLogin: () => void;
 }
 
-export function PublishModal({ open, onOpenChange }: PublishModalProps) {
-  const [screen, setScreen] = useState<"code" | "form">("code");
+export function PublishModal({ open, onOpenChange, vendor, vendorPassword, onNeedLogin }: PublishModalProps) {
+  const [screen, setScreen] = useState<"gate" | "code" | "form">("gate");
   const [verifiedCode, setVerifiedCode] = useState("");
   const [images, setImages] = useState<string[]>([]);
   const [isProcessing, setIsProcessing] = useState(false);
   const { toast } = useToast();
   const queryClient = useQueryClient();
   const createListing = useCreateListing();
-  const { data: settings } = useGetAdminSettings();
 
   const codeForm = useForm<CodeValues>({
     resolver: zodResolver(codeSchema),
@@ -78,14 +79,13 @@ export function PublishModal({ open, onOpenChange }: PublishModalProps) {
       price: 0,
       location: "",
       sector: "Divers" as const,
-      phone: "",
     },
   });
 
   const onVerifyCode = (data: CodeValues) => {
-    const expected = settings?.publishCode ?? "TOGO2026";
-    if (data.code.trim() !== expected) {
-      codeForm.setError("code", { message: "Code incorrect. Contactez l'administrateur." });
+    const activeCode = vendor?.publishCode?.code;
+    if (!activeCode || data.code.trim() !== activeCode) {
+      codeForm.setError("code", { message: "Code incorrect. Vérifiez votre code de publication." });
       return;
     }
     setVerifiedCode(data.code.trim());
@@ -115,8 +115,17 @@ export function PublishModal({ open, onOpenChange }: PublishModalProps) {
   };
 
   const onSubmit = (data: FormValues) => {
+    if (!vendor) return;
     createListing.mutate(
-      { data: { ...data, images, publishCode: verifiedCode } },
+      {
+        data: {
+          ...data,
+          images,
+          vendorPhone: vendor.phone,
+          vendorPassword,
+          vendorPublishCode: verifiedCode,
+        },
+      },
       {
         onSuccess: () => {
           queryClient.invalidateQueries({ queryKey: getGetListingsQueryKey() });
@@ -124,31 +133,119 @@ export function PublishModal({ open, onOpenChange }: PublishModalProps) {
             title: "Annonce soumise !",
             description: "Votre annonce est en attente de validation par l'administrateur.",
           });
-          const message = `Nouvelle annonce soumise sur TogoMarket (en attente de validation)\n\nTitre: ${data.name}\nPrix: ${data.price} FCFA\nSecteur: ${data.sector}\nTéléphone vendeur: ${data.phone}`;
+          const message = `Nouvelle annonce soumise sur TogoMarket (en attente de validation)\n\nTitre: ${data.name}\nPrix: ${data.price} FCFA\nSecteur: ${data.sector}\nVendeur: ${vendor.firstName} ${vendor.lastName}\nTéléphone: ${vendor.phone}`;
           window.open(`https://wa.me/22870703131?text=${encodeURIComponent(message)}`, "_blank");
           form.reset();
           codeForm.reset();
           setImages([]);
-          setScreen("code");
+          setScreen("gate");
           setVerifiedCode("");
           onOpenChange(false);
         },
-        onError: () => {
-          toast({ title: "Erreur lors de la publication", variant: "destructive" });
+        onError: (err: unknown) => {
+          const msg = (err as { message?: string })?.message ?? "";
+          toast({ title: "Erreur lors de la publication", description: msg || undefined, variant: "destructive" });
         },
       }
     );
   };
 
-  const handleOpenChange = (open: boolean) => {
-    if (!open) {
-      setScreen("code");
+  const handleOpenChange = (val: boolean) => {
+    if (!val) {
+      setScreen("gate");
       codeForm.reset();
       form.reset();
       setImages([]);
       setVerifiedCode("");
     }
-    onOpenChange(open);
+    onOpenChange(val);
+  };
+
+  const handleRenewWhatsApp = () => {
+    const msg = `Bonjour, je souhaite renouveler mon code de publication TogoMarket.\nNom : ${vendor?.firstName} ${vendor?.lastName}\nNuméro : ${vendor?.phone}\nMontant : 1 000 FCFA`;
+    window.open(`https://wa.me/22870703131?text=${encodeURIComponent(msg)}`, "_blank");
+  };
+
+  const Gate = () => {
+    if (!vendor) {
+      return (
+        <div className="py-6 text-center space-y-4">
+          <div className="w-14 h-14 bg-muted rounded-full flex items-center justify-center mx-auto">
+            <UserCircle2 className="w-8 h-8 text-muted-foreground" />
+          </div>
+          <div>
+            <p className="font-semibold text-base mb-1">Connexion requise</p>
+            <p className="text-sm text-muted-foreground">Vous devez être connecté pour publier une annonce.</p>
+          </div>
+          <Button className="w-full" onClick={() => { onOpenChange(false); onNeedLogin(); }}>
+            Se connecter / Créer un compte
+          </Button>
+        </div>
+      );
+    }
+
+    if (!vendor.verified) {
+      return (
+        <div className="py-6 text-center space-y-4">
+          <div className="w-14 h-14 bg-amber-100 rounded-full flex items-center justify-center mx-auto">
+            <AlertCircle className="w-8 h-8 text-amber-500" />
+          </div>
+          <div>
+            <p className="font-semibold text-base mb-1">Compte en attente</p>
+            <p className="text-sm text-muted-foreground">
+              Votre compte n'est pas encore activé. Envoyez votre code de vérification sur WhatsApp si ce n'est pas encore fait.
+            </p>
+          </div>
+          <Button
+            className="w-full bg-green-500 hover:bg-green-600 text-white"
+            onClick={() => window.open("https://wa.me/22870703131?text=Bonjour%2C%20je%20veux%20activer%20mon%20compte%20vendeur%20TogoMarket.", "_blank")}
+          >
+            Contacter l'administrateur
+          </Button>
+        </div>
+      );
+    }
+
+    if (!vendor.publishCode) {
+      return (
+        <div className="py-6 text-center space-y-4">
+          <div className="w-14 h-14 bg-red-100 rounded-full flex items-center justify-center mx-auto">
+            <KeyRound className="w-8 h-8 text-red-400" />
+          </div>
+          <div>
+            <p className="font-semibold text-base mb-1">Code expiré</p>
+            <p className="text-sm text-muted-foreground">
+              Votre code de publication a expiré. Renouvelez-le pour 1 000 FCFA/mois.
+            </p>
+          </div>
+          <Button className="w-full bg-green-500 hover:bg-green-600 text-white" onClick={handleRenewWhatsApp}>
+            Renouveler via WhatsApp — 1 000 FCFA/mois
+          </Button>
+        </div>
+      );
+    }
+
+    return (
+      <div className="py-4 space-y-4">
+        <div className="flex items-center gap-3 bg-muted/50 rounded-lg p-3">
+          {vendor.profilePhoto ? (
+            <img src={vendor.profilePhoto} alt={vendor.firstName} className="w-10 h-10 rounded-full object-cover flex-shrink-0" />
+          ) : (
+            <div className="w-10 h-10 bg-primary/10 rounded-full flex items-center justify-center flex-shrink-0">
+              <span className="text-primary font-bold text-sm">{vendor.firstName[0]}{vendor.lastName[0]}</span>
+            </div>
+          )}
+          <div className="min-w-0">
+            <p className="font-semibold text-sm truncate">{vendor.firstName} {vendor.lastName}</p>
+            <p className="text-xs text-muted-foreground">Code valide — {vendor.publishCode.daysLeft} jour(s) restant(s)</p>
+          </div>
+        </div>
+        <Button className="w-full" onClick={() => setScreen("code")}>
+          <Lock className="w-4 h-4 mr-2" />
+          Publier une annonce
+        </Button>
+      </div>
+    );
   };
 
   return (
@@ -157,17 +254,21 @@ export function PublishModal({ open, onOpenChange }: PublishModalProps) {
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2">
             {screen === "code" ? (
-              <><Lock className="w-5 h-5" /> Accès vendeur</>
-            ) : (
+              <><KeyRound className="w-5 h-5" /> Entrez votre code de publication</>
+            ) : screen === "form" ? (
               "Vendre un article"
+            ) : (
+              <><Lock className="w-5 h-5" /> Publier une annonce</>
             )}
           </DialogTitle>
         </DialogHeader>
 
-        {screen === "code" ? (
+        {screen === "gate" && <Gate />}
+
+        {screen === "code" && vendor?.publishCode && (
           <div className="pt-2">
-            <p className="text-sm text-muted-foreground mb-6">
-              Pour publier une annonce, vous devez disposer d'un code d'accès vendeur. Contactez l'administrateur sur WhatsApp pour l'obtenir.
+            <p className="text-sm text-muted-foreground mb-4">
+              Entrez votre code à 4 chiffres pour accéder au formulaire de publication.
             </p>
             <Form {...codeForm}>
               <form onSubmit={codeForm.handleSubmit(onVerifyCode)} className="space-y-4">
@@ -177,33 +278,36 @@ export function PublishModal({ open, onOpenChange }: PublishModalProps) {
                   render={({ field }) => (
                     <FormItem>
                       <FormLabel className="flex items-center gap-1">
-                        <KeyRound className="w-4 h-4" /> Code d'accès vendeur
+                        <KeyRound className="w-4 h-4" /> Code de publication (4 chiffres)
                       </FormLabel>
                       <FormControl>
-                        <Input placeholder="Entrez votre code..." {...field} />
+                        <Input
+                          placeholder="• • • •"
+                          maxLength={4}
+                          className="text-center text-2xl font-mono tracking-widest"
+                          {...field}
+                        />
                       </FormControl>
                       <FormMessage />
                     </FormItem>
                   )}
                 />
                 <Button type="submit" className="w-full bg-primary hover:bg-primary/90">
-                  Valider le code
+                  Valider
                 </Button>
-                <p className="text-center text-xs text-muted-foreground">
-                  Pas de code ?{" "}
-                  <a
-                    href="https://wa.me/22870703131?text=Bonjour%2C%20je%20voudrais%20un%20code%20vendeur%20pour%20TogoMarket"
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="text-primary underline"
-                  >
-                    Demandez-en un sur WhatsApp
-                  </a>
-                </p>
+                <button
+                  type="button"
+                  className="text-xs text-muted-foreground underline w-full text-center"
+                  onClick={() => setScreen("gate")}
+                >
+                  Retour
+                </button>
               </form>
             </Form>
           </div>
-        ) : (
+        )}
+
+        {screen === "form" && (
           <Form {...form}>
             <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4">
               <div className="flex items-start gap-2 text-xs text-amber-700 bg-amber-50 border border-amber-200 rounded-md px-3 py-2.5">
@@ -264,34 +368,19 @@ export function PublishModal({ open, onOpenChange }: PublishModalProps) {
                 />
               </div>
 
-              <div className="grid grid-cols-2 gap-4">
-                <FormField
-                  control={form.control}
-                  name="location"
-                  render={({ field }) => (
-                    <FormItem>
-                      <FormLabel>Quartier / Ville</FormLabel>
-                      <FormControl>
-                        <Input placeholder="Lomé, Agoè" {...field} />
-                      </FormControl>
-                      <FormMessage />
-                    </FormItem>
-                  )}
-                />
-                <FormField
-                  control={form.control}
-                  name="phone"
-                  render={({ field }) => (
-                    <FormItem>
-                      <FormLabel>Votre Numéro (WhatsApp)</FormLabel>
-                      <FormControl>
-                        <Input placeholder="+228 XX XX XX XX" {...field} />
-                      </FormControl>
-                      <FormMessage />
-                    </FormItem>
-                  )}
-                />
-              </div>
+              <FormField
+                control={form.control}
+                name="location"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Quartier / Ville</FormLabel>
+                    <FormControl>
+                      <Input placeholder="Lomé, Agoè" {...field} />
+                    </FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
 
               <div>
                 <label className="text-sm font-medium leading-none">Images (Max 4)</label>

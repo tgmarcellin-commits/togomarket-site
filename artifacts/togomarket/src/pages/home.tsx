@@ -4,14 +4,16 @@ import {
   getGetListingsQueryKey,
   useGetStats,
   useGetAdminSettings,
+  type VendorProfile,
 } from "@workspace/api-client-react";
-import { Search, SearchIcon } from "lucide-react";
+import { Search, SearchIcon, LogIn, UserCircle2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { ListingCard } from "@/components/listing-card";
 import { PublishModal } from "@/components/publish-modal";
 import { OrderModal } from "@/components/order-modal";
 import { AdminModal } from "@/components/admin-modal";
+import { AuthModal } from "@/components/auth-modal";
 import { InstallPrompt } from "@/components/install-prompt";
 import { AdBanner } from "@/components/ad-banner";
 
@@ -23,11 +25,15 @@ export default function Home() {
   const [isPublishModalOpen, setIsPublishModalOpen] = useState(false);
   const [isOrderModalOpen, setIsOrderModalOpen] = useState(false);
   const [isAdminModalOpen, setIsAdminModalOpen] = useState(false);
+  const [isAuthModalOpen, setIsAuthModalOpen] = useState(false);
   const [logoTapCount, setLogoTapCount] = useState(0);
   const logoTapTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const [isAdmin, setIsAdmin] = useState(false);
   const [adminPassword, setAdminPassword] = useState("");
+
+  const [vendor, setVendor] = useState<VendorProfile | null>(null);
+  const [vendorPassword, setVendorPassword] = useState("");
 
   const { data: listings, isLoading } = useGetListings(
     { search, sector },
@@ -40,6 +46,16 @@ export default function Home() {
   const handleSearchSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     setSearch(searchInput);
+  };
+
+  const handleLoginSuccess = (v: VendorProfile, pwd: string) => {
+    setVendor(v);
+    setVendorPassword(pwd);
+  };
+
+  const handleLogout = () => {
+    setVendor(null);
+    setVendorPassword("");
   };
 
   const categories = [
@@ -86,12 +102,41 @@ export default function Home() {
               <span className="text-primary">Market</span>
             </span>
           </div>
-          <Button
-            onClick={() => setIsPublishModalOpen(true)}
-            className="bg-primary hover:bg-primary/90 rounded-full font-semibold px-6"
-          >
-            Vendre
-          </Button>
+
+          {/* Auth / Publish buttons */}
+          <div className="flex items-center gap-2">
+            {vendor ? (
+              <>
+                <Button
+                  onClick={() => setIsPublishModalOpen(true)}
+                  className="bg-primary hover:bg-primary/90 rounded-full font-semibold px-5"
+                >
+                  Publier
+                </Button>
+                <button
+                  onClick={handleLogout}
+                  className="flex items-center gap-1.5 rounded-full border px-3 py-1.5 text-xs font-medium hover:bg-muted transition-colors"
+                  title="Se déconnecter"
+                >
+                  {vendor.profilePhoto ? (
+                    <img src={vendor.profilePhoto} alt={vendor.firstName} className="w-6 h-6 rounded-full object-cover" />
+                  ) : (
+                    <UserCircle2 className="w-5 h-5 text-muted-foreground" />
+                  )}
+                  <span className="hidden sm:inline max-w-[80px] truncate">{vendor.firstName}</span>
+                </button>
+              </>
+            ) : (
+              <Button
+                onClick={() => setIsAuthModalOpen(true)}
+                variant="outline"
+                className="rounded-full font-semibold px-5 gap-2"
+              >
+                <LogIn className="w-4 h-4" />
+                Connexion
+              </Button>
+            )}
+          </div>
         </div>
       </header>
 
@@ -242,7 +287,13 @@ export default function Home() {
       </div>
 
       {/* Modals */}
-      <PublishModal open={isPublishModalOpen} onOpenChange={setIsPublishModalOpen} />
+      <PublishModal
+        open={isPublishModalOpen}
+        onOpenChange={setIsPublishModalOpen}
+        vendor={vendor}
+        vendorPassword={vendorPassword}
+        onNeedLogin={() => setIsAuthModalOpen(true)}
+      />
       <OrderModal open={isOrderModalOpen} onOpenChange={setIsOrderModalOpen} />
       <AdminModal
         open={isAdminModalOpen}
@@ -253,6 +304,11 @@ export default function Home() {
           setIsAdmin(true);
           setAdminPassword(pwd);
         }}
+      />
+      <AuthModal
+        open={isAuthModalOpen}
+        onOpenChange={setIsAuthModalOpen}
+        onLoginSuccess={handleLoginSuccess}
       />
     </div>
   );

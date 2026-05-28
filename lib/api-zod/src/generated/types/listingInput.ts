@@ -12,8 +12,9 @@ export interface ListingInput {
   price: number;
   location: string;
   sector: ListingInputSector;
-  phone: string;
   /** @maxItems 4 */
   images: string[];
-  publishCode: string;
+  vendorPhone: string;
+  vendorPassword: string;
+  vendorPublishCode: string;
 }
