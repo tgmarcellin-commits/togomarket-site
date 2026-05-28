@@ -91,6 +91,10 @@ export function AdminModal({
   const [vendorsLoading, setVendorsLoading] = useState(false);
   const [generatedCode, setGeneratedCode] = useState<{ code: string; phone: string } | null>(null);
 
+  const [expandedAdIds, setExpandedAdIds] = useState<Set<number>>(new Set());
+  const toggleAdExpand = (id: number) =>
+    setExpandedAdIds((prev) => { const next = new Set(prev); next.has(id) ? next.delete(id) : next.add(id); return next; });
+
   const [adminPublishForm, setAdminPublishForm] = useState({
     name: "", price: "", location: "", sector: "Divers", phone: "", images: [] as string[],
   });
@@ -814,7 +818,24 @@ export function AdminModal({
                                   {active ? "Actif" : "Expiré"}
                                 </span>
                               </div>
-                              <p className="text-xs text-muted-foreground truncate">{ad.message}</p>
+                              {(() => {
+                                const expanded = expandedAdIds.has(ad.id);
+                                const MAX = 100;
+                                const isLong = ad.message.length > MAX;
+                                return (
+                                  <p className="text-xs text-muted-foreground break-words">
+                                    {expanded || !isLong ? ad.message : ad.message.slice(0, MAX) + "…"}
+                                    {isLong && (
+                                      <button
+                                        onClick={() => toggleAdExpand(ad.id)}
+                                        className="ml-1 text-primary font-medium hover:underline"
+                                      >
+                                        {expanded ? "Voir moins" : "Voir plus"}
+                                      </button>
+                                    )}
+                                  </p>
+                                );
+                              })()}
                               <p className="text-[10px] text-muted-foreground">Expire le {endDate}</p>
                             </div>
                           </div>
