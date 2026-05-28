@@ -6,7 +6,9 @@
  * OpenAPI spec version: 0.1.0
  */
 
+export * from './ad';
 export * from './adminApproveInput';
+export * from './adminCreateAdInput';
 export * from './adminDeleteInput';
 export * from './adminPasswordInput';
 export * from './adminVerifyInput';

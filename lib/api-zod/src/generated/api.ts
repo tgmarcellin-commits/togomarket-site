@@ -151,6 +151,65 @@ export const UpdateAdminSettingsResponse = zod.object({
 
 
 /**
+ * @summary Get active advertisements
+ */
+export const GetActiveAdsResponseItem = zod.object({
+  "id": zod.number(),
+  "advertiserName": zod.string(),
+  "advertiserPhone": zod.string(),
+  "message": zod.string(),
+  "image": zod.string().nullish(),
+  "startDate": zod.string(),
+  "endDate": zod.string()
+})
+export const GetActiveAdsResponse = zod.array(GetActiveAdsResponseItem)
+
+
+/**
+ * @summary Create a new advertisement (admin only)
+ */
+export const AdminCreateAdBody = zod.object({
+  "password": zod.string(),
+  "advertiserName": zod.string(),
+  "advertiserPhone": zod.string(),
+  "message": zod.string(),
+  "image": zod.string().optional()
+})
+
+
+/**
+ * @summary Get all ads including expired (admin only)
+ */
+export const AdminGetAllAdsBody = zod.object({
+  "password": zod.string()
+})
+
+export const AdminGetAllAdsResponseItem = zod.object({
+  "id": zod.number(),
+  "advertiserName": zod.string(),
+  "advertiserPhone": zod.string(),
+  "message": zod.string(),
+  "image": zod.string().nullish(),
+  "startDate": zod.string(),
+  "endDate": zod.string()
+})
+export const AdminGetAllAdsResponse = zod.array(AdminGetAllAdsResponseItem)
+
+
+/**
+ * @summary Delete an advertisement (admin only)
+ */
+export const AdminDeleteAdBody = zod.object({
+  "id": zod.number(),
+  "password": zod.string()
+})
+
+export const AdminDeleteAdResponse = zod.object({
+  "success": zod.boolean()
+})
+
+
+/**
  * @summary Get marketplace statistics
  */
 export const GetStatsResponse = zod.object({

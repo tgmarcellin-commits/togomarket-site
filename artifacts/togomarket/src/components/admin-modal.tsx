@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useRef } from "react";
 import { ImageViewer } from "@/components/image-viewer";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
@@ -10,7 +10,11 @@ import {
   useAdminGetPendingListings,
   useAdminApproveListing,
   useAdminDeleteListing,
+  useAdminCreateAd,
+  useAdminGetAllAds,
+  useAdminDeleteAd,
   getGetAdminSettingsQueryKey,
+  type Ad,
 } from "@workspace/api-client-react";
 import { useQueryClient } from "@tanstack/react-query";
 import { Button } from "@/components/ui/button";
@@ -30,7 +34,8 @@ import {
 } from "@/components/ui/form";
 import { Input } from "@/components/ui/input";
 import { useToast } from "@/hooks/use-toast";
-import { Settings, LogOut, CheckCircle, Trash2, Clock, KeyRound } from "lucide-react";
+import { Settings, LogOut, CheckCircle, Trash2, Clock, KeyRound, Megaphone, Plus, RefreshCw } from "lucide-react";
+import { resizeImage } from "@/lib/image";
 
 const loginSchema = z.object({
   password: z.string().min(1, "Mot de passe requis"),
@@ -53,7 +58,7 @@ const COMMISSION_OPTIONS = [
   { rate: 5, label: "5% (max 5 000 FCFA pour les articles > 100 000 FCFA)" },
 ];
 
-type DashTab = "pending" | "settings";
+type DashTab = "pending" | "ads" | "settings";
 
 export function AdminModal({
   open,
@@ -70,6 +75,78 @@ export function AdminModal({
   const [newCode, setNewCode] = useState("");
   const [viewerImages, setViewerImages] = useState<string[]>([]);
   const [viewerIndex, setViewerIndex] = useState(0);
+
+  const [allAds, setAllAds] = useState<Ad[]>([]);
+  const [adsLoading, setAdsLoading] = useState(false);
+  const [showAdForm, setShowAdForm] = useState(false);
+  const [adForm, setAdForm] = useState({ advertiserName: "", advertiserPhone: "", message: "", image: "" });
+  const adImageRef = useRef<HTMLInputElement>(null);
+
+  const createAd = useAdminCreateAd();
+  const getAllAds = useAdminGetAllAds();
+  const deleteAd = useAdminDeleteAd();
+
+  const refetchAds = () => {
+    if (!storedPassword) return;
+    setAdsLoading(true);
+    getAllAds.mutate(
+      { data: { password: storedPassword } },
+      {
+        onSuccess: (data) => { setAllAds(data); setAdsLoading(false); },
+        onError: () => setAdsLoading(false),
+      }
+    );
+  };
+
+  const isAdActive = (ad: Ad) => new Date(ad.endDate) > new Date();
+
+  const handleAdImageChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    try {
+      const resized = await resizeImage(file);
+      setAdForm((f) => ({ ...f, image: resized }));
+    } catch {
+      setAdForm((f) => ({ ...f, image: "" }));
+    }
+  };
+
+  const handleCreateAd = () => {
+    if (!adForm.advertiserName.trim() || !adForm.advertiserPhone.trim() || !adForm.message.trim()) {
+      toast({ title: "Champs requis", description: "Remplissez tous les champs obligatoires.", variant: "destructive" });
+      return;
+    }
+    createAd.mutate(
+      { data: { password: storedPassword, ...adForm } },
+      {
+        onSuccess: () => {
+          toast({ title: "Publicité créée", description: "Elle est maintenant visible sur le site pendant 30 jours." });
+          setAdForm({ advertiserName: "", advertiserPhone: "", message: "", image: "" });
+          setShowAdForm(false);
+          refetchAds();
+        },
+        onError: () => {
+          toast({ title: "Erreur", description: "Impossible de créer la publicité.", variant: "destructive" });
+        },
+      }
+    );
+  };
+
+  const handleDeleteAd = (id: number) => {
+    if (!confirm("Supprimer cette publicité ?")) return;
+    deleteAd.mutate(
+      { data: { id, password: storedPassword } },
+      {
+        onSuccess: () => { toast({ title: "Publicité supprimée" }); refetchAds(); },
+        onError: () => { toast({ title: "Erreur", variant: "destructive" }); },
+      }
+    );
+  };
+
+  const handleRenewWhatsApp = (ad: Ad) => {
+    const msg = `Bonjour ${ad.advertiserName}, votre publicité sur TogoMarket a expiré. Souhaitez-vous la renouveler pour 1 000 FCFA/mois ?`;
+    window.open(`https://wa.me/${ad.advertiserPhone.replace(/\D/g, "")}?text=${encodeURIComponent(msg)}`, "_blank");
+  };
 
   const openViewer = (images: string[], index: number) => {
     setViewerImages(images);
@@ -122,6 +199,10 @@ export function AdminModal({
                 onSuccess: (d) => { setPendingListings(d); setPendingLoading(false); },
                 onError: () => setPendingLoading(false),
               }
+            );
+            getAllAds.mutate(
+              { data: { password: data.password } },
+              { onSuccess: (d) => setAllAds(d) }
             );
           } else {
             form.setError("password", { message: "Mot de passe incorrect" });
@@ -244,11 +325,11 @@ export function AdminModal({
             <div className="flex rounded-lg border overflow-hidden">
               <button
                 onClick={() => setTab("pending")}
-                className={`flex-1 py-2 text-sm font-medium flex items-center justify-center gap-1.5 transition-colors ${
+                className={`flex-1 py-2 text-xs font-medium flex items-center justify-center gap-1 transition-colors ${
                   tab === "pending" ? "bg-primary text-primary-foreground" : "bg-background hover:bg-muted"
                 }`}
               >
-                <Clock className="w-4 h-4" />
+                <Clock className="w-3.5 h-3.5" />
                 En attente
                 {pendingListings.length > 0 && (
                   <span className={`ml-1 px-1.5 py-0.5 rounded-full text-xs font-bold ${
@@ -259,12 +340,21 @@ export function AdminModal({
                 )}
               </button>
               <button
+                onClick={() => { setTab("ads"); refetchAds(); }}
+                className={`flex-1 py-2 text-xs font-medium flex items-center justify-center gap-1 transition-colors ${
+                  tab === "ads" ? "bg-primary text-primary-foreground" : "bg-background hover:bg-muted"
+                }`}
+              >
+                <Megaphone className="w-3.5 h-3.5" />
+                Pubs
+              </button>
+              <button
                 onClick={() => setTab("settings")}
-                className={`flex-1 py-2 text-sm font-medium flex items-center justify-center gap-1.5 transition-colors ${
+                className={`flex-1 py-2 text-xs font-medium flex items-center justify-center gap-1 transition-colors ${
                   tab === "settings" ? "bg-primary text-primary-foreground" : "bg-background hover:bg-muted"
                 }`}
               >
-                <Settings className="w-4 h-4" />
+                <Settings className="w-3.5 h-3.5" />
                 Paramètres
               </button>
             </div>
@@ -333,6 +423,130 @@ export function AdminModal({
                       </div>
                     </div>
                   ))
+                )}
+              </div>
+            )}
+
+            {/* Tab: Publicités */}
+            {tab === "ads" && (
+              <div className="space-y-3">
+                <div className="flex items-center justify-between">
+                  <p className="text-sm font-semibold">Publicités ({allAds.length})</p>
+                  <div className="flex gap-2">
+                    <Button size="sm" variant="outline" onClick={refetchAds} className="h-7 px-2">
+                      <RefreshCw className="w-3.5 h-3.5" />
+                    </Button>
+                    <Button size="sm" onClick={() => setShowAdForm(!showAdForm)} className="h-7 px-2 gap-1">
+                      <Plus className="w-3.5 h-3.5" />
+                      Ajouter
+                    </Button>
+                  </div>
+                </div>
+
+                {showAdForm && (
+                  <div className="border rounded-lg p-3 space-y-2 bg-muted/30">
+                    <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">Nouvelle publicité — 1 000 FCFA/mois</p>
+                    <Input
+                      placeholder="Nom de l'annonceur *"
+                      value={adForm.advertiserName}
+                      onChange={(e) => setAdForm((f) => ({ ...f, advertiserName: e.target.value }))}
+                      className="h-8 text-sm"
+                    />
+                    <Input
+                      placeholder="Téléphone annonceur *"
+                      value={adForm.advertiserPhone}
+                      onChange={(e) => setAdForm((f) => ({ ...f, advertiserPhone: e.target.value }))}
+                      className="h-8 text-sm"
+                    />
+                    <Input
+                      placeholder="Message publicitaire *"
+                      value={adForm.message}
+                      onChange={(e) => setAdForm((f) => ({ ...f, message: e.target.value }))}
+                      className="h-8 text-sm"
+                    />
+                    <div className="flex items-center gap-2">
+                      <input
+                        ref={adImageRef}
+                        type="file"
+                        accept="image/*"
+                        onChange={handleAdImageChange}
+                        className="hidden"
+                      />
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        className="h-7 text-xs"
+                        onClick={() => adImageRef.current?.click()}
+                      >
+                        {adForm.image ? "Image choisie ✓" : "Ajouter une image"}
+                      </Button>
+                      {adForm.image && (
+                        <img src={adForm.image} alt="preview" className="w-8 h-8 rounded object-cover border" />
+                      )}
+                    </div>
+                    <div className="flex gap-2">
+                      <Button size="sm" className="flex-1 h-7" onClick={handleCreateAd} disabled={createAd.isPending}>
+                        {createAd.isPending ? "Création..." : "Créer"}
+                      </Button>
+                      <Button size="sm" variant="outline" className="flex-1 h-7" onClick={() => setShowAdForm(false)}>
+                        Annuler
+                      </Button>
+                    </div>
+                  </div>
+                )}
+
+                {adsLoading ? (
+                  <p className="text-sm text-center text-muted-foreground py-6">Chargement...</p>
+                ) : allAds.length === 0 ? (
+                  <div className="text-center py-8 text-muted-foreground">
+                    <Megaphone className="w-10 h-10 mx-auto mb-2 opacity-30" />
+                    <p className="text-sm">Aucune publicité</p>
+                  </div>
+                ) : (
+                  <div className="space-y-2">
+                    {allAds.map((ad) => {
+                      const active = isAdActive(ad);
+                      const endDate = new Date(ad.endDate).toLocaleDateString("fr-FR");
+                      return (
+                        <div key={ad.id} className={`border rounded-lg p-3 space-y-1.5 ${active ? "" : "opacity-60 bg-muted/30"}`}>
+                          <div className="flex items-start gap-2">
+                            {ad.image && (
+                              <img src={ad.image} alt={ad.advertiserName} className="w-10 h-10 rounded object-cover border flex-shrink-0" />
+                            )}
+                            <div className="flex-1 min-w-0">
+                              <div className="flex items-center gap-1.5">
+                                <p className="text-sm font-semibold truncate">{ad.advertiserName}</p>
+                                <span className={`text-[10px] px-1.5 py-0.5 rounded-full font-bold ${active ? "bg-green-100 text-green-700" : "bg-red-100 text-red-600"}`}>
+                                  {active ? "Actif" : "Expiré"}
+                                </span>
+                              </div>
+                              <p className="text-xs text-muted-foreground truncate">{ad.message}</p>
+                              <p className="text-[10px] text-muted-foreground">Expire le {endDate}</p>
+                            </div>
+                          </div>
+                          <div className="flex gap-2">
+                            {!active && (
+                              <Button
+                                size="sm"
+                                className="flex-1 h-7 text-xs bg-green-600 hover:bg-green-700 text-white"
+                                onClick={() => handleRenewWhatsApp(ad)}
+                              >
+                                📱 Renouvellement WhatsApp
+                              </Button>
+                            )}
+                            <Button
+                              size="sm"
+                              variant="destructive"
+                              className={`h-7 text-xs ${!active ? "" : "flex-1"}`}
+                              onClick={() => handleDeleteAd(ad.id)}
+                            >
+                              <Trash2 className="w-3 h-3" />
+                            </Button>
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
                 )}
               </div>
             )}

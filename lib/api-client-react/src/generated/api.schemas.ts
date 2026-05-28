@@ -5,6 +5,25 @@
  * TogoMarket API
  * OpenAPI spec version: 0.1.0
  */
+export interface Ad {
+  id: number;
+  advertiserName: string;
+  advertiserPhone: string;
+  message: string;
+  /** @nullable */
+  image?: string | null;
+  startDate: string;
+  endDate: string;
+}
+
+export interface AdminCreateAdInput {
+  password: string;
+  advertiserName: string;
+  advertiserPhone: string;
+  message: string;
+  image?: string;
+}
+
 export interface HealthStatus {
   status: string;
 }

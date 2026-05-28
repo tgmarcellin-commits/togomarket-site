@@ -13,6 +13,7 @@ import { PublishModal } from "@/components/publish-modal";
 import { OrderModal } from "@/components/order-modal";
 import { AdminModal } from "@/components/admin-modal";
 import { InstallPrompt } from "@/components/install-prompt";
+import { AdBanner } from "@/components/ad-banner";
 
 export default function Home() {
   const [search, setSearch] = useState("");
@@ -141,6 +142,8 @@ export default function Home() {
           </div>
         </div>
       )}
+
+      <AdBanner />
 
       {/* Category Filter Bar */}
       <div className="border-b bg-background sticky top-16 z-40">

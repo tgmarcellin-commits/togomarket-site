@@ -17,6 +17,8 @@ tags:
     description: Admin operations
   - name: stats
     description: Statistics operations
+  - name: ads
+    description: Advertisement operations
 paths:
   /healthz:
     get:
@@ -209,6 +211,86 @@ paths:
         "403":
           description: Forbidden
 
+  /ads:
+    get:
+      operationId: getActiveAds
+      tags: [ads]
+      summary: Get active advertisements
+      responses:
+        "200":
+          description: List of active ads
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/Ad"
+
+  /admin/ads:
+    post:
+      operationId: adminCreateAd
+      tags: [admin, ads]
+      summary: Create a new advertisement (admin only)
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/AdminCreateAdInput"
+      responses:
+        "201":
+          description: Ad created
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Ad"
+        "403":
+          description: Forbidden
+
+  /admin/ads/all:
+    post:
+      operationId: adminGetAllAds
+      tags: [admin, ads]
+      summary: Get all ads including expired (admin only)
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/AdminPasswordInput"
+      responses:
+        "200":
+          description: All ads
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/Ad"
+        "403":
+          description: Forbidden
+
+  /admin/ads/delete:
+    post:
+      operationId: adminDeleteAd
+      tags: [admin, ads]
+      summary: Delete an advertisement (admin only)
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/AdminDeleteInput"
+      responses:
+        "200":
+          description: Deleted
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/DeleteResult"
+        "403":
+          description: Forbidden
+
   /stats:
     get:
       operationId: getStats
@@ -224,6 +306,40 @@ paths:
 
 components:
   schemas:
+    Ad:
+      type: object
+      required: [id, advertiserName, advertiserPhone, message, startDate, endDate]
+      properties:
+        id:
+          type: integer
+        advertiserName:
+          type: string
+        advertiserPhone:
+          type: string
+        message:
+          type: string
+        image:
+          type: ["string", "null"]
+        startDate:
+          type: string
+        endDate:
+          type: string
+
+    AdminCreateAdInput:
+      type: object
+      required: [password, advertiserName, advertiserPhone, message]
+      properties:
+        password:
+          type: string
+        advertiserName:
+          type: string
+        advertiserPhone:
+          type: string
+        message:
+          type: string
+        image:
+          type: string
+
     HealthStatus:
       type: object
       required: [status]
