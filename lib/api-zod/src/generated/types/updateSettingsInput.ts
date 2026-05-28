@@ -9,5 +9,4 @@
 export interface UpdateSettingsInput {
   password: string;
   commissionRate: number;
-  publishCode: string;
 }

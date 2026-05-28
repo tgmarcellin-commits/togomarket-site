@@ -107,13 +107,11 @@ export interface AdminPasswordInput {
 
 export interface PlatformSettings {
   commissionRate: number;
-  publishCode: string;
 }
 
 export interface UpdateSettingsInput {
   password: string;
   commissionRate: number;
-  publishCode: string;
 }
 
 export interface SectorStat {

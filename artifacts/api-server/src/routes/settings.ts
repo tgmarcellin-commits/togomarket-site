@@ -15,7 +15,7 @@ async function getSettings() {
   if (rows.length === 0) {
     const [row] = await db
       .insert(platformSettingsTable)
-      .values({ commissionRate: 2, publishCode: "TOGO2026" })
+      .values({ commissionRate: 2 })
       .returning();
     return row;
   }
@@ -26,7 +26,6 @@ router.get("/admin/settings", async (_req, res): Promise<void> => {
   const settings = await getSettings();
   res.json(GetAdminSettingsResponse.parse({
     commissionRate: settings.commissionRate,
-    publishCode: settings.publishCode,
   }));
 });
 
@@ -45,7 +44,7 @@ router.post("/admin/settings", async (req, res): Promise<void> => {
   await getSettings();
   const [updated] = await db
     .update(platformSettingsTable)
-    .set({ commissionRate: parsed.data.commissionRate, publishCode: parsed.data.publishCode })
+    .set({ commissionRate: parsed.data.commissionRate })
     .returning();
 
   if (!updated) {
@@ -55,7 +54,6 @@ router.post("/admin/settings", async (req, res): Promise<void> => {
 
   res.json(UpdateAdminSettingsResponse.parse({
     commissionRate: updated.commissionRate,
-    publishCode: updated.publishCode,
   }));
 });
 

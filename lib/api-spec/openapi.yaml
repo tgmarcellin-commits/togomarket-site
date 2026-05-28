@@ -605,23 +605,19 @@ components:
 
     PlatformSettings:
       type: object
-      required: [commissionRate, publishCode]
+      required: [commissionRate]
       properties:
         commissionRate:
           type: integer
-        publishCode:
-          type: string
 
     UpdateSettingsInput:
       type: object
-      required: [password, commissionRate, publishCode]
+      required: [password, commissionRate]
       properties:
         password:
           type: string
         commissionRate:
           type: integer
-        publishCode:
-          type: string
 
     MarketStats:
       type: object

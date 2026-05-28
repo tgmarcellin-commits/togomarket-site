@@ -76,7 +76,6 @@ export function AdminModal({
   const [screen, setScreen] = useState<"login" | "dashboard">(isAdmin ? "dashboard" : "login");
   const [storedPassword, setStoredPassword] = useState(adminPassword ?? "");
   const [tab, setTab] = useState<DashTab>("pending");
-  const [newCode, setNewCode] = useState("");
   const [viewerImages, setViewerImages] = useState<string[]>([]);
   const [viewerIndex, setViewerIndex] = useState(0);
 
@@ -303,7 +302,7 @@ export function AdminModal({
 
   const handleSetRate = (rate: number) => {
     updateSettings.mutate(
-      { data: { password: storedPassword, commissionRate: rate, publishCode: settings?.publishCode ?? "TOGO2026" } },
+      { data: { password: storedPassword, commissionRate: rate } },
       {
         onSuccess: () => {
           queryClient.invalidateQueries({ queryKey: getGetAdminSettingsQueryKey() });
@@ -316,25 +315,6 @@ export function AdminModal({
     );
   };
 
-  const handleSaveCode = () => {
-    if (!newCode.trim()) {
-      toast({ title: "Code vide", description: "Le code ne peut pas être vide.", variant: "destructive" });
-      return;
-    }
-    updateSettings.mutate(
-      { data: { password: storedPassword, commissionRate: settings?.commissionRate ?? 2, publishCode: newCode.trim() } },
-      {
-        onSuccess: () => {
-          refetchSettings();
-          setNewCode("");
-          toast({ title: "Code mis à jour", description: `Nouveau code : ${newCode.trim()}` });
-        },
-        onError: () => {
-          toast({ title: "Erreur", description: "Impossible de mettre à jour.", variant: "destructive" });
-        },
-      }
-    );
-  };
 
   const handleClose = () => {
     onOpenChange(false);
@@ -545,10 +525,22 @@ export function AdminModal({
                                 </span>
                               </div>
                               <p className="text-xs text-muted-foreground">{v.phone}</p>
-                              {v.verified && (
-                                <p className={`text-[10px] mt-0.5 font-medium ${hasCode ? "text-green-600" : "text-red-500"}`}>
-                                  {hasCode ? `Code actif — ${daysLeft} jour(s) restant(s)` : "Aucun code actif"}
-                                </p>
+                              {v.verified && hasCode && (
+                                <div className="flex items-center gap-2 mt-1">
+                                  <span className="font-mono font-extrabold text-base tracking-widest text-green-700 bg-green-50 border border-green-200 px-2 py-0.5 rounded">
+                                    {v.publishCode!.code}
+                                  </span>
+                                  <span className="text-[10px] text-green-600 font-medium">{daysLeft}j restant(s)</span>
+                                  <button
+                                    onClick={() => sendCodeWhatsApp(v.publishCode!.code, v.phone)}
+                                    className="text-[10px] text-green-700 underline font-medium hover:text-green-900"
+                                  >
+                                    Renvoyer
+                                  </button>
+                                </div>
+                              )}
+                              {v.verified && !hasCode && (
+                                <p className="text-[10px] mt-0.5 font-medium text-red-500">Aucun code actif</p>
                               )}
                             </div>
                           </div>
@@ -712,32 +704,7 @@ export function AdminModal({
             {/* Tab: Paramètres */}
             {tab === "settings" && (
               <div className="space-y-5">
-                {/* Code de publication */}
                 <div>
-                  <p className="text-sm font-semibold mb-1 flex items-center gap-1">
-                    <KeyRound className="w-4 h-4" /> Code d'accès vendeur
-                  </p>
-                  <p className="text-xs text-muted-foreground mb-3">
-                    Code actuel : <span className="font-mono font-bold text-foreground">{settings?.publishCode ?? "—"}</span>
-                  </p>
-                  <div className="flex gap-2">
-                    <Input
-                      placeholder="Nouveau code..."
-                      value={newCode}
-                      onChange={(e) => setNewCode(e.target.value)}
-                      className="flex-1"
-                    />
-                    <Button
-                      onClick={handleSaveCode}
-                      disabled={updateSettings.isPending}
-                      size="sm"
-                    >
-                      Sauvegarder
-                    </Button>
-                  </div>
-                </div>
-
-                <div className="border-t pt-4">
                   <p className="text-sm font-semibold mb-3">Tarif de commission</p>
                   <p className="text-xs text-muted-foreground mb-4">
                     Appliqué automatiquement sur chaque annonce. Plafonné pour les articles &gt; 100 000 FCFA.
