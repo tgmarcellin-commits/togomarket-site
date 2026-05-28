@@ -78,6 +78,27 @@ paths:
               schema:
                 $ref: "#/components/schemas/Listing"
 
+  /admin/listings/create:
+    post:
+      operationId: adminCreateListing
+      tags: [admin]
+      summary: Create and publish a listing directly (admin only)
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/AdminCreateListingInput"
+      responses:
+        "201":
+          description: Listing created and published
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Listing"
+        "403":
+          description: Forbidden
+
   /admin/listings/delete:
     post:
       operationId: adminDeleteListing
@@ -572,6 +593,27 @@ components:
           type: integer
         password:
           type: string
+
+    AdminCreateListingInput:
+      type: object
+      required: [password, name, price, location, sector, phone, images]
+      properties:
+        password:
+          type: string
+        name:
+          type: string
+        price:
+          type: number
+        location:
+          type: string
+        sector:
+          type: string
+        phone:
+          type: string
+        images:
+          type: array
+          items:
+            type: string
 
     AdminVerifyInput:
       type: object

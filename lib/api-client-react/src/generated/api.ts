@@ -25,6 +25,7 @@ import type {
   AdminActivateVendorResult,
   AdminApproveInput,
   AdminCreateAdInput,
+  AdminCreateListingInput,
   AdminDeleteInput,
   AdminPasswordInput,
   AdminVerifyInput,
@@ -288,6 +289,77 @@ export const useCreateListing = <TError = ErrorType<unknown>,
         TContext
       > => {
       return useMutation(getCreateListingMutationOptions(options));
+    }
+
+export const getAdminCreateListingUrl = () => {
+
+
+
+
+  return `/api/admin/listings/create`
+}
+
+/**
+ * @summary Create and publish a listing directly (admin only)
+ */
+export const adminCreateListing = async (adminCreateListingInput: AdminCreateListingInput, options?: RequestInit): Promise<Listing> => {
+
+  return customFetch<Listing>(getAdminCreateListingUrl(),
+  {
+    ...options,
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...options?.headers },
+    body: JSON.stringify(
+      adminCreateListingInput,)
+  }
+);}
+
+
+
+
+export const getAdminCreateListingMutationOptions = <TError = ErrorType<void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof adminCreateListing>>, TError,{data: BodyType<AdminCreateListingInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof adminCreateListing>>, TError,{data: BodyType<AdminCreateListingInput>}, TContext> => {
+
+const mutationKey = ['adminCreateListing'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof adminCreateListing>>, {data: BodyType<AdminCreateListingInput>}> = (props) => {
+          const {data} = props ?? {};
+
+          return  adminCreateListing(data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type AdminCreateListingMutationResult = NonNullable<Awaited<ReturnType<typeof adminCreateListing>>>
+    export type AdminCreateListingMutationBody = BodyType<AdminCreateListingInput>
+    export type AdminCreateListingMutationError = ErrorType<void>
+
+    /**
+ * @summary Create and publish a listing directly (admin only)
+ */
+export const useAdminCreateListing = <TError = ErrorType<void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof adminCreateListing>>, TError,{data: BodyType<AdminCreateListingInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof adminCreateListing>>,
+        TError,
+        {data: BodyType<AdminCreateListingInput>},
+        TContext
+      > => {
+      return useMutation(getAdminCreateListingMutationOptions(options));
     }
 
 export const getAdminDeleteListingUrl = () => {

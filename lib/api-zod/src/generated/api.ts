@@ -58,6 +58,20 @@ export const CreateListingBody = zod.object({
 
 
 /**
+ * @summary Create and publish a listing directly (admin only)
+ */
+export const AdminCreateListingBody = zod.object({
+  "password": zod.string(),
+  "name": zod.string(),
+  "price": zod.number(),
+  "location": zod.string(),
+  "sector": zod.string(),
+  "phone": zod.string(),
+  "images": zod.array(zod.string())
+})
+
+
+/**
  * @summary Delete a listing (admin only)
  */
 export const AdminDeleteListingBody = zod.object({

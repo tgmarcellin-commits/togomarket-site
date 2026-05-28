@@ -11,6 +11,7 @@ import {
   AdminDeleteListingResponse,
   AdminApproveListingBody,
   AdminGetPendingListingsBody,
+  AdminCreateListingBody,
 } from "@workspace/api-zod";
 import { logger } from "../lib/logger";
 
@@ -120,6 +121,32 @@ router.post("/listings", async (req, res): Promise<void> => {
 
   req.log.info({ id: listing.id }, "Listing created (pending approval)");
   res.status(201).json(GetListingsResponseItem.parse(mapListing(listing)));
+});
+
+router.post("/admin/listings/create", async (req, res) => {
+  const parsed = AdminCreateListingBody.safeParse(req.body);
+  if (!parsed.success) {
+    return res.status(400).json({ error: parsed.error.message });
+  }
+  if (parsed.data.password !== ADMIN_PASSWORD) {
+    return res.status(403).json({ error: "Forbidden" });
+  }
+
+  const [listing] = await db
+    .insert(listingsTable)
+    .values({
+      name: parsed.data.name,
+      price: String(parsed.data.price),
+      location: parsed.data.location,
+      sector: parsed.data.sector,
+      phone: parsed.data.phone,
+      images: parsed.data.images,
+      approved: true,
+    })
+    .returning();
+
+  req.log.info({ id: listing.id }, "Listing created by admin");
+  return res.status(201).json(GetListingsResponseItem.parse(mapListing(listing)));
 });
 
 router.post("/admin/listings/pending", async (req, res): Promise<void> => {

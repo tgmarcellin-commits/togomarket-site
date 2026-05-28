@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import * as z from "zod";
@@ -50,6 +50,40 @@ const formSchema = z.object({
 });
 type FormValues = z.infer<typeof formSchema>;
 
+interface SavedCode {
+  code: string;
+  endDate: string;
+}
+
+function getSavedCode(vendorPhone: string): SavedCode | null {
+  try {
+    const raw = localStorage.getItem(`togomarket_pub_${vendorPhone}`);
+    if (!raw) return null;
+    return JSON.parse(raw) as SavedCode;
+  } catch {
+    return null;
+  }
+}
+
+function saveCode(vendorPhone: string, code: string, endDate: string) {
+  try {
+    localStorage.setItem(`togomarket_pub_${vendorPhone}`, JSON.stringify({ code, endDate }));
+  } catch {}
+}
+
+function clearSavedCode(vendorPhone: string) {
+  try {
+    localStorage.removeItem(`togomarket_pub_${vendorPhone}`);
+  } catch {}
+}
+
+function isCodeStillValid(saved: SavedCode, publishCode: NonNullable<VendorProfile["publishCode"]>): boolean {
+  if (saved.code !== publishCode.code) return false;
+  if (new Date(saved.endDate).getTime() !== new Date(publishCode.endDate).getTime()) return false;
+  if (new Date(publishCode.endDate) <= new Date()) return false;
+  return true;
+}
+
 interface PublishModalProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
@@ -82,13 +116,31 @@ export function PublishModal({ open, onOpenChange, vendor, vendorPassword, onNee
     },
   });
 
+  useEffect(() => {
+    if (!open) return;
+    if (!vendor?.publishCode || !vendor.verified) return;
+
+    const saved = getSavedCode(vendor.phone);
+    if (saved && isCodeStillValid(saved, vendor.publishCode)) {
+      setVerifiedCode(saved.code);
+      setScreen("form");
+    } else {
+      if (saved) clearSavedCode(vendor.phone);
+      setScreen("gate");
+    }
+  }, [open, vendor]);
+
   const onVerifyCode = (data: CodeValues) => {
     const activeCode = vendor?.publishCode?.code;
     if (!activeCode || data.code.trim() !== activeCode) {
       codeForm.setError("code", { message: "Code incorrect. Vérifiez votre code de publication." });
       return;
     }
-    setVerifiedCode(data.code.trim());
+    const code = data.code.trim();
+    setVerifiedCode(code);
+    if (vendor?.publishCode) {
+      saveCode(vendor.phone, code, vendor.publishCode.endDate);
+    }
     setScreen("form");
   };
 

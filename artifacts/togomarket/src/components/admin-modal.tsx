@@ -16,7 +16,9 @@ import {
   useAdminGetVendors,
   useAdminActivateVendor,
   useAdminGenerateVendorCode,
+  useAdminCreateListing,
   getGetAdminSettingsQueryKey,
+  getGetListingsQueryKey,
   type Ad,
   type VendorProfile,
 } from "@workspace/api-client-react";
@@ -38,7 +40,7 @@ import {
 } from "@/components/ui/form";
 import { Input } from "@/components/ui/input";
 import { useToast } from "@/hooks/use-toast";
-import { Settings, LogOut, CheckCircle, Trash2, Clock, KeyRound, Megaphone, Plus, RefreshCw, Users } from "lucide-react";
+import { Settings, LogOut, CheckCircle, Trash2, Clock, KeyRound, Megaphone, Plus, RefreshCw, Users, UploadCloud, X } from "lucide-react";
 import { resizeImage } from "@/lib/image";
 
 const loginSchema = z.object({
@@ -62,7 +64,7 @@ const COMMISSION_OPTIONS = [
   { rate: 5, label: "5% (max 5 000 FCFA pour les articles > 100 000 FCFA)" },
 ];
 
-type DashTab = "pending" | "vendors" | "ads" | "settings";
+type DashTab = "pending" | "vendors" | "publish" | "ads" | "settings";
 
 export function AdminModal({
   open,
@@ -89,7 +91,14 @@ export function AdminModal({
   const [vendorsLoading, setVendorsLoading] = useState(false);
   const [generatedCode, setGeneratedCode] = useState<{ code: string; phone: string } | null>(null);
 
+  const [adminPublishForm, setAdminPublishForm] = useState({
+    name: "", price: "", location: "", sector: "Divers", phone: "", images: [] as string[],
+  });
+  const [adminPublishProcessing, setAdminPublishProcessing] = useState(false);
+  const adminPublishImageRef = useRef<HTMLInputElement>(null);
+
   const createAd = useAdminCreateAd();
+  const adminCreateListing = useAdminCreateListing();
   const getAllAds = useAdminGetAllAds();
   const deleteAd = useAdminDeleteAd();
   const getVendors = useAdminGetVendors();
@@ -149,6 +158,43 @@ export function AdminModal({
   const sendCodeWhatsApp = (code: string, phone: string) => {
     const msg = `Bonjour ! Votre code de publication TogoMarket est : ${code}\nIl est valable 30 jours. Bonne vente !`;
     window.open(`https://wa.me/${phone.replace(/\D/g, "")}?text=${encodeURIComponent(msg)}`, "_blank");
+  };
+
+  const handleAdminPublishImageChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    if (!e.target.files) return;
+    const files = Array.from(e.target.files);
+    if (adminPublishForm.images.length + files.length > 4) {
+      toast({ title: "Maximum 4 images", variant: "destructive" });
+      return;
+    }
+    setAdminPublishProcessing(true);
+    try {
+      const resized = await Promise.all(files.map((f) => resizeImage(f)));
+      setAdminPublishForm((p) => ({ ...p, images: [...p.images, ...resized].slice(0, 4) }));
+    } catch {
+      toast({ title: "Erreur image", variant: "destructive" });
+    } finally {
+      setAdminPublishProcessing(false);
+    }
+  };
+
+  const handleAdminPublish = () => {
+    const { name, price, location, sector, phone } = adminPublishForm;
+    if (!name.trim() || !price || !location.trim() || !phone.trim()) {
+      toast({ title: "Champs requis", variant: "destructive" });
+      return;
+    }
+    adminCreateListing.mutate(
+      { data: { password: storedPassword, name: name.trim(), price: parseFloat(price), location: location.trim(), sector, phone: phone.trim(), images: adminPublishForm.images } },
+      {
+        onSuccess: () => {
+          toast({ title: "Annonce publiée directement !", description: "Visible immédiatement sur le site." });
+          setAdminPublishForm({ name: "", price: "", location: "", sector: "Divers", phone: "", images: [] });
+          queryClient.invalidateQueries({ queryKey: getGetListingsQueryKey() });
+        },
+        onError: () => toast({ title: "Erreur lors de la publication", variant: "destructive" }),
+      }
+    );
   };
 
   const isAdActive = (ad: Ad) => new Date(ad.endDate) > new Date();
@@ -356,17 +402,17 @@ export function AdminModal({
         ) : (
           <div className="pt-2 space-y-4">
             {/* Tabs */}
-            <div className="grid grid-cols-4 rounded-lg border overflow-hidden">
+            <div className="grid grid-cols-5 rounded-lg border overflow-hidden">
               <button
                 onClick={() => setTab("pending")}
-                className={`py-2 text-xs font-medium flex items-center justify-center gap-1 transition-colors ${
+                className={`py-2 text-[11px] font-medium flex items-center justify-center gap-0.5 transition-colors ${
                   tab === "pending" ? "bg-primary text-primary-foreground" : "bg-background hover:bg-muted"
                 }`}
               >
-                <Clock className="w-3.5 h-3.5" />
-                <span className="hidden xs:inline">Annonces</span>
+                <Clock className="w-3 h-3" />
+                <span className="hidden xs:inline">File</span>
                 {pendingListings.length > 0 && (
-                  <span className={`px-1.5 py-0.5 rounded-full text-[10px] font-bold ${
+                  <span className={`px-1 py-0.5 rounded-full text-[9px] font-bold ${
                     tab === "pending" ? "bg-white/20 text-white" : "bg-primary text-primary-foreground"
                   }`}>
                     {pendingListings.length}
@@ -375,29 +421,38 @@ export function AdminModal({
               </button>
               <button
                 onClick={() => { setTab("vendors"); refetchVendors(); }}
-                className={`py-2 text-xs font-medium flex items-center justify-center gap-1 transition-colors ${
+                className={`py-2 text-[11px] font-medium flex items-center justify-center gap-0.5 transition-colors ${
                   tab === "vendors" ? "bg-primary text-primary-foreground" : "bg-background hover:bg-muted"
                 }`}
               >
-                <Users className="w-3.5 h-3.5" />
-                Vendeurs
+                <Users className="w-3 h-3" />
+                Vend.
+              </button>
+              <button
+                onClick={() => setTab("publish")}
+                className={`py-2 text-[11px] font-medium flex items-center justify-center gap-0.5 transition-colors ${
+                  tab === "publish" ? "bg-primary text-primary-foreground" : "bg-background hover:bg-muted"
+                }`}
+              >
+                <Plus className="w-3 h-3" />
+                Pub.
               </button>
               <button
                 onClick={() => { setTab("ads"); refetchAds(); }}
-                className={`py-2 text-xs font-medium flex items-center justify-center gap-1 transition-colors ${
+                className={`py-2 text-[11px] font-medium flex items-center justify-center gap-0.5 transition-colors ${
                   tab === "ads" ? "bg-primary text-primary-foreground" : "bg-background hover:bg-muted"
                 }`}
               >
-                <Megaphone className="w-3.5 h-3.5" />
+                <Megaphone className="w-3 h-3" />
                 Pubs
               </button>
               <button
                 onClick={() => setTab("settings")}
-                className={`py-2 text-xs font-medium flex items-center justify-center gap-1 transition-colors ${
+                className={`py-2 text-[11px] font-medium flex items-center justify-center gap-0.5 transition-colors ${
                   tab === "settings" ? "bg-primary text-primary-foreground" : "bg-background hover:bg-muted"
                 }`}
               >
-                <Settings className="w-3.5 h-3.5" />
+                <Settings className="w-3 h-3" />
                 Config
               </button>
             </div>
@@ -574,6 +629,95 @@ export function AdminModal({
                     })}
                   </div>
                 )}
+              </div>
+            )}
+
+            {/* Tab: Publier pour un client */}
+            {tab === "publish" && (
+              <div className="space-y-3">
+                <p className="text-sm font-semibold">Publier au nom d'un client</p>
+                <p className="text-xs text-muted-foreground">L'annonce sera publiée directement et visible immédiatement.</p>
+
+                <div className="space-y-2">
+                  <Input
+                    placeholder="Titre de l'article *"
+                    value={adminPublishForm.name}
+                    onChange={(e) => setAdminPublishForm((p) => ({ ...p, name: e.target.value }))}
+                    className="h-9 text-sm"
+                  />
+                  <div className="grid grid-cols-2 gap-2">
+                    <Input
+                      type="number"
+                      placeholder="Prix (FCFA) *"
+                      value={adminPublishForm.price}
+                      onChange={(e) => setAdminPublishForm((p) => ({ ...p, price: e.target.value }))}
+                      className="h-9 text-sm"
+                    />
+                    <select
+                      value={adminPublishForm.sector}
+                      onChange={(e) => setAdminPublishForm((p) => ({ ...p, sector: e.target.value }))}
+                      className="h-9 text-sm border rounded-md px-2 bg-background"
+                    >
+                      <option value="AgriMarket">AgriMarket</option>
+                      <option value="Immobilier">Immobilier</option>
+                      <option value="Automobile">Automobile</option>
+                      <option value="Divers">Divers</option>
+                    </select>
+                  </div>
+                  <Input
+                    placeholder="Quartier / Ville *"
+                    value={adminPublishForm.location}
+                    onChange={(e) => setAdminPublishForm((p) => ({ ...p, location: e.target.value }))}
+                    className="h-9 text-sm"
+                  />
+                  <Input
+                    placeholder="Numéro WhatsApp du client *"
+                    value={adminPublishForm.phone}
+                    onChange={(e) => setAdminPublishForm((p) => ({ ...p, phone: e.target.value }))}
+                    className="h-9 text-sm"
+                  />
+
+                  <div>
+                    <p className="text-xs font-medium mb-1.5 text-muted-foreground">Photos (max 4)</p>
+                    <div className="flex flex-wrap gap-2">
+                      {adminPublishForm.images.map((img, i) => (
+                        <div key={i} className="relative w-16 h-16 rounded-md overflow-hidden border flex-shrink-0">
+                          <img src={img} alt="" className="w-full h-full object-cover" />
+                          <button
+                            type="button"
+                            onClick={() => setAdminPublishForm((p) => ({ ...p, images: p.images.filter((_, idx) => idx !== i) }))}
+                            className="absolute top-0.5 right-0.5 bg-black/50 text-white rounded-full p-0.5"
+                          >
+                            <X className="w-2.5 h-2.5" />
+                          </button>
+                        </div>
+                      ))}
+                      {adminPublishForm.images.length < 4 && (
+                        <label className="w-16 h-16 flex flex-col items-center justify-center border-2 border-dashed border-muted-foreground/30 rounded-md cursor-pointer hover:bg-muted/50">
+                          <UploadCloud className="w-4 h-4 text-muted-foreground mb-0.5" />
+                          <span className="text-[9px] text-muted-foreground">Ajouter</span>
+                          <input
+                            ref={adminPublishImageRef}
+                            type="file"
+                            accept="image/*"
+                            multiple
+                            className="hidden"
+                            onChange={handleAdminPublishImageChange}
+                            disabled={adminPublishProcessing}
+                          />
+                        </label>
+                      )}
+                    </div>
+                  </div>
+                </div>
+
+                <Button
+                  className="w-full"
+                  onClick={handleAdminPublish}
+                  disabled={adminCreateListing.isPending || adminPublishProcessing}
+                >
+                  {adminCreateListing.isPending ? "Publication..." : "Publier maintenant"}
+                </Button>
               </div>
             )}
 

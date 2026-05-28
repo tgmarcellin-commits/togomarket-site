@@ -88,6 +88,16 @@ export interface AdminDeleteInput {
   password: string;
 }
 
+export interface AdminCreateListingInput {
+  password: string;
+  name: string;
+  price: number;
+  location: string;
+  sector: string;
+  phone: string;
+  images: string[];
+}
+
 export interface AdminVerifyInput {
   password: string;
 }

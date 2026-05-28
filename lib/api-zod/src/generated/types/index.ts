@@ -11,6 +11,7 @@ export * from './adminActivateVendorInput';
 export * from './adminActivateVendorResult';
 export * from './adminApproveInput';
 export * from './adminCreateAdInput';
+export * from './adminCreateListingInput';
 export * from './adminDeleteInput';
 export * from './adminPasswordInput';
 export * from './adminVerifyInput';
