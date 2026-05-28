@@ -41,6 +41,7 @@ export function ListingCard({ listing, isAdmin, adminPassword, commissionRate }:
   const deleteMutation = useAdminDeleteListing();
   const [viewerOpen, setViewerOpen] = useState(false);
   const [viewerIndex, setViewerIndex] = useState(0);
+  const [titleExpanded, setTitleExpanded] = useState(false);
 
   const openViewer = (index: number) => {
     setViewerIndex(index);
@@ -129,7 +130,13 @@ export function ListingCard({ listing, isAdmin, adminPassword, commissionRate }:
       </div>
 
       <div className="p-4 flex flex-col flex-grow">
-        <h3 className="font-semibold text-lg line-clamp-2">{listing.name}</h3>
+        <h3
+          className={`font-semibold text-lg cursor-pointer ${titleExpanded ? "" : "line-clamp-2"}`}
+          onClick={() => setTitleExpanded(e => !e)}
+          title={titleExpanded ? "Cliquer pour réduire" : "Cliquer pour voir le titre complet"}
+        >
+          {listing.name}
+        </h3>
         <div className="text-xl font-bold text-primary mt-1 mb-1">
           {new Intl.NumberFormat("fr-FR").format(listing.price)} FCFA
         </div>
