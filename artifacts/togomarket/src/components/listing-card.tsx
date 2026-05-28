@@ -12,6 +12,7 @@ interface ListingCardProps {
   isAdmin: boolean;
   adminPassword?: string;
   commissionRate: number;
+  isOwn?: boolean;
 }
 
 const sectorColors: Record<string, string> = {
@@ -36,7 +37,7 @@ function calcCommission(price: number, rate: number): number {
   return Math.round(Math.min(price, 100000) * rate / 100);
 }
 
-export function ListingCard({ listing, isAdmin, adminPassword, commissionRate }: ListingCardProps) {
+export function ListingCard({ listing, isAdmin, adminPassword, commissionRate, isOwn }: ListingCardProps) {
   const queryClient = useQueryClient();
   const deleteMutation = useAdminDeleteListing();
   const [viewerOpen, setViewerOpen] = useState(false);
@@ -116,10 +117,15 @@ export function ListingCard({ listing, isAdmin, adminPassword, commissionRate }:
           </div>
         )}
 
-        <div className="absolute top-2 left-2 z-10">
+        <div className="absolute top-2 left-2 z-10 flex flex-col gap-1">
           <Badge className={`border-none ${sectorColors[listing.sector] || "bg-gray-500"}`}>
             {listing.sector}
           </Badge>
+          {isOwn && (
+            <Badge className="border-none bg-white/90 text-foreground text-[10px] font-bold shadow-sm">
+              Mon annonce
+            </Badge>
+          )}
         </div>
         <button
           onClick={handleReport}

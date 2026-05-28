@@ -1,12 +1,13 @@
-import { useState, useRef } from "react";
+import { useState, useRef, useEffect } from "react";
 import {
   useGetListings,
   getGetListingsQueryKey,
   useGetStats,
   useGetAdminSettings,
+  useVendorUpdateProfile,
   type VendorProfile,
 } from "@workspace/api-client-react";
-import { Search, SearchIcon, LogIn, UserCircle2 } from "lucide-react";
+import { Search, SearchIcon, LogIn, UserCircle2, Camera, LogOut } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { ListingCard } from "@/components/listing-card";
@@ -16,8 +17,35 @@ import { AdminModal } from "@/components/admin-modal";
 import { AuthModal } from "@/components/auth-modal";
 import { InstallPrompt } from "@/components/install-prompt";
 import { AdBanner } from "@/components/ad-banner";
+import { useToast } from "@/hooks/use-toast";
+import { resizeImage } from "@/lib/image";
+
+const STORAGE_KEY = "togomarket_vendor_session";
+
+function loadSession(): { vendor: VendorProfile; password: string } | null {
+  try {
+    const raw = localStorage.getItem(STORAGE_KEY);
+    if (!raw) return null;
+    return JSON.parse(raw);
+  } catch {
+    return null;
+  }
+}
+
+function saveSession(vendor: VendorProfile, password: string) {
+  try {
+    localStorage.setItem(STORAGE_KEY, JSON.stringify({ vendor, password }));
+  } catch {}
+}
+
+function clearSession() {
+  try {
+    localStorage.removeItem(STORAGE_KEY);
+  } catch {}
+}
 
 export default function Home() {
+  const { toast } = useToast();
   const [search, setSearch] = useState("");
   const [searchInput, setSearchInput] = useState("");
   const [sector, setSector] = useState<string | undefined>(undefined);
@@ -34,6 +62,18 @@ export default function Home() {
 
   const [vendor, setVendor] = useState<VendorProfile | null>(null);
   const [vendorPassword, setVendorPassword] = useState("");
+  const [isUploadingPhoto, setIsUploadingPhoto] = useState(false);
+
+  const photoInputRef = useRef<HTMLInputElement>(null);
+  const updateProfileMutation = useVendorUpdateProfile();
+
+  useEffect(() => {
+    const session = loadSession();
+    if (session) {
+      setVendor(session.vendor);
+      setVendorPassword(session.password);
+    }
+  }, []);
 
   const { data: listings, isLoading } = useGetListings(
     { search, sector },
@@ -43,6 +83,14 @@ export default function Home() {
   const { data: settings } = useGetAdminSettings();
   const commissionRate = settings?.commissionRate ?? 2;
 
+  const sortedListings = (() => {
+    if (!listings) return [];
+    if (!vendor) return listings;
+    const own = listings.filter((l) => l.phone === vendor.phone);
+    const others = listings.filter((l) => l.phone !== vendor.phone);
+    return [...own, ...others];
+  })();
+
   const handleSearchSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     setSearch(searchInput);
@@ -51,11 +99,46 @@ export default function Home() {
   const handleLoginSuccess = (v: VendorProfile, pwd: string) => {
     setVendor(v);
     setVendorPassword(pwd);
+    saveSession(v, pwd);
   };
 
   const handleLogout = () => {
     setVendor(null);
     setVendorPassword("");
+    clearSession();
+    toast({ title: "Déconnecté", description: "À bientôt !" });
+  };
+
+  const handlePhotoClick = () => {
+    photoInputRef.current?.click();
+  };
+
+  const handlePhotoChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file || !vendor) return;
+    e.target.value = "";
+
+    setIsUploadingPhoto(true);
+    try {
+      const resized = await resizeImage(file);
+      updateProfileMutation.mutate(
+        { data: { phone: vendor.phone, password: vendorPassword, profilePhoto: resized } },
+        {
+          onSuccess: (updated) => {
+            setVendor(updated);
+            saveSession(updated, vendorPassword);
+            toast({ title: "Photo de profil mise à jour !" });
+          },
+          onError: () => {
+            toast({ title: "Erreur lors de la mise à jour de la photo", variant: "destructive" });
+          },
+          onSettled: () => setIsUploadingPhoto(false),
+        }
+      );
+    } catch {
+      toast({ title: "Impossible de lire l'image", variant: "destructive" });
+      setIsUploadingPhoto(false);
+    }
   };
 
   const categories = [
@@ -75,6 +158,16 @@ export default function Home() {
           Mode Admin activé
         </div>
       )}
+
+      {/* Hidden file input for profile photo */}
+      <input
+        ref={photoInputRef}
+        type="file"
+        accept="image/*"
+        capture="environment"
+        className="hidden"
+        onChange={handlePhotoChange}
+      />
 
       {/* Sticky Navbar */}
       <header className="sticky top-0 z-50 w-full border-b bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60 shadow-sm">
@@ -113,18 +206,47 @@ export default function Home() {
                 >
                   Publier
                 </Button>
-                <button
-                  onClick={handleLogout}
-                  className="flex items-center gap-1.5 rounded-full border px-3 py-1.5 text-xs font-medium hover:bg-muted transition-colors"
-                  title="Se déconnecter"
-                >
-                  {vendor.profilePhoto ? (
-                    <img src={vendor.profilePhoto} alt={vendor.firstName} className="w-6 h-6 rounded-full object-cover" />
-                  ) : (
-                    <UserCircle2 className="w-5 h-5 text-muted-foreground" />
-                  )}
-                  <span className="hidden sm:inline max-w-[80px] truncate">{vendor.firstName}</span>
-                </button>
+
+                {/* Profile avatar — click to change photo */}
+                <div className="flex items-center gap-1">
+                  <button
+                    onClick={handlePhotoClick}
+                    disabled={isUploadingPhoto}
+                    className="relative group rounded-full border-2 border-primary/30 overflow-hidden w-9 h-9 flex-shrink-0 hover:border-primary transition-colors disabled:opacity-60"
+                    title="Changer la photo de profil"
+                  >
+                    {vendor.profilePhoto ? (
+                      <img
+                        src={vendor.profilePhoto}
+                        alt={vendor.firstName}
+                        className="w-full h-full object-cover"
+                      />
+                    ) : (
+                      <div className="w-full h-full bg-muted flex items-center justify-center">
+                        <UserCircle2 className="w-6 h-6 text-muted-foreground" />
+                      </div>
+                    )}
+                    <div className="absolute inset-0 bg-black/40 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity">
+                      {isUploadingPhoto ? (
+                        <div className="w-3 h-3 border-2 border-white border-t-transparent rounded-full animate-spin" />
+                      ) : (
+                        <Camera className="w-3.5 h-3.5 text-white" />
+                      )}
+                    </div>
+                  </button>
+
+                  <span className="hidden sm:inline text-xs font-medium max-w-[70px] truncate">
+                    {vendor.firstName}
+                  </span>
+
+                  <button
+                    onClick={handleLogout}
+                    className="p-1.5 rounded-full hover:bg-muted transition-colors"
+                    title="Se déconnecter"
+                  >
+                    <LogOut className="w-4 h-4 text-muted-foreground" />
+                  </button>
+                </div>
               </>
             ) : (
               <Button
@@ -230,15 +352,16 @@ export default function Home() {
               </div>
             ))}
           </div>
-        ) : listings && listings.length > 0 ? (
+        ) : sortedListings.length > 0 ? (
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
-            {listings.map((listing) => (
+            {sortedListings.map((listing) => (
               <ListingCard
                 key={listing.id}
                 listing={listing}
                 isAdmin={isAdmin}
                 adminPassword={adminPassword}
                 commissionRate={commissionRate}
+                isOwn={vendor ? listing.phone === vendor.phone : false}
               />
             ))}
           </div>
