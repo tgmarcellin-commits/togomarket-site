@@ -146,7 +146,7 @@ export function ListingCard({ listing, isAdmin, adminPassword, commissionRate }:
 
         <div className="mt-auto space-y-3">
           <div className="text-[10px] text-destructive font-medium uppercase tracking-wider text-center bg-destructive/10 py-1.5 rounded">
-            ATTENTION : Ne payez aucun article sans l'avoir vu.
+            Attention : Ne payez jamais un article sans l'avoir inspecté physiquement.
           </div>
 
           <Button
