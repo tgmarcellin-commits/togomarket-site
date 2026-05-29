@@ -40,7 +40,7 @@ import {
 } from "@/components/ui/form";
 import { Input } from "@/components/ui/input";
 import { useToast } from "@/hooks/use-toast";
-import { Settings, LogOut, CheckCircle, Trash2, Clock, KeyRound, Megaphone, Plus, RefreshCw, Users, UploadCloud, X } from "lucide-react";
+import { Settings, LogOut, CheckCircle, Trash2, Clock, KeyRound, Megaphone, Plus, RefreshCw, Users, UploadCloud, X, Eye, EyeOff } from "lucide-react";
 import { resizeImage } from "@/lib/image";
 
 const loginSchema = z.object({
@@ -91,6 +91,7 @@ export function AdminModal({
   const [vendorsLoading, setVendorsLoading] = useState(false);
   const [generatedCode, setGeneratedCode] = useState<{ code: string; phone: string } | null>(null);
 
+  const [showAdminPwd, setShowAdminPwd] = useState(false);
   const [expandedAdIds, setExpandedAdIds] = useState<Set<number>>(new Set());
   const toggleAdExpand = (id: number) =>
     setExpandedAdIds((prev) => { const next = new Set(prev); next.has(id) ? next.delete(id) : next.add(id); return next; });
@@ -392,7 +393,12 @@ export function AdminModal({
                   <FormItem>
                     <FormLabel>Mot de passe</FormLabel>
                     <FormControl>
-                      <Input type="password" {...field} />
+                      <div className="relative">
+                        <Input type={showAdminPwd ? "text" : "password"} {...field} className="pr-10" />
+                        <button type="button" onClick={() => setShowAdminPwd((v) => !v)} className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground">
+                          {showAdminPwd ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                        </button>
+                      </div>
                     </FormControl>
                     <FormMessage />
                   </FormItem>

@@ -22,7 +22,7 @@ import {
 import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { resizeImage } from "@/lib/image";
-import { UploadCloud, X, Lock, KeyRound, AlertCircle, UserCircle2 } from "lucide-react";
+import { UploadCloud, X, Lock, KeyRound, AlertCircle, UserCircle2, Eye, EyeOff } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 
 const PHONE_REGEX = /\d[\s\-\.]?\d[\s\-\.]?\d[\s\-\.]?\d[\s\-\.]?\d[\s\-\.]?\d[\s\-\.]?\d[\s\-\.]?\d/;
@@ -93,6 +93,7 @@ interface PublishModalProps {
 }
 
 export function PublishModal({ open, onOpenChange, vendor, vendorPassword, onNeedLogin }: PublishModalProps) {
+  const [showCode, setShowCode] = useState(false);
   const [screen, setScreen] = useState<"gate" | "code" | "form">("gate");
   const [verifiedCode, setVerifiedCode] = useState("");
   const [images, setImages] = useState<string[]>([]);
@@ -333,12 +334,18 @@ export function PublishModal({ open, onOpenChange, vendor, vendorPassword, onNee
                         <KeyRound className="w-4 h-4" /> Code de publication (4 chiffres)
                       </FormLabel>
                       <FormControl>
-                        <Input
-                          placeholder="• • • •"
-                          maxLength={4}
-                          className="text-center text-2xl font-mono tracking-widest"
-                          {...field}
-                        />
+                        <div className="relative">
+                          <Input
+                            type={showCode ? "text" : "password"}
+                            placeholder="• • • •"
+                            maxLength={4}
+                            className="text-center text-2xl font-mono tracking-widest pr-10"
+                            {...field}
+                          />
+                          <button type="button" onClick={() => setShowCode((v) => !v)} className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground">
+                            {showCode ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                          </button>
+                        </div>
                       </FormControl>
                       <FormMessage />
                     </FormItem>

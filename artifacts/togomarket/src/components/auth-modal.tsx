@@ -9,7 +9,7 @@ import {
 } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { useToast } from "@/hooks/use-toast";
-import { UserPlus, LogIn } from "lucide-react";
+import { UserPlus, LogIn, Eye, EyeOff } from "lucide-react";
 
 interface AuthModalProps {
   open: boolean;
@@ -32,6 +32,9 @@ export function AuthModal({ open, onOpenChange, onLoginSuccess }: AuthModalProps
 
   const [loginPhone, setLoginPhone] = useState("");
   const [loginPassword, setLoginPassword] = useState("");
+  const [showLoginPwd, setShowLoginPwd] = useState(false);
+  const [showRegPwd, setShowRegPwd] = useState(false);
+  const [showRegPwd2, setShowRegPwd2] = useState(false);
 
   const [regFirstName, setRegFirstName] = useState("");
   const [regLastName, setRegLastName] = useState("");
@@ -181,13 +184,19 @@ export function AuthModal({ open, onOpenChange, onLoginSuccess }: AuthModalProps
             </div>
             <div className="space-y-2">
               <label className="text-sm font-medium">Mot de passe</label>
-              <Input
-                type="password"
-                placeholder="Votre mot de passe"
-                value={loginPassword}
-                onChange={(e) => setLoginPassword(e.target.value)}
-                onKeyDown={(e) => e.key === "Enter" && handleLogin()}
-              />
+              <div className="relative">
+                <Input
+                  type={showLoginPwd ? "text" : "password"}
+                  placeholder="Votre mot de passe"
+                  value={loginPassword}
+                  onChange={(e) => setLoginPassword(e.target.value)}
+                  onKeyDown={(e) => e.key === "Enter" && handleLogin()}
+                  className="pr-10"
+                />
+                <button type="button" onClick={() => setShowLoginPwd((v) => !v)} className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground">
+                  {showLoginPwd ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                </button>
+              </div>
             </div>
             <Button
               className="w-full"
@@ -235,21 +244,33 @@ export function AuthModal({ open, onOpenChange, onLoginSuccess }: AuthModalProps
             </div>
             <div className="space-y-1.5">
               <label className="text-sm font-medium">Mot de passe</label>
-              <Input
-                type="password"
-                placeholder="Minimum 6 caractères"
-                value={regPassword}
-                onChange={(e) => setRegPassword(e.target.value)}
-              />
+              <div className="relative">
+                <Input
+                  type={showRegPwd ? "text" : "password"}
+                  placeholder="Minimum 6 caractères"
+                  value={regPassword}
+                  onChange={(e) => setRegPassword(e.target.value)}
+                  className="pr-10"
+                />
+                <button type="button" onClick={() => setShowRegPwd((v) => !v)} className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground">
+                  {showRegPwd ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                </button>
+              </div>
             </div>
             <div className="space-y-1.5">
               <label className="text-sm font-medium">Confirmer le mot de passe</label>
-              <Input
-                type="password"
-                placeholder="Répétez le mot de passe"
-                value={regPassword2}
-                onChange={(e) => setRegPassword2(e.target.value)}
-              />
+              <div className="relative">
+                <Input
+                  type={showRegPwd2 ? "text" : "password"}
+                  placeholder="Répétez le mot de passe"
+                  value={regPassword2}
+                  onChange={(e) => setRegPassword2(e.target.value)}
+                  className="pr-10"
+                />
+                <button type="button" onClick={() => setShowRegPwd2((v) => !v)} className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground">
+                  {showRegPwd2 ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                </button>
+              </div>
             </div>
             <div className="text-xs text-muted-foreground bg-blue-50 border border-blue-100 rounded-lg p-3">
               1 mois gratuit offert à l'inscription. Ensuite 1 000 FCFA/mois pour continuer à publier.
