@@ -14,6 +14,7 @@ function mapAd(a: typeof adsTable.$inferSelect) {
     advertiserPhone: a.advertiserPhone,
     message: a.message,
     image: a.image ?? null,
+    videoPath: a.videoPath ?? null,
     startDate: a.startDate.toISOString(),
     endDate: a.endDate.toISOString(),
   };
@@ -34,7 +35,7 @@ router.get("/ads", async (req, res) => {
 });
 
 router.post("/admin/ads", async (req, res) => {
-  const { password, advertiserName, advertiserPhone, message, image } = req.body;
+  const { password, advertiserName, advertiserPhone, message, image, videoPath } = req.body;
   if (password !== ADMIN_PASSWORD) {
     return res.status(403).json({ error: "Forbidden" });
   }
@@ -51,6 +52,7 @@ router.post("/admin/ads", async (req, res) => {
         advertiserPhone,
         message,
         image: image ?? null,
+        videoPath: videoPath ?? null,
         startDate: now,
         endDate,
       })

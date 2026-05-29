@@ -13,6 +13,8 @@ export interface Ad {
   message: string;
   /** @nullable */
   image?: string | null;
+  /** @nullable */
+  videoPath?: string | null;
   startDate: string;
   endDate: string;
 }

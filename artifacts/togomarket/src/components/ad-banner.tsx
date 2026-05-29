@@ -12,7 +12,17 @@ function AdModal({ ad, onClose }: { ad: Ad; onClose: () => void }) {
         className="bg-white rounded-2xl w-full max-w-sm overflow-hidden shadow-2xl"
         onClick={(e) => e.stopPropagation()}
       >
-        {ad.image && (
+        {ad.videoPath && (
+          <div className="w-full aspect-video bg-black">
+            <video
+              src={`/api/storage${ad.videoPath}`}
+              className="w-full h-full object-contain"
+              controls
+              playsInline
+            />
+          </div>
+        )}
+        {!ad.videoPath && ad.image && (
           <div className="w-full aspect-video bg-black">
             <img
               src={ad.image}

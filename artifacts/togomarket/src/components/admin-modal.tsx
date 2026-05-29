@@ -1,4 +1,5 @@
 import { useState, useRef } from "react";
+import { uploadVideoFile } from "@/lib/upload";
 import { ImageViewer } from "@/components/image-viewer";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
@@ -84,8 +85,11 @@ export function AdminModal({
   const [allAds, setAllAds] = useState<Ad[]>([]);
   const [adsLoading, setAdsLoading] = useState(false);
   const [showAdForm, setShowAdForm] = useState(false);
-  const [adForm, setAdForm] = useState({ advertiserName: "", advertiserPhone: "", message: "", image: "" });
+  const [adForm, setAdForm] = useState({ advertiserName: "", advertiserPhone: "", message: "", image: "", videoPath: "" });
   const adImageRef = useRef<HTMLInputElement>(null);
+  const adVideoRef = useRef<HTMLInputElement>(null);
+  const [adVideoUploading, setAdVideoUploading] = useState(false);
+  const [adVideoName, setAdVideoName] = useState("");
 
   const [vendors, setVendors] = useState<VendorProfile[]>([]);
   const [vendorsLoading, setVendorsLoading] = useState(false);
@@ -215,6 +219,27 @@ export function AdminModal({
     }
   };
 
+  const handleAdVideoChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    if (file.size > 50 * 1024 * 1024) {
+      toast({ title: "Vidéo trop lourde", description: "Maximum 50 Mo.", variant: "destructive" });
+      return;
+    }
+    setAdVideoUploading(true);
+    setAdVideoName(file.name);
+    try {
+      const objectPath = await uploadVideoFile(file);
+      setAdForm((f) => ({ ...f, videoPath: objectPath }));
+      toast({ title: "Vidéo envoyée ✓" });
+    } catch {
+      toast({ title: "Erreur vidéo", description: "Impossible d'envoyer la vidéo.", variant: "destructive" });
+      setAdVideoName("");
+    } finally {
+      setAdVideoUploading(false);
+    }
+  };
+
   const handleCreateAd = () => {
     if (!adForm.advertiserName.trim() || !adForm.advertiserPhone.trim() || !adForm.message.trim()) {
       toast({ title: "Champs requis", description: "Remplissez tous les champs obligatoires.", variant: "destructive" });
@@ -225,7 +250,8 @@ export function AdminModal({
       {
         onSuccess: () => {
           toast({ title: "Publicité créée", description: "Elle est maintenant visible sur le site pendant 30 jours." });
-          setAdForm({ advertiserName: "", advertiserPhone: "", message: "", image: "" });
+          setAdForm({ advertiserName: "", advertiserPhone: "", message: "", image: "", videoPath: "" });
+          setAdVideoName("");
           setShowAdForm(false);
           refetchAds();
         },
@@ -768,25 +794,56 @@ export function AdminModal({
                       onChange={(e) => setAdForm((f) => ({ ...f, message: e.target.value }))}
                       className="h-8 text-sm"
                     />
-                    <div className="flex items-center gap-2">
-                      <input
-                        ref={adImageRef}
-                        type="file"
-                        accept="image/*"
-                        onChange={handleAdImageChange}
-                        className="hidden"
-                      />
-                      <Button
-                        size="sm"
-                        variant="outline"
-                        className="h-7 text-xs"
-                        onClick={() => adImageRef.current?.click()}
-                      >
-                        {adForm.image ? "Image choisie ✓" : "Ajouter une image"}
-                      </Button>
-                      {adForm.image && (
-                        <img src={adForm.image} alt="preview" className="w-8 h-8 rounded object-cover border" />
-                      )}
+                    <div className="flex flex-col gap-2">
+                      <div className="flex items-center gap-2">
+                        <input
+                          ref={adImageRef}
+                          type="file"
+                          accept="image/*"
+                          onChange={handleAdImageChange}
+                          className="hidden"
+                        />
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          className="h-7 text-xs"
+                          onClick={() => adImageRef.current?.click()}
+                        >
+                          {adForm.image ? "Image ✓" : "Photo"}
+                        </Button>
+                        {adForm.image && (
+                          <img src={adForm.image} alt="preview" className="w-8 h-8 rounded object-cover border" />
+                        )}
+                      </div>
+                      <div className="flex items-center gap-2">
+                        <input
+                          ref={adVideoRef}
+                          type="file"
+                          accept="video/*"
+                          onChange={handleAdVideoChange}
+                          className="hidden"
+                          disabled={adVideoUploading}
+                        />
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          className="h-7 text-xs"
+                          onClick={() => adVideoRef.current?.click()}
+                          disabled={adVideoUploading}
+                        >
+                          {adVideoUploading ? "Envoi..." : adForm.videoPath ? "Vidéo ✓" : "Vidéo (optionnel)"}
+                        </Button>
+                        {adVideoName && !adVideoUploading && (
+                          <span className="text-[10px] text-muted-foreground truncate max-w-[100px]">{adVideoName}</span>
+                        )}
+                        {adForm.videoPath && (
+                          <button
+                            type="button"
+                            onClick={() => { setAdForm((f) => ({ ...f, videoPath: "" })); setAdVideoName(""); }}
+                            className="text-[10px] text-red-500 underline"
+                          >Retirer</button>
+                        )}
+                      </div>
                     </div>
                     <div className="flex gap-2">
                       <Button size="sm" className="flex-1 h-7" onClick={handleCreateAd} disabled={createAd.isPending}>

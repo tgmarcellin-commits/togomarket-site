@@ -12,6 +12,8 @@ export interface Ad {
   message: string;
   /** @nullable */
   image?: string | null;
+  /** @nullable */
+  videoPath?: string | null;
   startDate: string;
   endDate: string;
 }
@@ -22,6 +24,7 @@ export interface AdminCreateAdInput {
   advertiserPhone: string;
   message: string;
   image?: string;
+  videoPath?: string;
 }
 
 export interface HealthStatus {
@@ -188,6 +191,25 @@ export interface AdminActivateVendorResult {
   success: boolean;
   code: string;
   vendorPhone: string;
+}
+
+export interface UploadUrlRequest {
+  /** @minLength 1 */
+  name: string;
+  /** @minimum 1 */
+  size: number;
+  /** @minLength 1 */
+  contentType: string;
+}
+
+export interface UploadUrlResponse {
+  uploadURL: string;
+  objectPath: string;
+  metadata?: UploadUrlRequest;
+}
+
+export interface ErrorEnvelope {
+  error: string;
 }
 
 export type GetListingsParams = {

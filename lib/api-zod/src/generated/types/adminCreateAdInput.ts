@@ -12,4 +12,5 @@ export interface AdminCreateAdInput {
   advertiserPhone: string;
   message: string;
   image?: string;
+  videoPath?: string;
 }
