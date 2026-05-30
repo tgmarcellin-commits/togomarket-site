@@ -48,3 +48,9 @@ id = "aAVyPCD-4MA2Ga4TOkJmh"
 uri = "file://togomarket_essentiel.tar.gz"
 type = "unspecified"
 title = "TogoMarket — Code + Base de données (version légère)"
+
+[[outputs]]
+id = "YqDJAhBRzd-ms2zP-bocA"
+uri = "file://togomarket-presentation.pdf"
+type = "pdf"
+title = "Présentation TogoMarket"
