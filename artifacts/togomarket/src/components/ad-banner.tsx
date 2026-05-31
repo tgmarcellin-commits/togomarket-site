@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import { useGetActiveAds, type Ad } from "@workspace/api-client-react";
-import { Megaphone, X } from "lucide-react";
+import { Megaphone, X, ChevronLeft, ChevronRight, Play } from "lucide-react";
 
 function AdModal({ ad, onClose }: { ad: Ad; onClose: () => void }) {
   return (
@@ -51,9 +51,7 @@ function AdModal({ ad, onClose }: { ad: Ad; onClose: () => void }) {
               <X className="w-4 h-4 text-muted-foreground" />
             </button>
           </div>
-
           <p className="text-sm text-foreground leading-relaxed">{ad.message}</p>
-
           <div className="pt-2 border-t text-xs text-muted-foreground">
             Expire le {new Date(ad.endDate).toLocaleDateString("fr-FR", { day: "2-digit", month: "long", year: "numeric" })}
           </div>
@@ -72,58 +70,93 @@ export function AdBanner() {
     if (!ads || ads.length <= 1) return;
     const interval = setInterval(() => {
       setCurrent((prev) => (prev + 1) % ads.length);
-    }, 5000);
+    }, 6000);
     return () => clearInterval(interval);
   }, [ads]);
 
   if (!ads || ads.length === 0) return null;
 
   const ad = ads[current];
+  const hasMedia = !!(ad.image || ad.videoPath);
 
   return (
     <>
-      <div className="w-full bg-amber-50 border-b border-amber-200">
-        <div className="container mx-auto px-4 py-2">
-          <div className="flex items-center gap-3">
-            <div className="flex-shrink-0 bg-amber-400 rounded-full p-1.5">
-              <Megaphone className="w-3.5 h-3.5 text-white" />
+      <div className="w-full bg-gradient-to-r from-amber-500 to-orange-500 shadow-md">
+        <div className="container mx-auto px-3 py-2.5">
+          {/* Label */}
+          <div className="flex items-center gap-1.5 mb-2">
+            <div className="bg-white/20 rounded-full p-1">
+              <Megaphone className="w-3 h-3 text-white" />
             </div>
-            <span className="text-[10px] font-bold uppercase tracking-widest text-amber-600 flex-shrink-0">
-              Pub
+            <span className="text-[10px] font-black uppercase tracking-widest text-white/90">
+              Publicité
             </span>
-            <button
-              className="flex items-center gap-3 flex-1 min-w-0 overflow-hidden text-left cursor-pointer hover:opacity-80 transition-opacity"
-              onClick={() => setSelectedAd(ad)}
-            >
-              {ad.image && (
-                <img
-                  src={ad.image}
-                  alt={ad.advertiserName}
-                  className="w-10 h-10 rounded-md object-cover flex-shrink-0 border border-amber-200"
-                />
-              )}
-              <div className="min-w-0">
-                <p className="text-xs font-bold text-foreground truncate">{ad.advertiserName}</p>
-                <p className="text-xs text-muted-foreground truncate">{ad.message}</p>
-              </div>
-              <span className="text-[10px] text-amber-500 font-medium flex-shrink-0 underline">
-                Voir plus
-              </span>
-            </button>
             {ads.length > 1 && (
-              <div className="flex gap-1 flex-shrink-0">
+              <div className="flex gap-1 ml-auto">
                 {ads.map((_, i) => (
                   <button
                     key={i}
                     onClick={() => setCurrent(i)}
-                    className={`w-1.5 h-1.5 rounded-full transition-colors ${
-                      i === current ? "bg-amber-500" : "bg-amber-200"
+                    className={`w-1.5 h-1.5 rounded-full transition-all ${
+                      i === current ? "bg-white scale-125" : "bg-white/40"
                     }`}
                   />
                 ))}
               </div>
             )}
           </div>
+
+          {/* Ad content */}
+          <button
+            className="w-full flex items-center gap-3 text-left active:opacity-80 transition-opacity"
+            onClick={() => setSelectedAd(ad)}
+          >
+            {/* Media thumbnail */}
+            {hasMedia && (
+              <div className="relative flex-shrink-0 w-16 h-16 rounded-xl overflow-hidden border-2 border-white/30 shadow-md">
+                {ad.image && <img src={ad.image} alt={ad.advertiserName} className="w-full h-full object-cover" />}
+                {ad.videoPath && !ad.image && (
+                  <div className="w-full h-full bg-black/60 flex items-center justify-center">
+                    <Play className="w-6 h-6 text-white fill-white" />
+                  </div>
+                )}
+                {ad.videoPath && (
+                  <div className="absolute bottom-0.5 right-0.5 bg-black/60 rounded-full p-0.5">
+                    <Play className="w-2.5 h-2.5 text-white fill-white" />
+                  </div>
+                )}
+              </div>
+            )}
+
+            {/* Text */}
+            <div className="flex-1 min-w-0">
+              <p className="text-sm font-bold text-white truncate leading-tight">{ad.advertiserName}</p>
+              <p className="text-xs text-white/80 line-clamp-2 leading-snug mt-0.5">{ad.message}</p>
+            </div>
+
+            {/* CTA */}
+            <div className="flex-shrink-0 bg-white text-amber-600 font-bold text-[11px] px-3 py-1.5 rounded-full shadow-sm whitespace-nowrap">
+              Voir plus
+            </div>
+          </button>
+
+          {/* Navigation arrows for multiple ads */}
+          {ads.length > 1 && (
+            <div className="flex justify-end gap-2 mt-2">
+              <button
+                onClick={() => setCurrent((c) => (c - 1 + ads.length) % ads.length)}
+                className="bg-white/20 hover:bg-white/30 rounded-full p-0.5 transition-colors"
+              >
+                <ChevronLeft className="w-3.5 h-3.5 text-white" />
+              </button>
+              <button
+                onClick={() => setCurrent((c) => (c + 1) % ads.length)}
+                className="bg-white/20 hover:bg-white/30 rounded-full p-0.5 transition-colors"
+              >
+                <ChevronRight className="w-3.5 h-3.5 text-white" />
+              </button>
+            </div>
+          )}
         </div>
       </div>
 
