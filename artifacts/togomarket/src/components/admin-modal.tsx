@@ -108,7 +108,11 @@ export function AdminModal({
   const adminPublishImageRef = useRef<HTMLInputElement>(null);
 
   const [confirmAction, setConfirmAction] = useState<
-    { type: "newCode"; vendorId: number } | { type: "deleteVendor"; vendorId: number; name: string } | null
+    | { type: "newCode"; vendorId: number }
+    | { type: "deleteVendor"; vendorId: number; name: string }
+    | { type: "deleteListing"; listingId: number }
+    | { type: "deleteAd"; adId: number }
+    | null
   >(null);
 
   const createAd = useAdminCreateAd();
@@ -284,11 +288,10 @@ export function AdminModal({
   };
 
   const handleDeleteAd = (id: number) => {
-    if (!confirm("Supprimer cette publicité ?")) return;
     deleteAd.mutate(
       { data: { id, password: storedPassword } },
       {
-        onSuccess: () => { toast({ title: "Publicité supprimée" }); refetchAds(); },
+        onSuccess: () => { setConfirmAction(null); toast({ title: "Publicité supprimée" }); refetchAds(); },
         onError: () => { toast({ title: "Erreur", variant: "destructive" }); },
       }
     );
@@ -387,6 +390,7 @@ export function AdminModal({
       { data: { id, password: storedPassword } },
       {
         onSuccess: () => {
+          setConfirmAction(null);
           toast({ title: "Annonce supprimée" });
           refetchPending();
           queryClient.invalidateQueries({ queryKey: ["getListings"] });
@@ -555,27 +559,49 @@ export function AdminModal({
                         </div>
                       )}
                       
-                      <div className="flex gap-2">
-                        <Button
-                          size="sm"
-                          className="flex-1 bg-green-600 hover:bg-green-700 text-white h-8"
-                          onClick={() => handleApprove(listing.id)}
-                          disabled={approveListing.isPending}
-                        >
-                          <CheckCircle className="w-3.5 h-3.5 mr-1" />
-                          Approuver
-                        </Button>
-                        <Button
-                          size="sm"
-                          variant="destructive"
-                          className="flex-1 h-8"
-                          onClick={() => handleDelete(listing.id)}
-                          disabled={deleteListing.isPending}
-                        >
-                          <Trash2 className="w-3.5 h-3.5 mr-1" />
-                          Rejeter
-                        </Button>
-                      </div>
+                      {confirmAction?.type === "deleteListing" && confirmAction.listingId === listing.id ? (
+                        <div className="bg-red-50 border border-red-200 rounded-lg p-2.5 space-y-2">
+                          <div className="flex items-center gap-1.5">
+                            <AlertTriangle className="w-3.5 h-3.5 text-red-600 flex-shrink-0" />
+                            <p className="text-xs font-semibold text-red-800">Supprimer cette annonce définitivement ?</p>
+                          </div>
+                          <div className="flex gap-2">
+                            <Button
+                              size="sm"
+                              variant="destructive"
+                              className="flex-1 h-7 text-xs"
+                              onClick={() => handleDelete(listing.id)}
+                              disabled={deleteListing.isPending}
+                            >
+                              {deleteListing.isPending ? "..." : "Oui, supprimer"}
+                            </Button>
+                            <Button size="sm" variant="outline" className="flex-1 h-7 text-xs" onClick={() => setConfirmAction(null)}>
+                              Annuler
+                            </Button>
+                          </div>
+                        </div>
+                      ) : (
+                        <div className="flex gap-2">
+                          <Button
+                            size="sm"
+                            className="flex-1 bg-green-600 hover:bg-green-700 text-white h-8"
+                            onClick={() => handleApprove(listing.id)}
+                            disabled={approveListing.isPending}
+                          >
+                            <CheckCircle className="w-3.5 h-3.5 mr-1" />
+                            Approuver
+                          </Button>
+                          <Button
+                            size="sm"
+                            variant="destructive"
+                            className="flex-1 h-8"
+                            onClick={() => setConfirmAction({ type: "deleteListing", listingId: listing.id })}
+                          >
+                            <Trash2 className="w-3.5 h-3.5 mr-1" />
+                            Rejeter
+                          </Button>
+                        </div>
+                      )}
                     </div>
                   ))
                 )}
@@ -707,7 +733,7 @@ export function AdminModal({
                             </div>
                           )}
 
-                          {confirmAction?.vendorId !== v.id && (
+                          {(confirmAction?.type !== "newCode" && confirmAction?.type !== "deleteVendor" || confirmAction?.vendorId !== v.id) && (
                             <div className="flex gap-2">
                               {!v.verified && (
                                 <Button
@@ -984,25 +1010,48 @@ export function AdminModal({
                               <p className="text-[10px] text-muted-foreground">Expire le {endDate}</p>
                             </div>
                           </div>
-                          <div className="flex gap-2">
-                            {!active && (
+                          {confirmAction?.type === "deleteAd" && confirmAction.adId === ad.id ? (
+                            <div className="bg-red-50 border border-red-200 rounded-lg p-2.5 space-y-2">
+                              <div className="flex items-center gap-1.5">
+                                <AlertTriangle className="w-3.5 h-3.5 text-red-600 flex-shrink-0" />
+                                <p className="text-xs font-semibold text-red-800">Supprimer cette publicité ?</p>
+                              </div>
+                              <div className="flex gap-2">
+                                <Button
+                                  size="sm"
+                                  variant="destructive"
+                                  className="flex-1 h-7 text-xs"
+                                  onClick={() => handleDeleteAd(ad.id)}
+                                  disabled={deleteAd.isPending}
+                                >
+                                  {deleteAd.isPending ? "..." : "Oui, supprimer"}
+                                </Button>
+                                <Button size="sm" variant="outline" className="flex-1 h-7 text-xs" onClick={() => setConfirmAction(null)}>
+                                  Annuler
+                                </Button>
+                              </div>
+                            </div>
+                          ) : (
+                            <div className="flex gap-2">
+                              {!active && (
+                                <Button
+                                  size="sm"
+                                  className="flex-1 h-7 text-xs bg-green-600 hover:bg-green-700 text-white"
+                                  onClick={() => handleRenewWhatsApp(ad)}
+                                >
+                                  📱 Renouvellement WhatsApp
+                                </Button>
+                              )}
                               <Button
                                 size="sm"
-                                className="flex-1 h-7 text-xs bg-green-600 hover:bg-green-700 text-white"
-                                onClick={() => handleRenewWhatsApp(ad)}
+                                variant="destructive"
+                                className={`h-7 text-xs ${!active ? "" : "flex-1"}`}
+                                onClick={() => setConfirmAction({ type: "deleteAd", adId: ad.id })}
                               >
-                                📱 Renouvellement WhatsApp
+                                <Trash2 className="w-3 h-3" />
                               </Button>
-                            )}
-                            <Button
-                              size="sm"
-                              variant="destructive"
-                              className={`h-7 text-xs ${!active ? "" : "flex-1"}`}
-                              onClick={() => handleDeleteAd(ad.id)}
-                            >
-                              <Trash2 className="w-3 h-3" />
-                            </Button>
-                          </div>
+                            </div>
+                          )}
                         </div>
                       );
                     })}
