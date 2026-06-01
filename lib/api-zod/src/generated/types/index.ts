@@ -28,6 +28,7 @@ export * from './order';
 export * from './orderInput';
 export * from './platformSettings';
 export * from './sectorStat';
+export * from './successResult';
 export * from './updateSettingsInput';
 export * from './uploadUrlRequest';
 export * from './uploadUrlResponse';

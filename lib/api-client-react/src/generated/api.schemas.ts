@@ -208,6 +208,10 @@ export interface UploadUrlResponse {
   metadata?: UploadUrlRequest;
 }
 
+export interface SuccessResult {
+  success: boolean;
+}
+
 export interface ErrorEnvelope {
   error: string;
 }

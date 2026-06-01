@@ -17,6 +17,7 @@ import {
   useAdminGetVendors,
   useAdminActivateVendor,
   useAdminGenerateVendorCode,
+  useAdminDeleteVendor,
   useAdminCreateListing,
   getGetAdminSettingsQueryKey,
   getGetListingsQueryKey,
@@ -41,7 +42,7 @@ import {
 } from "@/components/ui/form";
 import { Input } from "@/components/ui/input";
 import { useToast } from "@/hooks/use-toast";
-import { Settings, LogOut, CheckCircle, Trash2, Clock, KeyRound, Megaphone, Plus, RefreshCw, Users, UploadCloud, X, Eye, EyeOff } from "lucide-react";
+import { Settings, LogOut, CheckCircle, Trash2, Clock, KeyRound, Megaphone, Plus, RefreshCw, Users, UploadCloud, X, Eye, EyeOff, AlertTriangle } from "lucide-react";
 import { resizeImage } from "@/lib/image";
 
 const loginSchema = z.object({
@@ -106,6 +107,10 @@ export function AdminModal({
   const [adminPublishProcessing, setAdminPublishProcessing] = useState(false);
   const adminPublishImageRef = useRef<HTMLInputElement>(null);
 
+  const [confirmAction, setConfirmAction] = useState<
+    { type: "newCode"; vendorId: number } | { type: "deleteVendor"; vendorId: number; name: string } | null
+  >(null);
+
   const createAd = useAdminCreateAd();
   const adminCreateListing = useAdminCreateListing();
   const getAllAds = useAdminGetAllAds();
@@ -113,6 +118,7 @@ export function AdminModal({
   const getVendors = useAdminGetVendors();
   const activateVendor = useAdminActivateVendor();
   const generateCode = useAdminGenerateVendorCode();
+  const deleteVendor = useAdminDeleteVendor();
 
   const refetchAds = () => {
     if (!storedPassword) return;
@@ -156,10 +162,25 @@ export function AdminModal({
       { data: { password: storedPassword, vendorId } },
       {
         onSuccess: (res) => {
+          setConfirmAction(null);
           setGeneratedCode({ code: res.code, phone: res.vendorPhone });
           refetchVendors();
         },
         onError: () => toast({ title: "Erreur lors de la génération du code", variant: "destructive" }),
+      }
+    );
+  };
+
+  const handleDeleteVendor = (vendorId: number) => {
+    deleteVendor.mutate(
+      { data: { password: storedPassword, vendorId } },
+      {
+        onSuccess: () => {
+          setConfirmAction(null);
+          toast({ title: "Vendeur supprimé", description: "Le compte a été supprimé définitivement." });
+          refetchVendors();
+        },
+        onError: () => toast({ title: "Erreur lors de la suppression", variant: "destructive" }),
       }
     );
   };
@@ -635,31 +656,92 @@ export function AdminModal({
                               )}
                             </div>
                           </div>
-                          <div className="flex gap-2">
-                            {!v.verified && (
-                              <Button
-                                size="sm"
-                                className="flex-1 h-7 text-xs bg-green-600 hover:bg-green-700 text-white"
-                                onClick={() => handleActivateVendor(v.id)}
-                                disabled={activateVendor.isPending}
-                              >
-                                <CheckCircle className="w-3 h-3 mr-1" />
-                                Activer + Code gratuit
-                              </Button>
-                            )}
-                            {v.verified && (
+                          {/* Confirmation inline : nouveau code */}
+                          {confirmAction?.type === "newCode" && confirmAction.vendorId === v.id && (
+                            <div className="bg-amber-50 border border-amber-200 rounded-lg p-2.5 space-y-2">
+                              <div className="flex items-center gap-1.5">
+                                <AlertTriangle className="w-3.5 h-3.5 text-amber-600 flex-shrink-0" />
+                                <p className="text-xs font-semibold text-amber-800">
+                                  L'ancien code sera remplacé. Confirmer ?
+                                </p>
+                              </div>
+                              <div className="flex gap-2">
+                                <Button
+                                  size="sm"
+                                  className="flex-1 h-7 text-xs bg-amber-500 hover:bg-amber-600 text-white"
+                                  onClick={() => handleGenerateCode(v.id)}
+                                  disabled={generateCode.isPending}
+                                >
+                                  {generateCode.isPending ? "..." : "Oui, générer"}
+                                </Button>
+                                <Button size="sm" variant="outline" className="flex-1 h-7 text-xs" onClick={() => setConfirmAction(null)}>
+                                  Annuler
+                                </Button>
+                              </div>
+                            </div>
+                          )}
+
+                          {/* Confirmation inline : supprimer vendeur */}
+                          {confirmAction?.type === "deleteVendor" && confirmAction.vendorId === v.id && (
+                            <div className="bg-red-50 border border-red-200 rounded-lg p-2.5 space-y-2">
+                              <div className="flex items-center gap-1.5">
+                                <AlertTriangle className="w-3.5 h-3.5 text-red-600 flex-shrink-0" />
+                                <p className="text-xs font-semibold text-red-800">
+                                  Supprimer définitivement ce compte ?
+                                </p>
+                              </div>
+                              <div className="flex gap-2">
+                                <Button
+                                  size="sm"
+                                  variant="destructive"
+                                  className="flex-1 h-7 text-xs"
+                                  onClick={() => handleDeleteVendor(v.id)}
+                                  disabled={deleteVendor.isPending}
+                                >
+                                  {deleteVendor.isPending ? "..." : "Oui, supprimer"}
+                                </Button>
+                                <Button size="sm" variant="outline" className="flex-1 h-7 text-xs" onClick={() => setConfirmAction(null)}>
+                                  Annuler
+                                </Button>
+                              </div>
+                            </div>
+                          )}
+
+                          {confirmAction?.vendorId !== v.id && (
+                            <div className="flex gap-2">
+                              {!v.verified && (
+                                <Button
+                                  size="sm"
+                                  className="flex-1 h-7 text-xs bg-green-600 hover:bg-green-700 text-white"
+                                  onClick={() => handleActivateVendor(v.id)}
+                                  disabled={activateVendor.isPending}
+                                >
+                                  <CheckCircle className="w-3 h-3 mr-1" />
+                                  Activer + Code gratuit
+                                </Button>
+                              )}
+                              {v.verified && (
+                                <Button
+                                  size="sm"
+                                  variant="outline"
+                                  className="flex-1 h-7 text-xs"
+                                  onClick={() => setConfirmAction({ type: "newCode", vendorId: v.id })}
+                                  disabled={generateCode.isPending}
+                                >
+                                  <KeyRound className="w-3 h-3 mr-1" />
+                                  {hasCode ? "Nouveau code" : "Générer code"}
+                                </Button>
+                              )}
                               <Button
                                 size="sm"
                                 variant="outline"
-                                className="flex-1 h-7 text-xs"
-                                onClick={() => handleGenerateCode(v.id)}
-                                disabled={generateCode.isPending}
+                                className="h-7 px-2 text-red-500 hover:text-red-700 hover:bg-red-50 border-red-200"
+                                onClick={() => setConfirmAction({ type: "deleteVendor", vendorId: v.id, name: `${v.firstName} ${v.lastName}` })}
                               >
-                                <KeyRound className="w-3 h-3 mr-1" />
-                                {hasCode ? "Nouveau code" : "Générer code"}
+                                <Trash2 className="w-3 h-3" />
                               </Button>
-                            )}
-                          </div>
+                            </div>
+                          )}
                         </div>
                       );
                     })}

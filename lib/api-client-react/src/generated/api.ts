@@ -40,6 +40,7 @@ import type {
   Order,
   OrderInput,
   PlatformSettings,
+  SuccessResult,
   UpdateSettingsInput,
   UploadUrlRequest,
   UploadUrlResponse,
@@ -1884,5 +1885,76 @@ export const useAdminGenerateVendorCode = <TError = ErrorType<void>,
         TContext
       > => {
       return useMutation(getAdminGenerateVendorCodeMutationOptions(options));
+    }
+
+export const getAdminDeleteVendorUrl = () => {
+
+
+
+
+  return `/api/admin/vendors/delete`
+}
+
+/**
+ * @summary Delete a vendor account and all their data (admin only)
+ */
+export const adminDeleteVendor = async (adminActivateVendorInput: AdminActivateVendorInput, options?: RequestInit): Promise<SuccessResult> => {
+
+  return customFetch<SuccessResult>(getAdminDeleteVendorUrl(),
+  {
+    ...options,
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...options?.headers },
+    body: JSON.stringify(
+      adminActivateVendorInput,)
+  }
+);}
+
+
+
+
+export const getAdminDeleteVendorMutationOptions = <TError = ErrorType<void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof adminDeleteVendor>>, TError,{data: BodyType<AdminActivateVendorInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof adminDeleteVendor>>, TError,{data: BodyType<AdminActivateVendorInput>}, TContext> => {
+
+const mutationKey = ['adminDeleteVendor'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof adminDeleteVendor>>, {data: BodyType<AdminActivateVendorInput>}> = (props) => {
+          const {data} = props ?? {};
+
+          return  adminDeleteVendor(data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type AdminDeleteVendorMutationResult = NonNullable<Awaited<ReturnType<typeof adminDeleteVendor>>>
+    export type AdminDeleteVendorMutationBody = BodyType<AdminActivateVendorInput>
+    export type AdminDeleteVendorMutationError = ErrorType<void>
+
+    /**
+ * @summary Delete a vendor account and all their data (admin only)
+ */
+export const useAdminDeleteVendor = <TError = ErrorType<void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof adminDeleteVendor>>, TError,{data: BodyType<AdminActivateVendorInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof adminDeleteVendor>>,
+        TError,
+        {data: BodyType<AdminActivateVendorInput>},
+        TContext
+      > => {
+      return useMutation(getAdminDeleteVendorMutationOptions(options));
     }
 

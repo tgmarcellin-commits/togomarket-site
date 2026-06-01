@@ -14,6 +14,7 @@ import {
   AdminActivateVendorResponse,
   AdminGenerateVendorCodeBody,
   AdminGenerateVendorCodeResponse,
+  AdminDeleteVendorBody,
 } from "@workspace/api-zod";
 
 const router: IRouter = Router();
@@ -268,6 +269,37 @@ router.post("/admin/vendors/generate-code", async (req, res) => {
     return res.json(AdminGenerateVendorCodeResponse.parse({ success: true, code, vendorPhone: vendor.phone }));
   } catch (err) {
     req.log.error({ err }, "Failed to generate vendor code");
+    return res.status(500).json({ error: "Erreur interne" });
+  }
+});
+
+router.post("/admin/vendors/delete", async (req, res) => {
+  const parsed = AdminDeleteVendorBody.safeParse(req.body);
+  if (!parsed.success) {
+    return res.status(400).json({ error: parsed.error.message });
+  }
+  if (parsed.data.password !== ADMIN_PASSWORD) {
+    return res.status(403).json({ error: "Forbidden" });
+  }
+
+  try {
+    const existing = await db
+      .select({ id: vendorsTable.id })
+      .from(vendorsTable)
+      .where(eq(vendorsTable.id, parsed.data.vendorId))
+      .limit(1);
+
+    if (existing.length === 0) {
+      return res.status(404).json({ error: "Vendeur introuvable" });
+    }
+
+    await db.delete(publishCodesTable).where(eq(publishCodesTable.vendorId, parsed.data.vendorId));
+    await db.delete(vendorsTable).where(eq(vendorsTable.id, parsed.data.vendorId));
+
+    req.log.info({ vendorId: parsed.data.vendorId }, "Vendor deleted by admin");
+    return res.json({ success: true });
+  } catch (err) {
+    req.log.error({ err }, "Failed to delete vendor");
     return res.status(500).json({ error: "Erreur interne" });
   }
 });

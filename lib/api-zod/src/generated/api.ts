@@ -396,3 +396,16 @@ export const AdminGenerateVendorCodeResponse = zod.object({
 })
 
 
+/**
+ * @summary Delete a vendor account and all their data (admin only)
+ */
+export const AdminDeleteVendorBody = zod.object({
+  "password": zod.string(),
+  "vendorId": zod.number()
+})
+
+export const AdminDeleteVendorResponse = zod.object({
+  "success": zod.boolean()
+})
+
+

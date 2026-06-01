@@ -537,6 +537,29 @@ paths:
         "403":
           description: Forbidden
 
+  /admin/vendors/delete:
+    post:
+      operationId: adminDeleteVendor
+      tags: [admin, vendors]
+      summary: Delete a vendor account and all their data (admin only)
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/AdminActivateVendorInput"
+      responses:
+        "200":
+          description: Vendor deleted
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/SuccessResult"
+        "403":
+          description: Forbidden
+        "404":
+          description: Vendor not found
+
 components:
   schemas:
     Ad:
@@ -893,6 +916,13 @@ components:
           type: string
         metadata:
           $ref: '#/components/schemas/UploadUrlRequest'
+    SuccessResult:
+      type: object
+      required: [success]
+      properties:
+        success:
+          type: boolean
+
     ErrorEnvelope:
       type: object
       required: [error]
