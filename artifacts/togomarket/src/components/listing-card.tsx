@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { resolveImageUrl } from "@/lib/image";
 import type { Listing } from "@workspace/api-client-react";
 import { useAdminDeleteListing, getGetListingsQueryKey } from "@workspace/api-client-react";
 import { useQueryClient } from "@tanstack/react-query";
@@ -93,7 +94,7 @@ export function ListingCard({ listing, isAdmin, adminPassword, commissionRate, i
             listing.images.map((img, i) => (
               <img
                 key={i}
-                src={img}
+                src={resolveImageUrl(img)}
                 alt={`${listing.name} ${i + 1}`}
                 className="w-full h-full object-contain snap-center flex-shrink-0 cursor-zoom-in"
                 onClick={() => openViewer(i)}

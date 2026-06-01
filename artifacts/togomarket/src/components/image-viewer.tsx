@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react";
+import { resolveImageUrl } from "@/lib/image";
 import { X, ChevronLeft, ChevronRight } from "lucide-react";
 
 interface ImageViewerProps {
@@ -49,7 +50,7 @@ export function ImageViewer({ images, startIndex, onClose }: ImageViewerProps) {
         onClick={(e) => e.stopPropagation()}
       >
         <img
-          src={images[current]}
+          src={resolveImageUrl(images[current])}
           alt={`Photo ${current + 1}`}
           className="max-w-full max-h-full object-contain select-none"
           style={{ maxHeight: "90vh" }}
@@ -88,7 +89,7 @@ export function ImageViewer({ images, startIndex, onClose }: ImageViewerProps) {
                 i === current ? "border-white scale-110" : "border-white/30 opacity-60"
               }`}
             >
-              <img src={img} alt="" className="w-full h-full object-cover" />
+              <img src={resolveImageUrl(img)} alt="" className="w-full h-full object-cover" />
             </button>
           ))}
         </div>

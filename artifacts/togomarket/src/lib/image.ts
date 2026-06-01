@@ -1,3 +1,8 @@
+export function resolveImageUrl(img: string): string {
+  if (img.startsWith("data:") || img.startsWith("http") || img.startsWith("blob:")) return img;
+  return `/api/storage${img}`;
+}
+
 export function resizeImage(file: File): Promise<string> {
   return new Promise((resolve, reject) => {
     const reader = new FileReader();
