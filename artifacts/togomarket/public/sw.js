@@ -1,10 +1,8 @@
-const CACHE_NAME = "togomarket-v1";
-const STATIC_ASSETS = ["/", "/logo.jpg", "/manifest.json"];
+const CACHE_NAME = "togomarket-v2";
 
+// Ne met en cache que les ressources statiques avec hash Vite (JS/CSS)
+// Les pages HTML sont toujours chargées depuis le réseau
 self.addEventListener("install", (event) => {
-  event.waitUntil(
-    caches.open(CACHE_NAME).then((cache) => cache.addAll(STATIC_ASSETS))
-  );
   self.skipWaiting();
 });
 
@@ -20,14 +18,35 @@ self.addEventListener("activate", (event) => {
 self.addEventListener("fetch", (event) => {
   const url = new URL(event.request.url);
 
-  // Ne pas mettre en cache les appels API
+  // Ne jamais mettre en cache les appels API
   if (url.pathname.startsWith("/api/")) {
     return;
   }
 
-  event.respondWith(
-    caches.match(event.request).then((cached) => {
-      return cached || fetch(event.request).catch(() => caches.match("/"));
-    })
-  );
+  // Les navigations HTML (pages) → toujours réseau en premier
+  if (event.request.mode === "navigate") {
+    event.respondWith(
+      fetch(event.request).catch(() => caches.match("/index.html"))
+    );
+    return;
+  }
+
+  // Ressources avec hash Vite (ex: assets/index-abc123.js) → cache first
+  if (url.pathname.includes("/assets/")) {
+    event.respondWith(
+      caches.open(CACHE_NAME).then((cache) =>
+        cache.match(event.request).then((cached) => {
+          if (cached) return cached;
+          return fetch(event.request).then((res) => {
+            cache.put(event.request, res.clone());
+            return res;
+          });
+        })
+      )
+    );
+    return;
+  }
+
+  // Tout le reste → réseau, sans cache
+  event.respondWith(fetch(event.request));
 });
