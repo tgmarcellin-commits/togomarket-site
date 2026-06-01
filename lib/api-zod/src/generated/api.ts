@@ -397,6 +397,18 @@ export const AdminGenerateVendorCodeResponse = zod.object({
 
 
 /**
+ * @summary Find and delete orphan files in Object Storage (admin only)
+ */
+export const AdminStorageCleanupBody = zod.object({
+  "password": zod.string()
+})
+
+export const AdminStorageCleanupResponse = zod.object({
+  "deleted": zod.number()
+})
+
+
+/**
  * @summary Delete a vendor account and all their data (admin only)
  */
 export const AdminDeleteVendorBody = zod.object({

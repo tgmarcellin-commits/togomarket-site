@@ -189,6 +189,44 @@ export class ObjectStorageService {
     return normalizedPath;
   }
 
+  async deleteObjectEntity(objectPath: string): Promise<void> {
+    try {
+      const file = await this.getObjectEntityFile(objectPath);
+      await file.delete();
+    } catch (err) {
+      if (err instanceof ObjectNotFoundError) return;
+      throw err;
+    }
+  }
+
+  async deleteObjectEntities(objectPaths: string[]): Promise<void> {
+    const storagePaths = objectPaths.filter((p) => p.startsWith("/objects/"));
+    await Promise.allSettled(storagePaths.map((p) => this.deleteObjectEntity(p)));
+  }
+
+  async uploadObjectEntity(buffer: Buffer, contentType: string): Promise<string> {
+    const privateObjectDir = this.getPrivateObjectDir();
+    const objectId = randomUUID();
+    const fullPath = `${privateObjectDir}/uploads/${objectId}`;
+    const { bucketName, objectName } = parseObjectPath(fullPath);
+    const bucket = objectStorageClient.bucket(bucketName);
+    const file = bucket.file(objectName);
+    await file.save(buffer, { contentType, resumable: false });
+    return `/objects/uploads/${objectId}`;
+  }
+
+  async listAllObjectEntityPaths(): Promise<string[]> {
+    const privateObjectDir = this.getPrivateObjectDir();
+    const { bucketName, objectName } = parseObjectPath(privateObjectDir + "/");
+    const prefix = objectName.endsWith("/") ? objectName : objectName + "/";
+    const bucket = objectStorageClient.bucket(bucketName);
+    const [files] = await bucket.getFiles({ prefix });
+    return files.map((f) => {
+      const entityId = f.name.slice(prefix.length - "uploads/".length);
+      return `/objects/${entityId}`;
+    });
+  }
+
   async canAccessObjectEntity({
     userId,
     objectFile,

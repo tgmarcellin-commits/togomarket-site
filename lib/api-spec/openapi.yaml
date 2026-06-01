@@ -537,6 +537,27 @@ paths:
         "403":
           description: Forbidden
 
+  /admin/storage/cleanup:
+    post:
+      operationId: adminStorageCleanup
+      tags: [admin]
+      summary: Find and delete orphan files in Object Storage (admin only)
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/AdminPasswordInput'
+      responses:
+        '200':
+          description: Cleanup result
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/StorageCleanupResult'
+        '403':
+          description: Forbidden
+
   /admin/vendors/delete:
     post:
       operationId: adminDeleteVendor
@@ -823,6 +844,13 @@ components:
           oneOf:
             - $ref: "#/components/schemas/VendorPublishCode"
             - type: "null"
+
+    StorageCleanupResult:
+      type: object
+      required: [deleted]
+      properties:
+        deleted:
+          type: integer
 
     VendorRegisterInput:
       type: object

@@ -11,8 +11,10 @@ import settingsRouter from "./settings";
 import adsRouter from "./ads";
 import vendorsRouter from "./vendors";
 import storageRouter from "./storage";
+import { ObjectStorageService } from "../lib/objectStorage";
 
 const router: IRouter = Router();
+const objectStorage = new ObjectStorageService();
 
 router.use(healthRouter);
 router.use(listingsRouter);
@@ -29,8 +31,10 @@ async function cleanupOldListings() {
   const deleted = await db
     .delete(listingsTable)
     .where(lt(listingsTable.createdAt, cutoff))
-    .returning({ id: listingsTable.id });
+    .returning({ id: listingsTable.id, images: listingsTable.images });
   if (deleted.length > 0) {
+    const allImages = deleted.flatMap((d) => d.images ?? []);
+    await objectStorage.deleteObjectEntities(allImages);
     logger.info({ count: deleted.length }, "Cleaned up listings older than 30 days");
   }
 }

@@ -19,6 +19,7 @@ import {
   useAdminGenerateVendorCode,
   useAdminDeleteVendor,
   useAdminCreateListing,
+  useAdminStorageCleanup,
   getGetAdminSettingsQueryKey,
   getGetListingsQueryKey,
   type Ad,
@@ -43,7 +44,8 @@ import {
 import { Input } from "@/components/ui/input";
 import { useToast } from "@/hooks/use-toast";
 import { Settings, LogOut, CheckCircle, Trash2, Clock, KeyRound, Megaphone, Plus, RefreshCw, Users, UploadCloud, X, Eye, EyeOff, AlertTriangle } from "lucide-react";
-import { resizeImage } from "@/lib/image";
+import { resizeImage, resizeImageToBlob } from "@/lib/image";
+import { uploadImageFile } from "@/lib/upload";
 
 const loginSchema = z.object({
   password: z.string().min(1, "Mot de passe requis"),
@@ -66,6 +68,45 @@ const COMMISSION_OPTIONS = [
   { rate: 5, label: "5% (max 5 000 FCFA pour les articles > 100 000 FCFA)" },
 ];
 
+function StorageCleanupSection({ password }: { password: string }) {
+  const storageCleanup = useAdminStorageCleanup();
+  const { toast } = useToast();
+
+  const handleCleanup = () => {
+    storageCleanup.mutate(
+      { data: { password } },
+      {
+        onSuccess: (result) => {
+          toast({
+            title: "Nettoyage terminé",
+            description: `${result.deleted} fichier(s) orphelin(s) supprimé(s).`,
+          });
+        },
+        onError: () => toast({ title: "Erreur lors du nettoyage", variant: "destructive" }),
+      }
+    );
+  };
+
+  return (
+    <div>
+      <p className="text-sm font-semibold mb-1">Nettoyage du stockage</p>
+      <p className="text-xs text-muted-foreground mb-3">
+        Supprime les fichiers images orphelins (non liés à une annonce).
+      </p>
+      <Button
+        variant="outline"
+        size="sm"
+        className="w-full text-destructive border-destructive/30 hover:bg-destructive/10"
+        onClick={handleCleanup}
+        disabled={storageCleanup.isPending}
+      >
+        <RefreshCw className={`w-3.5 h-3.5 mr-2 ${storageCleanup.isPending ? "animate-spin" : ""}`} />
+        {storageCleanup.isPending ? "Nettoyage en cours…" : "Nettoyer les orphelins"}
+      </Button>
+    </div>
+  );
+}
+
 type DashTab = "pending" | "vendors" | "publish" | "ads" | "settings";
 
 export function AdminModal({
@@ -86,7 +127,7 @@ export function AdminModal({
   const [allAds, setAllAds] = useState<Ad[]>([]);
   const [adsLoading, setAdsLoading] = useState(false);
   const [showAdForm, setShowAdForm] = useState(false);
-  const [adForm, setAdForm] = useState({ advertiserName: "", advertiserPhone: "", message: "", image: "", videoPath: "" });
+  const [adForm, setAdForm] = useState({ advertiserName: "", advertiserPhone: "", message: "", image: "", imagePreview: "", videoPath: "" });
   const adImageRef = useRef<HTMLInputElement>(null);
   const adVideoRef = useRef<HTMLInputElement>(null);
   const [adVideoUploading, setAdVideoUploading] = useState(false);
@@ -104,6 +145,7 @@ export function AdminModal({
   const [adminPublishForm, setAdminPublishForm] = useState({
     name: "", price: "", location: "", sector: "Divers", phone: "", images: [] as string[],
   });
+  const [adminPublishImagePreviews, setAdminPublishImagePreviews] = useState<string[]>([]);
   const [adminPublishProcessing, setAdminPublishProcessing] = useState(false);
   const adminPublishImageRef = useRef<HTMLInputElement>(null);
 
@@ -203,8 +245,15 @@ export function AdminModal({
     }
     setAdminPublishProcessing(true);
     try {
-      const resized = await Promise.all(files.map((f) => resizeImage(f)));
-      setAdminPublishForm((p) => ({ ...p, images: [...p.images, ...resized].slice(0, 4) }));
+      const entries = await Promise.all(
+        files.map(async (f) => {
+          const { blob, dataUrl } = await resizeImageToBlob(f);
+          const objectPath = await uploadImageFile(blob, f.name);
+          return { dataUrl, objectPath };
+        })
+      );
+      setAdminPublishForm((p) => ({ ...p, images: [...p.images, ...entries.map((e) => e.objectPath)].slice(0, 4) }));
+      setAdminPublishImagePreviews((p) => [...p, ...entries.map((e) => e.dataUrl)].slice(0, 4));
     } catch {
       toast({ title: "Erreur image", variant: "destructive" });
     } finally {
@@ -224,6 +273,7 @@ export function AdminModal({
         onSuccess: () => {
           toast({ title: "Annonce publiée directement !", description: "Visible immédiatement sur le site." });
           setAdminPublishForm({ name: "", price: "", location: "", sector: "Divers", phone: "", images: [] });
+          setAdminPublishImagePreviews([]);
           queryClient.invalidateQueries({ queryKey: getGetListingsQueryKey() });
         },
         onError: () => toast({ title: "Erreur lors de la publication", variant: "destructive" }),
@@ -237,10 +287,11 @@ export function AdminModal({
     const file = e.target.files?.[0];
     if (!file) return;
     try {
-      const resized = await resizeImage(file);
-      setAdForm((f) => ({ ...f, image: resized }));
+      const { blob, dataUrl } = await resizeImageToBlob(file);
+      const objectPath = await uploadImageFile(blob, file.name);
+      setAdForm((f) => ({ ...f, image: objectPath, imagePreview: dataUrl }));
     } catch {
-      setAdForm((f) => ({ ...f, image: "" }));
+      setAdForm((f) => ({ ...f, image: "", imagePreview: "" }));
     }
   };
 
@@ -275,7 +326,7 @@ export function AdminModal({
       {
         onSuccess: () => {
           toast({ title: "Publicité créée", description: "Elle est maintenant visible sur le site pendant 30 jours." });
-          setAdForm({ advertiserName: "", advertiserPhone: "", message: "", image: "", videoPath: "" });
+          setAdForm({ advertiserName: "", advertiserPhone: "", message: "", image: "", imagePreview: "", videoPath: "" });
           setAdVideoName("");
           setShowAdForm(false);
           refetchAds();
@@ -824,12 +875,15 @@ export function AdminModal({
                   <div>
                     <p className="text-xs font-medium mb-1.5 text-muted-foreground">Photos (max 4)</p>
                     <div className="flex flex-wrap gap-2">
-                      {adminPublishForm.images.map((img, i) => (
+                      {adminPublishImagePreviews.map((preview, i) => (
                         <div key={i} className="relative w-16 h-16 rounded-md overflow-hidden border flex-shrink-0">
-                          <img src={img} alt="" className="w-full h-full object-cover" />
+                          <img src={preview} alt="" className="w-full h-full object-cover" />
                           <button
                             type="button"
-                            onClick={() => setAdminPublishForm((p) => ({ ...p, images: p.images.filter((_, idx) => idx !== i) }))}
+                            onClick={() => {
+                              setAdminPublishForm((p) => ({ ...p, images: p.images.filter((_, idx) => idx !== i) }));
+                              setAdminPublishImagePreviews((p) => p.filter((_, idx) => idx !== i));
+                            }}
                             className="absolute top-0.5 right-0.5 bg-black/50 text-white rounded-full p-0.5"
                           >
                             <X className="w-2.5 h-2.5" />
@@ -919,8 +973,8 @@ export function AdminModal({
                         >
                           {adForm.image ? "Image ✓" : "Photo"}
                         </Button>
-                        {adForm.image && (
-                          <img src={adForm.image} alt="preview" className="w-8 h-8 rounded object-cover border" />
+                        {adForm.imagePreview && (
+                          <img src={adForm.imagePreview} alt="preview" className="w-8 h-8 rounded object-cover border" />
                         )}
                       </div>
                       <div className="flex items-center gap-2">
@@ -1088,6 +1142,8 @@ export function AdminModal({
                     })}
                   </div>
                 </div>
+
+                <StorageCleanupSection password={storedPassword} />
               </div>
             )}
 

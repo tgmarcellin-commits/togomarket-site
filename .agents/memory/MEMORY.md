@@ -1,0 +1,2 @@
+- [Image storage migration](image-storage-migration.md) — images passées de base64 PostgreSQL vers Replit Object Storage ; anciens chemins commencent par `data:`, nouveaux par `/objects/uploads/`.
+- [Scripts package DB access](scripts-db-deps.md) — le package scripts doit déclarer `drizzle-orm` ET `@workspace/db` dans ses dépendances pour accéder à la base via tsx.

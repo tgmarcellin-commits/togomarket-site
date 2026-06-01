@@ -3,12 +3,16 @@ import { Readable } from "stream";
 import {
   RequestUploadUrlBody,
   RequestUploadUrlResponse,
+  AdminStorageCleanupBody,
+  AdminStorageCleanupResponse,
 } from "@workspace/api-zod";
 import { ObjectStorageService, ObjectNotFoundError } from "../lib/objectStorage";
 import { ObjectPermission } from "../lib/objectAcl";
+import { db, listingsTable, adsTable } from "@workspace/db";
 
 const router: IRouter = Router();
 const objectStorageService = new ObjectStorageService();
+const ADMIN_PASSWORD = process.env.ADMIN_PASSWORD ?? "17210";
 
 /**
  * POST /storage/uploads/request-url
@@ -125,6 +129,52 @@ router.get("/storage/objects/*path", async (req: Request, res: Response) => {
     }
     req.log.error({ err: error }, "Error serving object");
     res.status(500).json({ error: "Failed to serve object" });
+  }
+});
+
+/**
+ * POST /admin/storage/cleanup
+ *
+ * Find and delete orphan files in Object Storage (files not referenced by any listing or ad).
+ */
+router.post("/admin/storage/cleanup", async (req: Request, res: Response) => {
+  const parsed = AdminStorageCleanupBody.safeParse(req.body);
+  if (!parsed.success) {
+    res.status(400).json({ error: "Champs invalides" });
+    return;
+  }
+  if (parsed.data.password !== ADMIN_PASSWORD) {
+    res.status(403).json({ error: "Forbidden" });
+    return;
+  }
+
+  try {
+    const allPaths = await objectStorageService.listAllObjectEntityPaths();
+
+    const [listings, ads] = await Promise.all([
+      db.select({ images: listingsTable.images }).from(listingsTable),
+      db.select({ image: adsTable.image, videoPath: adsTable.videoPath }).from(adsTable),
+    ]);
+
+    const usedPaths = new Set<string>();
+    for (const l of listings) {
+      for (const img of l.images ?? []) {
+        if (img.startsWith("/objects/")) usedPaths.add(img);
+      }
+    }
+    for (const a of ads) {
+      if (a.image?.startsWith("/objects/")) usedPaths.add(a.image);
+      if (a.videoPath?.startsWith("/objects/")) usedPaths.add(a.videoPath);
+    }
+
+    const orphans = allPaths.filter((p) => !usedPaths.has(p));
+    await Promise.allSettled(orphans.map((p) => objectStorageService.deleteObjectEntity(p)));
+
+    req.log.info({ deleted: orphans.length }, "Storage cleanup completed");
+    res.json(AdminStorageCleanupResponse.parse({ deleted: orphans.length }));
+  } catch (error) {
+    req.log.error({ err: error }, "Storage cleanup failed");
+    res.status(500).json({ error: "Cleanup failed" });
   }
 });
 

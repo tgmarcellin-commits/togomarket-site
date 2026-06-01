@@ -40,6 +40,7 @@ import type {
   Order,
   OrderInput,
   PlatformSettings,
+  StorageCleanupResult,
   SuccessResult,
   UpdateSettingsInput,
   UploadUrlRequest,
@@ -1885,6 +1886,77 @@ export const useAdminGenerateVendorCode = <TError = ErrorType<void>,
         TContext
       > => {
       return useMutation(getAdminGenerateVendorCodeMutationOptions(options));
+    }
+
+export const getAdminStorageCleanupUrl = () => {
+
+
+
+
+  return `/api/admin/storage/cleanup`
+}
+
+/**
+ * @summary Find and delete orphan files in Object Storage (admin only)
+ */
+export const adminStorageCleanup = async (adminPasswordInput: AdminPasswordInput, options?: RequestInit): Promise<StorageCleanupResult> => {
+
+  return customFetch<StorageCleanupResult>(getAdminStorageCleanupUrl(),
+  {
+    ...options,
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...options?.headers },
+    body: JSON.stringify(
+      adminPasswordInput,)
+  }
+);}
+
+
+
+
+export const getAdminStorageCleanupMutationOptions = <TError = ErrorType<void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof adminStorageCleanup>>, TError,{data: BodyType<AdminPasswordInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof adminStorageCleanup>>, TError,{data: BodyType<AdminPasswordInput>}, TContext> => {
+
+const mutationKey = ['adminStorageCleanup'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof adminStorageCleanup>>, {data: BodyType<AdminPasswordInput>}> = (props) => {
+          const {data} = props ?? {};
+
+          return  adminStorageCleanup(data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type AdminStorageCleanupMutationResult = NonNullable<Awaited<ReturnType<typeof adminStorageCleanup>>>
+    export type AdminStorageCleanupMutationBody = BodyType<AdminPasswordInput>
+    export type AdminStorageCleanupMutationError = ErrorType<void>
+
+    /**
+ * @summary Find and delete orphan files in Object Storage (admin only)
+ */
+export const useAdminStorageCleanup = <TError = ErrorType<void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof adminStorageCleanup>>, TError,{data: BodyType<AdminPasswordInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof adminStorageCleanup>>,
+        TError,
+        {data: BodyType<AdminPasswordInput>},
+        TContext
+      > => {
+      return useMutation(getAdminStorageCleanupMutationOptions(options));
     }
 
 export const getAdminDeleteVendorUrl = () => {

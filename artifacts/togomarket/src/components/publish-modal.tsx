@@ -21,7 +21,8 @@ import {
 } from "@/components/ui/form";
 import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { resizeImage } from "@/lib/image";
+import { resizeImageToBlob } from "@/lib/image";
+import { uploadImageFile } from "@/lib/upload";
 import { UploadCloud, X, Lock, KeyRound, AlertCircle, UserCircle2, Eye, EyeOff } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 
@@ -96,7 +97,7 @@ export function PublishModal({ open, onOpenChange, vendor, vendorPassword, onNee
   const [showCode, setShowCode] = useState(false);
   const [screen, setScreen] = useState<"gate" | "code" | "form">("gate");
   const [verifiedCode, setVerifiedCode] = useState("");
-  const [images, setImages] = useState<string[]>([]);
+  const [images, setImages] = useState<{ dataUrl: string; objectPath: string }[]>([]);
   const [isProcessing, setIsProcessing] = useState(false);
   const { toast } = useToast();
   const queryClient = useQueryClient();
@@ -154,8 +155,14 @@ export function PublishModal({ open, onOpenChange, vendor, vendorPassword, onNee
     }
     setIsProcessing(true);
     try {
-      const newImages = await Promise.all(files.map((file) => resizeImage(file)));
-      setImages((prev) => [...prev, ...newImages].slice(0, 4));
+      const entries = await Promise.all(
+        files.map(async (file) => {
+          const { blob, dataUrl } = await resizeImageToBlob(file);
+          const objectPath = await uploadImageFile(blob, file.name);
+          return { dataUrl, objectPath };
+        })
+      );
+      setImages((prev) => [...prev, ...entries].slice(0, 4));
     } catch {
       toast({ title: "Erreur de traitement d'image", variant: "destructive" });
     } finally {
@@ -173,7 +180,7 @@ export function PublishModal({ open, onOpenChange, vendor, vendorPassword, onNee
       {
         data: {
           ...data,
-          images,
+          images: images.map((img) => img.objectPath),
           vendorPhone: vendor.phone,
           vendorPassword,
           vendorPublishCode: verifiedCode,
@@ -446,7 +453,7 @@ export function PublishModal({ open, onOpenChange, vendor, vendorPassword, onNee
                 <div className="mt-2 flex flex-wrap gap-3">
                   {images.map((img, idx) => (
                     <div key={idx} className="relative w-20 h-20 rounded-md overflow-hidden border border-border">
-                      <img src={img} alt={`Preview ${idx}`} className="w-full h-full object-cover" />
+                      <img src={img.dataUrl} alt={`Preview ${idx}`} className="w-full h-full object-cover" />
                       <button
                         type="button"
                         onClick={() => removeImage(idx)}

@@ -155,6 +155,10 @@ export interface VendorProfile {
   publishCode?: VendorPublishCode | null;
 }
 
+export interface StorageCleanupResult {
+  deleted: number;
+}
+
 export interface VendorRegisterInput {
   firstName: string;
   lastName: string;

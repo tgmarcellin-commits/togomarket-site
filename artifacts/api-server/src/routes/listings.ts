@@ -14,6 +14,9 @@ import {
   AdminCreateListingBody,
 } from "@workspace/api-zod";
 import { logger } from "../lib/logger";
+import { ObjectStorageService } from "../lib/objectStorage";
+
+const objectStorage = new ObjectStorageService();
 
 const router: IRouter = Router();
 
@@ -216,6 +219,8 @@ router.post("/admin/listings/delete", async (req, res): Promise<void> => {
     res.status(404).json({ error: "Listing not found" });
     return;
   }
+
+  await objectStorage.deleteObjectEntities(deleted[0].images ?? []);
 
   req.log.info({ id: parsed.data.id }, "Listing deleted by admin");
   res.json(AdminDeleteListingResponse.parse({ success: true }));
