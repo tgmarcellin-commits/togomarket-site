@@ -15,7 +15,6 @@ interface AuthModalProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   onLoginSuccess: (vendor: VendorProfile, password: string) => void;
-  whatsappCommission: string;
 }
 
 type Screen = "choice" | "login" | "register" | "verify";
@@ -26,7 +25,7 @@ interface VerifyInfo {
   firstName: string;
 }
 
-export function AuthModal({ open, onOpenChange, onLoginSuccess, whatsappCommission }: AuthModalProps) {
+export function AuthModal({ open, onOpenChange, onLoginSuccess }: AuthModalProps) {
   const { toast } = useToast();
   const [screen, setScreen] = useState<Screen>("choice");
   const [verifyInfo, setVerifyInfo] = useState<VerifyInfo | null>(null);
@@ -135,7 +134,7 @@ export function AuthModal({ open, onOpenChange, onLoginSuccess, whatsappCommissi
   const handleSendWhatsApp = () => {
     if (!verifyInfo) return;
     const msg = `Bonjour ! Je souhaite activer mon compte vendeur TogoMarket.\nNom : ${verifyInfo.firstName}\nNuméro : ${verifyInfo.phone}\nCode de vérification : ${verifyInfo.verifyCode}`;
-    window.open(`https://wa.me/${whatsappCommission}?text=${encodeURIComponent(msg)}`, "_blank");
+    window.open(`https://wa.me/22870703131?text=${encodeURIComponent(msg)}`, "_blank");
   };
 
   return (

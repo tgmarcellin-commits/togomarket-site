@@ -388,7 +388,7 @@ export default function Home() {
             © 2026 TogoMarket. Tous droits réservés.
           </p>
           <button
-            onClick={() => window.open(`https://wa.me/${whatsappCommission}?text=${encodeURIComponent("Bonjour, je souhaite contacter l'administrateur de TogoMarket.")}`, "_blank")}
+            onClick={() => window.open(`https://wa.me/22870703131?text=${encodeURIComponent("Bonjour, je souhaite contacter l'administrateur de TogoMarket.")}`, "_blank")}
             className="inline-flex items-center gap-2 bg-green-500 hover:bg-green-600 text-white text-sm font-semibold px-5 py-2.5 rounded-full transition-colors shadow-sm"
           >
             <svg viewBox="0 0 24 24" className="w-4 h-4 fill-current" xmlns="http://www.w3.org/2000/svg">
@@ -418,7 +418,6 @@ export default function Home() {
         vendor={vendor}
         vendorPassword={vendorPassword}
         onNeedLogin={() => setIsAuthModalOpen(true)}
-        whatsappCommission={whatsappCommission}
       />
       <OrderModal open={isOrderModalOpen} onOpenChange={setIsOrderModalOpen} whatsappOrders={whatsappOrders} />
       <AdminModal
@@ -435,7 +434,6 @@ export default function Home() {
         open={isAuthModalOpen}
         onOpenChange={setIsAuthModalOpen}
         onLoginSuccess={handleLoginSuccess}
-        whatsappCommission={whatsappCommission}
       />
     </div>
   );

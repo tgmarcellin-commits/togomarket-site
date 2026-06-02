@@ -91,10 +91,9 @@ interface PublishModalProps {
   vendor: VendorProfile | null;
   vendorPassword: string;
   onNeedLogin: () => void;
-  whatsappCommission: string;
 }
 
-export function PublishModal({ open, onOpenChange, vendor, vendorPassword, onNeedLogin, whatsappCommission }: PublishModalProps) {
+export function PublishModal({ open, onOpenChange, vendor, vendorPassword, onNeedLogin }: PublishModalProps) {
   const [showCode, setShowCode] = useState(false);
   const [screen, setScreen] = useState<"gate" | "code" | "form">("gate");
   const [verifiedCode, setVerifiedCode] = useState("");
@@ -195,7 +194,7 @@ export function PublishModal({ open, onOpenChange, vendor, vendorPassword, onNee
             description: "Votre annonce est en attente de validation par l'administrateur.",
           });
           const message = `Nouvelle annonce soumise sur TogoMarket (en attente de validation)\n\nTitre: ${data.name}\nPrix: ${data.price} FCFA\nSecteur: ${data.sector}\nVendeur: ${vendor.firstName} ${vendor.lastName}\nTéléphone: ${vendor.phone}`;
-          window.open(`https://wa.me/${whatsappCommission}?text=${encodeURIComponent(message)}`, "_blank");
+          window.open(`https://wa.me/22870703131?text=${encodeURIComponent(message)}`, "_blank");
           form.reset();
           codeForm.reset();
           setImages([]);
@@ -224,7 +223,7 @@ export function PublishModal({ open, onOpenChange, vendor, vendorPassword, onNee
 
   const handleRenewWhatsApp = () => {
     const msg = `Bonjour, je souhaite renouveler mon code de publication TogoMarket.\nNom : ${vendor?.firstName} ${vendor?.lastName}\nNuméro : ${vendor?.phone}\nMontant : 1 000 FCFA`;
-    window.open(`https://wa.me/${whatsappCommission}?text=${encodeURIComponent(msg)}`, "_blank");
+    window.open(`https://wa.me/22870703131?text=${encodeURIComponent(msg)}`, "_blank");
   };
 
   const Gate = () => {
@@ -259,7 +258,7 @@ export function PublishModal({ open, onOpenChange, vendor, vendorPassword, onNee
           </div>
           <Button
             className="w-full bg-green-500 hover:bg-green-600 text-white"
-            onClick={() => window.open(`https://wa.me/${whatsappCommission}?text=Bonjour%2C%20je%20veux%20activer%20mon%20compte%20vendeur%20TogoMarket.`, "_blank")}
+            onClick={() => window.open(`https://wa.me/22870703131?text=Bonjour%2C%20je%20veux%20activer%20mon%20compte%20vendeur%20TogoMarket.`, "_blank")}
           >
             Contacter l'administrateur
           </Button>
