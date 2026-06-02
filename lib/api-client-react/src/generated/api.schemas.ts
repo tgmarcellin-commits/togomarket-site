@@ -120,11 +120,15 @@ export interface AdminPasswordInput {
 
 export interface PlatformSettings {
   commissionRate: number;
+  whatsappCommission: string;
+  whatsappOrders: string;
 }
 
 export interface UpdateSettingsInput {
   password: string;
   commissionRate: number;
+  whatsappCommission: string;
+  whatsappOrders: string;
 }
 
 export interface SectorStat {

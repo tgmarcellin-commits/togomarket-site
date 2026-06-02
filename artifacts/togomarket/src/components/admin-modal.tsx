@@ -142,6 +142,9 @@ export function AdminModal({
   const toggleAdExpand = (id: number) =>
     setExpandedAdIds((prev) => { const next = new Set(prev); next.has(id) ? next.delete(id) : next.add(id); return next; });
 
+  const [whatsappCommissionInput, setWhatsappCommissionInput] = useState("");
+  const [whatsappOrdersInput, setWhatsappOrdersInput] = useState("");
+
   const [adminPublishForm, setAdminPublishForm] = useState({
     name: "", price: "", location: "", sector: "Divers", phone: "", images: [] as string[],
   });
@@ -455,11 +458,40 @@ export function AdminModal({
 
   const handleSetRate = (rate: number) => {
     updateSettings.mutate(
-      { data: { password: storedPassword, commissionRate: rate } },
+      {
+        data: {
+          password: storedPassword,
+          commissionRate: rate,
+          whatsappCommission: whatsappCommissionInput || (settings?.whatsappCommission ?? "22870703131"),
+          whatsappOrders: whatsappOrdersInput || (settings?.whatsappOrders ?? "22870703131"),
+        },
+      },
       {
         onSuccess: () => {
           queryClient.invalidateQueries({ queryKey: getGetAdminSettingsQueryKey() });
           toast({ title: "Tarif mis à jour", description: `Commission réglée à ${rate}%` });
+        },
+        onError: () => {
+          toast({ title: "Erreur", description: "Impossible de mettre à jour.", variant: "destructive" });
+        },
+      }
+    );
+  };
+
+  const handleSaveWhatsapp = () => {
+    updateSettings.mutate(
+      {
+        data: {
+          password: storedPassword,
+          commissionRate: settings?.commissionRate ?? 2,
+          whatsappCommission: whatsappCommissionInput || (settings?.whatsappCommission ?? "22870703131"),
+          whatsappOrders: whatsappOrdersInput || (settings?.whatsappOrders ?? "22870703131"),
+        },
+      },
+      {
+        onSuccess: () => {
+          queryClient.invalidateQueries({ queryKey: getGetAdminSettingsQueryKey() });
+          toast({ title: "Numéros WhatsApp mis à jour" });
         },
         onError: () => {
           toast({ title: "Erreur", description: "Impossible de mettre à jour.", variant: "destructive" });
@@ -1140,6 +1172,45 @@ export function AdminModal({
                         </button>
                       );
                     })}
+                  </div>
+                </div>
+
+                <div>
+                  <p className="text-sm font-semibold mb-1">Numéros WhatsApp</p>
+                  <p className="text-xs text-muted-foreground mb-3">
+                    Deux numéros distincts pour recevoir les demandes de commission et les commandes d'articles.
+                  </p>
+                  <div className="space-y-3">
+                    <div>
+                      <label className="text-xs font-medium text-muted-foreground mb-1 block">
+                        Déblocage contact / Commission
+                      </label>
+                      <Input
+                        placeholder={settings?.whatsappCommission ?? "22870703131"}
+                        value={whatsappCommissionInput}
+                        onChange={(e) => setWhatsappCommissionInput(e.target.value.replace(/\D/g, ""))}
+                        className="h-9 text-sm"
+                      />
+                    </div>
+                    <div>
+                      <label className="text-xs font-medium text-muted-foreground mb-1 block">
+                        Commandes d'articles introuvables
+                      </label>
+                      <Input
+                        placeholder={settings?.whatsappOrders ?? "22870703131"}
+                        value={whatsappOrdersInput}
+                        onChange={(e) => setWhatsappOrdersInput(e.target.value.replace(/\D/g, ""))}
+                        className="h-9 text-sm"
+                      />
+                    </div>
+                    <Button
+                      size="sm"
+                      className="w-full"
+                      onClick={handleSaveWhatsapp}
+                      disabled={updateSettings.isPending}
+                    >
+                      Enregistrer les numéros
+                    </Button>
                   </div>
                 </div>
 

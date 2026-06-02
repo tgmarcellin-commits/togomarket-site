@@ -15,7 +15,7 @@ async function getSettings() {
   if (rows.length === 0) {
     const [row] = await db
       .insert(platformSettingsTable)
-      .values({ commissionRate: 2 })
+      .values({ commissionRate: 2, whatsappCommission: "22870703131", whatsappOrders: "22870703131" })
       .returning();
     return row;
   }
@@ -26,6 +26,8 @@ router.get("/admin/settings", async (_req, res): Promise<void> => {
   const settings = await getSettings();
   res.json(GetAdminSettingsResponse.parse({
     commissionRate: settings.commissionRate,
+    whatsappCommission: settings.whatsappCommission,
+    whatsappOrders: settings.whatsappOrders,
   }));
 });
 
@@ -44,7 +46,11 @@ router.post("/admin/settings", async (req, res): Promise<void> => {
   await getSettings();
   const [updated] = await db
     .update(platformSettingsTable)
-    .set({ commissionRate: parsed.data.commissionRate })
+    .set({
+      commissionRate: parsed.data.commissionRate,
+      whatsappCommission: parsed.data.whatsappCommission,
+      whatsappOrders: parsed.data.whatsappOrders,
+    })
     .returning();
 
   if (!updated) {
@@ -54,6 +60,8 @@ router.post("/admin/settings", async (req, res): Promise<void> => {
 
   res.json(UpdateAdminSettingsResponse.parse({
     commissionRate: updated.commissionRate,
+    whatsappCommission: updated.whatsappCommission,
+    whatsappOrders: updated.whatsappOrders,
   }));
 });
 

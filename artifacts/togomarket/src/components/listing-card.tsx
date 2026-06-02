@@ -13,6 +13,7 @@ interface ListingCardProps {
   isAdmin: boolean;
   adminPassword?: string;
   commissionRate: number;
+  whatsappCommission: string;
   isOwn?: boolean;
 }
 
@@ -38,7 +39,7 @@ function calcCommission(price: number, rate: number): number {
   return Math.round(Math.min(price, 100000) * rate / 100);
 }
 
-export function ListingCard({ listing, isAdmin, adminPassword, commissionRate, isOwn }: ListingCardProps) {
+export function ListingCard({ listing, isAdmin, adminPassword, commissionRate, whatsappCommission, isOwn }: ListingCardProps) {
   const queryClient = useQueryClient();
   const deleteMutation = useAdminDeleteListing();
   const [viewerOpen, setViewerOpen] = useState(false);
@@ -72,12 +73,12 @@ export function ListingCard({ listing, isAdmin, adminPassword, commissionRate, i
         ? "gratuitement"
         : `en payant ${new Intl.NumberFormat("fr-FR").format(commission)} FCFA de commission`;
     const message = `Bonjour, je suis intéressé par l'article: "${listing.name}" à ${new Intl.NumberFormat("fr-FR").format(listing.price)} FCFA. Je souhaite débloquer le contact du vendeur ${commissionText}.`;
-    window.open(`https://wa.me/22870703131?text=${encodeURIComponent(message)}`, "_blank");
+    window.open(`https://wa.me/${whatsappCommission}?text=${encodeURIComponent(message)}`, "_blank");
   };
 
   const handleReport = () => {
     const message = `🚨 Signalement d'article sur TogoMarket\n\nTitre: ${listing.name}\nPrix: ${new Intl.NumberFormat("fr-FR").format(listing.price)} FCFA\nLocalisation: ${listing.location}\nSecteur: ${listing.sector}\nID: #${listing.id}\n\nMerci de vérifier cet article.`;
-    window.open(`https://wa.me/22870703131?text=${encodeURIComponent(message)}`, "_blank");
+    window.open(`https://wa.me/${whatsappCommission}?text=${encodeURIComponent(message)}`, "_blank");
   };
 
   const unlockLabel =

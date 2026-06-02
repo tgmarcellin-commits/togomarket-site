@@ -191,7 +191,9 @@ export const AdminGetPendingListingsResponse = zod.array(AdminGetPendingListings
  * @summary Get platform settings
  */
 export const GetAdminSettingsResponse = zod.object({
-  "commissionRate": zod.number()
+  "commissionRate": zod.number(),
+  "whatsappCommission": zod.string(),
+  "whatsappOrders": zod.string()
 })
 
 
@@ -200,11 +202,15 @@ export const GetAdminSettingsResponse = zod.object({
  */
 export const UpdateAdminSettingsBody = zod.object({
   "password": zod.string(),
-  "commissionRate": zod.number()
+  "commissionRate": zod.number(),
+  "whatsappCommission": zod.string(),
+  "whatsappOrders": zod.string()
 })
 
 export const UpdateAdminSettingsResponse = zod.object({
-  "commissionRate": zod.number()
+  "commissionRate": zod.number(),
+  "whatsappCommission": zod.string(),
+  "whatsappOrders": zod.string()
 })
 
 

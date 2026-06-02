@@ -777,19 +777,27 @@ components:
 
     PlatformSettings:
       type: object
-      required: [commissionRate]
+      required: [commissionRate, whatsappCommission, whatsappOrders]
       properties:
         commissionRate:
           type: integer
+        whatsappCommission:
+          type: string
+        whatsappOrders:
+          type: string
 
     UpdateSettingsInput:
       type: object
-      required: [password, commissionRate]
+      required: [password, commissionRate, whatsappCommission, whatsappOrders]
       properties:
         password:
           type: string
         commissionRate:
           type: integer
+        whatsappCommission:
+          type: string
+        whatsappOrders:
+          type: string
 
     MarketStats:
       type: object

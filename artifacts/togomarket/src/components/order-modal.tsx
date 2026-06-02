@@ -34,9 +34,10 @@ type FormValues = z.infer<typeof formSchema>;
 interface OrderModalProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
+  whatsappOrders: string;
 }
 
-export function OrderModal({ open, onOpenChange }: OrderModalProps) {
+export function OrderModal({ open, onOpenChange, whatsappOrders }: OrderModalProps) {
   const form = useForm<FormValues>({
     resolver: zodResolver(formSchema),
     defaultValues: {
@@ -55,7 +56,7 @@ export function OrderModal({ open, onOpenChange }: OrderModalProps) {
       {
         onSuccess: () => {
           const message = `Bonjour TogoMarket, je cherche à commander un article spécifique.\n\nNom: ${data.firstName} ${data.lastName}\nTéléphone: ${data.phone}\nDescription: ${data.description}`;
-          window.open(`https://wa.me/22870703131?text=${encodeURIComponent(message)}`, "_blank");
+          window.open(`https://wa.me/${whatsappOrders}?text=${encodeURIComponent(message)}`, "_blank");
           form.reset();
           onOpenChange(false);
         },

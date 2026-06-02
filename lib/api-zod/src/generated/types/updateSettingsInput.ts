@@ -9,4 +9,6 @@
 export interface UpdateSettingsInput {
   password: string;
   commissionRate: number;
+  whatsappCommission: string;
+  whatsappOrders: string;
 }
