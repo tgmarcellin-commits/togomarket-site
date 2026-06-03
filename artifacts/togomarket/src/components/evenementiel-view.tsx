@@ -28,11 +28,14 @@ function EventDetailModal({ event, open, onClose }: { event: Event | null; open:
         </DialogHeader>
         <div className="space-y-4">
           {event.flyerImage && (
-            <img
-              src={event.flyerImage}
-              alt={event.title}
-              className="w-full rounded-xl max-h-[250px] object-cover"
-            />
+            <div className="w-full rounded-xl overflow-hidden bg-black flex items-center justify-center" style={{ maxHeight: 250 }}>
+              <img
+                src={event.flyerImage}
+                alt={event.title}
+                className="w-full object-contain"
+                style={{ maxHeight: 250 }}
+              />
+            </div>
           )}
           <div className="space-y-2">
             <div className="flex items-center gap-2 text-sm">
@@ -106,11 +109,14 @@ export function EvenementielView() {
           return (
             <div key={event.id} className={`rounded-xl border bg-card overflow-hidden ${isPast ? "opacity-60" : ""}`}>
               {event.flyerImage && (
-                <img
-                  src={event.flyerImage}
-                  alt={event.title}
-                  className="w-full h-44 object-cover"
-                />
+                <div className="w-full bg-black flex items-center justify-center" style={{ maxHeight: 176 }}>
+                  <img
+                    src={event.flyerImage}
+                    alt={event.title}
+                    className="w-full object-contain"
+                    style={{ maxHeight: 176 }}
+                  />
+                </div>
               )}
               <div className="p-4 space-y-2">
                 <div className="flex items-start justify-between gap-2">
