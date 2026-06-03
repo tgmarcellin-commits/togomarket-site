@@ -1,7 +1,6 @@
-import { useState } from "react";
+import { useState, useRef } from "react";
 import { useGetActiveAds, type Ad } from "@workspace/api-client-react";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
-import { Button } from "@/components/ui/button";
 import { Megaphone, Play } from "lucide-react";
 
 function AdDetailModal({ ad, open, onClose }: { ad: Ad | null; open: boolean; onClose: () => void }) {
@@ -20,14 +19,20 @@ function AdDetailModal({ ad, open, onClose }: { ad: Ad | null; open: boolean; on
             <video
               src={ad.videoPath}
               controls
-              className="w-full rounded-xl max-h-[220px] object-cover bg-black"
+              autoPlay
+              playsInline
+              className="w-full rounded-xl bg-black"
+              style={{ maxHeight: 280 }}
             />
           ) : ad.image ? (
-            <img
-              src={ad.image}
-              alt={ad.advertiserName}
-              className="w-full rounded-xl max-h-[220px] object-cover"
-            />
+            <div className="w-full rounded-xl overflow-hidden bg-black flex items-center justify-center" style={{ maxHeight: 280 }}>
+              <img
+                src={ad.image}
+                alt={ad.advertiserName}
+                className="w-full h-full object-contain"
+                style={{ maxHeight: 280 }}
+              />
+            </div>
           ) : null}
           <div className="space-y-2">
             <p className="text-sm leading-relaxed">{ad.message}</p>
@@ -43,6 +48,27 @@ function AdDetailModal({ ad, open, onClose }: { ad: Ad | null; open: boolean; on
         </div>
       </DialogContent>
     </Dialog>
+  );
+}
+
+function VideoThumbnail({ src }: { src: string }) {
+  const videoRef = useRef<HTMLVideoElement>(null);
+  return (
+    <div className="relative w-28 h-28 bg-black flex-shrink-0 flex items-center justify-center">
+      <video
+        ref={videoRef}
+        src={src}
+        muted
+        playsInline
+        preload="metadata"
+        className="w-full h-full object-contain"
+      />
+      <div className="absolute inset-0 flex items-center justify-center">
+        <div className="bg-black/50 rounded-full p-2">
+          <Play className="w-6 h-6 text-white" />
+        </div>
+      </div>
+    </div>
   );
 }
 
@@ -86,17 +112,17 @@ export function PubliciteView() {
           >
             <div className="flex gap-0">
               {ad.videoPath ? (
-                <div className="w-24 h-24 bg-black flex items-center justify-center flex-shrink-0">
-                  <Play className="w-8 h-8 text-white" />
-                </div>
+                <VideoThumbnail src={ad.videoPath} />
               ) : ad.image ? (
-                <img
-                  src={ad.image}
-                  alt={ad.advertiserName}
-                  className="w-24 h-24 object-cover flex-shrink-0"
-                />
+                <div className="w-28 h-28 bg-black flex-shrink-0 flex items-center justify-center">
+                  <img
+                    src={ad.image}
+                    alt={ad.advertiserName}
+                    className="w-full h-full object-contain"
+                  />
+                </div>
               ) : (
-                <div className="w-24 h-24 bg-muted flex items-center justify-center flex-shrink-0">
+                <div className="w-28 h-28 bg-muted flex items-center justify-center flex-shrink-0">
                   <Megaphone className="w-8 h-8 text-muted-foreground" />
                 </div>
               )}
