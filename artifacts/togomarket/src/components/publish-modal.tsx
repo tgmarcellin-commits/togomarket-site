@@ -3,7 +3,7 @@ import { openWhatsApp } from "@/lib/whatsapp";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import * as z from "zod";
-import { useCreateListing, getGetListingsQueryKey, type VendorProfile } from "@workspace/api-client-react";
+import { useCreateListing, useVendorLogin, getGetListingsQueryKey, type VendorProfile } from "@workspace/api-client-react";
 import { useQueryClient } from "@tanstack/react-query";
 import { Button } from "@/components/ui/button";
 import {
@@ -92,9 +92,10 @@ interface PublishModalProps {
   vendor: VendorProfile | null;
   vendorPassword: string;
   onNeedLogin: () => void;
+  onVendorRefresh: (updated: VendorProfile) => void;
 }
 
-export function PublishModal({ open, onOpenChange, vendor, vendorPassword, onNeedLogin }: PublishModalProps) {
+export function PublishModal({ open, onOpenChange, vendor, vendorPassword, onNeedLogin, onVendorRefresh }: PublishModalProps) {
   const [showCode, setShowCode] = useState(false);
   const [screen, setScreen] = useState<"gate" | "code" | "form">("gate");
   const [verifiedCode, setVerifiedCode] = useState("");
@@ -103,6 +104,7 @@ export function PublishModal({ open, onOpenChange, vendor, vendorPassword, onNee
   const { toast } = useToast();
   const queryClient = useQueryClient();
   const createListing = useCreateListing();
+  const loginMutation = useVendorLogin();
 
   const codeForm = useForm<CodeValues>({
     resolver: zodResolver(codeSchema),
@@ -254,9 +256,32 @@ export function PublishModal({ open, onOpenChange, vendor, vendorPassword, onNee
           <div>
             <p className="font-semibold text-base mb-1">Compte en attente</p>
             <p className="text-sm text-muted-foreground">
-              Votre compte n'est pas encore activé. Envoyez votre code de vérification sur WhatsApp si ce n'est pas encore fait.
+              Votre compte n'est pas encore activé. Si l'administrateur vous a déjà confirmé, appuyez sur "Actualiser" pour mettre à jour votre statut.
             </p>
           </div>
+          <Button
+            className="w-full"
+            variant="outline"
+            disabled={loginMutation.isPending}
+            onClick={() => {
+              loginMutation.mutate(
+                { data: { phone: vendor.phone, password: vendorPassword } },
+                {
+                  onSuccess: (updated) => {
+                    onVendorRefresh(updated);
+                    if (!updated.verified) {
+                      toast({ title: "Compte toujours en attente", description: "L'administrateur n'a pas encore activé votre compte.", variant: "destructive" });
+                    }
+                  },
+                  onError: () => {
+                    toast({ title: "Erreur lors de la vérification", variant: "destructive" });
+                  },
+                }
+              );
+            }}
+          >
+            {loginMutation.isPending ? "Vérification..." : "🔄 Actualiser mon statut"}
+          </Button>
           <Button
             className="w-full bg-green-500 hover:bg-green-600 text-white"
             onClick={() => openWhatsApp(`https://wa.me/22870703131?text=Bonjour%2C%20je%20veux%20activer%20mon%20compte%20vendeur%20TogoMarket.`)}

@@ -419,6 +419,10 @@ export default function Home() {
         vendor={vendor}
         vendorPassword={vendorPassword}
         onNeedLogin={() => setIsAuthModalOpen(true)}
+        onVendorRefresh={(updated) => {
+          setVendor(updated);
+          saveSession(updated, vendorPassword);
+        }}
       />
       <OrderModal open={isOrderModalOpen} onOpenChange={setIsOrderModalOpen} whatsappOrders={whatsappOrders} />
       <AdminModal
