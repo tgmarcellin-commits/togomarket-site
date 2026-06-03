@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { openWhatsApp } from "@/lib/whatsapp";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import * as z from "zod";
@@ -56,7 +57,7 @@ export function OrderModal({ open, onOpenChange, whatsappOrders }: OrderModalPro
       {
         onSuccess: () => {
           const message = `Bonjour TogoMarket, je cherche à commander un article spécifique.\n\nNom: ${data.firstName} ${data.lastName}\nTéléphone: ${data.phone}\nDescription: ${data.description}`;
-          window.open(`https://wa.me/${whatsappOrders}?text=${encodeURIComponent(message)}`, "_blank");
+          openWhatsApp(`https://wa.me/${whatsappOrders}?text=${encodeURIComponent(message)}`);
           form.reset();
           onOpenChange(false);
         },

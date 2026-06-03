@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { openWhatsApp } from "@/lib/whatsapp";
 import { useVendorRegister, useVendorLogin, type VendorProfile } from "@workspace/api-client-react";
 import { Button } from "@/components/ui/button";
 import {
@@ -134,7 +135,7 @@ export function AuthModal({ open, onOpenChange, onLoginSuccess }: AuthModalProps
   const handleSendWhatsApp = () => {
     if (!verifyInfo) return;
     const msg = `Bonjour ! Je souhaite activer mon compte vendeur TogoMarket.\nNom : ${verifyInfo.firstName}\nNuméro : ${verifyInfo.phone}\nCode de vérification : ${verifyInfo.verifyCode}`;
-    window.open(`https://wa.me/22870703131?text=${encodeURIComponent(msg)}`, "_blank");
+    openWhatsApp(`https://wa.me/22870703131?text=${encodeURIComponent(msg)}`);
   };
 
   return (

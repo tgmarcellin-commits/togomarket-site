@@ -1,4 +1,5 @@
 import { useState, useEffect } from "react";
+import { openWhatsApp } from "@/lib/whatsapp";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import * as z from "zod";
@@ -194,7 +195,7 @@ export function PublishModal({ open, onOpenChange, vendor, vendorPassword, onNee
             description: "Votre annonce est en attente de validation par l'administrateur.",
           });
           const message = `Nouvelle annonce soumise sur TogoMarket (en attente de validation)\n\nTitre: ${data.name}\nPrix: ${data.price} FCFA\nSecteur: ${data.sector}\nVendeur: ${vendor.firstName} ${vendor.lastName}\nTéléphone: ${vendor.phone}`;
-          window.open(`https://wa.me/22870703131?text=${encodeURIComponent(message)}`, "_blank");
+          openWhatsApp(`https://wa.me/22870703131?text=${encodeURIComponent(message)}`);
           form.reset();
           codeForm.reset();
           setImages([]);
@@ -223,7 +224,7 @@ export function PublishModal({ open, onOpenChange, vendor, vendorPassword, onNee
 
   const handleRenewWhatsApp = () => {
     const msg = `Bonjour, je souhaite renouveler mon code de publication TogoMarket.\nNom : ${vendor?.firstName} ${vendor?.lastName}\nNuméro : ${vendor?.phone}\nMontant : 1 000 FCFA`;
-    window.open(`https://wa.me/22870703131?text=${encodeURIComponent(msg)}`, "_blank");
+    openWhatsApp(`https://wa.me/22870703131?text=${encodeURIComponent(msg)}`);
   };
 
   const Gate = () => {
@@ -258,7 +259,7 @@ export function PublishModal({ open, onOpenChange, vendor, vendorPassword, onNee
           </div>
           <Button
             className="w-full bg-green-500 hover:bg-green-600 text-white"
-            onClick={() => window.open(`https://wa.me/22870703131?text=Bonjour%2C%20je%20veux%20activer%20mon%20compte%20vendeur%20TogoMarket.`, "_blank")}
+            onClick={() => openWhatsApp(`https://wa.me/22870703131?text=Bonjour%2C%20je%20veux%20activer%20mon%20compte%20vendeur%20TogoMarket.`)}
           >
             Contacter l'administrateur
           </Button>

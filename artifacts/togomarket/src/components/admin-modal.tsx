@@ -1,4 +1,5 @@
 import { useState, useRef } from "react";
+import { openWhatsApp } from "@/lib/whatsapp";
 import { uploadVideoFile } from "@/lib/upload";
 import { ImageViewer } from "@/components/image-viewer";
 import { useForm } from "react-hook-form";
@@ -236,7 +237,7 @@ export function AdminModal({
 
   const sendCodeWhatsApp = (code: string, phone: string) => {
     const msg = `Bonjour ! Votre code de publication TogoMarket est : ${code}\nIl est valable 30 jours. Bonne vente !`;
-    window.open(`https://wa.me/${phone.replace(/\D/g, "")}?text=${encodeURIComponent(msg)}`, "_blank");
+    openWhatsApp(`https://wa.me/${phone.replace(/\D/g, "")}?text=${encodeURIComponent(msg)}`);
   };
 
   const handleAdminPublishImageChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -353,7 +354,7 @@ export function AdminModal({
 
   const handleRenewWhatsApp = (ad: Ad) => {
     const msg = `Bonjour ${ad.advertiserName}, votre publicité sur TogoMarket a expiré. Souhaitez-vous la renouveler pour 1 000 FCFA/mois ?`;
-    window.open(`https://wa.me/${ad.advertiserPhone.replace(/\D/g, "")}?text=${encodeURIComponent(msg)}`, "_blank");
+    openWhatsApp(`https://wa.me/${ad.advertiserPhone.replace(/\D/g, "")}?text=${encodeURIComponent(msg)}`);
   };
 
   const openViewer = (images: string[], index: number) => {

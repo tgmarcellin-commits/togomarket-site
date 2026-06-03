@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { openWhatsApp } from "@/lib/whatsapp";
 import { resolveImageUrl } from "@/lib/image";
 import type { Listing } from "@workspace/api-client-react";
 import { useAdminDeleteListing, getGetListingsQueryKey } from "@workspace/api-client-react";
@@ -73,12 +74,12 @@ export function ListingCard({ listing, isAdmin, adminPassword, commissionRate, w
         ? "gratuitement"
         : `en payant ${new Intl.NumberFormat("fr-FR").format(commission)} FCFA de commission`;
     const message = `Bonjour, je suis intéressé par l'article: "${listing.name}" à ${new Intl.NumberFormat("fr-FR").format(listing.price)} FCFA. Je souhaite débloquer le contact du vendeur ${commissionText}.`;
-    window.open(`https://wa.me/${whatsappCommission}?text=${encodeURIComponent(message)}`, "_blank");
+    openWhatsApp(`https://wa.me/${whatsappCommission}?text=${encodeURIComponent(message)}`);
   };
 
   const handleReport = () => {
     const message = `🚨 Signalement d'article sur TogoMarket\n\nTitre: ${listing.name}\nPrix: ${new Intl.NumberFormat("fr-FR").format(listing.price)} FCFA\nLocalisation: ${listing.location}\nSecteur: ${listing.sector}\nID: #${listing.id}\n\nMerci de vérifier cet article.`;
-    window.open(`https://wa.me/22870703131?text=${encodeURIComponent(message)}`, "_blank");
+    openWhatsApp(`https://wa.me/22870703131?text=${encodeURIComponent(message)}`);
   };
 
   const unlockLabel =
