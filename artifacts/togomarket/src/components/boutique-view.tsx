@@ -19,6 +19,7 @@ import {
 } from "@/components/ui/dialog";
 import { useToast } from "@/hooks/use-toast";
 import { UserCircle2, Package, Clock, Trash2, Pencil, LogIn, Store } from "lucide-react";
+import { resolveImageUrl } from "@/lib/image";
 
 interface BoutiqueViewProps {
   vendor: VendorProfile | null;
@@ -216,9 +217,9 @@ export function BoutiqueView({ vendor, vendorPassword, onNeedLogin }: BoutiqueVi
             <div key={listing.id} className="rounded-xl border bg-card p-3 flex gap-3">
               {listing.images?.[0] ? (
                 <img
-                  src={listing.images[0]}
+                  src={resolveImageUrl(listing.images[0])}
                   alt={listing.name}
-                  className="w-16 h-16 rounded-lg object-cover flex-shrink-0"
+                  className="w-16 h-16 rounded-lg object-contain bg-black flex-shrink-0"
                 />
               ) : (
                 <div className="w-16 h-16 rounded-lg bg-muted flex items-center justify-center flex-shrink-0">

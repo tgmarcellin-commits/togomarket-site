@@ -2,6 +2,7 @@ import { useState, useRef } from "react";
 import { useGetActiveAds, type Ad } from "@workspace/api-client-react";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Megaphone, Play } from "lucide-react";
+import { resolveImageUrl } from "@/lib/image";
 
 function AdDetailModal({ ad, open, onClose }: { ad: Ad | null; open: boolean; onClose: () => void }) {
   if (!ad) return null;
@@ -17,7 +18,7 @@ function AdDetailModal({ ad, open, onClose }: { ad: Ad | null; open: boolean; on
         <div className="space-y-4">
           {ad.videoPath ? (
             <video
-              src={ad.videoPath}
+              src={resolveImageUrl(ad.videoPath)}
               controls
               autoPlay
               playsInline
@@ -27,7 +28,7 @@ function AdDetailModal({ ad, open, onClose }: { ad: Ad | null; open: boolean; on
           ) : ad.image ? (
             <div className="w-full rounded-xl overflow-hidden bg-black flex items-center justify-center" style={{ maxHeight: 280 }}>
               <img
-                src={ad.image}
+                src={resolveImageUrl(ad.image)}
                 alt={ad.advertiserName}
                 className="w-full h-full object-contain"
                 style={{ maxHeight: 280 }}
@@ -57,7 +58,7 @@ function VideoThumbnail({ src }: { src: string }) {
     <div className="relative w-28 h-28 bg-black flex-shrink-0 flex items-center justify-center">
       <video
         ref={videoRef}
-        src={src}
+        src={resolveImageUrl(src)}
         muted
         playsInline
         preload="metadata"
@@ -116,7 +117,7 @@ export function PubliciteView() {
               ) : ad.image ? (
                 <div className="w-28 h-28 bg-black flex-shrink-0 flex items-center justify-center">
                   <img
-                    src={ad.image}
+                    src={resolveImageUrl(ad.image)}
                     alt={ad.advertiserName}
                     className="w-full h-full object-contain"
                   />
