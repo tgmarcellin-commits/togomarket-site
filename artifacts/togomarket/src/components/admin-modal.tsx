@@ -21,10 +21,15 @@ import {
   useAdminDeleteVendor,
   useAdminCreateListing,
   useAdminStorageCleanup,
+  useAdminCreateEvent,
+  useAdminDeleteEvent,
+  useGetEvents,
   getGetAdminSettingsQueryKey,
   getGetListingsQueryKey,
+  getGetEventsQueryKey,
   type Ad,
   type VendorProfile,
+  type Event as ApiEvent,
 } from "@workspace/api-client-react";
 import { useQueryClient } from "@tanstack/react-query";
 import { Button } from "@/components/ui/button";
@@ -44,7 +49,7 @@ import {
 } from "@/components/ui/form";
 import { Input } from "@/components/ui/input";
 import { useToast } from "@/hooks/use-toast";
-import { Settings, LogOut, CheckCircle, Trash2, Clock, KeyRound, Megaphone, Plus, RefreshCw, Users, UploadCloud, X, Eye, EyeOff, AlertTriangle } from "lucide-react";
+import { Settings, LogOut, CheckCircle, Trash2, Clock, KeyRound, Megaphone, Plus, RefreshCw, Users, UploadCloud, X, Eye, EyeOff, AlertTriangle, Calendar } from "lucide-react";
 import { resizeImage, resizeImageToBlob } from "@/lib/image";
 import { uploadImageFile } from "@/lib/upload";
 
@@ -108,7 +113,7 @@ function StorageCleanupSection({ password }: { password: string }) {
   );
 }
 
-type DashTab = "pending" | "vendors" | "publish" | "ads" | "settings";
+type DashTab = "pending" | "vendors" | "publish" | "ads" | "events" | "settings";
 
 export function AdminModal({
   open,
@@ -158,8 +163,85 @@ export function AdminModal({
     | { type: "deleteVendor"; vendorId: number; name: string }
     | { type: "deleteListing"; listingId: number }
     | { type: "deleteAd"; adId: number }
+    | { type: "deleteEvent"; eventId: number }
     | null
   >(null);
+
+  const [allEvents, setAllEvents] = useState<ApiEvent[]>([]);
+  const [eventsLoading, setEventsLoading] = useState(false);
+  const [showEventForm, setShowEventForm] = useState(false);
+  const [eventForm, setEventForm] = useState({ title: "", description: "", date: "", location: "", ticketPrice: "", ticketLink: "", flyerImage: "", flyerPreview: "" });
+  const eventFlyerRef = useRef<HTMLInputElement>(null);
+
+  const createEvent = useAdminCreateEvent();
+  const deleteEvent = useAdminDeleteEvent();
+  const getEventsQuery = useGetEvents();
+
+  const refetchEvents = () => {
+    setEventsLoading(true);
+    getEventsQuery.refetch().then((res) => {
+      setAllEvents(res.data ?? []);
+      setEventsLoading(false);
+    }).catch(() => setEventsLoading(false));
+  };
+
+  const handleCreateEvent = () => {
+    if (!eventForm.title || !eventForm.description || !eventForm.date || !eventForm.location) {
+      toast({ title: "Titre, description, date et lieu sont requis", variant: "destructive" });
+      return;
+    }
+    createEvent.mutate(
+      {
+        data: {
+          password: storedPassword,
+          title: eventForm.title,
+          description: eventForm.description,
+          date: eventForm.date,
+          location: eventForm.location,
+          ticketPrice: eventForm.ticketPrice || undefined,
+          ticketLink: eventForm.ticketLink || undefined,
+          flyerImage: eventForm.flyerImage || undefined,
+        }
+      },
+      {
+        onSuccess: () => {
+          toast({ title: "Événement créé !" });
+          setShowEventForm(false);
+          setEventForm({ title: "", description: "", date: "", location: "", ticketPrice: "", ticketLink: "", flyerImage: "", flyerPreview: "" });
+          queryClient.invalidateQueries({ queryKey: getGetEventsQueryKey() });
+          refetchEvents();
+        },
+        onError: () => toast({ title: "Erreur lors de la création", variant: "destructive" }),
+      }
+    );
+  };
+
+  const handleDeleteEvent = (id: number) => {
+    deleteEvent.mutate(
+      { data: { password: storedPassword, id } },
+      {
+        onSuccess: () => {
+          toast({ title: "Événement supprimé" });
+          setConfirmAction(null);
+          queryClient.invalidateQueries({ queryKey: getGetEventsQueryKey() });
+          refetchEvents();
+        },
+        onError: () => toast({ title: "Erreur lors de la suppression", variant: "destructive" }),
+      }
+    );
+  };
+
+  const handleEventFlyerChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    e.target.value = "";
+    try {
+      const resized = await resizeImage(file);
+      setEventForm((f) => ({ ...f, flyerImage: resized, flyerPreview: resized }));
+    } catch {
+      toast({ title: "Impossible de lire l'image", variant: "destructive" });
+    }
+  };
 
   const createAd = useAdminCreateAd();
   const adminCreateListing = useAdminCreateListing();
@@ -547,10 +629,10 @@ export function AdminModal({
         ) : (
           <div className="pt-2 space-y-4">
             {/* Tabs */}
-            <div className="grid grid-cols-5 rounded-lg border overflow-hidden">
+            <div className="grid grid-cols-6 rounded-lg border overflow-hidden">
               <button
                 onClick={() => setTab("pending")}
-                className={`py-2 text-[11px] font-medium flex items-center justify-center gap-0.5 transition-colors ${
+                className={`py-2 text-[10px] font-medium flex items-center justify-center gap-0.5 transition-colors ${
                   tab === "pending" ? "bg-primary text-primary-foreground" : "bg-background hover:bg-muted"
                 }`}
               >
@@ -566,7 +648,7 @@ export function AdminModal({
               </button>
               <button
                 onClick={() => { setTab("vendors"); refetchVendors(); }}
-                className={`py-2 text-[11px] font-medium flex items-center justify-center gap-0.5 transition-colors ${
+                className={`py-2 text-[10px] font-medium flex items-center justify-center gap-0.5 transition-colors ${
                   tab === "vendors" ? "bg-primary text-primary-foreground" : "bg-background hover:bg-muted"
                 }`}
               >
@@ -575,7 +657,7 @@ export function AdminModal({
               </button>
               <button
                 onClick={() => setTab("publish")}
-                className={`py-2 text-[11px] font-medium flex items-center justify-center gap-0.5 transition-colors ${
+                className={`py-2 text-[10px] font-medium flex items-center justify-center gap-0.5 transition-colors ${
                   tab === "publish" ? "bg-primary text-primary-foreground" : "bg-background hover:bg-muted"
                 }`}
               >
@@ -584,7 +666,7 @@ export function AdminModal({
               </button>
               <button
                 onClick={() => { setTab("ads"); refetchAds(); }}
-                className={`py-2 text-[11px] font-medium flex items-center justify-center gap-0.5 transition-colors ${
+                className={`py-2 text-[10px] font-medium flex items-center justify-center gap-0.5 transition-colors ${
                   tab === "ads" ? "bg-primary text-primary-foreground" : "bg-background hover:bg-muted"
                 }`}
               >
@@ -592,8 +674,17 @@ export function AdminModal({
                 Pubs
               </button>
               <button
+                onClick={() => { setTab("events"); refetchEvents(); }}
+                className={`py-2 text-[10px] font-medium flex items-center justify-center gap-0.5 transition-colors ${
+                  tab === "events" ? "bg-primary text-primary-foreground" : "bg-background hover:bg-muted"
+                }`}
+              >
+                <Calendar className="w-3 h-3" />
+                Évén.
+              </button>
+              <button
                 onClick={() => setTab("settings")}
-                className={`py-2 text-[11px] font-medium flex items-center justify-center gap-0.5 transition-colors ${
+                className={`py-2 text-[10px] font-medium flex items-center justify-center gap-0.5 transition-colors ${
                   tab === "settings" ? "bg-primary text-primary-foreground" : "bg-background hover:bg-muted"
                 }`}
               >
@@ -1138,6 +1229,155 @@ export function AdminModal({
                                 <Trash2 className="w-3 h-3" />
                               </Button>
                             </div>
+                          )}
+                        </div>
+                      );
+                    })}
+                  </div>
+                )}
+              </div>
+            )}
+
+            {/* Tab: Événements */}
+            {tab === "events" && (
+              <div className="space-y-3">
+                <input ref={eventFlyerRef} type="file" accept="image/*" className="hidden" onChange={handleEventFlyerChange} />
+                <div className="flex items-center justify-between">
+                  <p className="text-sm font-semibold">Événements ({allEvents.length})</p>
+                  <div className="flex gap-2">
+                    <Button size="sm" variant="outline" onClick={refetchEvents} className="h-7 px-2">
+                      <RefreshCw className="w-3.5 h-3.5" />
+                    </Button>
+                    <Button size="sm" onClick={() => setShowEventForm(!showEventForm)} className="h-7 px-2 gap-1">
+                      <Plus className="w-3.5 h-3.5" />
+                      Ajouter
+                    </Button>
+                  </div>
+                </div>
+
+                {showEventForm && (
+                  <div className="border rounded-lg p-3 space-y-2 bg-muted/30">
+                    <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">Nouvel événement</p>
+                    <Input
+                      placeholder="Titre *"
+                      value={eventForm.title}
+                      onChange={(e) => setEventForm((f) => ({ ...f, title: e.target.value }))}
+                      className="h-8 text-sm"
+                    />
+                    <textarea
+                      placeholder="Description *"
+                      value={eventForm.description}
+                      onChange={(e) => setEventForm((f) => ({ ...f, description: e.target.value }))}
+                      className="w-full h-20 text-sm border rounded-md px-3 py-2 bg-background resize-none focus:outline-none focus:ring-2 focus:ring-ring"
+                    />
+                    <Input
+                      type="datetime-local"
+                      value={eventForm.date}
+                      onChange={(e) => setEventForm((f) => ({ ...f, date: e.target.value }))}
+                      className="h-8 text-sm"
+                    />
+                    <Input
+                      placeholder="Lieu *"
+                      value={eventForm.location}
+                      onChange={(e) => setEventForm((f) => ({ ...f, location: e.target.value }))}
+                      className="h-8 text-sm"
+                    />
+                    <Input
+                      placeholder="Prix du billet (ex: 1 000 FCFA, Gratuit)"
+                      value={eventForm.ticketPrice}
+                      onChange={(e) => setEventForm((f) => ({ ...f, ticketPrice: e.target.value }))}
+                      className="h-8 text-sm"
+                    />
+                    <Input
+                      placeholder="Lien billetterie / WhatsApp (optionnel)"
+                      value={eventForm.ticketLink}
+                      onChange={(e) => setEventForm((f) => ({ ...f, ticketLink: e.target.value }))}
+                      className="h-8 text-sm"
+                    />
+                    <div className="flex items-center gap-2">
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        className="h-7 text-xs"
+                        onClick={() => eventFlyerRef.current?.click()}
+                      >
+                        {eventForm.flyerImage ? "Flyer ✓" : "Flyer (photo)"}
+                      </Button>
+                      {eventForm.flyerPreview && (
+                        <img src={eventForm.flyerPreview} alt="flyer" className="w-10 h-10 rounded object-cover border" />
+                      )}
+                    </div>
+                    <div className="flex gap-2">
+                      <Button size="sm" className="flex-1 h-7" onClick={handleCreateEvent} disabled={createEvent.isPending}>
+                        {createEvent.isPending ? "Création..." : "Créer"}
+                      </Button>
+                      <Button size="sm" variant="outline" className="flex-1 h-7" onClick={() => setShowEventForm(false)}>
+                        Annuler
+                      </Button>
+                    </div>
+                  </div>
+                )}
+
+                {eventsLoading ? (
+                  <p className="text-sm text-center text-muted-foreground py-6">Chargement...</p>
+                ) : allEvents.length === 0 ? (
+                  <div className="text-center py-8 text-muted-foreground">
+                    <Calendar className="w-10 h-10 mx-auto mb-2 opacity-30" />
+                    <p className="text-sm">Aucun événement</p>
+                  </div>
+                ) : (
+                  <div className="space-y-2">
+                    {allEvents.map((event) => {
+                      const eventDate = new Date(event.date);
+                      const isPast = eventDate < new Date();
+                      return (
+                        <div key={event.id} className={`border rounded-lg p-3 space-y-1.5 ${isPast ? "opacity-60 bg-muted/30" : ""}`}>
+                          <div className="flex items-start gap-2">
+                            {event.flyerImage && (
+                              <img src={event.flyerImage} alt={event.title} className="w-12 h-12 rounded object-cover border flex-shrink-0" />
+                            )}
+                            <div className="flex-1 min-w-0">
+                              <div className="flex items-center gap-1.5">
+                                <p className="text-sm font-semibold truncate">{event.title}</p>
+                                {isPast && <span className="text-[10px] px-1.5 py-0.5 rounded-full bg-muted text-muted-foreground font-bold flex-shrink-0">Passé</span>}
+                              </div>
+                              <p className="text-xs text-muted-foreground">
+                                {eventDate.toLocaleDateString("fr-FR", { day: "numeric", month: "short", year: "numeric" })} · {event.location}
+                              </p>
+                              {event.ticketPrice && <p className="text-xs text-muted-foreground">Billet : {event.ticketPrice}</p>}
+                            </div>
+                          </div>
+                          {confirmAction?.type === "deleteEvent" && confirmAction.eventId === event.id ? (
+                            <div className="bg-red-50 border border-red-200 rounded-lg p-2.5 space-y-2">
+                              <div className="flex items-center gap-1.5">
+                                <AlertTriangle className="w-3.5 h-3.5 text-red-600 flex-shrink-0" />
+                                <p className="text-xs font-semibold text-red-800">Supprimer cet événement ?</p>
+                              </div>
+                              <div className="flex gap-2">
+                                <Button
+                                  size="sm"
+                                  variant="destructive"
+                                  className="flex-1 h-7 text-xs"
+                                  onClick={() => handleDeleteEvent(event.id)}
+                                  disabled={deleteEvent.isPending}
+                                >
+                                  {deleteEvent.isPending ? "..." : "Oui, supprimer"}
+                                </Button>
+                                <Button size="sm" variant="outline" className="flex-1 h-7 text-xs" onClick={() => setConfirmAction(null)}>
+                                  Annuler
+                                </Button>
+                              </div>
+                            </div>
+                          ) : (
+                            <Button
+                              size="sm"
+                              variant="outline"
+                              className="h-7 text-xs text-red-500 border-red-200 hover:bg-red-50 gap-1"
+                              onClick={() => setConfirmAction({ type: "deleteEvent", eventId: event.id })}
+                            >
+                              <Trash2 className="w-3 h-3" />
+                              Supprimer
+                            </Button>
                           )}
                         </div>
                       );

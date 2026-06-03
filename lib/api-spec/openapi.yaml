@@ -23,6 +23,8 @@ tags:
     description: Advertisement operations
   - name: vendors
     description: Vendor account operations
+  - name: events
+    description: Event operations
 paths:
   /storage/uploads/request-url:
     post:
@@ -159,6 +161,56 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/Listing"
+
+  /listings/update-price:
+    post:
+      operationId: vendorUpdateListingPrice
+      tags: [listings, vendors]
+      summary: Update a listing price (vendor only)
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/VendorUpdatePriceInput"
+      responses:
+        "200":
+          description: Updated listing
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Listing"
+        "401":
+          description: Invalid credentials
+        "403":
+          description: Not owner of this listing
+        "404":
+          description: Listing not found
+
+  /listings/vendor-delete:
+    post:
+      operationId: vendorDeleteListing
+      tags: [listings, vendors]
+      summary: Delete a listing owned by the vendor
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/VendorDeleteListingInput"
+      responses:
+        "200":
+          description: Deleted
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/DeleteResult"
+        "401":
+          description: Invalid credentials
+        "403":
+          description: Not owner of this listing
+        "404":
+          description: Listing not found
 
   /admin/listings/create:
     post:
@@ -472,6 +524,71 @@ paths:
         "401":
           description: Invalid credentials
 
+  /vendors/profile/update-name:
+    post:
+      operationId: vendorUpdateName
+      tags: [vendors]
+      summary: Update vendor first name and last name
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/VendorUpdateNameInput"
+      responses:
+        "200":
+          description: Updated profile
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/VendorProfile"
+        "401":
+          description: Invalid credentials
+
+  /vendors/profile/change-password:
+    post:
+      operationId: vendorChangePassword
+      tags: [vendors]
+      summary: Change vendor password
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/VendorChangePasswordInput"
+      responses:
+        "200":
+          description: Password changed
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/DeleteResult"
+        "401":
+          description: Invalid credentials
+
+  /vendors/listings:
+    post:
+      operationId: vendorGetListings
+      tags: [vendors]
+      summary: Get listings owned by the vendor
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/VendorAuthInput"
+      responses:
+        "200":
+          description: Vendor listings
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/Listing"
+        "401":
+          description: Invalid credentials
+
   /admin/vendors:
     post:
       operationId: adminGetVendors
@@ -581,6 +698,63 @@ paths:
         "404":
           description: Vendor not found
 
+  /events:
+    get:
+      operationId: getEvents
+      tags: [events]
+      summary: Get all events
+      responses:
+        "200":
+          description: List of events
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/Event"
+
+  /admin/events:
+    post:
+      operationId: adminCreateEvent
+      tags: [admin, events]
+      summary: Create a new event (admin only)
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/AdminCreateEventInput"
+      responses:
+        "201":
+          description: Event created
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Event"
+        "403":
+          description: Forbidden
+
+  /admin/events/delete:
+    post:
+      operationId: adminDeleteEvent
+      tags: [admin, events]
+      summary: Delete an event (admin only)
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/AdminDeleteInput"
+      responses:
+        "200":
+          description: Deleted
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/DeleteResult"
+        "403":
+          description: Forbidden
+
 components:
   schemas:
     Ad:
@@ -619,6 +793,50 @@ components:
         image:
           type: string
         videoPath:
+          type: string
+
+    Event:
+      type: object
+      required: [id, title, description, date, location, createdAt]
+      properties:
+        id:
+          type: integer
+        title:
+          type: string
+        description:
+          type: string
+        flyerImage:
+          type: ["string", "null"]
+        date:
+          type: string
+        location:
+          type: string
+        ticketLink:
+          type: ["string", "null"]
+        ticketPrice:
+          type: ["string", "null"]
+        createdAt:
+          type: string
+
+    AdminCreateEventInput:
+      type: object
+      required: [password, title, description, date, location]
+      properties:
+        password:
+          type: string
+        title:
+          type: string
+        description:
+          type: string
+        flyerImage:
+          type: string
+        date:
+          type: string
+        location:
+          type: string
+        ticketLink:
+          type: string
+        ticketPrice:
           type: string
 
     HealthStatus:
@@ -676,6 +894,63 @@ components:
         vendorPassword:
           type: string
         vendorPublishCode:
+          type: string
+
+    VendorUpdatePriceInput:
+      type: object
+      required: [id, phone, password, newPrice]
+      properties:
+        id:
+          type: integer
+        phone:
+          type: string
+        password:
+          type: string
+        newPrice:
+          type: number
+
+    VendorDeleteListingInput:
+      type: object
+      required: [id, phone, password]
+      properties:
+        id:
+          type: integer
+        phone:
+          type: string
+        password:
+          type: string
+
+    VendorAuthInput:
+      type: object
+      required: [phone, password]
+      properties:
+        phone:
+          type: string
+        password:
+          type: string
+
+    VendorUpdateNameInput:
+      type: object
+      required: [phone, password, firstName, lastName]
+      properties:
+        phone:
+          type: string
+        password:
+          type: string
+        firstName:
+          type: string
+        lastName:
+          type: string
+
+    VendorChangePasswordInput:
+      type: object
+      required: [phone, oldPassword, newPassword]
+      properties:
+        phone:
+          type: string
+        oldPassword:
+          type: string
+        newPassword:
           type: string
 
     DeleteResult:

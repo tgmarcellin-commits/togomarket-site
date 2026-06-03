@@ -273,6 +273,134 @@ router.post("/admin/vendors/generate-code", async (req, res) => {
   }
 });
 
+router.post("/vendors/listings", async (req, res) => {
+  const { phone, password } = req.body;
+  if (!phone || !password) {
+    return res.status(400).json({ error: "Champs requis manquants" });
+  }
+
+  const vendors = await db
+    .select()
+    .from(vendorsTable)
+    .where(eq(vendorsTable.phone, phone))
+    .limit(1);
+
+  if (vendors.length === 0) {
+    return res.status(401).json({ error: "Compte introuvable." });
+  }
+
+  const vendor = vendors[0];
+  const match = await bcrypt.compare(password, vendor.passwordHash);
+  if (!match) {
+    return res.status(401).json({ error: "Mot de passe incorrect." });
+  }
+
+  try {
+    const { listingsTable } = await import("@workspace/db");
+    const { eq: eqL, desc: descL } = await import("drizzle-orm");
+    const listings = await db
+      .select()
+      .from(listingsTable)
+      .where(eqL(listingsTable.phone, vendor.phone))
+      .orderBy(descL(listingsTable.createdAt));
+
+    return res.json(
+      listings.map((l) => ({
+        id: l.id,
+        name: l.name,
+        price: parseFloat(l.price),
+        location: l.location,
+        sector: l.sector,
+        images: l.images,
+        createdAt: l.createdAt.toISOString(),
+        phone: l.phone,
+        approved: l.approved,
+      }))
+    );
+  } catch (err) {
+    req.log.error({ err }, "Failed to get vendor listings");
+    return res.status(500).json({ error: "Erreur interne" });
+  }
+});
+
+router.post("/vendors/profile/update-name", async (req, res) => {
+  const { phone, password, firstName, lastName } = req.body;
+  if (!phone || !password || !firstName?.trim() || !lastName?.trim()) {
+    return res.status(400).json({ error: "Champs requis manquants" });
+  }
+
+  const vendors = await db
+    .select()
+    .from(vendorsTable)
+    .where(eq(vendorsTable.phone, phone))
+    .limit(1);
+
+  if (vendors.length === 0) {
+    return res.status(401).json({ error: "Compte introuvable." });
+  }
+
+  const vendor = vendors[0];
+  const match = await bcrypt.compare(password, vendor.passwordHash);
+  if (!match) {
+    return res.status(401).json({ error: "Mot de passe incorrect." });
+  }
+
+  try {
+    const [updated] = await db
+      .update(vendorsTable)
+      .set({ firstName: firstName.trim(), lastName: lastName.trim() })
+      .where(eq(vendorsTable.id, vendor.id))
+      .returning();
+
+    const publishCode = await getActivePublishCode(updated.id);
+    req.log.info({ id: vendor.id }, "Vendor name updated");
+    return res.json(VendorLoginResponse.parse(mapVendor(updated, publishCode)));
+  } catch (err) {
+    req.log.error({ err }, "Failed to update vendor name");
+    return res.status(500).json({ error: "Erreur interne" });
+  }
+});
+
+router.post("/vendors/profile/change-password", async (req, res) => {
+  const { phone, oldPassword, newPassword } = req.body;
+  if (!phone || !oldPassword || !newPassword) {
+    return res.status(400).json({ error: "Champs requis manquants" });
+  }
+  if (newPassword.length < 6) {
+    return res.status(400).json({ error: "Le nouveau mot de passe doit faire au moins 6 caractères." });
+  }
+
+  const vendors = await db
+    .select()
+    .from(vendorsTable)
+    .where(eq(vendorsTable.phone, phone))
+    .limit(1);
+
+  if (vendors.length === 0) {
+    return res.status(401).json({ error: "Compte introuvable." });
+  }
+
+  const vendor = vendors[0];
+  const match = await bcrypt.compare(oldPassword, vendor.passwordHash);
+  if (!match) {
+    return res.status(401).json({ error: "Ancien mot de passe incorrect." });
+  }
+
+  try {
+    const newHash = await bcrypt.hash(newPassword, 10);
+    await db
+      .update(vendorsTable)
+      .set({ passwordHash: newHash })
+      .where(eq(vendorsTable.id, vendor.id));
+
+    req.log.info({ id: vendor.id }, "Vendor password changed");
+    return res.json({ success: true });
+  } catch (err) {
+    req.log.error({ err }, "Failed to change vendor password");
+    return res.status(500).json({ error: "Erreur interne" });
+  }
+});
+
 router.post("/admin/vendors/delete", async (req, res) => {
   const parsed = AdminDeleteVendorBody.safeParse(req.body);
   if (!parsed.success) {

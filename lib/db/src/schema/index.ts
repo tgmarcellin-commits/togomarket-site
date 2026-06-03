@@ -3,3 +3,4 @@ export * from "./orders";
 export * from "./settings";
 export * from "./ads";
 export * from "./vendors";
+export * from "./events";

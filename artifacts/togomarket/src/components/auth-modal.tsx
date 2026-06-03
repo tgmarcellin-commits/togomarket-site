@@ -10,7 +10,7 @@ import {
 } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { useToast } from "@/hooks/use-toast";
-import { UserPlus, LogIn, Eye, EyeOff } from "lucide-react";
+import { UserPlus, LogIn, Eye, EyeOff, ShieldCheck } from "lucide-react";
 
 interface AuthModalProps {
   open: boolean;
@@ -18,7 +18,7 @@ interface AuthModalProps {
   onLoginSuccess: (vendor: VendorProfile, password: string) => void;
 }
 
-type Screen = "choice" | "login" | "register" | "verify";
+type Screen = "choice" | "login" | "register" | "privacy" | "verify";
 
 interface VerifyInfo {
   verifyCode: string;
@@ -26,10 +26,24 @@ interface VerifyInfo {
   firstName: string;
 }
 
+interface PendingRegister {
+  firstName: string;
+  lastName: string;
+  phone: string;
+  password: string;
+}
+
+const PRIVACY_POLICY = `En créant votre compte vendeur sur TogoMarket, vous autorisez TogoMarket à collecter et utiliser vos informations personnelles (nom, prénom, numéro de téléphone et photo de profil) dans le seul but de gérer votre compte, afficher vos annonces et faciliter la mise en relation avec les acheteurs sur la plateforme.
+
+Vos données ne seront jamais vendues ni partagées avec des tiers à des fins commerciales. Elles sont conservées de manière sécurisée et utilisées uniquement dans le cadre des services TogoMarket. Vous pouvez demander la suppression de votre compte et de vos données à tout moment en contactant l'administrateur via WhatsApp.
+
+En cliquant sur "J'accepte et je continue", vous confirmez avoir lu et accepté la présente politique de confidentialité.`;
+
 export function AuthModal({ open, onOpenChange, onLoginSuccess }: AuthModalProps) {
   const { toast } = useToast();
   const [screen, setScreen] = useState<Screen>("choice");
   const [verifyInfo, setVerifyInfo] = useState<VerifyInfo | null>(null);
+  const [pendingRegister, setPendingRegister] = useState<PendingRegister | null>(null);
 
   const [loginPhone, setLoginPhone] = useState("");
   const [loginPassword, setLoginPassword] = useState("");
@@ -56,6 +70,7 @@ export function AuthModal({ open, onOpenChange, onLoginSuccess }: AuthModalProps
     setRegPassword("");
     setRegPassword2("");
     setVerifyInfo(null);
+    setPendingRegister(null);
   };
 
   const handleOpenChange = (val: boolean) => {
@@ -89,7 +104,7 @@ export function AuthModal({ open, onOpenChange, onLoginSuccess }: AuthModalProps
     );
   };
 
-  const handleRegister = () => {
+  const handleRegisterValidate = () => {
     if (!regFirstName.trim() || !regLastName.trim() || !regPhone.trim() || !regPassword.trim()) {
       toast({ title: "Tous les champs sont requis", variant: "destructive" });
       return;
@@ -102,15 +117,19 @@ export function AuthModal({ open, onOpenChange, onLoginSuccess }: AuthModalProps
       toast({ title: "Mot de passe trop court (6 caractères minimum)", variant: "destructive" });
       return;
     }
+    setPendingRegister({
+      firstName: regFirstName.trim(),
+      lastName: regLastName.trim(),
+      phone: regPhone.trim(),
+      password: regPassword,
+    });
+    setScreen("privacy");
+  };
+
+  const handleAcceptPrivacy = () => {
+    if (!pendingRegister) return;
     registerMutation.mutate(
-      {
-        data: {
-          firstName: regFirstName.trim(),
-          lastName: regLastName.trim(),
-          phone: regPhone.trim(),
-          password: regPassword,
-        },
-      },
+      { data: pendingRegister },
       {
         onSuccess: (result) => {
           setVerifyInfo({
@@ -124,6 +143,7 @@ export function AuthModal({ open, onOpenChange, onLoginSuccess }: AuthModalProps
           const msg = (err as { message?: string })?.message ?? "";
           if (msg.includes("409") || msg.toLowerCase().includes("already") || msg.toLowerCase().includes("inscrit")) {
             toast({ title: "Ce numéro est déjà inscrit.", description: "Connectez-vous à la place.", variant: "destructive" });
+            setScreen("choice");
           } else {
             toast({ title: "Erreur lors de l'inscription", variant: "destructive" });
           }
@@ -138,16 +158,19 @@ export function AuthModal({ open, onOpenChange, onLoginSuccess }: AuthModalProps
     openWhatsApp(`https://wa.me/22870703131?text=${encodeURIComponent(msg)}`);
   };
 
+  const screenTitle: Record<Screen, string> = {
+    choice: "Mon Compte Vendeur",
+    login: "Se connecter",
+    register: "Créer un compte",
+    privacy: "Politique de confidentialité",
+    verify: "Vérification du numéro",
+  };
+
   return (
     <Dialog open={open} onOpenChange={handleOpenChange}>
       <DialogContent className="sm:max-w-[420px] max-h-[90vh] overflow-y-auto">
         <DialogHeader>
-          <DialogTitle>
-            {screen === "choice" && "Mon Compte Vendeur"}
-            {screen === "login" && "Se connecter"}
-            {screen === "register" && "Créer un compte"}
-            {screen === "verify" && "Vérification du numéro"}
-          </DialogTitle>
+          <DialogTitle>{screenTitle[screen]}</DialogTitle>
         </DialogHeader>
 
         {screen === "choice" && (
@@ -155,18 +178,11 @@ export function AuthModal({ open, onOpenChange, onLoginSuccess }: AuthModalProps
             <p className="text-sm text-muted-foreground">
               Connectez-vous ou créez un compte pour publier vos annonces sur TogoMarket.
             </p>
-            <Button
-              className="w-full h-12 gap-2"
-              onClick={() => setScreen("login")}
-            >
+            <Button className="w-full h-12 gap-2" onClick={() => setScreen("login")}>
               <LogIn className="w-4 h-4" />
               Se connecter
             </Button>
-            <Button
-              variant="outline"
-              className="w-full h-12 gap-2"
-              onClick={() => setScreen("register")}
-            >
+            <Button variant="outline" className="w-full h-12 gap-2" onClick={() => setScreen("register")}>
               <UserPlus className="w-4 h-4" />
               Créer un compte
             </Button>
@@ -199,17 +215,10 @@ export function AuthModal({ open, onOpenChange, onLoginSuccess }: AuthModalProps
                 </button>
               </div>
             </div>
-            <Button
-              className="w-full"
-              onClick={handleLogin}
-              disabled={loginMutation.isPending}
-            >
+            <Button className="w-full" onClick={handleLogin} disabled={loginMutation.isPending}>
               {loginMutation.isPending ? "Connexion..." : "Se connecter"}
             </Button>
-            <button
-              className="text-xs text-muted-foreground underline w-full text-center"
-              onClick={() => setScreen("choice")}
-            >
+            <button className="text-xs text-muted-foreground underline w-full text-center" onClick={() => setScreen("choice")}>
               Retour
             </button>
           </div>
@@ -220,28 +229,16 @@ export function AuthModal({ open, onOpenChange, onLoginSuccess }: AuthModalProps
             <div className="grid grid-cols-2 gap-3">
               <div className="space-y-1.5">
                 <label className="text-sm font-medium">Prénom</label>
-                <Input
-                  placeholder="Kofi"
-                  value={regFirstName}
-                  onChange={(e) => setRegFirstName(e.target.value)}
-                />
+                <Input placeholder="Kofi" value={regFirstName} onChange={(e) => setRegFirstName(e.target.value)} />
               </div>
               <div className="space-y-1.5">
                 <label className="text-sm font-medium">Nom</label>
-                <Input
-                  placeholder="Mensah"
-                  value={regLastName}
-                  onChange={(e) => setRegLastName(e.target.value)}
-                />
+                <Input placeholder="Mensah" value={regLastName} onChange={(e) => setRegLastName(e.target.value)} />
               </div>
             </div>
             <div className="space-y-1.5">
               <label className="text-sm font-medium">Numéro WhatsApp</label>
-              <Input
-                placeholder="+228 XX XX XX XX"
-                value={regPhone}
-                onChange={(e) => setRegPhone(e.target.value)}
-              />
+              <Input placeholder="+228 XX XX XX XX" value={regPhone} onChange={(e) => setRegPhone(e.target.value)} />
             </div>
             <div className="space-y-1.5">
               <label className="text-sm font-medium">Mot de passe</label>
@@ -276,16 +273,34 @@ export function AuthModal({ open, onOpenChange, onLoginSuccess }: AuthModalProps
             <div className="text-xs text-muted-foreground bg-blue-50 border border-blue-100 rounded-lg p-3">
               1 mois gratuit offert à l'inscription. Ensuite 1 000 FCFA/mois pour continuer à publier.
             </div>
+            <Button className="w-full" onClick={handleRegisterValidate}>
+              Continuer
+            </Button>
+            <button className="text-xs text-muted-foreground underline w-full text-center" onClick={() => setScreen("choice")}>
+              Retour
+            </button>
+          </div>
+        )}
+
+        {screen === "privacy" && (
+          <div className="space-y-4 pt-2">
+            <div className="flex items-center gap-2 mb-1">
+              <ShieldCheck className="w-5 h-5 text-primary flex-shrink-0" />
+              <p className="text-sm font-semibold text-primary">Politique de confidentialité TogoMarket</p>
+            </div>
+            <div className="bg-muted rounded-xl p-4 text-sm text-muted-foreground leading-relaxed whitespace-pre-wrap max-h-52 overflow-y-auto">
+              {PRIVACY_POLICY}
+            </div>
             <Button
-              className="w-full"
-              onClick={handleRegister}
+              className="w-full h-12"
+              onClick={handleAcceptPrivacy}
               disabled={registerMutation.isPending}
             >
-              {registerMutation.isPending ? "Inscription..." : "Créer mon compte"}
+              {registerMutation.isPending ? "Création du compte..." : "✓ J'accepte et je continue"}
             </Button>
             <button
               className="text-xs text-muted-foreground underline w-full text-center"
-              onClick={() => setScreen("choice")}
+              onClick={() => setScreen("register")}
             >
               Retour
             </button>

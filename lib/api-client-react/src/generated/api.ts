@@ -25,6 +25,7 @@ import type {
   AdminActivateVendorResult,
   AdminApproveInput,
   AdminCreateAdInput,
+  AdminCreateEventInput,
   AdminCreateListingInput,
   AdminDeleteInput,
   AdminPasswordInput,
@@ -32,6 +33,7 @@ import type {
   AdminVerifyResult,
   DeleteResult,
   ErrorEnvelope,
+  Event,
   GetListingsParams,
   HealthStatus,
   Listing,
@@ -45,11 +47,16 @@ import type {
   UpdateSettingsInput,
   UploadUrlRequest,
   UploadUrlResponse,
+  VendorAuthInput,
+  VendorChangePasswordInput,
+  VendorDeleteListingInput,
   VendorLoginInput,
   VendorProfile,
   VendorProfileUpdateInput,
   VendorRegisterInput,
-  VendorRegisterResult
+  VendorRegisterResult,
+  VendorUpdateNameInput,
+  VendorUpdatePriceInput
 } from './api.schemas';
 
 import { customFetch } from '../custom-fetch';
@@ -519,6 +526,148 @@ export const useCreateListing = <TError = ErrorType<unknown>,
         TContext
       > => {
       return useMutation(getCreateListingMutationOptions(options));
+    }
+
+export const getVendorUpdateListingPriceUrl = () => {
+
+
+
+
+  return `/api/listings/update-price`
+}
+
+/**
+ * @summary Update a listing price (vendor only)
+ */
+export const vendorUpdateListingPrice = async (vendorUpdatePriceInput: VendorUpdatePriceInput, options?: RequestInit): Promise<Listing> => {
+
+  return customFetch<Listing>(getVendorUpdateListingPriceUrl(),
+  {
+    ...options,
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...options?.headers },
+    body: JSON.stringify(
+      vendorUpdatePriceInput,)
+  }
+);}
+
+
+
+
+export const getVendorUpdateListingPriceMutationOptions = <TError = ErrorType<void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof vendorUpdateListingPrice>>, TError,{data: BodyType<VendorUpdatePriceInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof vendorUpdateListingPrice>>, TError,{data: BodyType<VendorUpdatePriceInput>}, TContext> => {
+
+const mutationKey = ['vendorUpdateListingPrice'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof vendorUpdateListingPrice>>, {data: BodyType<VendorUpdatePriceInput>}> = (props) => {
+          const {data} = props ?? {};
+
+          return  vendorUpdateListingPrice(data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type VendorUpdateListingPriceMutationResult = NonNullable<Awaited<ReturnType<typeof vendorUpdateListingPrice>>>
+    export type VendorUpdateListingPriceMutationBody = BodyType<VendorUpdatePriceInput>
+    export type VendorUpdateListingPriceMutationError = ErrorType<void>
+
+    /**
+ * @summary Update a listing price (vendor only)
+ */
+export const useVendorUpdateListingPrice = <TError = ErrorType<void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof vendorUpdateListingPrice>>, TError,{data: BodyType<VendorUpdatePriceInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof vendorUpdateListingPrice>>,
+        TError,
+        {data: BodyType<VendorUpdatePriceInput>},
+        TContext
+      > => {
+      return useMutation(getVendorUpdateListingPriceMutationOptions(options));
+    }
+
+export const getVendorDeleteListingUrl = () => {
+
+
+
+
+  return `/api/listings/vendor-delete`
+}
+
+/**
+ * @summary Delete a listing owned by the vendor
+ */
+export const vendorDeleteListing = async (vendorDeleteListingInput: VendorDeleteListingInput, options?: RequestInit): Promise<DeleteResult> => {
+
+  return customFetch<DeleteResult>(getVendorDeleteListingUrl(),
+  {
+    ...options,
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...options?.headers },
+    body: JSON.stringify(
+      vendorDeleteListingInput,)
+  }
+);}
+
+
+
+
+export const getVendorDeleteListingMutationOptions = <TError = ErrorType<void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof vendorDeleteListing>>, TError,{data: BodyType<VendorDeleteListingInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof vendorDeleteListing>>, TError,{data: BodyType<VendorDeleteListingInput>}, TContext> => {
+
+const mutationKey = ['vendorDeleteListing'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof vendorDeleteListing>>, {data: BodyType<VendorDeleteListingInput>}> = (props) => {
+          const {data} = props ?? {};
+
+          return  vendorDeleteListing(data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type VendorDeleteListingMutationResult = NonNullable<Awaited<ReturnType<typeof vendorDeleteListing>>>
+    export type VendorDeleteListingMutationBody = BodyType<VendorDeleteListingInput>
+    export type VendorDeleteListingMutationError = ErrorType<void>
+
+    /**
+ * @summary Delete a listing owned by the vendor
+ */
+export const useVendorDeleteListing = <TError = ErrorType<void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof vendorDeleteListing>>, TError,{data: BodyType<VendorDeleteListingInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof vendorDeleteListing>>,
+        TError,
+        {data: BodyType<VendorDeleteListingInput>},
+        TContext
+      > => {
+      return useMutation(getVendorDeleteListingMutationOptions(options));
     }
 
 export const getAdminCreateListingUrl = () => {
@@ -1675,6 +1824,219 @@ export const useVendorUpdateProfile = <TError = ErrorType<void>,
       return useMutation(getVendorUpdateProfileMutationOptions(options));
     }
 
+export const getVendorUpdateNameUrl = () => {
+
+
+
+
+  return `/api/vendors/profile/update-name`
+}
+
+/**
+ * @summary Update vendor first name and last name
+ */
+export const vendorUpdateName = async (vendorUpdateNameInput: VendorUpdateNameInput, options?: RequestInit): Promise<VendorProfile> => {
+
+  return customFetch<VendorProfile>(getVendorUpdateNameUrl(),
+  {
+    ...options,
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...options?.headers },
+    body: JSON.stringify(
+      vendorUpdateNameInput,)
+  }
+);}
+
+
+
+
+export const getVendorUpdateNameMutationOptions = <TError = ErrorType<void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof vendorUpdateName>>, TError,{data: BodyType<VendorUpdateNameInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof vendorUpdateName>>, TError,{data: BodyType<VendorUpdateNameInput>}, TContext> => {
+
+const mutationKey = ['vendorUpdateName'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof vendorUpdateName>>, {data: BodyType<VendorUpdateNameInput>}> = (props) => {
+          const {data} = props ?? {};
+
+          return  vendorUpdateName(data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type VendorUpdateNameMutationResult = NonNullable<Awaited<ReturnType<typeof vendorUpdateName>>>
+    export type VendorUpdateNameMutationBody = BodyType<VendorUpdateNameInput>
+    export type VendorUpdateNameMutationError = ErrorType<void>
+
+    /**
+ * @summary Update vendor first name and last name
+ */
+export const useVendorUpdateName = <TError = ErrorType<void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof vendorUpdateName>>, TError,{data: BodyType<VendorUpdateNameInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof vendorUpdateName>>,
+        TError,
+        {data: BodyType<VendorUpdateNameInput>},
+        TContext
+      > => {
+      return useMutation(getVendorUpdateNameMutationOptions(options));
+    }
+
+export const getVendorChangePasswordUrl = () => {
+
+
+
+
+  return `/api/vendors/profile/change-password`
+}
+
+/**
+ * @summary Change vendor password
+ */
+export const vendorChangePassword = async (vendorChangePasswordInput: VendorChangePasswordInput, options?: RequestInit): Promise<DeleteResult> => {
+
+  return customFetch<DeleteResult>(getVendorChangePasswordUrl(),
+  {
+    ...options,
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...options?.headers },
+    body: JSON.stringify(
+      vendorChangePasswordInput,)
+  }
+);}
+
+
+
+
+export const getVendorChangePasswordMutationOptions = <TError = ErrorType<void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof vendorChangePassword>>, TError,{data: BodyType<VendorChangePasswordInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof vendorChangePassword>>, TError,{data: BodyType<VendorChangePasswordInput>}, TContext> => {
+
+const mutationKey = ['vendorChangePassword'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof vendorChangePassword>>, {data: BodyType<VendorChangePasswordInput>}> = (props) => {
+          const {data} = props ?? {};
+
+          return  vendorChangePassword(data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type VendorChangePasswordMutationResult = NonNullable<Awaited<ReturnType<typeof vendorChangePassword>>>
+    export type VendorChangePasswordMutationBody = BodyType<VendorChangePasswordInput>
+    export type VendorChangePasswordMutationError = ErrorType<void>
+
+    /**
+ * @summary Change vendor password
+ */
+export const useVendorChangePassword = <TError = ErrorType<void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof vendorChangePassword>>, TError,{data: BodyType<VendorChangePasswordInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof vendorChangePassword>>,
+        TError,
+        {data: BodyType<VendorChangePasswordInput>},
+        TContext
+      > => {
+      return useMutation(getVendorChangePasswordMutationOptions(options));
+    }
+
+export const getVendorGetListingsUrl = () => {
+
+
+
+
+  return `/api/vendors/listings`
+}
+
+/**
+ * @summary Get listings owned by the vendor
+ */
+export const vendorGetListings = async (vendorAuthInput: VendorAuthInput, options?: RequestInit): Promise<Listing[]> => {
+
+  return customFetch<Listing[]>(getVendorGetListingsUrl(),
+  {
+    ...options,
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...options?.headers },
+    body: JSON.stringify(
+      vendorAuthInput,)
+  }
+);}
+
+
+
+
+export const getVendorGetListingsMutationOptions = <TError = ErrorType<void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof vendorGetListings>>, TError,{data: BodyType<VendorAuthInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof vendorGetListings>>, TError,{data: BodyType<VendorAuthInput>}, TContext> => {
+
+const mutationKey = ['vendorGetListings'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof vendorGetListings>>, {data: BodyType<VendorAuthInput>}> = (props) => {
+          const {data} = props ?? {};
+
+          return  vendorGetListings(data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type VendorGetListingsMutationResult = NonNullable<Awaited<ReturnType<typeof vendorGetListings>>>
+    export type VendorGetListingsMutationBody = BodyType<VendorAuthInput>
+    export type VendorGetListingsMutationError = ErrorType<void>
+
+    /**
+ * @summary Get listings owned by the vendor
+ */
+export const useVendorGetListings = <TError = ErrorType<void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof vendorGetListings>>, TError,{data: BodyType<VendorAuthInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof vendorGetListings>>,
+        TError,
+        {data: BodyType<VendorAuthInput>},
+        TContext
+      > => {
+      return useMutation(getVendorGetListingsMutationOptions(options));
+    }
+
 export const getAdminGetVendorsUrl = () => {
 
 
@@ -2028,5 +2390,224 @@ export const useAdminDeleteVendor = <TError = ErrorType<void>,
         TContext
       > => {
       return useMutation(getAdminDeleteVendorMutationOptions(options));
+    }
+
+export const getGetEventsUrl = () => {
+
+
+
+
+  return `/api/events`
+}
+
+/**
+ * @summary Get all events
+ */
+export const getEvents = async ( options?: RequestInit): Promise<Event[]> => {
+
+  return customFetch<Event[]>(getGetEventsUrl(),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getGetEventsQueryKey = () => {
+    return [
+    `/api/events`
+    ] as const;
+    }
+
+
+export const getGetEventsQueryOptions = <TData = Awaited<ReturnType<typeof getEvents>>, TError = ErrorType<unknown>>( options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getEvents>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getGetEventsQueryKey();
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof getEvents>>> = ({ signal }) => getEvents({ signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof getEvents>>, TError, TData> & { queryKey: QueryKey }
+}
+
+export type GetEventsQueryResult = NonNullable<Awaited<ReturnType<typeof getEvents>>>
+export type GetEventsQueryError = ErrorType<unknown>
+
+
+/**
+ * @summary Get all events
+ */
+
+export function useGetEvents<TData = Awaited<ReturnType<typeof getEvents>>, TError = ErrorType<unknown>>(
+  options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getEvents>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+
+ ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+
+  const queryOptions = getGetEventsQueryOptions(options)
+
+  const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
+
+  return { ...query, queryKey: queryOptions.queryKey };
+}
+
+
+
+
+
+
+
+export const getAdminCreateEventUrl = () => {
+
+
+
+
+  return `/api/admin/events`
+}
+
+/**
+ * @summary Create a new event (admin only)
+ */
+export const adminCreateEvent = async (adminCreateEventInput: AdminCreateEventInput, options?: RequestInit): Promise<Event> => {
+
+  return customFetch<Event>(getAdminCreateEventUrl(),
+  {
+    ...options,
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...options?.headers },
+    body: JSON.stringify(
+      adminCreateEventInput,)
+  }
+);}
+
+
+
+
+export const getAdminCreateEventMutationOptions = <TError = ErrorType<void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof adminCreateEvent>>, TError,{data: BodyType<AdminCreateEventInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof adminCreateEvent>>, TError,{data: BodyType<AdminCreateEventInput>}, TContext> => {
+
+const mutationKey = ['adminCreateEvent'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof adminCreateEvent>>, {data: BodyType<AdminCreateEventInput>}> = (props) => {
+          const {data} = props ?? {};
+
+          return  adminCreateEvent(data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type AdminCreateEventMutationResult = NonNullable<Awaited<ReturnType<typeof adminCreateEvent>>>
+    export type AdminCreateEventMutationBody = BodyType<AdminCreateEventInput>
+    export type AdminCreateEventMutationError = ErrorType<void>
+
+    /**
+ * @summary Create a new event (admin only)
+ */
+export const useAdminCreateEvent = <TError = ErrorType<void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof adminCreateEvent>>, TError,{data: BodyType<AdminCreateEventInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof adminCreateEvent>>,
+        TError,
+        {data: BodyType<AdminCreateEventInput>},
+        TContext
+      > => {
+      return useMutation(getAdminCreateEventMutationOptions(options));
+    }
+
+export const getAdminDeleteEventUrl = () => {
+
+
+
+
+  return `/api/admin/events/delete`
+}
+
+/**
+ * @summary Delete an event (admin only)
+ */
+export const adminDeleteEvent = async (adminDeleteInput: AdminDeleteInput, options?: RequestInit): Promise<DeleteResult> => {
+
+  return customFetch<DeleteResult>(getAdminDeleteEventUrl(),
+  {
+    ...options,
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...options?.headers },
+    body: JSON.stringify(
+      adminDeleteInput,)
+  }
+);}
+
+
+
+
+export const getAdminDeleteEventMutationOptions = <TError = ErrorType<void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof adminDeleteEvent>>, TError,{data: BodyType<AdminDeleteInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof adminDeleteEvent>>, TError,{data: BodyType<AdminDeleteInput>}, TContext> => {
+
+const mutationKey = ['adminDeleteEvent'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof adminDeleteEvent>>, {data: BodyType<AdminDeleteInput>}> = (props) => {
+          const {data} = props ?? {};
+
+          return  adminDeleteEvent(data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type AdminDeleteEventMutationResult = NonNullable<Awaited<ReturnType<typeof adminDeleteEvent>>>
+    export type AdminDeleteEventMutationBody = BodyType<AdminDeleteInput>
+    export type AdminDeleteEventMutationError = ErrorType<void>
+
+    /**
+ * @summary Delete an event (admin only)
+ */
+export const useAdminDeleteEvent = <TError = ErrorType<void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof adminDeleteEvent>>, TError,{data: BodyType<AdminDeleteInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof adminDeleteEvent>>,
+        TError,
+        {data: BodyType<AdminDeleteInput>},
+        TContext
+      > => {
+      return useMutation(getAdminDeleteEventMutationOptions(options));
     }
 

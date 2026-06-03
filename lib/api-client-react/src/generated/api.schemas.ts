@@ -27,6 +27,32 @@ export interface AdminCreateAdInput {
   videoPath?: string;
 }
 
+export interface Event {
+  id: number;
+  title: string;
+  description: string;
+  /** @nullable */
+  flyerImage?: string | null;
+  date: string;
+  location: string;
+  /** @nullable */
+  ticketLink?: string | null;
+  /** @nullable */
+  ticketPrice?: string | null;
+  createdAt: string;
+}
+
+export interface AdminCreateEventInput {
+  password: string;
+  title: string;
+  description: string;
+  flyerImage?: string;
+  date: string;
+  location: string;
+  ticketLink?: string;
+  ticketPrice?: string;
+}
+
 export interface HealthStatus {
   status: string;
 }
@@ -64,6 +90,37 @@ export interface ListingInput {
   vendorPhone: string;
   vendorPassword: string;
   vendorPublishCode: string;
+}
+
+export interface VendorUpdatePriceInput {
+  id: number;
+  phone: string;
+  password: string;
+  newPrice: number;
+}
+
+export interface VendorDeleteListingInput {
+  id: number;
+  phone: string;
+  password: string;
+}
+
+export interface VendorAuthInput {
+  phone: string;
+  password: string;
+}
+
+export interface VendorUpdateNameInput {
+  phone: string;
+  password: string;
+  firstName: string;
+  lastName: string;
+}
+
+export interface VendorChangePasswordInput {
+  phone: string;
+  oldPassword: string;
+  newPassword: string;
 }
 
 export interface DeleteResult {

@@ -104,6 +104,43 @@ export const CreateListingBody = zod.object({
 
 
 /**
+ * @summary Update a listing price (vendor only)
+ */
+export const VendorUpdateListingPriceBody = zod.object({
+  "id": zod.number(),
+  "phone": zod.string(),
+  "password": zod.string(),
+  "newPrice": zod.number()
+})
+
+export const VendorUpdateListingPriceResponse = zod.object({
+  "id": zod.number(),
+  "name": zod.string(),
+  "price": zod.number(),
+  "location": zod.string(),
+  "sector": zod.string(),
+  "images": zod.array(zod.string()),
+  "createdAt": zod.string(),
+  "phone": zod.string().nullish(),
+  "approved": zod.boolean()
+})
+
+
+/**
+ * @summary Delete a listing owned by the vendor
+ */
+export const VendorDeleteListingBody = zod.object({
+  "id": zod.number(),
+  "phone": zod.string(),
+  "password": zod.string()
+})
+
+export const VendorDeleteListingResponse = zod.object({
+  "success": zod.boolean()
+})
+
+
+/**
  * @summary Create and publish a listing directly (admin only)
  */
 export const AdminCreateListingBody = zod.object({
@@ -349,6 +386,68 @@ export const VendorUpdateProfileResponse = zod.object({
 
 
 /**
+ * @summary Update vendor first name and last name
+ */
+export const VendorUpdateNameBody = zod.object({
+  "phone": zod.string(),
+  "password": zod.string(),
+  "firstName": zod.string(),
+  "lastName": zod.string()
+})
+
+export const VendorUpdateNameResponse = zod.object({
+  "id": zod.number(),
+  "firstName": zod.string(),
+  "lastName": zod.string(),
+  "phone": zod.string(),
+  "verified": zod.boolean(),
+  "profilePhoto": zod.string().nullish(),
+  "createdAt": zod.string(),
+  "publishCode": zod.union([zod.object({
+  "code": zod.string(),
+  "endDate": zod.string(),
+  "daysLeft": zod.number()
+}),zod.null()]).optional()
+})
+
+
+/**
+ * @summary Change vendor password
+ */
+export const VendorChangePasswordBody = zod.object({
+  "phone": zod.string(),
+  "oldPassword": zod.string(),
+  "newPassword": zod.string()
+})
+
+export const VendorChangePasswordResponse = zod.object({
+  "success": zod.boolean()
+})
+
+
+/**
+ * @summary Get listings owned by the vendor
+ */
+export const VendorGetListingsBody = zod.object({
+  "phone": zod.string(),
+  "password": zod.string()
+})
+
+export const VendorGetListingsResponseItem = zod.object({
+  "id": zod.number(),
+  "name": zod.string(),
+  "price": zod.number(),
+  "location": zod.string(),
+  "sector": zod.string(),
+  "images": zod.array(zod.string()),
+  "createdAt": zod.string(),
+  "phone": zod.string().nullish(),
+  "approved": zod.boolean()
+})
+export const VendorGetListingsResponse = zod.array(VendorGetListingsResponseItem)
+
+
+/**
  * @summary Get all vendor accounts (admin only)
  */
 export const AdminGetVendorsBody = zod.object({
@@ -423,6 +522,51 @@ export const AdminDeleteVendorBody = zod.object({
 })
 
 export const AdminDeleteVendorResponse = zod.object({
+  "success": zod.boolean()
+})
+
+
+/**
+ * @summary Get all events
+ */
+export const GetEventsResponseItem = zod.object({
+  "id": zod.number(),
+  "title": zod.string(),
+  "description": zod.string(),
+  "flyerImage": zod.string().nullish(),
+  "date": zod.string(),
+  "location": zod.string(),
+  "ticketLink": zod.string().nullish(),
+  "ticketPrice": zod.string().nullish(),
+  "createdAt": zod.string()
+})
+export const GetEventsResponse = zod.array(GetEventsResponseItem)
+
+
+/**
+ * @summary Create a new event (admin only)
+ */
+export const AdminCreateEventBody = zod.object({
+  "password": zod.string(),
+  "title": zod.string(),
+  "description": zod.string(),
+  "flyerImage": zod.string().optional(),
+  "date": zod.string(),
+  "location": zod.string(),
+  "ticketLink": zod.string().optional(),
+  "ticketPrice": zod.string().optional()
+})
+
+
+/**
+ * @summary Delete an event (admin only)
+ */
+export const AdminDeleteEventBody = zod.object({
+  "id": zod.number(),
+  "password": zod.string()
+})
+
+export const AdminDeleteEventResponse = zod.object({
   "success": zod.boolean()
 })
 

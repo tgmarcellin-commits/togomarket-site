@@ -126,6 +126,108 @@ router.post("/listings", async (req, res): Promise<void> => {
   res.status(201).json(GetListingsResponseItem.parse(mapListing(listing)));
 });
 
+router.post("/listings/update-price", async (req, res): Promise<void> => {
+  const { id, phone, password, newPrice } = req.body;
+  if (!id || !phone || !password || newPrice === undefined) {
+    res.status(400).json({ error: "Champs requis manquants" });
+    return;
+  }
+
+  const vendors = await db
+    .select()
+    .from(vendorsTable)
+    .where(eq(vendorsTable.phone, phone))
+    .limit(1);
+
+  if (vendors.length === 0) {
+    res.status(401).json({ error: "Compte introuvable." });
+    return;
+  }
+
+  const vendor = vendors[0];
+  const match = await bcrypt.compare(password, vendor.passwordHash);
+  if (!match) {
+    res.status(401).json({ error: "Mot de passe incorrect." });
+    return;
+  }
+
+  const listings = await db
+    .select()
+    .from(listingsTable)
+    .where(eq(listingsTable.id, id))
+    .limit(1);
+
+  if (listings.length === 0) {
+    res.status(404).json({ error: "Annonce introuvable." });
+    return;
+  }
+
+  if (listings[0].phone !== vendor.phone) {
+    res.status(403).json({ error: "Vous ne pouvez pas modifier cette annonce." });
+    return;
+  }
+
+  const [updated] = await db
+    .update(listingsTable)
+    .set({ price: String(newPrice) })
+    .where(eq(listingsTable.id, id))
+    .returning();
+
+  logger.info({ id }, "Listing price updated by vendor");
+  res.json(GetListingsResponseItem.parse(mapListing(updated)));
+});
+
+router.post("/listings/vendor-delete", async (req, res): Promise<void> => {
+  const { id, phone, password } = req.body;
+  if (!id || !phone || !password) {
+    res.status(400).json({ error: "Champs requis manquants" });
+    return;
+  }
+
+  const vendors = await db
+    .select()
+    .from(vendorsTable)
+    .where(eq(vendorsTable.phone, phone))
+    .limit(1);
+
+  if (vendors.length === 0) {
+    res.status(401).json({ error: "Compte introuvable." });
+    return;
+  }
+
+  const vendor = vendors[0];
+  const match = await bcrypt.compare(password, vendor.passwordHash);
+  if (!match) {
+    res.status(401).json({ error: "Mot de passe incorrect." });
+    return;
+  }
+
+  const listings = await db
+    .select()
+    .from(listingsTable)
+    .where(eq(listingsTable.id, id))
+    .limit(1);
+
+  if (listings.length === 0) {
+    res.status(404).json({ error: "Annonce introuvable." });
+    return;
+  }
+
+  if (listings[0].phone !== vendor.phone) {
+    res.status(403).json({ error: "Vous ne pouvez pas supprimer cette annonce." });
+    return;
+  }
+
+  const deleted = await db
+    .delete(listingsTable)
+    .where(eq(listingsTable.id, id))
+    .returning();
+
+  await objectStorage.deleteObjectEntities(deleted[0].images ?? []);
+  logger.info({ id }, "Listing deleted by vendor");
+  res.json({ success: true });
+});
+
 router.post("/admin/listings/create", async (req, res) => {
   const parsed = AdminCreateListingBody.safeParse(req.body);
   if (!parsed.success) {
