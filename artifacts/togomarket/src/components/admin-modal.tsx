@@ -50,7 +50,7 @@ import {
 import { Input } from "@/components/ui/input";
 import { useToast } from "@/hooks/use-toast";
 import { Settings, LogOut, CheckCircle, Trash2, Clock, KeyRound, Megaphone, Plus, RefreshCw, Users, UploadCloud, X, Eye, EyeOff, AlertTriangle, Calendar } from "lucide-react";
-import { resizeImage, resizeImageToBlob } from "@/lib/image";
+import { resizeImage, resizeImageToBlob, resolveImageUrl } from "@/lib/image";
 import { uploadImageFile } from "@/lib/upload";
 
 const loginSchema = z.object({
@@ -718,18 +718,20 @@ export function AdminModal({
                         </div>
                       </div>
                       {listing.images && listing.images.length > 0 && (
-                        <div className="flex gap-2 flex-wrap">
+                        <div className="flex gap-2 overflow-x-auto pb-1">
                           {listing.images.map((img, i) => (
-                            <button
+                            <div
                               key={i}
-                              onClick={() => openViewer(listing.images!, i)}
-                              className="relative w-16 h-16 rounded-md overflow-hidden border border-border hover:border-primary transition-colors flex-shrink-0 group/thumb"
+                              className="flex-shrink-0 rounded-md overflow-hidden border bg-black cursor-zoom-in"
+                              style={{ width: 140, height: 110 }}
+                              onClick={() => openViewer(listing.images!.map(resolveImageUrl), i)}
                             >
-                              <img src={img} alt={`Photo ${i + 1}`} className="w-full h-full object-cover" />
-                              <div className="absolute inset-0 bg-black/0 group-hover/thumb:bg-black/20 transition-colors flex items-center justify-center">
-                                <span className="text-white text-[10px] font-bold opacity-0 group-hover/thumb:opacity-100">Voir</span>
-                              </div>
-                            </button>
+                              <img
+                                src={resolveImageUrl(img)}
+                                alt={`Photo ${i + 1}`}
+                                className="w-full h-full object-contain"
+                              />
+                            </div>
                           ))}
                         </div>
                       )}

@@ -87,13 +87,7 @@ export default function Home() {
   const whatsappCommission = settings?.whatsappCommission ?? "22870703131";
   const whatsappOrders = settings?.whatsappOrders ?? "22870703131";
 
-  const sortedListings = (() => {
-    if (!listings) return [];
-    if (!vendor) return listings;
-    const own = listings.filter((l) => l.phone === vendor.phone);
-    const others = listings.filter((l) => l.phone !== vendor.phone);
-    return [...own, ...others];
-  })();
+  const sortedListings = listings ?? [];
 
   const handleSearchSubmit = (e: React.FormEvent) => {
     e.preventDefault();
