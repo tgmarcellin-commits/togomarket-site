@@ -41,6 +41,7 @@ import type {
   HealthStatus,
   Listing,
   ListingInput,
+  ListingsPage,
   MarketStats,
   Order,
   OrderInput,
@@ -392,11 +393,11 @@ export const getGetListingsUrl = (params?: GetListingsParams,) => {
 }
 
 /**
- * @summary Get all listings
+ * @summary Get paginated listings
  */
-export const getListings = async (params?: GetListingsParams, options?: RequestInit): Promise<Listing[]> => {
+export const getListings = async (params?: GetListingsParams, options?: RequestInit): Promise<ListingsPage> => {
 
-  return customFetch<Listing[]>(getGetListingsUrl(params),
+  return customFetch<ListingsPage>(getGetListingsUrl(params),
   {
     ...options,
     method: 'GET'
@@ -439,7 +440,7 @@ export type GetListingsQueryError = ErrorType<unknown>
 
 
 /**
- * @summary Get all listings
+ * @summary Get paginated listings
  */
 
 export function useGetListings<TData = Awaited<ReturnType<typeof getListings>>, TError = ErrorType<unknown>>(

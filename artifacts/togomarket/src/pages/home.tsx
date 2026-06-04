@@ -1,4 +1,4 @@
-import { useState, useRef, useEffect } from "react";
+import { useState, useRef, useEffect, useCallback } from "react";
 import { openWhatsApp } from "@/lib/whatsapp";
 import {
   useGetListings,
@@ -6,6 +6,7 @@ import {
   useGetStats,
   useGetAdminSettings,
   type VendorProfile,
+  type Listing,
 } from "@workspace/api-client-react";
 import { Search, SearchIcon, LogIn, UserCircle2, Settings } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -69,6 +70,9 @@ export default function Home() {
   const [vendor, setVendor] = useState<VendorProfile | null>(null);
   const [vendorPassword, setVendorPassword] = useState("");
 
+  const [page, setPage] = useState(1);
+  const [loadedListings, setLoadedListings] = useState<Listing[]>([]);
+
   useEffect(() => {
     const session = loadSession();
     if (session) {
@@ -77,9 +81,9 @@ export default function Home() {
     }
   }, []);
 
-  const { data: listings, isLoading } = useGetListings(
-    { search, sector },
-    { query: { queryKey: getGetListingsQueryKey({ search, sector }) } }
+  const { data: pageData, isLoading, isFetching } = useGetListings(
+    { search, sector, page },
+    { query: { queryKey: getGetListingsQueryKey({ search, sector, page }) } }
   );
   const { data: stats } = useGetStats();
   const { data: settings } = useGetAdminSettings();
@@ -87,7 +91,25 @@ export default function Home() {
   const whatsappCommission = settings?.whatsappCommission ?? "22870703131";
   const whatsappOrders = settings?.whatsappOrders ?? "22870703131";
 
-  const sortedListings = listings ?? [];
+  useEffect(() => {
+    setPage(1);
+    setLoadedListings([]);
+  }, [search, sector]);
+
+  useEffect(() => {
+    if (!pageData) return;
+    if (page === 1) {
+      setLoadedListings(pageData.items);
+    } else {
+      setLoadedListings((prev) => [...prev, ...pageData.items]);
+    }
+  }, [pageData, page]);
+
+  const handleLoadMore = useCallback(() => {
+    setPage((p) => p + 1);
+  }, []);
+
+  const sortedListings = loadedListings;
 
   const handleSearchSubmit = (e: React.FormEvent) => {
     e.preventDefault();
@@ -302,19 +324,33 @@ export default function Home() {
                 ))}
               </div>
             ) : sortedListings.length > 0 ? (
-              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
-                {sortedListings.map((listing) => (
-                  <ListingCard
-                    key={listing.id}
-                    listing={listing}
-                    isAdmin={isAdmin}
-                    adminPassword={adminPassword}
-                    commissionRate={commissionRate}
-                    whatsappCommission={whatsappCommission}
-                    isOwn={vendor ? listing.phone === vendor.phone : false}
-                  />
-                ))}
-              </div>
+              <>
+                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
+                  {sortedListings.map((listing) => (
+                    <ListingCard
+                      key={listing.id}
+                      listing={listing}
+                      isAdmin={isAdmin}
+                      adminPassword={adminPassword}
+                      commissionRate={commissionRate}
+                      whatsappCommission={whatsappCommission}
+                      isOwn={vendor ? listing.phone === vendor.phone : false}
+                    />
+                  ))}
+                </div>
+                {pageData?.hasMore && (
+                  <div className="flex justify-center mt-10">
+                    <Button
+                      variant="outline"
+                      onClick={handleLoadMore}
+                      disabled={isFetching}
+                      className="rounded-full px-8 font-semibold"
+                    >
+                      {isFetching ? "Chargement…" : "Charger plus d'annonces"}
+                    </Button>
+                  </div>
+                )}
+              </>
             ) : (
               <div className="text-center py-20">
                 <div className="inline-flex items-center justify-center w-16 h-16 rounded-full bg-muted mb-4">

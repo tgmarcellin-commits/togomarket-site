@@ -123,7 +123,7 @@ paths:
     get:
       operationId: getListings
       tags: [listings]
-      summary: Get all listings
+      summary: Get paginated listings
       parameters:
         - name: sector
           in: query
@@ -135,15 +135,28 @@ paths:
           required: false
           schema:
             type: string
+        - name: page
+          in: query
+          required: false
+          schema:
+            type: integer
+            minimum: 1
+            default: 1
+        - name: limit
+          in: query
+          required: false
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 100
+            default: 20
       responses:
         "200":
-          description: List of listings
+          description: Paginated list of listings
           content:
             application/json:
               schema:
-                type: array
-                items:
-                  $ref: "#/components/schemas/Listing"
+                $ref: "#/components/schemas/ListingsPage"
     post:
       operationId: createListing
       tags: [listings]
@@ -842,6 +855,21 @@ paths:
 
 components:
   schemas:
+    ListingsPage:
+      type: object
+      required: [items, total, page, hasMore]
+      properties:
+        items:
+          type: array
+          items:
+            $ref: "#/components/schemas/Listing"
+        total:
+          type: integer
+        page:
+          type: integer
+        hasMore:
+          type: boolean
+
     Ad:
       type: object
       required: [id, advertiserName, advertiserPhone, message, startDate, endDate]

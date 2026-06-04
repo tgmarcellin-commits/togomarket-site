@@ -5,6 +5,26 @@
  * TogoMarket API
  * OpenAPI spec version: 0.1.0
  */
+export interface Listing {
+  id: number;
+  name: string;
+  price: number;
+  location: string;
+  sector: string;
+  images: string[];
+  createdAt: string;
+  /** @nullable */
+  phone?: string | null;
+  approved: boolean;
+}
+
+export interface ListingsPage {
+  items: Listing[];
+  total: number;
+  page: number;
+  hasMore: boolean;
+}
+
 export interface Ad {
   id: number;
   advertiserName: string;
@@ -55,19 +75,6 @@ export interface AdminCreateEventInput {
 
 export interface HealthStatus {
   status: string;
-}
-
-export interface Listing {
-  id: number;
-  name: string;
-  price: number;
-  location: string;
-  sector: string;
-  images: string[];
-  createdAt: string;
-  /** @nullable */
-  phone?: string | null;
-  approved: boolean;
 }
 
 export type ListingInputSector = typeof ListingInputSector[keyof typeof ListingInputSector];
@@ -303,5 +310,14 @@ export interface AdminContactStat {
 export type GetListingsParams = {
 sector?: string;
 search?: string;
+/**
+ * @minimum 1
+ */
+page?: number;
+/**
+ * @minimum 1
+ * @maximum 100
+ */
+limit?: number;
 };
 

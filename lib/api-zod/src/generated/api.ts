@@ -63,14 +63,24 @@ export const HealthCheckResponse = zod.object({
 
 
 /**
- * @summary Get all listings
+ * @summary Get paginated listings
  */
+export const getListingsQueryPageDefault = 1;
+
+export const getListingsQueryLimitDefault = 20;
+export const getListingsQueryLimitMax = 100;
+
+
+
 export const GetListingsQueryParams = zod.object({
   "sector": zod.coerce.string().optional(),
-  "search": zod.coerce.string().optional()
+  "search": zod.coerce.string().optional(),
+  "page": zod.coerce.number().min(1).default(getListingsQueryPageDefault),
+  "limit": zod.coerce.number().min(1).max(getListingsQueryLimitMax).default(getListingsQueryLimitDefault)
 })
 
-export const GetListingsResponseItem = zod.object({
+export const GetListingsResponse = zod.object({
+  "items": zod.array(zod.object({
   "id": zod.number(),
   "name": zod.string(),
   "price": zod.number(),
@@ -80,8 +90,11 @@ export const GetListingsResponseItem = zod.object({
   "createdAt": zod.string(),
   "phone": zod.string().nullish(),
   "approved": zod.boolean()
+})),
+  "total": zod.number(),
+  "page": zod.number(),
+  "hasMore": zod.boolean()
 })
-export const GetListingsResponse = zod.array(GetListingsResponseItem)
 
 
 /**

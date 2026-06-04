@@ -28,6 +28,7 @@ export * from './healthStatus';
 export * from './listing';
 export * from './listingInput';
 export * from './listingInputSector';
+export * from './listingsPage';
 export * from './marketStats';
 export * from './order';
 export * from './orderInput';

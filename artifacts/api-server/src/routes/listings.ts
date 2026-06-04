@@ -1,16 +1,16 @@
 import { Router, type IRouter } from "express";
-import { eq, ilike, and, gt, desc, type SQL } from "drizzle-orm";
+import { eq, ilike, and, gt, desc, sql, type SQL } from "drizzle-orm";
 import bcrypt from "bcryptjs";
 import { db, listingsTable, vendorsTable, publishCodesTable } from "@workspace/db";
 import {
   CreateListingBody,
   GetListingsQueryParams,
-  GetListingsResponseItem,
   GetListingsResponse,
   AdminDeleteListingBody,
   AdminDeleteListingResponse,
   AdminApproveListingBody,
   AdminGetPendingListingsBody,
+  AdminGetPendingListingsResponse,
   AdminCreateListingBody,
 } from "@workspace/api-zod";
 import { logger } from "../lib/logger";
@@ -43,24 +43,35 @@ router.get("/listings", async (req, res): Promise<void> => {
     return;
   }
 
-  const { sector, search } = parsed.data;
+  const { sector, search, page, limit } = parsed.data;
+  const offset = (page - 1) * limit;
 
   const conditions: SQL[] = [eq(listingsTable.approved, true)];
-  if (sector) {
-    conditions.push(eq(listingsTable.sector, sector));
-  }
-  if (search) {
-    conditions.push(ilike(listingsTable.name, `%${search}%`));
-  }
+  if (sector) conditions.push(eq(listingsTable.sector, sector));
+  if (search) conditions.push(ilike(listingsTable.name, `%${search}%`));
 
-  const listings = await db
-    .select()
-    .from(listingsTable)
-    .where(and(...conditions))
-    .orderBy(listingsTable.createdAt);
+  const [countResult, listings] = await Promise.all([
+    db
+      .select({ count: sql<string>`count(*)` })
+      .from(listingsTable)
+      .where(and(...conditions)),
+    db
+      .select()
+      .from(listingsTable)
+      .where(and(...conditions))
+      .orderBy(desc(listingsTable.createdAt))
+      .limit(limit)
+      .offset(offset),
+  ]);
 
-  const reversed = [...listings].reverse();
-  res.json(GetListingsResponse.parse(reversed.map(mapListing)));
+  const total = Number(countResult[0]?.count ?? 0);
+
+  res.json(GetListingsResponse.parse({
+    items: listings.map(mapListing),
+    total,
+    page,
+    hasMore: offset + listings.length < total,
+  }));
 });
 
 router.post("/listings", async (req, res): Promise<void> => {
@@ -123,7 +134,7 @@ router.post("/listings", async (req, res): Promise<void> => {
     .returning();
 
   req.log.info({ id: listing.id }, "Listing created (pending approval)");
-  res.status(201).json(GetListingsResponseItem.parse(mapListing(listing)));
+  res.status(201).json(mapListing(listing));
 });
 
 router.post("/listings/update-price", async (req, res): Promise<void> => {
@@ -174,7 +185,7 @@ router.post("/listings/update-price", async (req, res): Promise<void> => {
     .returning();
 
   logger.info({ id }, "Listing price updated by vendor");
-  res.json(GetListingsResponseItem.parse(mapListing(updated)));
+  res.json(mapListing(updated));
 });
 
 router.post("/listings/vendor-delete", async (req, res): Promise<void> => {
@@ -251,7 +262,7 @@ router.post("/admin/listings/create", async (req, res) => {
     .returning();
 
   req.log.info({ id: listing.id }, "Listing created by admin");
-  return res.status(201).json(GetListingsResponseItem.parse(mapListing(listing)));
+  return res.status(201).json(mapListing(listing));
 });
 
 router.post("/admin/listings/pending", async (req, res): Promise<void> => {
@@ -271,7 +282,7 @@ router.post("/admin/listings/pending", async (req, res): Promise<void> => {
     .where(eq(listingsTable.approved, false))
     .orderBy(listingsTable.createdAt);
 
-  res.json(GetListingsResponse.parse([...listings].reverse().map(mapListing)));
+  res.json(AdminGetPendingListingsResponse.parse([...listings].reverse().map(mapListing)));
 });
 
 router.post("/admin/listings/approve", async (req, res): Promise<void> => {
