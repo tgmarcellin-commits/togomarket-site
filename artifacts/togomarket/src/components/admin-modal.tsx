@@ -732,7 +732,7 @@ export function AdminModal({
                               key={i}
                               className="flex-shrink-0 rounded-md overflow-hidden border bg-black cursor-zoom-in"
                               style={{ width: 140, height: 110 }}
-                              onClick={() => openViewer(listing.images!.map(resolveImageUrl), i)}
+                              onClick={() => openViewer(listing.images!, i)}
                             >
                               <img
                                 src={resolveImageUrl(img)}
