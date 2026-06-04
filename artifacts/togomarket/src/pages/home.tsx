@@ -1,4 +1,4 @@
-import { useState, useRef, useEffect, useCallback } from "react";
+import { useState, useRef, useEffect, useCallback, useMemo } from "react";
 import { openWhatsApp } from "@/lib/whatsapp";
 import {
   useGetListings,
@@ -72,6 +72,7 @@ export default function Home() {
 
   const [page, setPage] = useState(1);
   const [loadedListings, setLoadedListings] = useState<Listing[]>([]);
+  const seenDataRef = useRef<typeof pageData>(undefined);
 
   useEffect(() => {
     const session = loadSession();
@@ -94,22 +95,24 @@ export default function Home() {
   useEffect(() => {
     setPage(1);
     setLoadedListings([]);
+    seenDataRef.current = undefined;
   }, [search, sector]);
 
   useEffect(() => {
-    if (!pageData) return;
-    if (page === 1) {
+    if (!pageData || pageData === seenDataRef.current) return;
+    seenDataRef.current = pageData;
+    if (pageData.page === 1) {
       setLoadedListings(pageData.items);
     } else {
       setLoadedListings((prev) => [...prev, ...pageData.items]);
     }
-  }, [pageData, page]);
+  }, [pageData]);
 
   const handleLoadMore = useCallback(() => {
     setPage((p) => p + 1);
   }, []);
 
-  const sortedListings = loadedListings;
+  const sortedListings = useMemo(() => loadedListings, [loadedListings]);
 
   const handleSearchSubmit = (e: React.FormEvent) => {
     e.preventDefault();
