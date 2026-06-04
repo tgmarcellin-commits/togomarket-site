@@ -755,6 +755,91 @@ paths:
         "403":
           description: Forbidden
 
+  /contact-requests:
+    post:
+      tags: [listings]
+      operationId: createContactRequest
+      summary: Record a buyer contact unlock request
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ContactRequestInput'
+      responses:
+        '200':
+          description: Request recorded.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SuccessResult'
+        '404':
+          description: Listing not found.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+        '500':
+          description: Internal error.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+
+  /vendor/contact-requests:
+    post:
+      tags: [vendors]
+      operationId: getVendorContactRequests
+      summary: Get contact request stats for a vendor's listings
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/VendorLoginInput'
+      responses:
+        '200':
+          description: Stats per listing.
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/ContactRequestStat'
+        '403':
+          description: Unauthorized.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+
+  /admin/contact-requests/stats:
+    post:
+      tags: [admin]
+      operationId: getAdminContactStats
+      summary: Get all contact request stats (admin)
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/AdminVerifyInput'
+      responses:
+        '200':
+          description: Stats per listing.
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/AdminContactStat'
+        '403':
+          description: Forbidden.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+
 components:
   schemas:
     Ad:
@@ -1240,3 +1325,38 @@ components:
       properties:
         error:
           type: string
+
+    ContactRequestInput:
+      type: object
+      required: [listingId, buyerName, buyerPhone]
+      properties:
+        listingId:
+          type: integer
+        buyerName:
+          type: string
+        buyerPhone:
+          type: string
+
+    ContactRequestStat:
+      type: object
+      required: [listingId, listingName, count]
+      properties:
+        listingId:
+          type: integer
+        listingName:
+          type: string
+        count:
+          type: integer
+
+    AdminContactStat:
+      type: object
+      required: [listingId, listingName, vendorPhone, count]
+      properties:
+        listingId:
+          type: integer
+        listingName:
+          type: string
+        vendorPhone:
+          type: string
+        count:
+          type: integer

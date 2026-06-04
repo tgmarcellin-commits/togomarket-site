@@ -5,6 +5,7 @@ import type { Listing } from "@workspace/api-client-react";
 import { useAdminDeleteListing, getGetListingsQueryKey } from "@workspace/api-client-react";
 import { useQueryClient } from "@tanstack/react-query";
 import { MapPin, Phone, Trash2, Clock, ZoomIn } from "lucide-react";
+import { ContactUnlockModal } from "@/components/contact-unlock-modal";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { ImageViewer } from "@/components/image-viewer";
@@ -46,6 +47,7 @@ export function ListingCard({ listing, isAdmin, adminPassword, commissionRate, w
   const [viewerOpen, setViewerOpen] = useState(false);
   const [viewerIndex, setViewerIndex] = useState(0);
   const [titleExpanded, setTitleExpanded] = useState(false);
+  const [contactModalOpen, setContactModalOpen] = useState(false);
 
   const openViewer = (index: number) => {
     setViewerIndex(index);
@@ -67,15 +69,6 @@ export function ListingCard({ listing, isAdmin, adminPassword, commissionRate, w
   };
 
   const commission = calcCommission(listing.price, commissionRate);
-
-  const handleUnlockContact = () => {
-    const commissionText =
-      commissionRate === 0
-        ? "gratuitement"
-        : `en payant ${new Intl.NumberFormat("fr-FR").format(commission)} FCFA de commission`;
-    const message = `Bonjour, je suis intéressé par l'article: "${listing.name}" à ${new Intl.NumberFormat("fr-FR").format(listing.price)} FCFA. Je souhaite débloquer le contact du vendeur ${commissionText}.`;
-    openWhatsApp(`https://wa.me/${whatsappCommission}?text=${encodeURIComponent(message)}`);
-  };
 
   const handleReport = () => {
     const message = `🚨 Signalement d'article sur TogoMarket\n\nTitre: ${listing.name}\nPrix: ${new Intl.NumberFormat("fr-FR").format(listing.price)} FCFA\nLocalisation: ${listing.location}\nSecteur: ${listing.sector}\nID: #${listing.id}\n\nMerci de vérifier cet article.`;
@@ -166,7 +159,7 @@ export function ListingCard({ listing, isAdmin, adminPassword, commissionRate, w
           </div>
 
           <Button
-            onClick={handleUnlockContact}
+            onClick={() => setContactModalOpen(true)}
             className="w-full bg-accent hover:bg-accent/90 text-accent-foreground text-sm"
           >
             {unlockLabel}
@@ -200,6 +193,12 @@ export function ListingCard({ listing, isAdmin, adminPassword, commissionRate, w
         onClose={() => setViewerOpen(false)}
       />
     )}
+    <ContactUnlockModal
+      open={contactModalOpen}
+      onClose={() => setContactModalOpen(false)}
+      listing={listing}
+      commissionRate={commissionRate}
+    />
     </>
   );
 }

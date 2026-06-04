@@ -24,12 +24,14 @@ import {
   useAdminCreateEvent,
   useAdminDeleteEvent,
   useGetEvents,
+  useGetAdminContactStats,
   getGetAdminSettingsQueryKey,
   getGetListingsQueryKey,
   getGetEventsQueryKey,
   type Ad,
   type VendorProfile,
   type Event as ApiEvent,
+  type AdminContactStat,
 } from "@workspace/api-client-react";
 import { useQueryClient } from "@tanstack/react-query";
 import { Button } from "@/components/ui/button";
@@ -141,6 +143,7 @@ export function AdminModal({
 
   const [vendors, setVendors] = useState<VendorProfile[]>([]);
   const [vendorsLoading, setVendorsLoading] = useState(false);
+  const [contactStats, setContactStats] = useState<AdminContactStat[]>([]);
   const [generatedCode, setGeneratedCode] = useState<{ code: string; phone: string } | null>(null);
 
   const [showAdminPwd, setShowAdminPwd] = useState(false);
@@ -175,6 +178,7 @@ export function AdminModal({
 
   const createEvent = useAdminCreateEvent();
   const deleteEvent = useAdminDeleteEvent();
+  const getContactStats = useGetAdminContactStats();
   const getEventsQuery = useGetEvents();
 
   const refetchEvents = () => {
@@ -273,6 +277,10 @@ export function AdminModal({
         onSuccess: (data) => { setVendors(data); setVendorsLoading(false); },
         onError: () => setVendorsLoading(false),
       }
+    );
+    getContactStats.mutate(
+      { data: { password: storedPassword } },
+      { onSuccess: (data) => setContactStats(data) }
     );
   };
 
@@ -838,6 +846,16 @@ export function AdminModal({
                                 <span className={`text-[10px] px-1.5 py-0.5 rounded-full font-bold ${v.verified ? "bg-green-100 text-green-700" : "bg-amber-100 text-amber-700"}`}>
                                   {v.verified ? "Vérifié" : "En attente"}
                                 </span>
+                                {(() => {
+                                  const totalContacts = contactStats
+                                    .filter((s) => s.vendorPhone === v.phone)
+                                    .reduce((acc, s) => acc + s.count, 0);
+                                  return totalContacts > 0 ? (
+                                    <span className="text-[10px] px-1.5 py-0.5 rounded-full font-bold bg-primary text-primary-foreground">
+                                      {totalContacts} contact{totalContacts > 1 ? "s" : ""}
+                                    </span>
+                                  ) : null;
+                                })()}
                               </div>
                               <p className="text-xs text-muted-foreground">{v.phone}</p>
                               {v.verified && hasCode && (

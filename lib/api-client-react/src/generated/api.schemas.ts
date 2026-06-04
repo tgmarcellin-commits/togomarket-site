@@ -281,6 +281,25 @@ export interface ErrorEnvelope {
   error: string;
 }
 
+export interface ContactRequestInput {
+  listingId: number;
+  buyerName: string;
+  buyerPhone: string;
+}
+
+export interface ContactRequestStat {
+  listingId: number;
+  listingName: string;
+  count: number;
+}
+
+export interface AdminContactStat {
+  listingId: number;
+  listingName: string;
+  vendorPhone: string;
+  count: number;
+}
+
 export type GetListingsParams = {
 sector?: string;
 search?: string;

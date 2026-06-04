@@ -24,6 +24,7 @@ import type {
   AdminActivateVendorInput,
   AdminActivateVendorResult,
   AdminApproveInput,
+  AdminContactStat,
   AdminCreateAdInput,
   AdminCreateEventInput,
   AdminCreateListingInput,
@@ -31,6 +32,8 @@ import type {
   AdminPasswordInput,
   AdminVerifyInput,
   AdminVerifyResult,
+  ContactRequestInput,
+  ContactRequestStat,
   DeleteResult,
   ErrorEnvelope,
   Event,
@@ -2609,5 +2612,218 @@ export const useAdminDeleteEvent = <TError = ErrorType<void>,
         TContext
       > => {
       return useMutation(getAdminDeleteEventMutationOptions(options));
+    }
+
+export const getCreateContactRequestUrl = () => {
+
+
+
+
+  return `/api/contact-requests`
+}
+
+/**
+ * @summary Record a buyer contact unlock request
+ */
+export const createContactRequest = async (contactRequestInput: ContactRequestInput, options?: RequestInit): Promise<SuccessResult> => {
+
+  return customFetch<SuccessResult>(getCreateContactRequestUrl(),
+  {
+    ...options,
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...options?.headers },
+    body: JSON.stringify(
+      contactRequestInput,)
+  }
+);}
+
+
+
+
+export const getCreateContactRequestMutationOptions = <TError = ErrorType<ErrorEnvelope>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof createContactRequest>>, TError,{data: BodyType<ContactRequestInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof createContactRequest>>, TError,{data: BodyType<ContactRequestInput>}, TContext> => {
+
+const mutationKey = ['createContactRequest'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof createContactRequest>>, {data: BodyType<ContactRequestInput>}> = (props) => {
+          const {data} = props ?? {};
+
+          return  createContactRequest(data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type CreateContactRequestMutationResult = NonNullable<Awaited<ReturnType<typeof createContactRequest>>>
+    export type CreateContactRequestMutationBody = BodyType<ContactRequestInput>
+    export type CreateContactRequestMutationError = ErrorType<ErrorEnvelope>
+
+    /**
+ * @summary Record a buyer contact unlock request
+ */
+export const useCreateContactRequest = <TError = ErrorType<ErrorEnvelope>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof createContactRequest>>, TError,{data: BodyType<ContactRequestInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof createContactRequest>>,
+        TError,
+        {data: BodyType<ContactRequestInput>},
+        TContext
+      > => {
+      return useMutation(getCreateContactRequestMutationOptions(options));
+    }
+
+export const getGetVendorContactRequestsUrl = () => {
+
+
+
+
+  return `/api/vendor/contact-requests`
+}
+
+/**
+ * @summary Get contact request stats for a vendor's listings
+ */
+export const getVendorContactRequests = async (vendorLoginInput: VendorLoginInput, options?: RequestInit): Promise<ContactRequestStat[]> => {
+
+  return customFetch<ContactRequestStat[]>(getGetVendorContactRequestsUrl(),
+  {
+    ...options,
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...options?.headers },
+    body: JSON.stringify(
+      vendorLoginInput,)
+  }
+);}
+
+
+
+
+export const getGetVendorContactRequestsMutationOptions = <TError = ErrorType<ErrorEnvelope>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof getVendorContactRequests>>, TError,{data: BodyType<VendorLoginInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof getVendorContactRequests>>, TError,{data: BodyType<VendorLoginInput>}, TContext> => {
+
+const mutationKey = ['getVendorContactRequests'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof getVendorContactRequests>>, {data: BodyType<VendorLoginInput>}> = (props) => {
+          const {data} = props ?? {};
+
+          return  getVendorContactRequests(data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type GetVendorContactRequestsMutationResult = NonNullable<Awaited<ReturnType<typeof getVendorContactRequests>>>
+    export type GetVendorContactRequestsMutationBody = BodyType<VendorLoginInput>
+    export type GetVendorContactRequestsMutationError = ErrorType<ErrorEnvelope>
+
+    /**
+ * @summary Get contact request stats for a vendor's listings
+ */
+export const useGetVendorContactRequests = <TError = ErrorType<ErrorEnvelope>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof getVendorContactRequests>>, TError,{data: BodyType<VendorLoginInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof getVendorContactRequests>>,
+        TError,
+        {data: BodyType<VendorLoginInput>},
+        TContext
+      > => {
+      return useMutation(getGetVendorContactRequestsMutationOptions(options));
+    }
+
+export const getGetAdminContactStatsUrl = () => {
+
+
+
+
+  return `/api/admin/contact-requests/stats`
+}
+
+/**
+ * @summary Get all contact request stats (admin)
+ */
+export const getAdminContactStats = async (adminVerifyInput: AdminVerifyInput, options?: RequestInit): Promise<AdminContactStat[]> => {
+
+  return customFetch<AdminContactStat[]>(getGetAdminContactStatsUrl(),
+  {
+    ...options,
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...options?.headers },
+    body: JSON.stringify(
+      adminVerifyInput,)
+  }
+);}
+
+
+
+
+export const getGetAdminContactStatsMutationOptions = <TError = ErrorType<ErrorEnvelope>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof getAdminContactStats>>, TError,{data: BodyType<AdminVerifyInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof getAdminContactStats>>, TError,{data: BodyType<AdminVerifyInput>}, TContext> => {
+
+const mutationKey = ['getAdminContactStats'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof getAdminContactStats>>, {data: BodyType<AdminVerifyInput>}> = (props) => {
+          const {data} = props ?? {};
+
+          return  getAdminContactStats(data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type GetAdminContactStatsMutationResult = NonNullable<Awaited<ReturnType<typeof getAdminContactStats>>>
+    export type GetAdminContactStatsMutationBody = BodyType<AdminVerifyInput>
+    export type GetAdminContactStatsMutationError = ErrorType<ErrorEnvelope>
+
+    /**
+ * @summary Get all contact request stats (admin)
+ */
+export const useGetAdminContactStats = <TError = ErrorType<ErrorEnvelope>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof getAdminContactStats>>, TError,{data: BodyType<AdminVerifyInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof getAdminContactStats>>,
+        TError,
+        {data: BodyType<AdminVerifyInput>},
+        TContext
+      > => {
+      return useMutation(getGetAdminContactStatsMutationOptions(options));
     }
 

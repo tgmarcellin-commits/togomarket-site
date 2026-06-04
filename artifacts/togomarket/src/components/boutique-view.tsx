@@ -3,9 +3,11 @@ import {
   useVendorGetListings,
   useVendorUpdateListingPrice,
   useVendorDeleteListing,
+  useGetVendorContactRequests,
   getGetListingsQueryKey,
   type VendorProfile,
   type Listing,
+  type ContactRequestStat,
 } from "@workspace/api-client-react";
 import { useQueryClient } from "@tanstack/react-query";
 import { Button } from "@/components/ui/button";
@@ -18,7 +20,7 @@ import {
   DialogFooter,
 } from "@/components/ui/dialog";
 import { useToast } from "@/hooks/use-toast";
-import { UserCircle2, Package, Clock, Trash2, Pencil, LogIn, Store } from "lucide-react";
+import { UserCircle2, Package, Clock, Trash2, Pencil, LogIn, Store, Bell } from "lucide-react";
 import { resolveImageUrl } from "@/lib/image";
 
 interface BoutiqueViewProps {
@@ -79,10 +81,12 @@ export function BoutiqueView({ vendor, vendorPassword, onNeedLogin }: BoutiqueVi
   const [deleteTarget, setDeleteTarget] = useState<Listing | null>(null);
   const [priceTarget, setPriceTarget] = useState<Listing | null>(null);
   const [newPrice, setNewPrice] = useState("");
+  const [contactStats, setContactStats] = useState<ContactRequestStat[]>([]);
 
   const updatePrice = useVendorUpdateListingPrice();
   const deleteListing = useVendorDeleteListing();
   const getListings = useVendorGetListings();
+  const getContactRequests = useGetVendorContactRequests();
 
   const refetch = () => {
     if (!vendor) return;
@@ -93,6 +97,10 @@ export function BoutiqueView({ vendor, vendorPassword, onNeedLogin }: BoutiqueVi
         onSuccess: (data) => { setListings(data); setIsLoading(false); },
         onError: () => setIsLoading(false),
       }
+    );
+    getContactRequests.mutate(
+      { data: { phone: vendor.phone, password: vendorPassword } },
+      { onSuccess: (data) => setContactStats(data) }
     );
   };
 
@@ -177,6 +185,21 @@ export function BoutiqueView({ vendor, vendorPassword, onNeedLogin }: BoutiqueVi
         </div>
       </div>
 
+      {/* Notification demandes de contact */}
+      {contactStats.some((s) => s.count > 0) && (
+        <div className="rounded-xl border border-primary/30 bg-primary/5 p-3 mb-4 flex items-start gap-3">
+          <Bell className="w-5 h-5 text-primary flex-shrink-0 mt-0.5" />
+          <div>
+            <p className="text-sm font-semibold text-primary">
+              {contactStats.reduce((acc, s) => acc + s.count, 0)} demande(s) de contact reçue(s)
+            </p>
+            <p className="text-xs text-muted-foreground mt-0.5">
+              Des acheteurs ont demandé votre numéro via TogoMarket.
+            </p>
+          </div>
+        </div>
+      )}
+
       {/* Stats */}
       <div className="grid grid-cols-2 gap-3 mb-6">
         <div className="rounded-xl border bg-card p-4 text-center">
@@ -229,13 +252,24 @@ export function BoutiqueView({ vendor, vendorPassword, onNeedLogin }: BoutiqueVi
               <div className="flex-1 min-w-0">
                 <div className="flex items-start justify-between gap-2">
                   <p className="font-semibold text-sm truncate">{listing.name}</p>
-                  <span className={`text-[10px] px-1.5 py-0.5 rounded-full font-medium flex-shrink-0 ${
-                    listing.approved
-                      ? "bg-green-100 text-green-700"
-                      : "bg-amber-100 text-amber-700"
-                  }`}>
-                    {listing.approved ? "Publiée" : "En attente"}
-                  </span>
+                  <div className="flex items-center gap-1.5 flex-shrink-0">
+                    {(() => {
+                      const stat = contactStats.find((s) => s.listingId === listing.id);
+                      return stat && stat.count > 0 ? (
+                        <span className="text-[10px] px-1.5 py-0.5 rounded-full font-bold bg-primary text-primary-foreground flex items-center gap-0.5">
+                          <Bell className="w-2.5 h-2.5" />
+                          {stat.count}
+                        </span>
+                      ) : null;
+                    })()}
+                    <span className={`text-[10px] px-1.5 py-0.5 rounded-full font-medium ${
+                      listing.approved
+                        ? "bg-green-100 text-green-700"
+                        : "bg-amber-100 text-amber-700"
+                    }`}>
+                      {listing.approved ? "Publiée" : "En attente"}
+                    </span>
+                  </div>
                 </div>
                 <p className="text-primary font-bold text-sm mt-0.5">
                   {listing.price.toLocaleString("fr-FR")} FCFA

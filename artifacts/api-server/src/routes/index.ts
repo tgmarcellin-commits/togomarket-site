@@ -12,6 +12,7 @@ import adsRouter from "./ads";
 import vendorsRouter from "./vendors";
 import storageRouter from "./storage";
 import eventsRouter from "./events";
+import contactRequestsRouter from "./contact-requests";
 import { ObjectStorageService } from "../lib/objectStorage";
 
 const router: IRouter = Router();
@@ -27,6 +28,7 @@ router.use(adsRouter);
 router.use(vendorsRouter);
 router.use(storageRouter);
 router.use(eventsRouter);
+router.use(contactRequestsRouter);
 
 async function cleanupOldListings() {
   const cutoff = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000);

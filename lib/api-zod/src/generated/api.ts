@@ -571,3 +571,49 @@ export const AdminDeleteEventResponse = zod.object({
 })
 
 
+/**
+ * @summary Record a buyer contact unlock request
+ */
+export const CreateContactRequestBody = zod.object({
+  "listingId": zod.number(),
+  "buyerName": zod.string(),
+  "buyerPhone": zod.string()
+})
+
+export const CreateContactRequestResponse = zod.object({
+  "success": zod.boolean()
+})
+
+
+/**
+ * @summary Get contact request stats for a vendor's listings
+ */
+export const GetVendorContactRequestsBody = zod.object({
+  "phone": zod.string(),
+  "password": zod.string()
+})
+
+export const GetVendorContactRequestsResponseItem = zod.object({
+  "listingId": zod.number(),
+  "listingName": zod.string(),
+  "count": zod.number()
+})
+export const GetVendorContactRequestsResponse = zod.array(GetVendorContactRequestsResponseItem)
+
+
+/**
+ * @summary Get all contact request stats (admin)
+ */
+export const GetAdminContactStatsBody = zod.object({
+  "password": zod.string()
+})
+
+export const GetAdminContactStatsResponseItem = zod.object({
+  "listingId": zod.number(),
+  "listingName": zod.string(),
+  "vendorPhone": zod.string(),
+  "count": zod.number()
+})
+export const GetAdminContactStatsResponse = zod.array(GetAdminContactStatsResponseItem)
+
+
