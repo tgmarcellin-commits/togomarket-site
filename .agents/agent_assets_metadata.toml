@@ -54,3 +54,15 @@ id = "YqDJAhBRzd-ms2zP-bocA"
 uri = "file://togomarket-presentation.pdf"
 type = "pdf"
 title = "Présentation TogoMarket"
+
+[[outputs]]
+id = "RP6IvWgOi3Xld0Ebiwy5c"
+uri = "file://artifacts/togomarket/public/icon-512.png"
+type = "image"
+title = "Icône Play Store — 512x512"
+
+[[outputs]]
+id = "RgYN91SCh5UF_X-09sf2s"
+uri = "file://artifacts/togomarket/public/play-banner.png"
+type = "image"
+title = "Bannière Play Store — 1024x500"
