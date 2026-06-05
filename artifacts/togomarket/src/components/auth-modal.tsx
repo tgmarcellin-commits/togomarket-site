@@ -291,6 +291,14 @@ export function AuthModal({ open, onOpenChange, onLoginSuccess }: AuthModalProps
             <div className="bg-muted rounded-xl p-4 text-sm text-muted-foreground leading-relaxed whitespace-pre-wrap max-h-52 overflow-y-auto">
               {PRIVACY_POLICY}
             </div>
+            <a
+              href="https://togomarket.site/privacy.html"
+              target="_blank"
+              rel="noopener noreferrer"
+              className="text-xs text-primary underline w-full text-center block"
+            >
+              Voir la politique de confidentialité complète →
+            </a>
             <Button
               className="w-full h-12"
               onClick={handleAcceptPrivacy}

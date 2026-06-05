@@ -300,6 +300,14 @@ export function ProfileSettingsModal({
               {showPrivacy && (
                 <div className="mt-2 p-3 bg-muted rounded-lg text-xs text-muted-foreground leading-relaxed whitespace-pre-wrap">
                   {PRIVACY_POLICY}
+                  <a
+                    href="https://togomarket.site/privacy.html"
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="block mt-2 text-primary underline"
+                  >
+                    Voir la politique complète →
+                  </a>
                 </div>
               )}
             </div>
