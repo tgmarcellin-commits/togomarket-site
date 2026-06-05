@@ -66,3 +66,9 @@ id = "RgYN91SCh5UF_X-09sf2s"
 uri = "file://artifacts/togomarket/public/play-banner.png"
 type = "image"
 title = "Bannière Play Store — 1024x500"
+
+[[outputs]]
+id = "ycWV21bMvD4h7SRbbTub1"
+uri = "file://togomarket-play-store-images.zip"
+type = "unspecified"
+title = "Images Play Store (icône + bannière)"
