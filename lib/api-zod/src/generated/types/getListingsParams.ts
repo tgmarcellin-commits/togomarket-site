@@ -18,4 +18,8 @@ page?: number;
  * @maximum 100
  */
 limit?: number;
+/**
+ * @minimum 1
+ */
+shopNumber?: number;
 };

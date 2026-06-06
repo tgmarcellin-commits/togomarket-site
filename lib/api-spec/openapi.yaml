@@ -150,6 +150,12 @@ paths:
             minimum: 1
             maximum: 100
             default: 20
+        - name: shopNumber
+          in: query
+          required: false
+          schema:
+            type: integer
+            minimum: 1
       responses:
         "200":
           description: Paginated list of listings

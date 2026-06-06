@@ -72,11 +72,13 @@ export const getListingsQueryLimitMax = 100;
 
 
 
+
 export const GetListingsQueryParams = zod.object({
   "sector": zod.coerce.string().optional(),
   "search": zod.coerce.string().optional(),
   "page": zod.coerce.number().min(1).default(getListingsQueryPageDefault),
-  "limit": zod.coerce.number().min(1).max(getListingsQueryLimitMax).default(getListingsQueryLimitDefault)
+  "limit": zod.coerce.number().min(1).max(getListingsQueryLimitMax).default(getListingsQueryLimitDefault),
+  "shopNumber": zod.coerce.number().min(1).optional()
 })
 
 export const GetListingsResponse = zod.object({

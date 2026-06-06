@@ -43,12 +43,24 @@ router.get("/listings", async (req, res): Promise<void> => {
     return;
   }
 
-  const { sector, search, page, limit } = parsed.data;
+  const { sector, search, page, limit, shopNumber } = parsed.data;
   const offset = (page - 1) * limit;
 
   const conditions: SQL[] = [eq(listingsTable.approved, true)];
   if (sector) conditions.push(eq(listingsTable.sector, sector));
   if (search) conditions.push(ilike(listingsTable.name, `%${search}%`));
+  if (shopNumber) {
+    const vendorRows = await db
+      .select({ phone: vendorsTable.phone })
+      .from(vendorsTable)
+      .where(eq(vendorsTable.id, shopNumber))
+      .limit(1);
+    if (vendorRows.length === 0) {
+      res.json(GetListingsResponse.parse({ items: [], total: 0, page, hasMore: false }));
+      return;
+    }
+    conditions.push(eq(listingsTable.phone, vendorRows[0].phone));
+  }
 
   const [countResult, listings] = await Promise.all([
     db

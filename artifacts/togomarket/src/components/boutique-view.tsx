@@ -180,7 +180,10 @@ export function BoutiqueView({ vendor, vendorPassword, onNeedLogin }: BoutiqueVi
           )}
         </div>
         <div>
-          <h2 className="font-bold text-lg leading-tight">{vendor.firstName} {vendor.lastName}</h2>
+          <div className="flex items-center gap-2 flex-wrap">
+            <h2 className="font-bold text-lg leading-tight">{vendor.firstName} {vendor.lastName}</h2>
+            <span className="text-xs bg-primary text-primary-foreground font-bold px-2.5 py-0.5 rounded-full">N°{vendor.id}</span>
+          </div>
           <p className="text-sm text-muted-foreground">{vendor.phone}</p>
         </div>
       </div>

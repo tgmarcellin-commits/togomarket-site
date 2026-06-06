@@ -55,6 +55,9 @@ export default function Home() {
   const [searchInput, setSearchInput] = useState("");
   const [sector, setSector] = useState<string | undefined>(undefined);
   const [activeTab, setActiveTab] = useState<NavTab>("marketplace");
+  const [searchMode, setSearchMode] = useState<"article" | "boutique">("article");
+  const [shopNumberInput, setShopNumberInput] = useState("");
+  const [shopNumber, setShopNumber] = useState<number | undefined>(undefined);
 
   const [isPublishModalOpen, setIsPublishModalOpen] = useState(false);
   const [isOrderModalOpen, setIsOrderModalOpen] = useState(false);
@@ -83,8 +86,8 @@ export default function Home() {
   }, []);
 
   const { data: pageData, isLoading, isFetching } = useGetListings(
-    { search, sector, page },
-    { query: { queryKey: getGetListingsQueryKey({ search, sector, page }) } }
+    { search, sector, page, shopNumber },
+    { query: { queryKey: getGetListingsQueryKey({ search, sector, page, shopNumber }) } }
   );
   const { data: stats } = useGetStats();
   const { data: settings } = useGetAdminSettings();
@@ -96,7 +99,7 @@ export default function Home() {
     setPage(1);
     setLoadedListings([]);
     seenDataRef.current = undefined;
-  }, [search, sector]);
+  }, [search, sector, shopNumber]);
 
   useEffect(() => {
     if (!pageData || pageData === seenDataRef.current) return;
@@ -117,6 +120,29 @@ export default function Home() {
   const handleSearchSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     setSearch(searchInput);
+    setShopNumber(undefined);
+  };
+
+  const handleShopSearch = (e: React.FormEvent) => {
+    e.preventDefault();
+    const num = parseInt(shopNumberInput, 10);
+    if (!shopNumberInput.trim() || isNaN(num) || num < 1) {
+      setShopNumber(undefined);
+    } else {
+      setShopNumber(num);
+      setSearch("");
+      setSearchInput("");
+      setSector(undefined);
+    }
+  };
+
+  const handleSearchModeChange = (mode: "article" | "boutique") => {
+    setSearchMode(mode);
+    setSearch("");
+    setSearchInput("");
+    setShopNumber(undefined);
+    setShopNumberInput("");
+    setSector(undefined);
   };
 
   const handleLoginSuccess = (v: VendorProfile, pwd: string) => {
@@ -251,25 +277,75 @@ export default function Home() {
               <h1 className="text-3xl sm:text-5xl font-extrabold text-white mb-6 drop-shadow-md">
                 Le marché qui vient à vous
               </h1>
-              <form
-                onSubmit={handleSearchSubmit}
-                className="relative flex items-center max-w-xl mx-auto"
-              >
-                <SearchIcon className="absolute left-4 w-5 h-5 text-muted-foreground" />
-                <Input
-                  type="text"
-                  placeholder="Que recherchez-vous aujourd'hui ?"
-                  value={searchInput}
-                  onChange={(e) => setSearchInput(e.target.value)}
-                  className="w-full pl-12 pr-24 h-14 rounded-full text-base bg-white border-0 shadow-lg focus-visible:ring-primary"
-                />
-                <Button
-                  type="submit"
-                  className="absolute right-1.5 h-11 rounded-full bg-accent hover:bg-accent/90 text-accent-foreground px-6 font-semibold"
+
+              {/* Mode tabs */}
+              <div className="flex justify-center gap-1 mb-3 max-w-xs mx-auto bg-white/20 rounded-full p-1">
+                <button
+                  type="button"
+                  onClick={() => handleSearchModeChange("article")}
+                  className={`flex-1 py-1.5 text-sm font-semibold rounded-full transition-colors ${
+                    searchMode === "article"
+                      ? "bg-white text-foreground shadow"
+                      : "text-white hover:bg-white/20"
+                  }`}
                 >
-                  Chercher
-                </Button>
-              </form>
+                  Article
+                </button>
+                <button
+                  type="button"
+                  onClick={() => handleSearchModeChange("boutique")}
+                  className={`flex-1 py-1.5 text-sm font-semibold rounded-full transition-colors ${
+                    searchMode === "boutique"
+                      ? "bg-white text-foreground shadow"
+                      : "text-white hover:bg-white/20"
+                  }`}
+                >
+                  Boutique
+                </button>
+              </div>
+
+              {searchMode === "article" ? (
+                <form
+                  onSubmit={handleSearchSubmit}
+                  className="relative flex items-center max-w-xl mx-auto"
+                >
+                  <SearchIcon className="absolute left-4 w-5 h-5 text-muted-foreground" />
+                  <Input
+                    type="text"
+                    placeholder="Que recherchez-vous aujourd'hui ?"
+                    value={searchInput}
+                    onChange={(e) => setSearchInput(e.target.value)}
+                    className="w-full pl-12 pr-24 h-14 rounded-full text-base bg-white border-0 shadow-lg focus-visible:ring-primary"
+                  />
+                  <Button
+                    type="submit"
+                    className="absolute right-1.5 h-11 rounded-full bg-accent hover:bg-accent/90 text-accent-foreground px-6 font-semibold"
+                  >
+                    Chercher
+                  </Button>
+                </form>
+              ) : (
+                <form
+                  onSubmit={handleShopSearch}
+                  className="relative flex items-center max-w-xl mx-auto"
+                >
+                  <span className="absolute left-4 text-muted-foreground font-bold text-sm select-none">N°</span>
+                  <Input
+                    type="number"
+                    min={1}
+                    placeholder="Numéro de la boutique"
+                    value={shopNumberInput}
+                    onChange={(e) => setShopNumberInput(e.target.value)}
+                    className="w-full pl-10 pr-24 h-14 rounded-full text-base bg-white border-0 shadow-lg focus-visible:ring-primary"
+                  />
+                  <Button
+                    type="submit"
+                    className="absolute right-1.5 h-11 rounded-full bg-accent hover:bg-accent/90 text-accent-foreground px-6 font-semibold"
+                  >
+                    Voir
+                  </Button>
+                </form>
+              )}
             </div>
           </section>
 
