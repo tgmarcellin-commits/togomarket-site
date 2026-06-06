@@ -217,19 +217,19 @@ export default function Home() {
           </div>
 
           {/* Auth / Publish buttons */}
-          <div className="flex items-center gap-2">
+          <div className="flex items-center gap-1.5">
             {/* Theme toggle */}
             <button
               onClick={toggleTheme}
               title={theme === "dark" ? t.lightMode : t.darkMode}
-              className="w-8 h-8 flex items-center justify-center rounded-full text-muted-foreground hover:text-foreground hover:bg-muted transition-colors"
+              className="w-7 h-7 flex items-center justify-center rounded-full text-muted-foreground hover:text-foreground hover:bg-muted transition-colors"
             >
-              {theme === "dark" ? <Sun className="w-4 h-4" /> : <Moon className="w-4 h-4" />}
+              {theme === "dark" ? <Sun className="w-3.5 h-3.5" /> : <Moon className="w-3.5 h-3.5" />}
             </button>
             {/* Lang toggle */}
             <button
               onClick={() => setLang(lang === "fr" ? "en" : "fr")}
-              className="text-xs font-bold px-2 py-1 rounded-full border border-border hover:bg-muted transition-colors text-muted-foreground hover:text-foreground"
+              className="text-[11px] font-bold px-1.5 py-0.5 rounded-full border border-border hover:bg-muted transition-colors text-muted-foreground hover:text-foreground"
             >
               {lang === "fr" ? "EN" : "FR"}
             </button>
@@ -237,7 +237,7 @@ export default function Home() {
               <>
                 <Button
                   onClick={() => setIsPublishModalOpen(true)}
-                  className="bg-primary hover:bg-primary/90 rounded-full font-semibold px-5"
+                  className="bg-primary hover:bg-primary/90 rounded-full font-semibold px-3 sm:px-5 text-sm"
                 >
                   {t.publish}
                 </Button>
@@ -268,10 +268,10 @@ export default function Home() {
               <Button
                 onClick={() => setIsAuthModalOpen(true)}
                 variant="outline"
-                className="rounded-full font-semibold px-5 gap-2"
+                className="rounded-full font-semibold px-3 sm:px-5 gap-1.5 text-sm"
               >
                 <LogIn className="w-4 h-4" />
-                {t.login}
+                <span className="hidden sm:inline">{t.login}</span>
               </Button>
             )}
           </div>
