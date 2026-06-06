@@ -2,7 +2,7 @@
   "relation": ["delegate_permission/common.handle_all_urls"],
   "target": {
     "namespace": "android_app",
-    "package_name": "site.togomarket.twa",
-    "sha256_cert_fingerprints": ["DF:E5:E9:88:74:50:A5:46:D5:E4:20:CF:13:7D:4C:08:22:3D:89:71:5F:5B:CF:71:6C:D4:41:8F:9B:B5:B4:B6"]
+    "package_name": "com.togomarket.app",
+    "sha256_cert_fingerprints": ["23:B4:9C:1D:57:8C:03:45:02:8D:23:EB:FF:EA:E9:DA:F9:8B:EB:1E:3D:05:79:CE:51:23:D7:C1:86:33:FF:DA"]
   }
 }]
