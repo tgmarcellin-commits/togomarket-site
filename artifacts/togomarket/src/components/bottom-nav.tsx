@@ -1,4 +1,6 @@
 import { Store, Megaphone, ShoppingBag, Calendar, PackageSearch } from "lucide-react";
+import { useSiteSettings } from "@/lib/site-settings";
+import { useT } from "@/lib/i18n";
 
 export type NavTab = "boutique" | "publicite" | "marketplace" | "evenementiel" | "introuvable";
 
@@ -7,15 +9,18 @@ interface BottomNavProps {
   onTabChange: (tab: NavTab) => void;
 }
 
-const tabs: { id: NavTab; label: string; Icon: React.ComponentType<{ className?: string }> }[] = [
-  { id: "boutique", label: "Boutique", Icon: Store },
-  { id: "publicite", label: "Publicité", Icon: Megaphone },
-  { id: "marketplace", label: "Market Place", Icon: ShoppingBag },
-  { id: "evenementiel", label: "Événementiel", Icon: Calendar },
-  { id: "introuvable", label: "Introuvable", Icon: PackageSearch },
-];
-
 export function BottomNav({ activeTab, onTabChange }: BottomNavProps) {
+  const { lang } = useSiteSettings();
+  const t = useT(lang);
+
+  const tabs: { id: NavTab; label: string; Icon: React.ComponentType<{ className?: string }> }[] = [
+    { id: "boutique", label: t.navBoutique, Icon: Store },
+    { id: "publicite", label: t.navAds, Icon: Megaphone },
+    { id: "marketplace", label: t.navMarket, Icon: ShoppingBag },
+    { id: "evenementiel", label: t.navEvents, Icon: Calendar },
+    { id: "introuvable", label: t.navLost, Icon: PackageSearch },
+  ];
+
   return (
     <div className="fixed bottom-0 left-0 w-full bg-background/95 backdrop-blur-md border-t z-50 safe-area-bottom">
       <div className="flex items-stretch justify-around max-w-2xl mx-auto">

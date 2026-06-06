@@ -8,7 +8,9 @@ import {
   type VendorProfile,
   type Listing,
 } from "@workspace/api-client-react";
-import { Search, SearchIcon, LogIn, UserCircle2, Settings } from "lucide-react";
+import { Search, SearchIcon, LogIn, UserCircle2, Settings, Moon, Sun } from "lucide-react";
+import { useSiteSettings } from "@/lib/site-settings";
+import { useT } from "@/lib/i18n";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { ListingCard } from "@/components/listing-card";
@@ -51,6 +53,8 @@ function clearSession() {
 
 export default function Home() {
   const { toast } = useToast();
+  const { lang, setLang, theme, toggleTheme } = useSiteSettings();
+  const t = useT(lang);
   const [search, setSearch] = useState("");
   const [searchInput, setSearchInput] = useState("");
   const [sector, setSector] = useState<string | undefined>(undefined);
@@ -167,11 +171,11 @@ export default function Home() {
   };
 
   const categories = [
-    { label: "Tout voir", value: undefined },
-    { label: "AgriMarket 🌿", value: "AgriMarket" },
-    { label: "Immobilier 🏢", value: "Immobilier" },
-    { label: "Automobile 🚗", value: "Automobile" },
-    { label: "Divers 📦", value: "Divers" },
+    { label: t.all, value: undefined },
+    { label: `AgriMarket 🌿`, value: "AgriMarket" },
+    { label: `Immobilier 🏢`, value: "Immobilier" },
+    { label: `Automobile 🚗`, value: "Automobile" },
+    { label: `Divers 📦`, value: "Divers" },
   ];
 
   return (
@@ -214,13 +218,28 @@ export default function Home() {
 
           {/* Auth / Publish buttons */}
           <div className="flex items-center gap-2">
+            {/* Theme toggle */}
+            <button
+              onClick={toggleTheme}
+              title={theme === "dark" ? t.lightMode : t.darkMode}
+              className="w-8 h-8 flex items-center justify-center rounded-full text-muted-foreground hover:text-foreground hover:bg-muted transition-colors"
+            >
+              {theme === "dark" ? <Sun className="w-4 h-4" /> : <Moon className="w-4 h-4" />}
+            </button>
+            {/* Lang toggle */}
+            <button
+              onClick={() => setLang(lang === "fr" ? "en" : "fr")}
+              className="text-xs font-bold px-2 py-1 rounded-full border border-border hover:bg-muted transition-colors text-muted-foreground hover:text-foreground"
+            >
+              {lang === "fr" ? "EN" : "FR"}
+            </button>
             {vendor ? (
               <>
                 <Button
                   onClick={() => setIsPublishModalOpen(true)}
                   className="bg-primary hover:bg-primary/90 rounded-full font-semibold px-5"
                 >
-                  Publier
+                  {t.publish}
                 </Button>
 
                 {/* Profile avatar → opens ProfileSettingsModal */}
@@ -252,7 +271,7 @@ export default function Home() {
                 className="rounded-full font-semibold px-5 gap-2"
               >
                 <LogIn className="w-4 h-4" />
-                Connexion
+                {t.login}
               </Button>
             )}
           </div>
@@ -275,7 +294,7 @@ export default function Home() {
 
             <div className="relative z-10 w-full max-w-2xl px-4 text-center">
               <h1 className="text-3xl sm:text-5xl font-extrabold text-white mb-6 drop-shadow-md">
-                Le marché qui vient à vous
+                {t.tagline}
               </h1>
 
               {/* Mode tabs */}
@@ -289,7 +308,7 @@ export default function Home() {
                       : "text-white hover:bg-white/20"
                   }`}
                 >
-                  Article
+                  {t.article}
                 </button>
                 <button
                   type="button"
@@ -300,7 +319,7 @@ export default function Home() {
                       : "text-white hover:bg-white/20"
                   }`}
                 >
-                  Boutique
+                  {t.shop}
                 </button>
               </div>
 
@@ -312,7 +331,7 @@ export default function Home() {
                   <SearchIcon className="absolute left-4 w-5 h-5 text-muted-foreground" />
                   <Input
                     type="text"
-                    placeholder="Que recherchez-vous aujourd'hui ?"
+                    placeholder={t.searchArticlePlaceholder}
                     value={searchInput}
                     onChange={(e) => setSearchInput(e.target.value)}
                     className="w-full pl-12 pr-24 h-14 rounded-full text-base bg-white border-0 shadow-lg focus-visible:ring-primary"
@@ -321,7 +340,7 @@ export default function Home() {
                     type="submit"
                     className="absolute right-1.5 h-11 rounded-full bg-accent hover:bg-accent/90 text-accent-foreground px-6 font-semibold"
                   >
-                    Chercher
+                    {t.search}
                   </Button>
                 </form>
               ) : (
@@ -333,7 +352,7 @@ export default function Home() {
                   <Input
                     type="number"
                     min={1}
-                    placeholder="Numéro de la boutique"
+                    placeholder={t.searchShopPlaceholder}
                     value={shopNumberInput}
                     onChange={(e) => setShopNumberInput(e.target.value)}
                     className="w-full pl-10 pr-24 h-14 rounded-full text-base bg-white border-0 shadow-lg focus-visible:ring-primary"
@@ -342,7 +361,7 @@ export default function Home() {
                     type="submit"
                     className="absolute right-1.5 h-11 rounded-full bg-accent hover:bg-accent/90 text-accent-foreground px-6 font-semibold"
                   >
-                    Voir
+                    {t.see}
                   </Button>
                 </form>
               )}
@@ -353,8 +372,8 @@ export default function Home() {
           {stats && (
             <div className="bg-muted py-3 border-b">
               <div className="container mx-auto px-4 flex justify-center text-sm font-medium text-muted-foreground">
-                <span className="bg-white px-4 py-1.5 rounded-full shadow-sm border border-border/50">
-                  <span className="text-primary font-bold">{stats.total}</span> annonces disponibles
+                <span className="bg-white px-4 py-1.5 rounded-full shadow-sm border border-border/50 font-medium">
+                  <span className="text-primary font-bold">{stats.total}</span> {lang === "fr" ? `annonce${stats.total > 1 ? "s" : ""} disponible${stats.total > 1 ? "s" : ""}` : `listing${stats.total > 1 ? "s" : ""} available`}
                 </span>
               </div>
             </div>
@@ -425,7 +444,7 @@ export default function Home() {
                       disabled={isFetching}
                       className="rounded-full px-8 font-semibold"
                     >
-                      {isFetching ? "Chargement…" : "Charger plus d'annonces"}
+                      {isFetching ? t.loading : t.loadMore}
                     </Button>
                   </div>
                 )}
@@ -435,10 +454,11 @@ export default function Home() {
                 <div className="inline-flex items-center justify-center w-16 h-16 rounded-full bg-muted mb-4">
                   <Search className="w-8 h-8 text-muted-foreground" />
                 </div>
-                <h3 className="text-xl font-semibold mb-2">Aucun article trouvé</h3>
+                <h3 className="text-xl font-semibold mb-2">{shopNumber ? t.noShop : t.noListings}</h3>
                 <p className="text-muted-foreground max-w-sm mx-auto">
-                  Nous n'avons trouvé aucun article correspondant à votre recherche. Essayez d'autres
-                  mots-clés ou commandez-le !
+                  {shopNumber
+                    ? (lang === "fr" ? `Aucune boutique avec le numéro N°${shopNumber}.` : `No shop found with number #${shopNumber}.`)
+                    : (lang === "fr" ? "Essayez d'autres mots-clés ou commandez-le !" : "Try different keywords or place a custom order!")}
                 </p>
               </div>
             )}
