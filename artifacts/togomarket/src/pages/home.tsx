@@ -8,7 +8,7 @@ import {
   type VendorProfile,
   type Listing,
 } from "@workspace/api-client-react";
-import { Search, SearchIcon, LogIn, UserCircle2, Settings, Moon, Sun } from "lucide-react";
+import { Search, SearchIcon, LogIn, UserCircle2, Settings } from "lucide-react";
 import { useSiteSettings } from "@/lib/site-settings";
 import { useT } from "@/lib/i18n";
 import { Button } from "@/components/ui/button";
@@ -53,7 +53,7 @@ function clearSession() {
 
 export default function Home() {
   const { toast } = useToast();
-  const { lang, setLang, theme, toggleTheme } = useSiteSettings();
+  const { lang, setLang } = useSiteSettings();
   const t = useT(lang);
   const [search, setSearch] = useState("");
   const [searchInput, setSearchInput] = useState("");
@@ -218,14 +218,6 @@ export default function Home() {
 
           {/* Auth / Publish buttons */}
           <div className="flex items-center gap-1.5">
-            {/* Theme toggle */}
-            <button
-              onClick={toggleTheme}
-              title={theme === "dark" ? t.lightMode : t.darkMode}
-              className="w-7 h-7 flex items-center justify-center rounded-full text-muted-foreground hover:text-foreground hover:bg-muted transition-colors"
-            >
-              {theme === "dark" ? <Sun className="w-3.5 h-3.5" /> : <Moon className="w-3.5 h-3.5" />}
-            </button>
             {/* Lang toggle */}
             <button
               onClick={() => setLang(lang === "fr" ? "en" : "fr")}

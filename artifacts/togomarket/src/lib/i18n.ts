@@ -36,9 +36,6 @@ const translations = {
     published: "Publiées",
     pending: "En attente",
     shopNumber: (n: number) => `N°${n}`,
-    // Theme / Lang
-    darkMode: "Mode sombre",
-    lightMode: "Mode clair",
   },
   en: {
     // Navbar
@@ -75,9 +72,6 @@ const translations = {
     published: "Published",
     pending: "Pending",
     shopNumber: (n: number) => `#${n}`,
-    // Theme / Lang
-    darkMode: "Dark mode",
-    lightMode: "Light mode",
   },
 } as const;
 
