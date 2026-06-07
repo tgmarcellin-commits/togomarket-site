@@ -16,10 +16,16 @@ import { Input } from "@/components/ui/input";
 import { useToast } from "@/hooks/use-toast";
 import { resizeImage } from "@/lib/image";
 import { UserCircle2, Camera, Eye, EyeOff, LogOut, ShieldCheck, CheckSquare } from "lucide-react";
+import { useSiteSettings } from "@/lib/site-settings";
+import { useT } from "@/lib/i18n";
 
-const PRIVACY_POLICY = `TogoMarket collecte et utilise vos informations personnelles (nom, prénom, numéro de téléphone et photo de profil) dans le seul but de gérer votre compte, afficher vos annonces et faciliter la mise en relation avec les acheteurs sur la plateforme.
+const PRIVACY_POLICY_FR = `TogoMarket collecte et utilise vos informations personnelles (nom, prénom, numéro de téléphone et photo de profil) dans le seul but de gérer votre compte, afficher vos annonces et faciliter la mise en relation avec les acheteurs sur la plateforme.
 
 Vos données ne seront jamais vendues ni partagées avec des tiers à des fins commerciales. Elles sont conservées de manière sécurisée et utilisées uniquement dans le cadre des services TogoMarket. Vous pouvez demander la suppression de votre compte et de vos données à tout moment en contactant l'administrateur via WhatsApp.`;
+
+const PRIVACY_POLICY_EN = `TogoMarket collects and uses your personal information (name, first name, phone number and profile photo) solely for the purpose of managing your account, displaying your listings and facilitating contact with buyers on the platform.
+
+Your data will never be sold or shared with third parties for commercial purposes. It is kept securely and used only within the scope of TogoMarket services. You can request the deletion of your account and data at any time by contacting the administrator via WhatsApp.`;
 
 interface ProfileSettingsModalProps {
   open: boolean;
@@ -38,6 +44,8 @@ export function ProfileSettingsModal({
   onVendorUpdate,
   onLogout,
 }: ProfileSettingsModalProps) {
+  const { lang } = useSiteSettings();
+  const t = useT(lang);
   const { toast } = useToast();
   const photoInputRef = useRef<HTMLInputElement>(null);
   const updateProfile = useVendorUpdateProfile();
@@ -60,6 +68,8 @@ export function ProfileSettingsModal({
   const [confirmPwdOpen, setConfirmPwdOpen] = useState(false);
   const [confirmLogoutOpen, setConfirmLogoutOpen] = useState(false);
 
+  const privacyPolicy = lang === "fr" ? PRIVACY_POLICY_FR : PRIVACY_POLICY_EN;
+
   const handlePhotoChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
@@ -72,21 +82,21 @@ export function ProfileSettingsModal({
         {
           onSuccess: (updated) => {
             onVendorUpdate(updated);
-            toast({ title: "Photo de profil mise à jour !" });
+            toast({ title: t.photoUpdated });
           },
-          onError: () => toast({ title: "Erreur lors de la mise à jour", variant: "destructive" }),
+          onError: () => toast({ title: t.updateError, variant: "destructive" }),
           onSettled: () => setIsUploadingPhoto(false),
         }
       );
     } catch {
-      toast({ title: "Impossible de lire l'image", variant: "destructive" });
+      toast({ title: t.imageReadError, variant: "destructive" });
       setIsUploadingPhoto(false);
     }
   };
 
   const handleSaveName = () => {
     if (!firstName.trim() || !lastName.trim()) {
-      toast({ title: "Prénom et nom requis", variant: "destructive" });
+      toast({ title: t.nameRequired, variant: "destructive" });
       return;
     }
     updateName.mutate(
@@ -95,24 +105,24 @@ export function ProfileSettingsModal({
         onSuccess: (updated) => {
           setConfirmNameOpen(false);
           onVendorUpdate(updated);
-          toast({ title: "Nom mis à jour !" });
+          toast({ title: t.nameUpdated });
         },
-        onError: () => toast({ title: "Erreur lors de la mise à jour", variant: "destructive" }),
+        onError: () => toast({ title: t.updateError, variant: "destructive" }),
       }
     );
   };
 
   const handleChangePassword = () => {
     if (!oldPwd || !newPwd || !confirmPwd) {
-      toast({ title: "Tous les champs sont requis", variant: "destructive" });
+      toast({ title: t.allFieldsRequired, variant: "destructive" });
       return;
     }
     if (newPwd !== confirmPwd) {
-      toast({ title: "Les mots de passe ne correspondent pas", variant: "destructive" });
+      toast({ title: t.passwordsDontMatch, variant: "destructive" });
       return;
     }
     if (newPwd.length < 6) {
-      toast({ title: "Minimum 6 caractères", variant: "destructive" });
+      toast({ title: t.min6Chars, variant: "destructive" });
       return;
     }
     changePassword.mutate(
@@ -124,14 +134,14 @@ export function ProfileSettingsModal({
           setOldPwd("");
           setNewPwd("");
           setConfirmPwd("");
-          toast({ title: "Mot de passe modifié !" });
+          toast({ title: t.passwordChanged });
         },
         onError: (err: unknown) => {
           const msg = (err as { message?: string })?.message ?? "";
           if (msg.includes("401") || msg.toLowerCase().includes("incorrect")) {
-            toast({ title: "Ancien mot de passe incorrect", variant: "destructive" });
+            toast({ title: t.oldPasswordWrong, variant: "destructive" });
           } else {
-            toast({ title: "Erreur lors du changement", variant: "destructive" });
+            toast({ title: t.updateError, variant: "destructive" });
           }
           setConfirmPwdOpen(false);
         },
@@ -144,7 +154,7 @@ export function ProfileSettingsModal({
       <Dialog open={open} onOpenChange={onOpenChange}>
         <DialogContent className="sm:max-w-[420px] max-h-[90vh] overflow-y-auto">
           <DialogHeader>
-            <DialogTitle>Paramètres du profil</DialogTitle>
+            <DialogTitle>{t.profileSettings}</DialogTitle>
           </DialogHeader>
 
           <div className="space-y-6 pb-2">
@@ -171,24 +181,24 @@ export function ProfileSettingsModal({
                   )}
                 </div>
               </button>
-              <p className="text-xs text-muted-foreground">Appuyez pour changer la photo</p>
+              <p className="text-xs text-muted-foreground">{t.tapToChangePhoto}</p>
             </div>
 
             {/* Name */}
             <div className="space-y-3">
-              <h3 className="text-sm font-semibold">Informations personnelles</h3>
+              <h3 className="text-sm font-semibold">{t.personalInfo}</h3>
               <div className="grid grid-cols-2 gap-2">
                 <div>
-                  <label className="text-xs font-medium mb-1 block">Prénom</label>
+                  <label className="text-xs font-medium mb-1 block">{t.firstName}</label>
                   <Input value={firstName} onChange={(e) => setFirstName(e.target.value)} />
                 </div>
                 <div>
-                  <label className="text-xs font-medium mb-1 block">Nom</label>
+                  <label className="text-xs font-medium mb-1 block">{t.lastName}</label>
                   <Input value={lastName} onChange={(e) => setLastName(e.target.value)} />
                 </div>
               </div>
               <div>
-                <label className="text-xs font-medium mb-1 block text-muted-foreground">Téléphone (non modifiable)</label>
+                <label className="text-xs font-medium mb-1 block text-muted-foreground">{t.phoneReadonly}</label>
                 <Input value={vendor.phone} readOnly className="bg-muted text-muted-foreground" />
               </div>
               <Button
@@ -197,17 +207,17 @@ export function ProfileSettingsModal({
                 className="w-full"
                 onClick={() => {
                   if (!firstName.trim() || !lastName.trim()) {
-                    toast({ title: "Prénom et nom requis", variant: "destructive" });
+                    toast({ title: t.nameRequired, variant: "destructive" });
                     return;
                   }
                   if (firstName.trim() === vendor.firstName && lastName.trim() === vendor.lastName) {
-                    toast({ title: "Aucune modification détectée" });
+                    toast({ title: t.noChangesDetected });
                     return;
                   }
                   setConfirmNameOpen(true);
                 }}
               >
-                Enregistrer les modifications
+                {t.saveChanges}
               </Button>
             </div>
 
@@ -215,10 +225,10 @@ export function ProfileSettingsModal({
             <div className="space-y-3 border-t pt-4">
               <h3 className="text-sm font-semibold flex items-center gap-2">
                 <ShieldCheck className="w-4 h-4 text-primary" />
-                Sécurité
+                {t.security}
               </h3>
               <div>
-                <label className="text-xs font-medium mb-1 block">Ancien mot de passe</label>
+                <label className="text-xs font-medium mb-1 block">{t.oldPassword}</label>
                 <div className="relative">
                   <Input
                     type={showOldPwd ? "text" : "password"}
@@ -233,14 +243,14 @@ export function ProfileSettingsModal({
                 </div>
               </div>
               <div>
-                <label className="text-xs font-medium mb-1 block">Nouveau mot de passe</label>
+                <label className="text-xs font-medium mb-1 block">{t.newPassword}</label>
                 <div className="relative">
                   <Input
                     type={showNewPwd ? "text" : "password"}
                     value={newPwd}
                     onChange={(e) => setNewPwd(e.target.value)}
                     className="pr-10"
-                    placeholder="Minimum 6 caractères"
+                    placeholder={t.minChars}
                   />
                   <button type="button" onClick={() => setShowNewPwd((v) => !v)} className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground">
                     {showNewPwd ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
@@ -248,14 +258,14 @@ export function ProfileSettingsModal({
                 </div>
               </div>
               <div>
-                <label className="text-xs font-medium mb-1 block">Confirmer le nouveau mot de passe</label>
+                <label className="text-xs font-medium mb-1 block">{t.confirmNewPassword}</label>
                 <div className="relative">
                   <Input
                     type={showConfirmPwd ? "text" : "password"}
                     value={confirmPwd}
                     onChange={(e) => setConfirmPwd(e.target.value)}
                     className="pr-10"
-                    placeholder="Répétez le mot de passe"
+                    placeholder={t.repeatPassword}
                   />
                   <button type="button" onClick={() => setShowConfirmPwd((v) => !v)} className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground">
                     {showConfirmPwd ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
@@ -268,21 +278,21 @@ export function ProfileSettingsModal({
                 className="w-full"
                 onClick={() => {
                   if (!oldPwd || !newPwd || !confirmPwd) {
-                    toast({ title: "Tous les champs sont requis", variant: "destructive" });
+                    toast({ title: t.allFieldsRequired, variant: "destructive" });
                     return;
                   }
                   if (newPwd !== confirmPwd) {
-                    toast({ title: "Les mots de passe ne correspondent pas", variant: "destructive" });
+                    toast({ title: t.passwordsDontMatch, variant: "destructive" });
                     return;
                   }
                   if (newPwd.length < 6) {
-                    toast({ title: "Minimum 6 caractères", variant: "destructive" });
+                    toast({ title: t.min6Chars, variant: "destructive" });
                     return;
                   }
                   setConfirmPwdOpen(true);
                 }}
               >
-                Changer le mot de passe
+                {t.changePassword}
               </Button>
             </div>
 
@@ -293,20 +303,18 @@ export function ProfileSettingsModal({
                 onClick={() => setShowPrivacy(!showPrivacy)}
               >
                 <CheckSquare className="w-4 h-4 text-primary mt-0.5 flex-shrink-0" />
-                <span className="text-xs text-muted-foreground underline">
-                  Politique de confidentialité TogoMarket (acceptée lors de l'inscription)
-                </span>
+                <span className="text-xs text-muted-foreground underline">{t.privacyAccepted}</span>
               </button>
               {showPrivacy && (
                 <div className="mt-2 p-3 bg-muted rounded-lg text-xs text-muted-foreground leading-relaxed whitespace-pre-wrap">
-                  {PRIVACY_POLICY}
+                  {privacyPolicy}
                   <a
                     href="https://togomarket.site/privacy.html"
                     target="_blank"
                     rel="noopener noreferrer"
                     className="block mt-2 text-primary underline"
                   >
-                    Voir la politique complète →
+                    {t.viewFullPrivacyShort}
                   </a>
                 </div>
               )}
@@ -320,7 +328,7 @@ export function ProfileSettingsModal({
                 onClick={() => setConfirmLogoutOpen(true)}
               >
                 <LogOut className="w-4 h-4" />
-                Se déconnecter
+                {t.logout}
               </Button>
             </div>
           </div>
@@ -330,14 +338,14 @@ export function ProfileSettingsModal({
       {/* Confirm name change */}
       <Dialog open={confirmNameOpen} onOpenChange={setConfirmNameOpen}>
         <DialogContent className="sm:max-w-[340px]">
-          <DialogHeader><DialogTitle>Confirmer les modifications</DialogTitle></DialogHeader>
+          <DialogHeader><DialogTitle>{t.confirmChangesTitle}</DialogTitle></DialogHeader>
           <p className="text-sm text-muted-foreground">
-            Voulez-vous enregistrer <strong>{firstName.trim()} {lastName.trim()}</strong> comme nouveau nom ?
+            {t.confirmNameDesc(`${firstName.trim()} ${lastName.trim()}`)}
           </p>
           <div className="flex gap-2 justify-end">
-            <Button variant="outline" onClick={() => setConfirmNameOpen(false)}>Annuler</Button>
+            <Button variant="outline" onClick={() => setConfirmNameOpen(false)}>{t.cancel}</Button>
             <Button onClick={handleSaveName} disabled={updateName.isPending}>
-              {updateName.isPending ? "Enregistrement..." : "Confirmer"}
+              {updateName.isPending ? t.saving : t.confirm}
             </Button>
           </div>
         </DialogContent>
@@ -346,14 +354,12 @@ export function ProfileSettingsModal({
       {/* Confirm password change */}
       <Dialog open={confirmPwdOpen} onOpenChange={setConfirmPwdOpen}>
         <DialogContent className="sm:max-w-[340px]">
-          <DialogHeader><DialogTitle>Confirmer le changement</DialogTitle></DialogHeader>
-          <p className="text-sm text-muted-foreground">
-            Êtes-vous sûr de vouloir changer votre mot de passe ? Vous devrez utiliser le nouveau mot de passe à votre prochaine connexion.
-          </p>
+          <DialogHeader><DialogTitle>{t.confirmChangeTitle}</DialogTitle></DialogHeader>
+          <p className="text-sm text-muted-foreground">{t.confirmPwdDesc}</p>
           <div className="flex gap-2 justify-end">
-            <Button variant="outline" onClick={() => setConfirmPwdOpen(false)}>Annuler</Button>
+            <Button variant="outline" onClick={() => setConfirmPwdOpen(false)}>{t.cancel}</Button>
             <Button onClick={handleChangePassword} disabled={changePassword.isPending}>
-              {changePassword.isPending ? "Modification..." : "Confirmer"}
+              {changePassword.isPending ? t.modifying : t.confirm}
             </Button>
           </div>
         </DialogContent>
@@ -362,14 +368,12 @@ export function ProfileSettingsModal({
       {/* Confirm logout */}
       <Dialog open={confirmLogoutOpen} onOpenChange={setConfirmLogoutOpen}>
         <DialogContent className="sm:max-w-[340px]">
-          <DialogHeader><DialogTitle>Se déconnecter ?</DialogTitle></DialogHeader>
-          <p className="text-sm text-muted-foreground">
-            Vous serez déconnecté de votre compte vendeur. Vous pourrez vous reconnecter à tout moment.
-          </p>
+          <DialogHeader><DialogTitle>{t.logoutTitle}</DialogTitle></DialogHeader>
+          <p className="text-sm text-muted-foreground">{t.logoutDesc}</p>
           <div className="flex gap-2 justify-end">
-            <Button variant="outline" onClick={() => setConfirmLogoutOpen(false)}>Annuler</Button>
+            <Button variant="outline" onClick={() => setConfirmLogoutOpen(false)}>{t.cancel}</Button>
             <Button variant="destructive" onClick={() => { setConfirmLogoutOpen(false); onOpenChange(false); onLogout(); }}>
-              Se déconnecter
+              {t.logout}
             </Button>
           </div>
         </DialogContent>

@@ -9,6 +9,8 @@ import { ContactUnlockModal } from "@/components/contact-unlock-modal";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { ImageViewer } from "@/components/image-viewer";
+import { useSiteSettings } from "@/lib/site-settings";
+import { useT } from "@/lib/i18n";
 
 interface ListingCardProps {
   listing: Listing;
@@ -26,28 +28,32 @@ const sectorColors: Record<string, string> = {
   Divers: "bg-secondary text-secondary-foreground",
 };
 
-function formatDate(iso: string) {
-  return new Intl.DateTimeFormat("fr-FR", {
-    day: "2-digit",
-    month: "short",
-    year: "numeric",
-    hour: "2-digit",
-    minute: "2-digit",
-  }).format(new Date(iso));
-}
-
 function calcCommission(price: number, rate: number): number {
   if (rate === 0) return 0;
   return Math.round(Math.min(price, 100000) * rate / 100);
 }
 
 export function ListingCard({ listing, isAdmin, adminPassword, commissionRate, whatsappCommission, isOwn }: ListingCardProps) {
+  const { lang } = useSiteSettings();
+  const t = useT(lang);
   const queryClient = useQueryClient();
   const deleteMutation = useAdminDeleteListing();
   const [viewerOpen, setViewerOpen] = useState(false);
   const [viewerIndex, setViewerIndex] = useState(0);
   const [titleExpanded, setTitleExpanded] = useState(false);
   const [contactModalOpen, setContactModalOpen] = useState(false);
+
+  const dateLocale = lang === "fr" ? "fr-FR" : "en-US";
+
+  function formatDate(iso: string) {
+    return new Intl.DateTimeFormat(dateLocale, {
+      day: "2-digit",
+      month: "short",
+      year: "numeric",
+      hour: "2-digit",
+      minute: "2-digit",
+    }).format(new Date(iso));
+  }
 
   const openViewer = (index: number) => {
     setViewerIndex(index);
@@ -56,7 +62,7 @@ export function ListingCard({ listing, isAdmin, adminPassword, commissionRate, w
 
   const handleDelete = () => {
     if (!adminPassword || !isAdmin) return;
-    if (confirm("Supprimer cet article ?")) {
+    if (confirm(t.deleteListingTitle)) {
       deleteMutation.mutate(
         { data: { id: listing.id, password: adminPassword } },
         {
@@ -71,14 +77,13 @@ export function ListingCard({ listing, isAdmin, adminPassword, commissionRate, w
   const commission = calcCommission(listing.price, commissionRate);
 
   const handleReport = () => {
-    const message = `🚨 Signalement d'article sur TogoMarket\n\nTitre: ${listing.name}\nPrix: ${new Intl.NumberFormat("fr-FR").format(listing.price)} FCFA\nLocalisation: ${listing.location}\nSecteur: ${listing.sector}\nID: #${listing.id}\n\nMerci de vérifier cet article.`;
-    openWhatsApp(`https://wa.me/22870703131?text=${encodeURIComponent(message)}`);
+    const message = lang === "fr"
+      ? `🚨 Signalement d'article sur TogoMarket\n\nTitre: ${listing.name}\nPrix: ${new Intl.NumberFormat("fr-FR").format(listing.price)} FCFA\nLocalisation: ${listing.location}\nSecteur: ${listing.sector}\nID: #${listing.id}\n\nMerci de vérifier cet article.`
+      : `🚨 Item report on TogoMarket\n\nTitle: ${listing.name}\nPrice: ${new Intl.NumberFormat("fr-FR").format(listing.price)} FCFA\nLocation: ${listing.location}\nSector: ${listing.sector}\nID: #${listing.id}\n\nPlease review this item.`;
+    openWhatsApp(`https://wa.me/${whatsappCommission}?text=${encodeURIComponent(message)}`);
   };
 
-  const unlockLabel =
-    commissionRate === 0
-      ? "Débloquer le Contact — Gratuit"
-      : `Débloquer le Contact — ${new Intl.NumberFormat("fr-FR").format(commission)} FCFA`;
+  const unlockLabel = commissionRate === 0 ? t.unlockFree : t.unlockPaid(commission);
 
   return (
     <>
@@ -97,16 +102,13 @@ export function ListingCard({ listing, isAdmin, adminPassword, commissionRate, w
             ))
           ) : (
             <div className="w-full h-full flex items-center justify-center text-muted-foreground">
-              Aucune image
+              {t.noImage}
             </div>
           )}
         </div>
 
-        {/* Indice cliquable */}
         {listing.images && listing.images.length > 0 && (
-          <div
-            className="absolute inset-0 flex items-center justify-center opacity-0 group-hover/img:opacity-100 transition-opacity pointer-events-none"
-          >
+          <div className="absolute inset-0 flex items-center justify-center opacity-0 group-hover/img:opacity-100 transition-opacity pointer-events-none">
             <div className="bg-black/40 rounded-full p-2">
               <ZoomIn className="w-6 h-6 text-white" />
             </div>
@@ -119,7 +121,7 @@ export function ListingCard({ listing, isAdmin, adminPassword, commissionRate, w
           </Badge>
           {isOwn && (
             <Badge className="border-none bg-white/90 text-foreground text-[10px] font-bold shadow-sm">
-              Mon annonce
+              {t.myListing}
             </Badge>
           )}
         </div>
@@ -127,7 +129,7 @@ export function ListingCard({ listing, isAdmin, adminPassword, commissionRate, w
           onClick={handleReport}
           className="absolute bottom-2 right-2 z-10 bg-white/80 hover:bg-white text-red-500 rounded-md px-2 py-1 text-[11px] font-medium shadow transition-colors"
         >
-          Signaler cet article
+          {t.reportListing}
         </button>
       </div>
 
@@ -135,7 +137,7 @@ export function ListingCard({ listing, isAdmin, adminPassword, commissionRate, w
         <h3
           className={`font-semibold text-lg cursor-pointer ${titleExpanded ? "" : "line-clamp-2"}`}
           onClick={() => setTitleExpanded(e => !e)}
-          title={titleExpanded ? "Cliquer pour réduire" : "Cliquer pour voir le titre complet"}
+          title={titleExpanded ? t.collapseTitle : t.expandTitle}
         >
           {listing.name}
         </h3>
@@ -155,7 +157,7 @@ export function ListingCard({ listing, isAdmin, adminPassword, commissionRate, w
 
         <div className="mt-auto space-y-3">
           <div className="text-[10px] text-destructive font-medium uppercase tracking-wider text-center bg-destructive/10 py-1.5 rounded">
-            Attention : Ne payez jamais un article sans l'avoir inspecté physiquement.
+            {t.warningNoPay}
           </div>
 
           <Button
@@ -169,7 +171,7 @@ export function ListingCard({ listing, isAdmin, adminPassword, commissionRate, w
             <div className="pt-3 mt-3 border-t border-border flex items-center justify-between">
               <div className="flex items-center text-sm font-medium text-foreground">
                 <Phone className="w-4 h-4 mr-2 text-muted-foreground" />
-                {listing.phone || "Non spécifié"}
+                {listing.phone || t.notSpecified}
               </div>
               <Button
                 variant="destructive"
@@ -178,7 +180,7 @@ export function ListingCard({ listing, isAdmin, adminPassword, commissionRate, w
                 disabled={deleteMutation.isPending}
               >
                 <Trash2 className="w-4 h-4 mr-1" />
-                Supprimer
+                {t.delete}
               </Button>
             </div>
           )}

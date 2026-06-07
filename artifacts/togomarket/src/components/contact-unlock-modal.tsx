@@ -5,6 +5,8 @@ import { Input } from "@/components/ui/input";
 import { useCreateContactRequest, type Listing } from "@workspace/api-client-react";
 import { openWhatsApp } from "@/lib/whatsapp";
 import { Phone, AlertTriangle, MessageCircle } from "lucide-react";
+import { useSiteSettings } from "@/lib/site-settings";
+import { useT } from "@/lib/i18n";
 
 interface ContactUnlockModalProps {
   open: boolean;
@@ -25,6 +27,9 @@ const WhatsAppIcon = () => (
 );
 
 export function ContactUnlockModal({ open, onClose, listing, commissionRate }: ContactUnlockModalProps) {
+  const { lang } = useSiteSettings();
+  const t = useT(lang);
+
   const [step, setStep] = useState<"form" | "payment" | "reveal">("form");
   const [buyerName, setBuyerName] = useState("");
   const [buyerPhone, setBuyerPhone] = useState("");
@@ -36,7 +41,9 @@ export function ContactUnlockModal({ open, onClose, listing, commissionRate }: C
   const commissionFormatted = new Intl.NumberFormat("fr-FR").format(commission);
   const vendorPhone = (listing.phone ?? "").replace(/\D/g, "");
 
-  const whatsappMessage = `Prénom: ${buyerName}\nBonjour Mr/Mme je souhaite avoir plus de renseignements sur l'article: ${listing.name} publié sur TogoMarket.`;
+  const whatsappMessage = lang === "fr"
+    ? `Prénom: ${buyerName}\nBonjour Mr/Mme je souhaite avoir plus de renseignements sur l'article: ${listing.name} publié sur TogoMarket.`
+    : `First name: ${buyerName}\nHello, I would like more information about the item: ${listing.name} listed on TogoMarket.`;
 
   const handleClose = () => {
     setStep("form");
@@ -47,8 +54,8 @@ export function ContactUnlockModal({ open, onClose, listing, commissionRate }: C
   };
 
   const handleSubmit = () => {
-    if (!buyerName.trim()) { setError("Veuillez saisir votre prénom."); return; }
-    if (!buyerPhone.trim()) { setError("Veuillez saisir votre numéro de téléphone."); return; }
+    if (!buyerName.trim()) { setError(t.enterFirstNameError); return; }
+    if (!buyerPhone.trim()) { setError(t.enterPhoneError); return; }
     setError("");
 
     createRequest.mutate(
@@ -61,7 +68,7 @@ export function ContactUnlockModal({ open, onClose, listing, commissionRate }: C
             setStep("payment");
           }
         },
-        onError: () => setError("Une erreur s'est produite. Réessayez."),
+        onError: () => setError(t.errorOccurred),
       }
     );
   };
@@ -70,36 +77,48 @@ export function ContactUnlockModal({ open, onClose, listing, commissionRate }: C
     <Dialog open={open} onOpenChange={(v) => !v && handleClose()}>
       <DialogContent className="sm:max-w-[400px]">
 
-        {/* ── ÉTAPE 1 : Formulaire ─────────────────────────────── */}
         {step === "form" && (
           <>
             <DialogHeader>
-              <DialogTitle>Débloquer le contact</DialogTitle>
+              <DialogTitle>{t.unlockContactTitle}</DialogTitle>
             </DialogHeader>
             <div className="space-y-4 pt-1">
               <p className="text-sm leading-relaxed">
-                Vous êtes sur le point de débloquer{" "}
-                {isFree ? (
-                  <span className="font-semibold text-green-600">gratuitement</span>
+                {lang === "fr" ? (
+                  <>
+                    Vous êtes sur le point de débloquer{" "}
+                    {isFree ? (
+                      <span className="font-semibold text-green-600">gratuitement</span>
+                    ) : (
+                      <>à <span className="font-semibold text-primary">{commissionFormatted} FCFA</span></>
+                    )}{" "}
+                    le contact du vendeur de l'article :{" "}
+                    <span className="font-semibold">« {listing.name} »</span>
+                  </>
                 ) : (
-                  <>à <span className="font-semibold text-primary">{commissionFormatted} FCFA</span></>
-                )}{" "}
-                le contact du vendeur de l'article :{" "}
-                <span className="font-semibold">« {listing.name} »</span>
+                  <>
+                    You are about to unlock the seller's contact for "{listing.name}"{" "}
+                    {isFree ? (
+                      <span className="font-semibold text-green-600">for free</span>
+                    ) : (
+                      <>for <span className="font-semibold text-primary">{commissionFormatted} FCFA</span></>
+                    )}.
+                  </>
+                )}
               </p>
 
               <div className="space-y-3">
                 <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">
-                  Informations client
+                  {t.clientInfo}
                 </p>
                 <Input
-                  placeholder="Votre prénom *"
+                  placeholder={t.yourFirstName}
                   value={buyerName}
                   onChange={(e) => setBuyerName(e.target.value)}
                   onKeyDown={(e) => e.key === "Enter" && handleSubmit()}
                 />
                 <Input
-                  placeholder="Votre numéro de téléphone *"
+                  placeholder={t.yourPhone}
                   type="tel"
                   value={buyerPhone}
                   onChange={(e) => setBuyerPhone(e.target.value)}
@@ -108,61 +127,49 @@ export function ContactUnlockModal({ open, onClose, listing, commissionRate }: C
                 {error && <p className="text-sm text-destructive">{error}</p>}
               </div>
 
-              <Button
-                className="w-full"
-                onClick={handleSubmit}
-                disabled={createRequest.isPending}
-              >
+              <Button className="w-full" onClick={handleSubmit} disabled={createRequest.isPending}>
                 {createRequest.isPending
-                  ? "Enregistrement…"
+                  ? t.registering
                   : isFree
-                  ? "Continuer"
-                  : `Payer ${commissionFormatted} FCFA`}
+                  ? t.continue_
+                  : t.payAmount(commission)}
               </Button>
             </div>
           </>
         )}
 
-        {/* ── ÉTAPE 2 (payant) : Paiement ─────────────────────── */}
         {step === "payment" && (
           <>
             <DialogHeader>
-              <DialogTitle>Paiement de la commission</DialogTitle>
+              <DialogTitle>{t.paymentTitle}</DialogTitle>
             </DialogHeader>
             <div className="space-y-4 pt-1">
               <div className="rounded-lg bg-muted p-4 text-center space-y-1">
-                <p className="text-xs text-muted-foreground">Montant à régler</p>
+                <p className="text-xs text-muted-foreground">{t.amountToPay}</p>
                 <p className="text-2xl font-extrabold text-primary">{commissionFormatted} FCFA</p>
-                <p className="text-xs text-muted-foreground">Article : {listing.name}</p>
+                <p className="text-xs text-muted-foreground">{t.articleLabel} : {listing.name}</p>
               </div>
 
-              {/* ── ZONE DE PAIEMENT ── le code de paiement sera inséré ici ── */}
               <div className="rounded-lg border-2 border-dashed border-muted-foreground/30 p-6 text-center text-muted-foreground text-sm">
                 <MessageCircle className="w-8 h-8 mx-auto mb-2 opacity-40" />
-                Intégration de paiement en cours…
+                {t.paymentIntegration}
               </div>
-              {/* ── FIN ZONE PAIEMENT ── */}
 
-              <p className="text-xs text-center text-muted-foreground">
-                Après paiement, le numéro du vendeur vous sera affiché.
-              </p>
+              <p className="text-xs text-center text-muted-foreground">{t.afterPayment}</p>
               <Button variant="outline" className="w-full" onClick={handleClose}>
-                Annuler
+                {t.cancel}
               </Button>
             </div>
           </>
         )}
 
-        {/* ── ÉTAPE 3 : Contact révélé ─────────────────────────── */}
         {step === "reveal" && (
           <>
             <DialogHeader>
-              <DialogTitle>Contact débloqué !</DialogTitle>
+              <DialogTitle>{t.contactUnlocked}</DialogTitle>
             </DialogHeader>
             <div className="space-y-4 pt-1">
-              <p className="text-sm text-muted-foreground">
-                Contactez votre vendeur au numéro :
-              </p>
+              <p className="text-sm text-muted-foreground">{t.contactVendorAt}</p>
 
               <div className="flex items-center gap-3 bg-primary/5 border border-primary/20 rounded-xl p-4">
                 <Phone className="w-6 h-6 text-primary flex-shrink-0" />
@@ -174,7 +181,7 @@ export function ContactUnlockModal({ open, onClose, listing, commissionRate }: C
               <div className="flex items-start gap-2 bg-destructive/10 rounded-lg p-3">
                 <AlertTriangle className="w-4 h-4 text-destructive flex-shrink-0 mt-0.5" />
                 <p className="text-xs text-destructive font-semibold leading-relaxed">
-                  Ne payez jamais un article sans l'avoir physiquement inspecté.
+                  {t.warningNoPayShort}
                 </p>
               </div>
 
@@ -187,11 +194,11 @@ export function ContactUnlockModal({ open, onClose, listing, commissionRate }: C
                 }
               >
                 <WhatsAppIcon />
-                Démarrer la conversation WhatsApp
+                {t.startWhatsApp}
               </Button>
 
               <Button variant="outline" className="w-full" onClick={handleClose}>
-                Fermer
+                {t.close}
               </Button>
             </div>
           </>

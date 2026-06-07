@@ -22,15 +22,8 @@ import {
 } from "@/components/ui/form";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
-
-const formSchema = z.object({
-  lastName: z.string().min(2, "Nom requis"),
-  firstName: z.string().min(2, "Prénom requis"),
-  phone: z.string().min(8, "Numéro de téléphone invalide"),
-  description: z.string().min(10, "Veuillez décrire l'article recherché avec plus de détails"),
-});
-
-type FormValues = z.infer<typeof formSchema>;
+import { useSiteSettings } from "@/lib/site-settings";
+import { useT } from "@/lib/i18n";
 
 interface OrderModalProps {
   open: boolean;
@@ -39,6 +32,18 @@ interface OrderModalProps {
 }
 
 export function OrderModal({ open, onOpenChange, whatsappOrders }: OrderModalProps) {
+  const { lang } = useSiteSettings();
+  const t = useT(lang);
+
+  const formSchema = z.object({
+    lastName: z.string().min(2, t.lastName),
+    firstName: z.string().min(2, t.firstName),
+    phone: z.string().min(8, t.phoneWhatsapp),
+    description: z.string().min(10, t.itemDescription),
+  });
+
+  type FormValues = z.infer<typeof formSchema>;
+
   const form = useForm<FormValues>({
     resolver: zodResolver(formSchema),
     defaultValues: {
@@ -56,7 +61,9 @@ export function OrderModal({ open, onOpenChange, whatsappOrders }: OrderModalPro
       { data },
       {
         onSuccess: () => {
-          const message = `Bonjour TogoMarket, je cherche à commander un article spécifique.\n\nNom: ${data.firstName} ${data.lastName}\nTéléphone: ${data.phone}\nDescription: ${data.description}`;
+          const message = lang === "fr"
+            ? `Bonjour TogoMarket, je cherche à commander un article spécifique.\n\nNom: ${data.firstName} ${data.lastName}\nTéléphone: ${data.phone}\nDescription: ${data.description}`
+            : `Hello TogoMarket, I want to order a specific item.\n\nName: ${data.firstName} ${data.lastName}\nPhone: ${data.phone}\nDescription: ${data.description}`;
           openWhatsApp(`https://wa.me/${whatsappOrders}?text=${encodeURIComponent(message)}`);
           form.reset();
           onOpenChange(false);
@@ -69,10 +76,8 @@ export function OrderModal({ open, onOpenChange, whatsappOrders }: OrderModalPro
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="sm:max-w-[425px]">
         <DialogHeader>
-          <DialogTitle>Commander un article</DialogTitle>
-          <DialogDescription>
-            Vous ne trouvez pas ce que vous cherchez ? Décrivez-nous votre besoin et nous nous chargeons de le trouver pour vous.
-          </DialogDescription>
+          <DialogTitle>{t.orderTitle}</DialogTitle>
+          <DialogDescription>{t.orderDesc}</DialogDescription>
         </DialogHeader>
         <Form {...form}>
           <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4">
@@ -82,7 +87,7 @@ export function OrderModal({ open, onOpenChange, whatsappOrders }: OrderModalPro
                 name="firstName"
                 render={({ field }) => (
                   <FormItem>
-                    <FormLabel>Prénom</FormLabel>
+                    <FormLabel>{t.firstName}</FormLabel>
                     <FormControl>
                       <Input placeholder="Jean" {...field} />
                     </FormControl>
@@ -95,7 +100,7 @@ export function OrderModal({ open, onOpenChange, whatsappOrders }: OrderModalPro
                 name="lastName"
                 render={({ field }) => (
                   <FormItem>
-                    <FormLabel>Nom</FormLabel>
+                    <FormLabel>{t.lastName}</FormLabel>
                     <FormControl>
                       <Input placeholder="Dupont" {...field} />
                     </FormControl>
@@ -109,7 +114,7 @@ export function OrderModal({ open, onOpenChange, whatsappOrders }: OrderModalPro
               name="phone"
               render={({ field }) => (
                 <FormItem>
-                  <FormLabel>Téléphone (WhatsApp)</FormLabel>
+                  <FormLabel>{t.phoneWhatsapp}</FormLabel>
                   <FormControl>
                     <Input placeholder="+228 XX XX XX XX" {...field} />
                   </FormControl>
@@ -122,24 +127,24 @@ export function OrderModal({ open, onOpenChange, whatsappOrders }: OrderModalPro
               name="description"
               render={({ field }) => (
                 <FormItem>
-                  <FormLabel>Description détaillée de l'article</FormLabel>
+                  <FormLabel>{t.itemDescription}</FormLabel>
                   <FormControl>
-                    <Textarea 
-                      placeholder="Marque, modèle, état, budget approximatif..." 
+                    <Textarea
+                      placeholder={t.itemDescPlaceholder}
                       className="resize-none h-24"
-                      {...field} 
+                      {...field}
                     />
                   </FormControl>
                   <FormMessage />
                 </FormItem>
               )}
             />
-            <Button 
-              type="submit" 
-              className="w-full bg-secondary hover:bg-secondary/90 text-white" 
+            <Button
+              type="submit"
+              className="w-full bg-secondary hover:bg-secondary/90 text-white"
               disabled={createOrder.isPending}
             >
-              {createOrder.isPending ? "Envoi en cours..." : "Envoyer ma demande"}
+              {createOrder.isPending ? t.sending : t.sendRequest}
             </Button>
           </form>
         </Form>

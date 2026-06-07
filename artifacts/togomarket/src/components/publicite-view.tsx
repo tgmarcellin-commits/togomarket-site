@@ -3,11 +3,18 @@ import { useGetActiveAds, type Ad } from "@workspace/api-client-react";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Megaphone, Play } from "lucide-react";
 import { resolveImageUrl } from "@/lib/image";
+import { useSiteSettings } from "@/lib/site-settings";
+import { useT } from "@/lib/i18n";
 
-function AdDetailModal({ ad, open, onClose }: { ad: Ad | null; open: boolean; onClose: () => void }) {
+function AdDetailModal({ ad, open, onClose, t }: {
+  ad: Ad | null;
+  open: boolean;
+  onClose: () => void;
+  t: ReturnType<typeof useT>;
+}) {
   if (!ad) return null;
   const isActive = new Date(ad.endDate) > new Date();
-  const endDate = new Date(ad.endDate).toLocaleDateString("fr-FR", { day: "numeric", month: "long", year: "numeric" });
+  const endDate = new Date(ad.endDate).toLocaleDateString(t.dateLocale, { day: "numeric", month: "long", year: "numeric" });
 
   return (
     <Dialog open={open} onOpenChange={(v) => !v && onClose()}>
@@ -38,11 +45,11 @@ function AdDetailModal({ ad, open, onClose }: { ad: Ad | null; open: boolean; on
           <div className="space-y-2">
             <p className="text-sm leading-relaxed">{ad.message}</p>
             <div className="flex items-center justify-between text-xs text-muted-foreground border-t pt-2">
-              <span>Expire le {endDate}</span>
+              <span>{t.expiresOn} {endDate}</span>
               <span className={`px-2 py-0.5 rounded-full font-medium ${
                 isActive ? "bg-green-100 text-green-700" : "bg-red-100 text-red-700"
               }`}>
-                {isActive ? "Active" : "Expirée"}
+                {isActive ? t.active : t.expired}
               </span>
             </div>
           </div>
@@ -74,6 +81,8 @@ function VideoThumbnail({ src }: { src: string }) {
 }
 
 export function PubliciteView() {
+  const { lang } = useSiteSettings();
+  const t = useT(lang);
   const { data: ads, isLoading } = useGetActiveAds();
   const [selectedAd, setSelectedAd] = useState<Ad | null>(null);
 
@@ -93,17 +102,15 @@ export function PubliciteView() {
         <div className="w-16 h-16 bg-muted rounded-full flex items-center justify-center mb-4">
           <Megaphone className="w-8 h-8 text-muted-foreground" />
         </div>
-        <h2 className="text-xl font-bold mb-2">Aucune publicité</h2>
-        <p className="text-muted-foreground max-w-xs text-sm">
-          Aucune publicité n'est diffusée pour le moment. Revenez plus tard.
-        </p>
+        <h2 className="text-xl font-bold mb-2">{t.noAds}</h2>
+        <p className="text-muted-foreground max-w-xs text-sm">{t.noAdsDesc}</p>
       </div>
     );
   }
 
   return (
     <div className="container mx-auto px-4 py-6 max-w-2xl">
-      <h2 className="font-bold text-lg mb-4">Publicités en cours</h2>
+      <h2 className="font-bold text-lg mb-4">{t.adsTitle}</h2>
       <div className="space-y-4">
         {ads.map((ad) => (
           <button
@@ -131,7 +138,7 @@ export function PubliciteView() {
                 <p className="font-semibold text-sm">{ad.advertiserName}</p>
                 <p className="text-xs text-muted-foreground line-clamp-2 mt-0.5">{ad.message}</p>
                 <p className="text-xs text-muted-foreground mt-1.5">
-                  Expire le {new Date(ad.endDate).toLocaleDateString("fr-FR", { day: "numeric", month: "short", year: "numeric" })}
+                  {t.expiresOn} {new Date(ad.endDate).toLocaleDateString(t.dateLocale, { day: "numeric", month: "short", year: "numeric" })}
                 </p>
               </div>
             </div>
@@ -143,6 +150,7 @@ export function PubliciteView() {
         ad={selectedAd}
         open={!!selectedAd}
         onClose={() => setSelectedAd(null)}
+        t={t}
       />
     </div>
   );

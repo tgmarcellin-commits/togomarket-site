@@ -22,6 +22,8 @@ import {
 import { useToast } from "@/hooks/use-toast";
 import { UserCircle2, Package, Clock, Trash2, Pencil, LogIn, Store, Bell } from "lucide-react";
 import { resolveImageUrl } from "@/lib/image";
+import { useSiteSettings } from "@/lib/site-settings";
+import { useT } from "@/lib/i18n";
 
 interface BoutiqueViewProps {
   vendor: VendorProfile | null;
@@ -36,6 +38,7 @@ function ConfirmDialog({
   onConfirm,
   onCancel,
   confirmLabel,
+  cancelLabel,
   loading,
   destructive,
 }: {
@@ -45,6 +48,7 @@ function ConfirmDialog({
   onConfirm: () => void;
   onCancel: () => void;
   confirmLabel?: string;
+  cancelLabel?: string;
   loading?: boolean;
   destructive?: boolean;
 }) {
@@ -57,7 +61,7 @@ function ConfirmDialog({
         <p className="text-sm text-muted-foreground">{description}</p>
         <DialogFooter className="gap-2">
           <Button variant="outline" onClick={onCancel} disabled={loading}>
-            Annuler
+            {cancelLabel ?? "Annuler"}
           </Button>
           <Button
             onClick={onConfirm}
@@ -73,6 +77,8 @@ function ConfirmDialog({
 }
 
 export function BoutiqueView({ vendor, vendorPassword, onNeedLogin }: BoutiqueViewProps) {
+  const { lang } = useSiteSettings();
+  const t = useT(lang);
   const { toast } = useToast();
   const queryClient = useQueryClient();
 
@@ -115,13 +121,11 @@ export function BoutiqueView({ vendor, vendorPassword, onNeedLogin }: BoutiqueVi
         <div className="w-16 h-16 bg-muted rounded-full flex items-center justify-center mb-4">
           <Store className="w-8 h-8 text-muted-foreground" />
         </div>
-        <h2 className="text-xl font-bold mb-2">Votre Boutique</h2>
-        <p className="text-muted-foreground mb-6 max-w-xs">
-          Connectez-vous pour accéder à votre tableau de bord vendeur et gérer vos annonces.
-        </p>
+        <h2 className="text-xl font-bold mb-2">{t.yourShop}</h2>
+        <p className="text-muted-foreground mb-6 max-w-xs">{t.shopLoginDesc}</p>
         <Button onClick={onNeedLogin} className="gap-2">
           <LogIn className="w-4 h-4" />
-          Se connecter
+          {t.signIn}
         </Button>
       </div>
     );
@@ -136,12 +140,12 @@ export function BoutiqueView({ vendor, vendorPassword, onNeedLogin }: BoutiqueVi
       { data: { id: deleteTarget.id, phone: vendor.phone, password: vendorPassword } },
       {
         onSuccess: () => {
-          toast({ title: "Annonce supprimée" });
+          toast({ title: t.listingDeleted });
           setDeleteTarget(null);
           queryClient.invalidateQueries({ queryKey: getGetListingsQueryKey() });
           refetch();
         },
-        onError: () => toast({ title: "Erreur lors de la suppression", variant: "destructive" }),
+        onError: () => toast({ title: t.deletionError, variant: "destructive" }),
       }
     );
   };
@@ -150,20 +154,20 @@ export function BoutiqueView({ vendor, vendorPassword, onNeedLogin }: BoutiqueVi
     if (!priceTarget || !newPrice) return;
     const parsed = parseFloat(newPrice.replace(",", "."));
     if (isNaN(parsed) || parsed <= 0) {
-      toast({ title: "Prix invalide", variant: "destructive" });
+      toast({ title: t.invalidPrice, variant: "destructive" });
       return;
     }
     updatePrice.mutate(
       { data: { id: priceTarget.id, phone: vendor.phone, password: vendorPassword, newPrice: parsed } },
       {
         onSuccess: () => {
-          toast({ title: "Prix mis à jour !" });
+          toast({ title: t.priceUpdated });
           setPriceTarget(null);
           setNewPrice("");
           queryClient.invalidateQueries({ queryKey: getGetListingsQueryKey() });
           refetch();
         },
-        onError: () => toast({ title: "Erreur lors de la modification", variant: "destructive" }),
+        onError: () => toast({ title: t.updateError, variant: "destructive" }),
       }
     );
   };
@@ -194,11 +198,9 @@ export function BoutiqueView({ vendor, vendorPassword, onNeedLogin }: BoutiqueVi
           <Bell className="w-5 h-5 text-primary flex-shrink-0 mt-0.5" />
           <div>
             <p className="text-sm font-semibold text-primary">
-              {contactStats.reduce((acc, s) => acc + s.count, 0)} demande(s) de contact reçue(s)
+              {t.contactRequestsReceived(contactStats.reduce((acc, s) => acc + s.count, 0))}
             </p>
-            <p className="text-xs text-muted-foreground mt-0.5">
-              Des acheteurs ont demandé votre numéro via TogoMarket.
-            </p>
+            <p className="text-xs text-muted-foreground mt-0.5">{t.buyersContactedDesc}</p>
           </div>
         </div>
       )}
@@ -210,20 +212,20 @@ export function BoutiqueView({ vendor, vendorPassword, onNeedLogin }: BoutiqueVi
             <Package className="w-4 h-4 text-primary" />
             <span className="text-2xl font-bold text-primary">{published.length}</span>
           </div>
-          <p className="text-xs text-muted-foreground">Publiées</p>
+          <p className="text-xs text-muted-foreground">{t.published}</p>
         </div>
         <div className="rounded-xl border bg-card p-4 text-center">
           <div className="flex items-center justify-center gap-1.5 mb-1">
             <Clock className="w-4 h-4 text-amber-500" />
             <span className="text-2xl font-bold text-amber-500">{pending.length}</span>
           </div>
-          <p className="text-xs text-muted-foreground">En attente</p>
+          <p className="text-xs text-muted-foreground">{t.pending}</p>
         </div>
       </div>
 
       {/* Listings */}
       <h3 className="font-semibold text-sm text-muted-foreground uppercase tracking-wider mb-3">
-        Mes annonces
+        {t.myListings}
       </h3>
 
       {isLoading ? (
@@ -235,7 +237,7 @@ export function BoutiqueView({ vendor, vendorPassword, onNeedLogin }: BoutiqueVi
       ) : (listings ?? []).length === 0 ? (
         <div className="text-center py-10 text-muted-foreground">
           <Package className="w-10 h-10 mx-auto mb-3 opacity-30" />
-          <p className="text-sm">Vous n'avez aucune annonce pour l'instant.</p>
+          <p className="text-sm">{t.noListingsYet}</p>
         </div>
       ) : (
         <div className="space-y-3">
@@ -270,7 +272,7 @@ export function BoutiqueView({ vendor, vendorPassword, onNeedLogin }: BoutiqueVi
                         ? "bg-green-100 text-green-700"
                         : "bg-amber-100 text-amber-700"
                     }`}>
-                      {listing.approved ? "Publiée" : "En attente"}
+                      {listing.approved ? t.published : t.pending}
                     </span>
                   </div>
                 </div>
@@ -286,7 +288,7 @@ export function BoutiqueView({ vendor, vendorPassword, onNeedLogin }: BoutiqueVi
                     onClick={() => { setPriceTarget(listing); setNewPrice(String(listing.price)); }}
                   >
                     <Pencil className="w-3 h-3" />
-                    Modifier le prix
+                    {t.editPrice}
                   </Button>
                   <Button
                     size="sm"
@@ -295,7 +297,7 @@ export function BoutiqueView({ vendor, vendorPassword, onNeedLogin }: BoutiqueVi
                     onClick={() => setDeleteTarget(listing)}
                   >
                     <Trash2 className="w-3 h-3" />
-                    Supprimer
+                    {t.delete}
                   </Button>
                 </div>
               </div>
@@ -307,9 +309,10 @@ export function BoutiqueView({ vendor, vendorPassword, onNeedLogin }: BoutiqueVi
       {/* Delete confirmation */}
       <ConfirmDialog
         open={!!deleteTarget}
-        title="Supprimer l'annonce ?"
-        description={`Êtes-vous sûr de vouloir supprimer "${deleteTarget?.name}" ? Cette action est irréversible.`}
-        confirmLabel="Supprimer"
+        title={t.deleteListingTitle}
+        description={t.deleteListingDesc(deleteTarget?.name ?? "")}
+        confirmLabel={t.delete}
+        cancelLabel={t.cancel}
         destructive
         loading={deleteListing.isPending}
         onConfirm={handleDeleteConfirm}
@@ -320,14 +323,14 @@ export function BoutiqueView({ vendor, vendorPassword, onNeedLogin }: BoutiqueVi
       <Dialog open={!!priceTarget} onOpenChange={(v) => !v && setPriceTarget(null)}>
         <DialogContent className="sm:max-w-[360px]">
           <DialogHeader>
-            <DialogTitle>Modifier le prix</DialogTitle>
+            <DialogTitle>{t.editPriceTitle}</DialogTitle>
           </DialogHeader>
           <div className="space-y-3">
             <p className="text-sm text-muted-foreground">
-              Annonce : <strong>{priceTarget?.name}</strong>
+              {t.listingLabel} : <strong>{priceTarget?.name}</strong>
             </p>
             <div>
-              <label className="text-sm font-medium mb-1 block">Nouveau prix (FCFA)</label>
+              <label className="text-sm font-medium mb-1 block">{t.newPriceLabel}</label>
               <Input
                 type="number"
                 min="0"
@@ -338,9 +341,9 @@ export function BoutiqueView({ vendor, vendorPassword, onNeedLogin }: BoutiqueVi
             </div>
           </div>
           <DialogFooter className="gap-2">
-            <Button variant="outline" onClick={() => setPriceTarget(null)}>Annuler</Button>
+            <Button variant="outline" onClick={() => setPriceTarget(null)}>{t.cancel}</Button>
             <Button onClick={handlePriceConfirm} disabled={updatePrice.isPending}>
-              {updatePrice.isPending ? "Enregistrement..." : "Confirmer"}
+              {updatePrice.isPending ? t.saving : t.confirm}
             </Button>
           </DialogFooter>
         </DialogContent>

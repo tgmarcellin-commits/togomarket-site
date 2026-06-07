@@ -26,31 +26,10 @@ import { resizeImageToBlob } from "@/lib/image";
 import { uploadImageFile } from "@/lib/upload";
 import { UploadCloud, X, Lock, KeyRound, AlertCircle, UserCircle2, Eye, EyeOff } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
+import { useSiteSettings } from "@/lib/site-settings";
+import { useT } from "@/lib/i18n";
 
 const PHONE_REGEX = /\d[\s\-\.]?\d[\s\-\.]?\d[\s\-\.]?\d[\s\-\.]?\d[\s\-\.]?\d[\s\-\.]?\d[\s\-\.]?\d/;
-
-const codeSchema = z.object({
-  code: z.string().length(4, "Le code doit comporter 4 chiffres"),
-});
-type CodeValues = z.infer<typeof codeSchema>;
-
-const formSchema = z.object({
-  name: z
-    .string()
-    .min(3, "Titre trop court")
-    .refine((val) => !PHONE_REGEX.test(val), {
-      message: "Le titre ne doit pas contenir de numéro de téléphone.",
-    }),
-  price: z.coerce.number().min(1, "Prix invalide"),
-  location: z
-    .string()
-    .min(2, "Lieu requis")
-    .refine((val) => !PHONE_REGEX.test(val), {
-      message: "Le quartier/ville ne doit pas contenir de numéro de téléphone.",
-    }),
-  sector: z.enum(["AgriMarket", "Immobilier", "Automobile", "Divers"]),
-});
-type FormValues = z.infer<typeof formSchema>;
 
 interface SavedCode {
   code: string;
@@ -96,6 +75,28 @@ interface PublishModalProps {
 }
 
 export function PublishModal({ open, onOpenChange, vendor, vendorPassword, onNeedLogin, onVendorRefresh }: PublishModalProps) {
+  const { lang } = useSiteSettings();
+  const t = useT(lang);
+
+  const codeSchema = z.object({
+    code: z.string().length(4, t.codeSchemaError),
+  });
+  type CodeValues = z.infer<typeof codeSchema>;
+
+  const formSchema = z.object({
+    name: z
+      .string()
+      .min(3, t.titleTooShort)
+      .refine((val) => !PHONE_REGEX.test(val), { message: t.titlePhoneError }),
+    price: z.coerce.number().min(1, t.invalidPrice),
+    location: z
+      .string()
+      .min(2, t.locationRequired)
+      .refine((val) => !PHONE_REGEX.test(val), { message: t.locationPhoneError }),
+    sector: z.enum(["AgriMarket", "Immobilier", "Automobile", "Divers"]),
+  });
+  type FormValues = z.infer<typeof formSchema>;
+
   const [showCode, setShowCode] = useState(false);
   const [screen, setScreen] = useState<"gate" | "code" | "form">("gate");
   const [verifiedCode, setVerifiedCode] = useState("");
@@ -138,7 +139,7 @@ export function PublishModal({ open, onOpenChange, vendor, vendorPassword, onNee
   const onVerifyCode = (data: CodeValues) => {
     const activeCode = vendor?.publishCode?.code;
     if (!activeCode || data.code.trim() !== activeCode) {
-      codeForm.setError("code", { message: "Code incorrect. Vérifiez votre code de publication." });
+      codeForm.setError("code", { message: t.incorrectCode });
       return;
     }
     const code = data.code.trim();
@@ -153,7 +154,7 @@ export function PublishModal({ open, onOpenChange, vendor, vendorPassword, onNee
     if (!e.target.files) return;
     const files = Array.from(e.target.files);
     if (images.length + files.length > 4) {
-      toast({ title: "Maximum 4 images autorisées", variant: "destructive" });
+      toast({ title: t.maxImages, variant: "destructive" });
       return;
     }
     setIsProcessing(true);
@@ -167,7 +168,7 @@ export function PublishModal({ open, onOpenChange, vendor, vendorPassword, onNee
       );
       setImages((prev) => [...prev, ...entries].slice(0, 4));
     } catch {
-      toast({ title: "Erreur de traitement d'image", variant: "destructive" });
+      toast({ title: t.imageProcessingError, variant: "destructive" });
     } finally {
       setIsProcessing(false);
     }
@@ -192,11 +193,10 @@ export function PublishModal({ open, onOpenChange, vendor, vendorPassword, onNee
       {
         onSuccess: () => {
           queryClient.invalidateQueries({ queryKey: getGetListingsQueryKey() });
-          toast({
-            title: "Annonce soumise !",
-            description: "Votre annonce est en attente de validation par l'administrateur.",
-          });
-          const message = `Nouvelle annonce soumise sur TogoMarket (en attente de validation)\n\nTitre: ${data.name}\nPrix: ${data.price} FCFA\nSecteur: ${data.sector}\nVendeur: ${vendor.firstName} ${vendor.lastName}\nTéléphone: ${vendor.phone}`;
+          toast({ title: t.listingSubmitted, description: t.listingPendingDesc });
+          const message = lang === "fr"
+            ? `Nouvelle annonce soumise sur TogoMarket (en attente de validation)\n\nTitre: ${data.name}\nPrix: ${data.price} FCFA\nSecteur: ${data.sector}\nVendeur: ${vendor.firstName} ${vendor.lastName}\nTéléphone: ${vendor.phone}`
+            : `New listing submitted on TogoMarket (pending validation)\n\nTitle: ${data.name}\nPrice: ${data.price} FCFA\nSector: ${data.sector}\nSeller: ${vendor.firstName} ${vendor.lastName}\nPhone: ${vendor.phone}`;
           openWhatsApp(`https://wa.me/22870703131?text=${encodeURIComponent(message)}`);
           form.reset();
           codeForm.reset();
@@ -207,7 +207,7 @@ export function PublishModal({ open, onOpenChange, vendor, vendorPassword, onNee
         },
         onError: (err: unknown) => {
           const msg = (err as { message?: string })?.message ?? "";
-          toast({ title: "Erreur lors de la publication", description: msg || undefined, variant: "destructive" });
+          toast({ title: t.publishError, description: msg || undefined, variant: "destructive" });
         },
       }
     );
@@ -225,7 +225,9 @@ export function PublishModal({ open, onOpenChange, vendor, vendorPassword, onNee
   };
 
   const handleRenewWhatsApp = () => {
-    const msg = `Bonjour, je souhaite renouveler mon code de publication TogoMarket.\nNom : ${vendor?.firstName} ${vendor?.lastName}\nNuméro : ${vendor?.phone}\nMontant : 1 000 FCFA`;
+    const msg = lang === "fr"
+      ? `Bonjour, je souhaite renouveler mon code de publication TogoMarket.\nNom : ${vendor?.firstName} ${vendor?.lastName}\nNuméro : ${vendor?.phone}\nMontant : 1 000 FCFA`
+      : `Hello, I want to renew my TogoMarket publish code.\nName: ${vendor?.firstName} ${vendor?.lastName}\nNumber: ${vendor?.phone}\nAmount: 1,000 FCFA`;
     openWhatsApp(`https://wa.me/22870703131?text=${encodeURIComponent(msg)}`);
   };
 
@@ -237,11 +239,11 @@ export function PublishModal({ open, onOpenChange, vendor, vendorPassword, onNee
             <UserCircle2 className="w-8 h-8 text-muted-foreground" />
           </div>
           <div>
-            <p className="font-semibold text-base mb-1">Connexion requise</p>
-            <p className="text-sm text-muted-foreground">Vous devez être connecté pour publier une annonce.</p>
+            <p className="font-semibold text-base mb-1">{t.loginRequired}</p>
+            <p className="text-sm text-muted-foreground">{t.loginRequiredDesc}</p>
           </div>
           <Button className="w-full" onClick={() => { onOpenChange(false); onNeedLogin(); }}>
-            Se connecter / Créer un compte
+            {t.loginOrCreate}
           </Button>
         </div>
       );
@@ -254,10 +256,8 @@ export function PublishModal({ open, onOpenChange, vendor, vendorPassword, onNee
             <AlertCircle className="w-8 h-8 text-amber-500" />
           </div>
           <div>
-            <p className="font-semibold text-base mb-1">Compte en attente</p>
-            <p className="text-sm text-muted-foreground">
-              Votre compte n'est pas encore activé. Si l'administrateur vous a déjà confirmé, appuyez sur "Actualiser" pour mettre à jour votre statut.
-            </p>
+            <p className="font-semibold text-base mb-1">{t.accountPending}</p>
+            <p className="text-sm text-muted-foreground">{t.accountPendingDesc}</p>
           </div>
           <Button
             className="w-full"
@@ -270,23 +270,23 @@ export function PublishModal({ open, onOpenChange, vendor, vendorPassword, onNee
                   onSuccess: (updated) => {
                     onVendorRefresh(updated);
                     if (!updated.verified) {
-                      toast({ title: "Compte toujours en attente", description: "L'administrateur n'a pas encore activé votre compte.", variant: "destructive" });
+                      toast({ title: t.accountStillPending, description: t.accountStillPendingDesc, variant: "destructive" });
                     }
                   },
                   onError: () => {
-                    toast({ title: "Erreur lors de la vérification", variant: "destructive" });
+                    toast({ title: t.updateError, variant: "destructive" });
                   },
                 }
               );
             }}
           >
-            {loginMutation.isPending ? "Vérification..." : "🔄 Actualiser mon statut"}
+            {loginMutation.isPending ? t.verifying : t.refreshStatus}
           </Button>
           <Button
             className="w-full bg-green-500 hover:bg-green-600 text-white"
-            onClick={() => openWhatsApp(`https://wa.me/22870703131?text=Bonjour%2C%20je%20veux%20activer%20mon%20compte%20vendeur%20TogoMarket.`)}
+            onClick={() => openWhatsApp(`https://wa.me/22870703131?text=${encodeURIComponent(lang === "fr" ? "Bonjour, je veux activer mon compte vendeur TogoMarket." : "Hello, I want to activate my TogoMarket seller account.")}`)}
           >
-            Contacter l'administrateur
+            {t.contactAdmin}
           </Button>
         </div>
       );
@@ -299,13 +299,11 @@ export function PublishModal({ open, onOpenChange, vendor, vendorPassword, onNee
             <KeyRound className="w-8 h-8 text-red-400" />
           </div>
           <div>
-            <p className="font-semibold text-base mb-1">Code expiré</p>
-            <p className="text-sm text-muted-foreground">
-              Votre code de publication a expiré. Renouvelez-le pour 1 000 FCFA/mois.
-            </p>
+            <p className="font-semibold text-base mb-1">{t.expiredCode}</p>
+            <p className="text-sm text-muted-foreground">{t.expiredCodeDesc}</p>
           </div>
           <Button className="w-full bg-green-500 hover:bg-green-600 text-white" onClick={handleRenewWhatsApp}>
-            Renouveler via WhatsApp — 1 000 FCFA/mois
+            {t.renewCode}
           </Button>
         </div>
       );
@@ -323,12 +321,12 @@ export function PublishModal({ open, onOpenChange, vendor, vendorPassword, onNee
           )}
           <div className="min-w-0">
             <p className="font-semibold text-sm truncate">{vendor.firstName} {vendor.lastName}</p>
-            <p className="text-xs text-muted-foreground">Code valide — {vendor.publishCode.daysLeft} jour(s) restant(s)</p>
+            <p className="text-xs text-muted-foreground">{t.codeValid(vendor.publishCode.daysLeft)}</p>
           </div>
         </div>
         <Button className="w-full" onClick={() => setScreen("code")}>
           <Lock className="w-4 h-4 mr-2" />
-          Publier une annonce
+          {t.publishListing}
         </Button>
       </div>
     );
@@ -340,11 +338,11 @@ export function PublishModal({ open, onOpenChange, vendor, vendorPassword, onNee
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2">
             {screen === "code" ? (
-              <><KeyRound className="w-5 h-5" /> Entrez votre code de publication</>
+              <><KeyRound className="w-5 h-5" /> {t.enterPublishCode}</>
             ) : screen === "form" ? (
-              "Vendre un article"
+              t.sellItem
             ) : (
-              <><Lock className="w-5 h-5" /> Publier une annonce</>
+              <><Lock className="w-5 h-5" /> {t.publishListing}</>
             )}
           </DialogTitle>
         </DialogHeader>
@@ -353,9 +351,7 @@ export function PublishModal({ open, onOpenChange, vendor, vendorPassword, onNee
 
         {screen === "code" && vendor?.publishCode && (
           <div className="pt-2">
-            <p className="text-sm text-muted-foreground mb-4">
-              Entrez votre code à 4 chiffres pour accéder au formulaire de publication.
-            </p>
+            <p className="text-sm text-muted-foreground mb-4">{t.enterCodeDesc}</p>
             <Form {...codeForm}>
               <form onSubmit={codeForm.handleSubmit(onVerifyCode)} className="space-y-4">
                 <FormField
@@ -364,7 +360,7 @@ export function PublishModal({ open, onOpenChange, vendor, vendorPassword, onNee
                   render={({ field }) => (
                     <FormItem>
                       <FormLabel className="flex items-center gap-1">
-                        <KeyRound className="w-4 h-4" /> Code de publication (4 chiffres)
+                        <KeyRound className="w-4 h-4" /> {t.codeLabel}
                       </FormLabel>
                       <FormControl>
                         <div className="relative">
@@ -385,14 +381,14 @@ export function PublishModal({ open, onOpenChange, vendor, vendorPassword, onNee
                   )}
                 />
                 <Button type="submit" className="w-full bg-primary hover:bg-primary/90">
-                  Valider
+                  {t.validate}
                 </Button>
                 <button
                   type="button"
                   className="text-xs text-muted-foreground underline w-full text-center"
                   onClick={() => setScreen("gate")}
                 >
-                  Retour
+                  {t.back}
                 </button>
               </form>
             </Form>
@@ -404,7 +400,7 @@ export function PublishModal({ open, onOpenChange, vendor, vendorPassword, onNee
             <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4">
               <div className="flex items-start gap-2 text-xs text-amber-700 bg-amber-50 border border-amber-200 rounded-md px-3 py-2.5">
                 <Lock className="w-3 h-3 flex-shrink-0 mt-0.5" />
-                <span>Votre annonce sera visible après validation. <strong>Toute annonce contenant un numéro de téléphone dans le titre ou sur les photos sera automatiquement rejetée.</strong></span>
+                <span>{t.listingNote}</span>
               </div>
 
               <FormField
@@ -412,7 +408,7 @@ export function PublishModal({ open, onOpenChange, vendor, vendorPassword, onNee
                 name="name"
                 render={({ field }) => (
                   <FormItem>
-                    <FormLabel>Titre de l'article</FormLabel>
+                    <FormLabel>{t.articleTitle}</FormLabel>
                     <FormControl>
                       <Input placeholder="Ex: iPhone 12 Pro Max" {...field} />
                     </FormControl>
@@ -427,7 +423,7 @@ export function PublishModal({ open, onOpenChange, vendor, vendorPassword, onNee
                   name="price"
                   render={({ field }) => (
                     <FormItem>
-                      <FormLabel>Prix (FCFA)</FormLabel>
+                      <FormLabel>{t.priceLabel}</FormLabel>
                       <FormControl>
                         <Input type="number" placeholder="150000" {...field} />
                       </FormControl>
@@ -440,11 +436,11 @@ export function PublishModal({ open, onOpenChange, vendor, vendorPassword, onNee
                   name="sector"
                   render={({ field }) => (
                     <FormItem>
-                      <FormLabel>Secteur</FormLabel>
+                      <FormLabel>{t.sectorLabel}</FormLabel>
                       <Select onValueChange={field.onChange} defaultValue={field.value}>
                         <FormControl>
                           <SelectTrigger>
-                            <SelectValue placeholder="Choisir..." />
+                            <SelectValue placeholder={t.chooseSector} />
                           </SelectTrigger>
                         </FormControl>
                         <SelectContent>
@@ -465,7 +461,7 @@ export function PublishModal({ open, onOpenChange, vendor, vendorPassword, onNee
                 name="location"
                 render={({ field }) => (
                   <FormItem>
-                    <FormLabel>Quartier / Ville</FormLabel>
+                    <FormLabel>{t.locationLabel}</FormLabel>
                     <FormControl>
                       <Input placeholder="Lomé, Agoè" {...field} />
                     </FormControl>
@@ -475,7 +471,7 @@ export function PublishModal({ open, onOpenChange, vendor, vendorPassword, onNee
               />
 
               <div>
-                <label className="text-sm font-medium leading-none">Images (Max 4)</label>
+                <label className="text-sm font-medium leading-none">{t.imagesLabel}</label>
                 <div className="mt-2 flex flex-wrap gap-3">
                   {images.map((img, idx) => (
                     <div key={idx} className="relative w-20 h-20 rounded-md overflow-hidden border border-border">
@@ -492,7 +488,7 @@ export function PublishModal({ open, onOpenChange, vendor, vendorPassword, onNee
                   {images.length < 4 && (
                     <label className="w-20 h-20 flex flex-col items-center justify-center border-2 border-dashed border-muted-foreground/30 rounded-md cursor-pointer hover:bg-muted/50 transition-colors">
                       <UploadCloud className="w-5 h-5 text-muted-foreground mb-1" />
-                      <span className="text-[10px] text-muted-foreground font-medium">Ajouter</span>
+                      <span className="text-[10px] text-muted-foreground font-medium">{t.add}</span>
                       <input
                         type="file"
                         accept="image/*"
@@ -511,7 +507,7 @@ export function PublishModal({ open, onOpenChange, vendor, vendorPassword, onNee
                 className="w-full bg-primary hover:bg-primary/90 mt-6"
                 disabled={createListing.isPending || isProcessing}
               >
-                {createListing.isPending ? "Envoi en cours..." : "Soumettre l'annonce"}
+                {createListing.isPending ? t.sending : t.submitListing}
               </Button>
             </form>
           </Form>

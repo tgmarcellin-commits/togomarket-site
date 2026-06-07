@@ -4,18 +4,26 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/u
 import { Button } from "@/components/ui/button";
 import { Calendar, MapPin, Ticket, ExternalLink } from "lucide-react";
 import { openWhatsApp } from "@/lib/whatsapp";
+import { useSiteSettings } from "@/lib/site-settings";
+import { useT } from "@/lib/i18n";
 
-function EventDetailModal({ event, open, onClose }: { event: Event | null; open: boolean; onClose: () => void }) {
+function EventDetailModal({ event, open, onClose, locale, t }: {
+  event: Event | null;
+  open: boolean;
+  onClose: () => void;
+  locale: string;
+  t: ReturnType<typeof useT>;
+}) {
   if (!event) return null;
 
   const eventDate = new Date(event.date);
-  const formattedDate = eventDate.toLocaleDateString("fr-FR", {
+  const formattedDate = eventDate.toLocaleDateString(locale, {
     weekday: "long",
     day: "numeric",
     month: "long",
     year: "numeric",
   });
-  const formattedTime = eventDate.toLocaleTimeString("fr-FR", {
+  const formattedTime = eventDate.toLocaleTimeString(locale, {
     hour: "2-digit",
     minute: "2-digit",
   });
@@ -40,7 +48,7 @@ function EventDetailModal({ event, open, onClose }: { event: Event | null; open:
           <div className="space-y-2">
             <div className="flex items-center gap-2 text-sm">
               <Calendar className="w-4 h-4 text-primary flex-shrink-0" />
-              <span>{formattedDate} à {formattedTime}</span>
+              <span>{formattedDate} {t.at} {formattedTime}</span>
             </div>
             <div className="flex items-center gap-2 text-sm">
               <MapPin className="w-4 h-4 text-primary flex-shrink-0" />
@@ -49,7 +57,7 @@ function EventDetailModal({ event, open, onClose }: { event: Event | null; open:
             {event.ticketPrice && (
               <div className="flex items-center gap-2 text-sm">
                 <Ticket className="w-4 h-4 text-primary flex-shrink-0" />
-                <span>Entrée : <strong>{event.ticketPrice}</strong></span>
+                <span>{t.entry} : <strong>{event.ticketPrice}</strong></span>
               </div>
             )}
           </div>
@@ -62,7 +70,7 @@ function EventDetailModal({ event, open, onClose }: { event: Event | null; open:
               onClick={() => openWhatsApp(event.ticketLink!)}
             >
               <ExternalLink className="w-4 h-4" />
-              Réserver / Acheter des billets
+              {t.buyTickets}
             </Button>
           )}
         </div>
@@ -72,6 +80,9 @@ function EventDetailModal({ event, open, onClose }: { event: Event | null; open:
 }
 
 export function EvenementielView() {
+  const { lang } = useSiteSettings();
+  const t = useT(lang);
+  const locale = t.dateLocale;
   const { data: events, isLoading } = useGetEvents();
   const [selectedEvent, setSelectedEvent] = useState<Event | null>(null);
 
@@ -91,17 +102,15 @@ export function EvenementielView() {
         <div className="w-16 h-16 bg-muted rounded-full flex items-center justify-center mb-4">
           <Calendar className="w-8 h-8 text-muted-foreground" />
         </div>
-        <h2 className="text-xl font-bold mb-2">Aucun événement à venir</h2>
-        <p className="text-muted-foreground max-w-xs text-sm">
-          Revenez bientôt pour découvrir les prochains événements TogoMarket.
-        </p>
+        <h2 className="text-xl font-bold mb-2">{t.noEvents}</h2>
+        <p className="text-muted-foreground max-w-xs text-sm">{t.noEventsDesc}</p>
       </div>
     );
   }
 
   return (
     <div className="container mx-auto px-4 py-6 max-w-2xl">
-      <h2 className="font-bold text-lg mb-4">Événements</h2>
+      <h2 className="font-bold text-lg mb-4">{t.events}</h2>
       <div className="space-y-4">
         {events.map((event) => {
           const eventDate = new Date(event.date);
@@ -123,14 +132,14 @@ export function EvenementielView() {
                   <h3 className="font-bold text-base leading-tight">{event.title}</h3>
                   {isPast && (
                     <span className="text-[10px] px-2 py-0.5 rounded-full bg-muted text-muted-foreground flex-shrink-0">
-                      Passé
+                      {t.past}
                     </span>
                   )}
                 </div>
                 <div className="flex items-center gap-1.5 text-xs text-muted-foreground">
                   <Calendar className="w-3.5 h-3.5" />
                   <span>
-                    {eventDate.toLocaleDateString("fr-FR", {
+                    {eventDate.toLocaleDateString(locale, {
                       day: "numeric",
                       month: "long",
                       year: "numeric",
@@ -153,7 +162,7 @@ export function EvenementielView() {
                   className="mt-1"
                   onClick={() => setSelectedEvent(event)}
                 >
-                  Voir plus
+                  {t.seeMore}
                 </Button>
               </div>
             </div>
@@ -165,6 +174,8 @@ export function EvenementielView() {
         event={selectedEvent}
         open={!!selectedEvent}
         onClose={() => setSelectedEvent(null)}
+        locale={locale}
+        t={t}
       />
     </div>
   );
