@@ -60,7 +60,7 @@ router.get("/listings", async (req, res): Promise<void> => {
       res.json(GetListingsResponse.parse({ items: [], total: 0, page, hasMore: false }));
       return;
     }
-    shopVendorName = `${vendorRows[0].firstName} ${vendorRows[0].lastName}`;
+    shopVendorName = vendorRows[0].firstName;
     conditions.push(eq(listingsTable.phone, vendorRows[0].phone));
   }
 
