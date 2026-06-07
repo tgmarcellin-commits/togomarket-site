@@ -1,15 +1,15 @@
-const CACHE_NAME = "togomarket-v1";
-const STATIC_ASSETS = [
-  "/",
-  "/icon-192.png",
-  "/icon-512.png",
-  "/manifest.json"
-];
+const CACHE_NAME = "togomarket-v2";
 
 self.addEventListener("install", (event) => {
   self.skipWaiting();
   event.waitUntil(
-    caches.open(CACHE_NAME).then((cache) => cache.addAll(STATIC_ASSETS).catch(() => {}))
+    caches.open(CACHE_NAME).then((cache) =>
+      cache.addAll([
+        "/icon-192.png",
+        "/icon-512.png",
+        "/manifest.json"
+      ]).catch(() => {})
+    )
   );
 });
 
@@ -30,7 +30,18 @@ self.addEventListener("fetch", (event) => {
     return;
   }
 
-  // Pour les autres ressources : réseau d'abord, cache en fallback
+  // Ne jamais mettre en cache le HTML — toujours récupérer depuis le réseau
+  if (
+    event.request.mode === "navigate" ||
+    event.request.headers.get("accept")?.includes("text/html")
+  ) {
+    event.respondWith(
+      fetch(event.request).catch(() => caches.match("/"))
+    );
+    return;
+  }
+
+  // Pour les assets (JS/CSS/images) : réseau d'abord, cache en fallback
   event.respondWith(
     fetch(event.request)
       .then((response) => {

@@ -10,11 +10,8 @@ if (!process.env.DATABASE_URL) {
   );
 }
 
-const isProduction = process.env.NODE_ENV === "production";
-
 export const pool = new Pool({
   connectionString: process.env.DATABASE_URL,
-  ssl: isProduction ? { rejectUnauthorized: false } : false,
   keepAlive: true,
   idleTimeoutMillis: 30000,
   connectionTimeoutMillis: 10000,
