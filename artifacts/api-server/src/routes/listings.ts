@@ -49,9 +49,10 @@ router.get("/listings", async (req, res): Promise<void> => {
   const conditions: SQL[] = [eq(listingsTable.approved, true)];
   if (sector) conditions.push(eq(listingsTable.sector, sector));
   if (search) conditions.push(ilike(listingsTable.name, `%${search}%`));
+  let shopVendorName: string | undefined;
   if (shopNumber) {
     const vendorRows = await db
-      .select({ phone: vendorsTable.phone })
+      .select({ phone: vendorsTable.phone, firstName: vendorsTable.firstName, lastName: vendorsTable.lastName })
       .from(vendorsTable)
       .where(eq(vendorsTable.id, shopNumber))
       .limit(1);
@@ -59,6 +60,7 @@ router.get("/listings", async (req, res): Promise<void> => {
       res.json(GetListingsResponse.parse({ items: [], total: 0, page, hasMore: false }));
       return;
     }
+    shopVendorName = `${vendorRows[0].firstName} ${vendorRows[0].lastName}`;
     conditions.push(eq(listingsTable.phone, vendorRows[0].phone));
   }
 
@@ -83,6 +85,7 @@ router.get("/listings", async (req, res): Promise<void> => {
     total,
     page,
     hasMore: offset + listings.length < total,
+    ...(shopVendorName ? { vendorName: shopVendorName } : {}),
   }));
 });
 

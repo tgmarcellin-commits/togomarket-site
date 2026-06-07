@@ -95,7 +95,8 @@ export const GetListingsResponse = zod.object({
 })),
   "total": zod.number(),
   "page": zod.number(),
-  "hasMore": zod.boolean()
+  "hasMore": zod.boolean(),
+  "vendorName": zod.string().optional().describe('Name of the vendor when searching by shop number (present even if no listings)')
 })
 
 

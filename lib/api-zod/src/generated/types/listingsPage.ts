@@ -12,4 +12,6 @@ export interface ListingsPage {
   total: number;
   page: number;
   hasMore: boolean;
+  /** Name of the vendor when searching by shop number (present even if no listings) */
+  vendorName?: string;
 }

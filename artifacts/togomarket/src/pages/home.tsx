@@ -446,10 +446,20 @@ export default function Home() {
                 <div className="inline-flex items-center justify-center w-16 h-16 rounded-full bg-muted mb-4">
                   <Search className="w-8 h-8 text-muted-foreground" />
                 </div>
-                <h3 className="text-xl font-semibold mb-2">{shopNumber ? t.noShop : t.noListings}</h3>
+                <h3 className="text-xl font-semibold mb-2">
+                  {shopNumber
+                    ? (pageData?.vendorName
+                        ? (lang === "fr" ? `Boutique N°${shopNumber}` : `Shop #${shopNumber}`)
+                        : t.noShop)
+                    : t.noListings}
+                </h3>
                 <p className="text-muted-foreground max-w-sm mx-auto">
                   {shopNumber
-                    ? (lang === "fr" ? `Aucune boutique avec le numéro N°${shopNumber}.` : `No shop found with number #${shopNumber}.`)
+                    ? (pageData?.vendorName
+                        ? (lang === "fr"
+                            ? `La boutique de ${pageData.vendorName} n'a pas encore d'annonces publiées.`
+                            : `${pageData.vendorName}'s shop has no published listings yet.`)
+                        : (lang === "fr" ? `Aucune boutique avec le numéro N°${shopNumber}.` : `No shop found with number #${shopNumber}.`))
                     : (lang === "fr" ? "Essayez d'autres mots-clés ou commandez-le !" : "Try different keywords or place a custom order!")}
                 </p>
               </div>

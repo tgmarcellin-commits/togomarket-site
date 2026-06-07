@@ -875,6 +875,9 @@ components:
           type: integer
         hasMore:
           type: boolean
+        vendorName:
+          type: string
+          description: Name of the vendor when searching by shop number (present even if no listings)
 
     Ad:
       type: object
