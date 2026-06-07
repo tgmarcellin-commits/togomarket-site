@@ -499,18 +499,18 @@ export default function Home() {
               <path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z"/><circle cx="12" cy="10" r="3"/>
             </svg>
           </div>
-          <h2 className="text-2xl font-bold mb-3">Article introuvable ?</h2>
+          <h2 className="text-2xl font-bold mb-3">{t.introuvableTitle}</h2>
           <p className="text-muted-foreground mb-8 max-w-xs leading-relaxed">
-            Vous ne trouvez pas ce que vous cherchez ? Notre équipe le déniche pour vous dans tout le Togo !
+            {t.introuvableDesc}
           </p>
           <Button
             onClick={() => setIsOrderModalOpen(true)}
             className="h-14 px-10 text-base font-bold rounded-2xl shadow-xl bg-secondary hover:bg-secondary/90 text-white"
           >
-            Commander maintenant
+            {t.orderNow}
           </Button>
           <p className="text-xs text-muted-foreground mt-6 max-w-xs">
-            Décrivez l'article et notre équipe vous contacte sous 24h via WhatsApp.
+            {t.introuvableNote}
           </p>
         </div>
       )}

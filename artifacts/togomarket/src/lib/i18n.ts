@@ -218,6 +218,10 @@ const translations = {
     expiresOn: "Expire le",
     active: "Active",
     expired: "Expirée",
+    introuvableTitle: "Article introuvable ?",
+    introuvableDesc: "Vous ne trouvez pas ce que vous cherchez ? Notre équipe le déniche pour vous dans tout le Togo !",
+    orderNow: "Commander maintenant",
+    introuvableNote: "Décrivez l'article et notre équipe vous contacte sous 24h via WhatsApp.",
     dateLocale: "fr-FR",
   },
   en: {
@@ -437,6 +441,10 @@ const translations = {
     expiresOn: "Expires",
     active: "Active",
     expired: "Expired",
+    introuvableTitle: "Can't find an item?",
+    introuvableDesc: "Can't find what you're looking for? Our team will track it down for you anywhere in Togo!",
+    orderNow: "Order now",
+    introuvableNote: "Describe the item and our team will contact you within 24h via WhatsApp.",
     dateLocale: "en-US",
   },
 } as const;
