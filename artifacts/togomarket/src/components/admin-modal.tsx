@@ -843,6 +843,9 @@ export function AdminModal({
                             <div className="flex-1 min-w-0">
                               <div className="flex items-center gap-1.5 flex-wrap">
                                 <p className="text-sm font-semibold">{v.firstName} {v.lastName}</p>
+                                <span className="text-[10px] px-1.5 py-0.5 rounded-full font-bold bg-primary/10 text-primary border border-primary/20">
+                                  N°{v.id}
+                                </span>
                                 <span className={`text-[10px] px-1.5 py-0.5 rounded-full font-bold ${v.verified ? "bg-green-100 text-green-700" : "bg-amber-100 text-amber-700"}`}>
                                   {v.verified ? "Vérifié" : "En attente"}
                                 </span>
@@ -1178,7 +1181,7 @@ export function AdminModal({
                         <div key={ad.id} className={`border rounded-lg p-3 space-y-1.5 ${active ? "" : "opacity-60 bg-muted/30"}`}>
                           <div className="flex items-start gap-2">
                             {ad.image && (
-                              <img src={ad.image} alt={ad.advertiserName} className="w-10 h-10 rounded object-cover border flex-shrink-0" />
+                              <img src={resolveImageUrl(ad.image)} alt={ad.advertiserName} className="w-10 h-10 rounded object-cover border flex-shrink-0" />
                             )}
                             <div className="flex-1 min-w-0">
                               <div className="flex items-center gap-1.5">
