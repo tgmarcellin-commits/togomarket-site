@@ -30,7 +30,17 @@ import {
 } from "@/components/ui/form";
 import { Input } from "@/components/ui/input";
 import { useToast } from "@/hooks/use-toast";
-import { Settings, LogOut, CheckCircle, Trash2, Clock, KeyRound } from "lucide-react";
+import { Settings, LogOut, CheckCircle, Trash2, Clock, KeyRound, Store, UserPlus } from "lucide-react";
+
+function getBaseUrl(): string {
+  return import.meta.env.BASE_URL?.replace(/\/$/, "") || "";
+}
+
+interface SellerRecord {
+  id: number;
+  firstName: string;
+  phone: string;
+}
 
 const loginSchema = z.object({
   password: z.string().min(1, "Mot de passe requis"),
@@ -53,7 +63,7 @@ const COMMISSION_OPTIONS = [
   { rate: 5, label: "5% (max 5 000 FCFA pour les articles > 100 000 FCFA)" },
 ];
 
-type DashTab = "pending" | "settings";
+type DashTab = "pending" | "settings" | "sellers";
 
 export function AdminModal({
   open,
@@ -70,6 +80,76 @@ export function AdminModal({
   const [newCode, setNewCode] = useState("");
   const [viewerImages, setViewerImages] = useState<string[]>([]);
   const [viewerIndex, setViewerIndex] = useState(0);
+
+  const [sellers, setSellers] = useState<SellerRecord[]>([]);
+  const [sellersLoading, setSellersLoading] = useState(false);
+  const [newSellerFirstName, setNewSellerFirstName] = useState("");
+  const [newSellerPhone, setNewSellerPhone] = useState("");
+  const [sellerSaving, setSellerSaving] = useState(false);
+
+  const fetchSellers = async (pwd: string) => {
+    setSellersLoading(true);
+    try {
+      const base = getBaseUrl();
+      const res = await fetch(`${base}/api/admin/sellers/list`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ password: pwd }),
+      });
+      if (res.ok) {
+        const data = await res.json();
+        setSellers(data);
+      }
+    } finally {
+      setSellersLoading(false);
+    }
+  };
+
+  const handleAddSeller = async () => {
+    if (!newSellerFirstName.trim() || !newSellerPhone.trim()) {
+      toast({ title: "Champs requis", description: "Remplissez le prénom et le numéro.", variant: "destructive" });
+      return;
+    }
+    setSellerSaving(true);
+    try {
+      const base = getBaseUrl();
+      const res = await fetch(`${base}/api/admin/sellers`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ password: storedPassword, firstName: newSellerFirstName.trim(), phone: newSellerPhone.trim() }),
+      });
+      if (res.ok) {
+        const seller = await res.json();
+        setSellers((prev) => [...prev, seller]);
+        setNewSellerFirstName("");
+        setNewSellerPhone("");
+        toast({ title: `Boutique N°${seller.id} créée`, description: `Vendeur : ${seller.firstName}` });
+      } else {
+        const err = await res.json();
+        toast({ title: "Erreur", description: err.error ?? "Impossible de créer.", variant: "destructive" });
+      }
+    } finally {
+      setSellerSaving(false);
+    }
+  };
+
+  const handleDeleteSeller = async (id: number) => {
+    if (!confirm(`Supprimer la boutique N°${id} ?`)) return;
+    try {
+      const base = getBaseUrl();
+      const res = await fetch(`${base}/api/admin/sellers/delete`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ password: storedPassword, id }),
+      });
+      if (res.ok) {
+        setSellers((prev) => prev.filter((s) => s.id !== id));
+        toast({ title: "Boutique supprimée" });
+      }
+    } catch {
+      toast({ title: "Erreur", description: "Impossible de supprimer.", variant: "destructive" });
+    }
+  };
 
   const openViewer = (images: string[], index: number) => {
     setViewerImages(images);
@@ -123,6 +203,7 @@ export function AdminModal({
                 onError: () => setPendingLoading(false),
               }
             );
+            fetchSellers(data.password);
           } else {
             form.setError("password", { message: "Mot de passe incorrect" });
           }
@@ -259,6 +340,15 @@ export function AdminModal({
                 )}
               </button>
               <button
+                onClick={() => { setTab("sellers"); fetchSellers(storedPassword); }}
+                className={`flex-1 py-2 text-sm font-medium flex items-center justify-center gap-1.5 transition-colors ${
+                  tab === "sellers" ? "bg-primary text-primary-foreground" : "bg-background hover:bg-muted"
+                }`}
+              >
+                <Store className="w-4 h-4" />
+                Boutiques
+              </button>
+              <button
                 onClick={() => setTab("settings")}
                 className={`flex-1 py-2 text-sm font-medium flex items-center justify-center gap-1.5 transition-colors ${
                   tab === "settings" ? "bg-primary text-primary-foreground" : "bg-background hover:bg-muted"
@@ -333,6 +423,71 @@ export function AdminModal({
                       </div>
                     </div>
                   ))
+                )}
+              </div>
+            )}
+
+            {/* Tab: Boutiques / Vendeurs */}
+            {tab === "sellers" && (
+              <div className="space-y-4">
+                {/* Add seller form */}
+                <div className="border rounded-lg p-3 space-y-2 bg-muted/30">
+                  <p className="text-sm font-semibold flex items-center gap-1">
+                    <UserPlus className="w-4 h-4" /> Ajouter un vendeur
+                  </p>
+                  <div className="flex gap-2">
+                    <Input
+                      placeholder="Prénom du vendeur"
+                      value={newSellerFirstName}
+                      onChange={(e) => setNewSellerFirstName(e.target.value)}
+                      className="flex-1"
+                    />
+                    <Input
+                      placeholder="Numéro WhatsApp"
+                      value={newSellerPhone}
+                      onChange={(e) => setNewSellerPhone(e.target.value)}
+                      className="flex-1"
+                    />
+                  </div>
+                  <Button
+                    onClick={handleAddSeller}
+                    disabled={sellerSaving}
+                    className="w-full"
+                    size="sm"
+                  >
+                    {sellerSaving ? "Ajout..." : "Créer la boutique"}
+                  </Button>
+                </div>
+
+                {/* Sellers list */}
+                {sellersLoading ? (
+                  <p className="text-sm text-center text-muted-foreground py-4">Chargement...</p>
+                ) : sellers.length === 0 ? (
+                  <div className="text-center py-6 text-muted-foreground">
+                    <Store className="w-8 h-8 mx-auto mb-2 opacity-40" />
+                    <p className="text-sm">Aucune boutique enregistrée</p>
+                  </div>
+                ) : (
+                  <div className="space-y-2">
+                    {sellers.map((s) => (
+                      <div key={s.id} className="flex items-center justify-between border rounded-lg px-3 py-2">
+                        <div>
+                          <p className="text-sm font-semibold">
+                            N°{s.id} — {s.firstName}
+                          </p>
+                          <p className="text-xs text-muted-foreground">{s.phone}</p>
+                        </div>
+                        <Button
+                          variant="destructive"
+                          size="sm"
+                          onClick={() => handleDeleteSeller(s.id)}
+                          className="h-7 px-2"
+                        >
+                          <Trash2 className="w-3.5 h-3.5" />
+                        </Button>
+                      </div>
+                    ))}
+                  </div>
                 )}
               </div>
             )}
