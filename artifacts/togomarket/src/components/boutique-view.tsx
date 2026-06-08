@@ -20,7 +20,7 @@ import {
   DialogFooter,
 } from "@/components/ui/dialog";
 import { useToast } from "@/hooks/use-toast";
-import { UserCircle2, Package, Clock, Trash2, Pencil, LogIn, Store, Bell } from "lucide-react";
+import { UserCircle2, Package, Clock, Trash2, Pencil, LogIn, Store, Bell, Copy, Check, Link2 } from "lucide-react";
 import { resolveImageUrl } from "@/lib/image";
 import { useSiteSettings } from "@/lib/site-settings";
 import { useT } from "@/lib/i18n";
@@ -84,6 +84,7 @@ export function BoutiqueView({ vendor, vendorPassword, onNeedLogin }: BoutiqueVi
 
   const [listings, setListings] = useState<Listing[] | null>(null);
   const [isLoading, setIsLoading] = useState(false);
+  const [copied, setCopied] = useState(false);
   const [deleteTarget, setDeleteTarget] = useState<Listing | null>(null);
   const [priceTarget, setPriceTarget] = useState<Listing | null>(null);
   const [newPrice, setNewPrice] = useState("");
@@ -191,6 +192,38 @@ export function BoutiqueView({ vendor, vendorPassword, onNeedLogin }: BoutiqueVi
           <p className="text-sm text-muted-foreground">{vendor.phone}</p>
         </div>
       </div>
+
+      {/* Lien partageable de la boutique */}
+      {(() => {
+        const shopUrl = `${window.location.origin}/?shopNumber=${vendor.id}`;
+        const handleCopy = () => {
+          navigator.clipboard.writeText(shopUrl).then(() => {
+            setCopied(true);
+            toast({ title: t.shopLinkCopied });
+            setTimeout(() => setCopied(false), 2000);
+          });
+        };
+        return (
+          <div className="rounded-xl border bg-card p-3 mb-4">
+            <div className="flex items-center gap-2 mb-1.5">
+              <Link2 className="w-3.5 h-3.5 text-primary flex-shrink-0" />
+              <span className="text-xs font-semibold text-primary">{t.shopLinkLabel}</span>
+            </div>
+            <div className="flex items-center gap-2">
+              <p className="text-xs text-muted-foreground truncate flex-1 font-mono bg-muted rounded px-2 py-1.5">
+                {shopUrl}
+              </p>
+              <button
+                onClick={handleCopy}
+                className="flex-shrink-0 w-8 h-8 rounded-lg bg-primary text-primary-foreground flex items-center justify-center hover:bg-primary/90 transition-colors"
+              >
+                {copied ? <Check className="w-4 h-4" /> : <Copy className="w-4 h-4" />}
+              </button>
+            </div>
+            <p className="text-[11px] text-muted-foreground mt-1.5">{t.shopLinkDesc}</p>
+          </div>
+        );
+      })()}
 
       {/* Notification demandes de contact */}
       {contactStats.some((s) => s.count > 0) && (
