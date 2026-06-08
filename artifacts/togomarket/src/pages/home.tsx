@@ -1,4 +1,5 @@
 import { useState, useRef, useEffect, useCallback, useMemo } from "react";
+import { shopTokenToVendorId } from "@/lib/shop-token";
 import { openWhatsApp } from "@/lib/whatsapp";
 import {
   useGetListings,
@@ -86,6 +87,25 @@ export default function Home() {
     if (session) {
       setVendor(session.vendor);
       setVendorPassword(session.password);
+    }
+  }, []);
+
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    const shopToken = params.get("shop");
+    const legacyNum = params.get("shopNumber");
+    if (shopToken) {
+      const id = shopTokenToVendorId(shopToken);
+      if (id !== null && id > 0) {
+        setShopNumber(id);
+        setSearchMode("boutique");
+      }
+    } else if (legacyNum) {
+      const id = parseInt(legacyNum, 10);
+      if (!isNaN(id) && id > 0) {
+        setShopNumber(id);
+        setSearchMode("boutique");
+      }
     }
   }, []);
 

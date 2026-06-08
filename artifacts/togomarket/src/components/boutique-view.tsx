@@ -22,6 +22,7 @@ import {
 import { useToast } from "@/hooks/use-toast";
 import { UserCircle2, Package, Clock, Trash2, Pencil, LogIn, Store, Bell, Copy, Check, Link2 } from "lucide-react";
 import { resolveImageUrl } from "@/lib/image";
+import { vendorIdToShopToken } from "@/lib/shop-token";
 import { useSiteSettings } from "@/lib/site-settings";
 import { useT } from "@/lib/i18n";
 
@@ -195,7 +196,7 @@ export function BoutiqueView({ vendor, vendorPassword, onNeedLogin }: BoutiqueVi
 
       {/* Lien partageable de la boutique */}
       {(() => {
-        const shopUrl = `${window.location.origin}/?shopNumber=${vendor.id}`;
+        const shopUrl = `${window.location.origin}/?shop=${vendorIdToShopToken(vendor.id)}`;
         const handleCopy = () => {
           navigator.clipboard.writeText(shopUrl).then(() => {
             setCopied(true);
