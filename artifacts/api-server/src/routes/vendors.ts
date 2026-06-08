@@ -408,6 +408,47 @@ router.post("/vendors/profile/change-password", async (req, res) => {
   }
 });
 
+router.get("/vendors/shop-status", async (req, res) => {
+  const vendorId = parseInt(String(req.query.vendorId ?? ""), 10);
+  const code = String(req.query.code ?? "");
+
+  if (isNaN(vendorId) || vendorId <= 0 || !code) {
+    return res.status(400).json({ error: "Paramètres manquants ou invalides" });
+  }
+
+  try {
+    const codeRows = await db
+      .select()
+      .from(publishCodesTable)
+      .where(and(eq(publishCodesTable.vendorId, vendorId), eq(publishCodesTable.code, code)))
+      .orderBy(desc(publishCodesTable.endDate))
+      .limit(1);
+
+    if (codeRows.length === 0) {
+      return res.json({ active: false, exists: false });
+    }
+
+    const now = new Date();
+    const isActive = codeRows[0].endDate > now;
+
+    const vendorRows = await db
+      .select({ firstName: vendorsTable.firstName })
+      .from(vendorsTable)
+      .where(eq(vendorsTable.id, vendorId))
+      .limit(1);
+
+    return res.json({
+      active: isActive,
+      exists: true,
+      vendorId,
+      firstName: vendorRows[0]?.firstName ?? null,
+    });
+  } catch (err) {
+    req.log.error({ err }, "Failed to check shop status");
+    return res.status(500).json({ error: "Erreur interne" });
+  }
+});
+
 router.post("/admin/vendors/delete", async (req, res) => {
   const parsed = AdminDeleteVendorBody.safeParse(req.body);
   if (!parsed.success) {

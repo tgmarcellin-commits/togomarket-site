@@ -309,6 +309,14 @@ export interface AdminContactStat {
   count: number;
 }
 
+export interface ShopStatusResponse {
+  active: boolean;
+  exists: boolean;
+  vendorId?: number;
+  /** @nullable */
+  firstName?: string | null;
+}
+
 export type GetListingsParams = {
 sector?: string;
 search?: string;
@@ -325,5 +333,10 @@ limit?: number;
  * @minimum 1
  */
 shopNumber?: number;
+};
+
+export type GetShopStatusParams = {
+vendorId: number;
+code: string;
 };
 

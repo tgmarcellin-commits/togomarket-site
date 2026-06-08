@@ -501,6 +501,32 @@ paths:
         "409":
           description: Phone number already registered
 
+  /vendors/shop-status:
+    get:
+      operationId: getShopStatus
+      tags: [vendors]
+      summary: Check whether a shop link (publish code) is still active
+      parameters:
+        - name: vendorId
+          in: query
+          required: true
+          schema:
+            type: integer
+        - name: code
+          in: query
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Shop status
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ShopStatusResponse"
+        "400":
+          description: Missing or invalid parameters
+
   /vendors/login:
     post:
       operationId: vendorLogin
@@ -1397,3 +1423,16 @@ components:
           type: string
         count:
           type: integer
+
+    ShopStatusResponse:
+      type: object
+      required: [active, exists]
+      properties:
+        active:
+          type: boolean
+        exists:
+          type: boolean
+        vendorId:
+          type: integer
+        firstName:
+          type: ["string", "null"]

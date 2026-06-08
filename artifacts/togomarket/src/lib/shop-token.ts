@@ -1,17 +1,42 @@
 /**
- * Encodes/decodes a vendor ID as an opaque hex token.
- * Uses XOR with a fixed key so the token looks like a hash,
- * not a sequential number or a 4-digit code.
- * Key = 0x54474F4D  ("TGOM" in ASCII)
+ * Shop link token encoding.
+ * Format: base64url("vendorId:publishCode")
+ * e.g. vendorId=5, code="4567" → btoa("5:4567") → "NTo0NTY3"
+ *
+ * The token is opaque — neither the ID nor the code is readable.
+ * The link expires when the publish code expires.
+ * Legacy ?shopNumber= (integer) links are handled separately in home.tsx.
  */
-const KEY = 0x54474f4d;
 
-export function vendorIdToShopToken(id: number): string {
-  return ((id ^ KEY) >>> 0).toString(16).padStart(8, "0");
+function toBase64Url(s: string): string {
+  return btoa(s).replace(/\+/g, "-").replace(/\//g, "_").replace(/=/g, "");
 }
 
-export function shopTokenToVendorId(token: string): number | null {
-  if (!/^[0-9a-f]{8}$/i.test(token)) return null;
-  const xored = parseInt(token, 16);
-  return (xored ^ KEY) >>> 0;
+function fromBase64Url(s: string): string {
+  const b64 = s.replace(/-/g, "+").replace(/_/g, "/");
+  const padded = b64 + "=".repeat((4 - (b64.length % 4)) % 4);
+  return atob(padded);
+}
+
+export interface ShopToken {
+  vendorId: number;
+  code: string;
+}
+
+export function encodeShopToken(vendorId: number, code: string): string {
+  return toBase64Url(`${vendorId}:${code}`);
+}
+
+export function decodeShopToken(token: string): ShopToken | null {
+  try {
+    const decoded = fromBase64Url(token);
+    const colon = decoded.indexOf(":");
+    if (colon < 1) return null;
+    const vendorId = parseInt(decoded.slice(0, colon), 10);
+    const code = decoded.slice(colon + 1);
+    if (isNaN(vendorId) || vendorId <= 0 || !code) return null;
+    return { vendorId, code };
+  } catch {
+    return null;
+  }
 }

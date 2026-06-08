@@ -353,6 +353,22 @@ export const VendorRegisterBody = zod.object({
 
 
 /**
+ * @summary Check whether a shop link (publish code) is still active
+ */
+export const GetShopStatusQueryParams = zod.object({
+  "vendorId": zod.coerce.number(),
+  "code": zod.coerce.string()
+})
+
+export const GetShopStatusResponse = zod.object({
+  "active": zod.boolean(),
+  "exists": zod.boolean(),
+  "vendorId": zod.number().optional(),
+  "firstName": zod.string().nullish()
+})
+
+
+/**
  * @summary Login as a vendor
  */
 export const VendorLoginBody = zod.object({

@@ -1,5 +1,5 @@
 import { useState, useRef, useEffect, useCallback, useMemo } from "react";
-import { shopTokenToVendorId } from "@/lib/shop-token";
+import { decodeShopToken } from "@/lib/shop-token";
 import { openWhatsApp } from "@/lib/whatsapp";
 import {
   useGetListings,
@@ -9,7 +9,7 @@ import {
   type VendorProfile,
   type Listing,
 } from "@workspace/api-client-react";
-import { Search, SearchIcon, LogIn, UserCircle2, Settings } from "lucide-react";
+import { Search, SearchIcon, LogIn, UserCircle2, Settings, Link2Off } from "lucide-react";
 import { useSiteSettings } from "@/lib/site-settings";
 import { useT } from "@/lib/i18n";
 import { Button } from "@/components/ui/button";
@@ -63,6 +63,7 @@ export default function Home() {
   const [searchMode, setSearchMode] = useState<"article" | "boutique">("article");
   const [shopNumberInput, setShopNumberInput] = useState("");
   const [shopNumber, setShopNumber] = useState<number | undefined>(undefined);
+  const [shopLinkExpired, setShopLinkExpired] = useState(false);
 
   const [isPublishModalOpen, setIsPublishModalOpen] = useState(false);
   const [isOrderModalOpen, setIsOrderModalOpen] = useState(false);
@@ -95,10 +96,24 @@ export default function Home() {
     const shopToken = params.get("shop");
     const legacyNum = params.get("shopNumber");
     if (shopToken) {
-      const id = shopTokenToVendorId(shopToken);
-      if (id !== null && id > 0) {
-        setShopNumber(id);
-        setSearchMode("boutique");
+      const parsed = decodeShopToken(shopToken);
+      if (parsed) {
+        fetch(`/api/vendors/shop-status?vendorId=${parsed.vendorId}&code=${encodeURIComponent(parsed.code)}`)
+          .then((r) => r.json())
+          .then((status: { active: boolean; exists: boolean }) => {
+            if (status.active) {
+              setShopNumber(parsed.vendorId);
+              setSearchMode("boutique");
+            } else {
+              setShopLinkExpired(true);
+            }
+          })
+          .catch(() => {
+            setShopNumber(parsed.vendorId);
+            setSearchMode("boutique");
+          });
+      } else {
+        setShopLinkExpired(true);
       }
     } else if (legacyNum) {
       const id = parseInt(legacyNum, 10);
@@ -416,7 +431,26 @@ export default function Home() {
 
           {/* Main Content */}
           <main className="container mx-auto px-4 py-8 flex-grow">
-            {isLoading ? (
+            {shopLinkExpired ? (
+              <div className="flex flex-col items-center justify-center py-24 text-center gap-6">
+                <div className="inline-flex items-center justify-center w-16 h-16 rounded-full bg-destructive/10">
+                  <Link2Off className="w-8 h-8 text-destructive" />
+                </div>
+                <div>
+                  <h3 className="text-xl font-semibold mb-2">{t.shopExpiredTitle}</h3>
+                  <p className="text-muted-foreground max-w-sm mx-auto text-sm">{t.shopExpiredMsg}</p>
+                </div>
+                <Button
+                  onClick={() => {
+                    setShopLinkExpired(false);
+                    setSearchMode("article");
+                  }}
+                  className="rounded-full px-8"
+                >
+                  {t.goToMarketplace}
+                </Button>
+              </div>
+            ) : isLoading ? (
               <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
                 {[1, 2, 3, 4, 5, 6].map((n) => (
                   <div

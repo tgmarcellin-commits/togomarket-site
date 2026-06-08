@@ -38,6 +38,7 @@ import type {
   ErrorEnvelope,
   Event,
   GetListingsParams,
+  GetShopStatusParams,
   HealthStatus,
   Listing,
   ListingInput,
@@ -46,6 +47,7 @@ import type {
   Order,
   OrderInput,
   PlatformSettings,
+  ShopStatusResponse,
   StorageCleanupResult,
   SuccessResult,
   UpdateSettingsInput,
@@ -1685,6 +1687,90 @@ export const useVendorRegister = <TError = ErrorType<void>,
       > => {
       return useMutation(getVendorRegisterMutationOptions(options));
     }
+
+export const getGetShopStatusUrl = (params: GetShopStatusParams,) => {
+  const normalizedParams = new URLSearchParams();
+
+  Object.entries(params || {}).forEach(([key, value]) => {
+
+    if (value !== undefined) {
+      normalizedParams.append(key, value === null ? 'null' : value.toString())
+    }
+  });
+
+  const stringifiedParams = normalizedParams.toString();
+
+  return stringifiedParams.length > 0 ? `/api/vendors/shop-status?${stringifiedParams}` : `/api/vendors/shop-status`
+}
+
+/**
+ * @summary Check whether a shop link (publish code) is still active
+ */
+export const getShopStatus = async (params: GetShopStatusParams, options?: RequestInit): Promise<ShopStatusResponse> => {
+
+  return customFetch<ShopStatusResponse>(getGetShopStatusUrl(params),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getGetShopStatusQueryKey = (params?: GetShopStatusParams,) => {
+    return [
+    `/api/vendors/shop-status`, ...(params ? [params] : [])
+    ] as const;
+    }
+
+
+export const getGetShopStatusQueryOptions = <TData = Awaited<ReturnType<typeof getShopStatus>>, TError = ErrorType<void>>(params: GetShopStatusParams, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getShopStatus>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getGetShopStatusQueryKey(params);
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof getShopStatus>>> = ({ signal }) => getShopStatus(params, { signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof getShopStatus>>, TError, TData> & { queryKey: QueryKey }
+}
+
+export type GetShopStatusQueryResult = NonNullable<Awaited<ReturnType<typeof getShopStatus>>>
+export type GetShopStatusQueryError = ErrorType<void>
+
+
+/**
+ * @summary Check whether a shop link (publish code) is still active
+ */
+
+export function useGetShopStatus<TData = Awaited<ReturnType<typeof getShopStatus>>, TError = ErrorType<void>>(
+ params: GetShopStatusParams, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getShopStatus>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+
+ ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+
+  const queryOptions = getGetShopStatusQueryOptions(params,options)
+
+  const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
+
+  return { ...query, queryKey: queryOptions.queryKey };
+}
+
+
+
+
+
+
 
 export const getVendorLoginUrl = () => {
 
