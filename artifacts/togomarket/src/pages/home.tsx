@@ -516,6 +516,18 @@ export default function Home() {
                         : (lang === "fr" ? `Aucune boutique avec le numéro N°${shopNumber}.` : `No shop found with number #${shopNumber}.`))
                     : (lang === "fr" ? "Essayez d'autres mots-clés ou commandez-le !" : "Try different keywords or place a custom order!")}
                 </p>
+                {shopNumber && (
+                  <Button
+                    variant="outline"
+                    className="mt-6 rounded-full px-8"
+                    onClick={() => {
+                      setShopNumber(undefined);
+                      setSearchMode("article");
+                    }}
+                  >
+                    {t.goToMarketplace}
+                  </Button>
+                )}
               </div>
             )}
           </main>

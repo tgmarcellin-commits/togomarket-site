@@ -197,6 +197,8 @@ export function BoutiqueView({ vendor, vendorPassword, onNeedLogin }: BoutiqueVi
       {/* Lien partageable de la boutique */}
       {vendor.publishCode ? (() => {
         const shopUrl = `${window.location.origin}/?shop=${encodeShopToken(vendor.id, vendor.publishCode.code)}`;
+        const daysLeft = vendor.publishCode.daysLeft;
+        const isExpired = daysLeft <= 0;
         const handleCopy = () => {
           navigator.clipboard.writeText(shopUrl).then(() => {
             setCopied(true);
@@ -205,23 +207,45 @@ export function BoutiqueView({ vendor, vendorPassword, onNeedLogin }: BoutiqueVi
           });
         };
         return (
-          <div className="rounded-xl border bg-card p-3 mb-4">
-            <div className="flex items-center gap-2 mb-1.5">
-              <Link2 className="w-3.5 h-3.5 text-primary flex-shrink-0" />
-              <span className="text-xs font-semibold text-primary">{t.shopLinkLabel}</span>
+          <div className={`rounded-xl border p-3 mb-4 ${isExpired ? "border-destructive/30 bg-destructive/5" : "bg-card"}`}>
+            <div className="flex items-center justify-between mb-1.5">
+              <div className="flex items-center gap-2">
+                <Link2 className={`w-3.5 h-3.5 flex-shrink-0 ${isExpired ? "text-destructive" : "text-primary"}`} />
+                <span className={`text-xs font-semibold ${isExpired ? "text-destructive" : "text-primary"}`}>{t.shopLinkLabel}</span>
+              </div>
+              <span className={`text-[10px] font-semibold px-2 py-0.5 rounded-full ${
+                isExpired
+                  ? "bg-destructive/15 text-destructive"
+                  : daysLeft <= 3
+                    ? "bg-orange-100 text-orange-700 dark:bg-orange-900/30 dark:text-orange-400"
+                    : "bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400"
+              }`}>
+                {isExpired
+                  ? t.shopLinkExpiredBadge
+                  : daysLeft === 0
+                    ? t.shopLinkExpiresToday
+                    : t.shopLinkExpiresIn(daysLeft)}
+              </span>
             </div>
-            <div className="flex items-center gap-2">
-              <p className="text-xs text-muted-foreground truncate flex-1 font-mono bg-muted rounded px-2 py-1.5">
-                {shopUrl}
-              </p>
-              <button
-                onClick={handleCopy}
-                className="flex-shrink-0 w-8 h-8 rounded-lg bg-primary text-primary-foreground flex items-center justify-center hover:bg-primary/90 transition-colors"
-              >
-                {copied ? <Check className="w-4 h-4" /> : <Copy className="w-4 h-4" />}
-              </button>
-            </div>
-            <p className="text-[11px] text-muted-foreground mt-1.5">{t.shopLinkDesc}</p>
+            {!isExpired && (
+              <>
+                <div className="flex items-center gap-2">
+                  <p className="text-xs text-muted-foreground truncate flex-1 font-mono bg-muted rounded px-2 py-1.5">
+                    {shopUrl}
+                  </p>
+                  <button
+                    onClick={handleCopy}
+                    className="flex-shrink-0 w-8 h-8 rounded-lg bg-primary text-primary-foreground flex items-center justify-center hover:bg-primary/90 transition-colors"
+                  >
+                    {copied ? <Check className="w-4 h-4" /> : <Copy className="w-4 h-4" />}
+                  </button>
+                </div>
+                <p className="text-[11px] text-muted-foreground mt-1.5">{t.shopLinkDesc}</p>
+              </>
+            )}
+            {isExpired && (
+              <p className="text-[11px] text-muted-foreground mt-0.5">{t.shopNoCode}</p>
+            )}
           </div>
         );
       })() : (
