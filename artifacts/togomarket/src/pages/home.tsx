@@ -494,6 +494,20 @@ export default function Home() {
                     </Button>
                   </div>
                 )}
+                {shopNumber && (
+                  <div className="flex justify-center mt-8">
+                    <Button
+                      variant="outline"
+                      className="rounded-full px-8"
+                      onClick={() => {
+                        setShopNumber(undefined);
+                        setSearchMode("article");
+                      }}
+                    >
+                      {t.goToMarketplace}
+                    </Button>
+                  </div>
+                )}
               </>
             ) : (
               <div className="text-center py-20">
