@@ -2,6 +2,7 @@ import { Router, type IRouter } from "express";
 import { eq, desc, and, gt } from "drizzle-orm";
 import bcrypt from "bcryptjs";
 import { db, vendorsTable, publishCodesTable } from "@workspace/db";
+import { normalizePhone, phoneEq } from "../lib/phone";
 import {
   VendorRegisterBody,
   VendorLoginBody,
@@ -59,12 +60,13 @@ router.post("/vendors/register", async (req, res) => {
   if (!parsed.success) {
     return res.status(400).json({ error: parsed.error.message });
   }
-  const { firstName, lastName, phone, password } = parsed.data;
+  const { firstName, lastName, password } = parsed.data;
+  const phone = normalizePhone(parsed.data.phone);
 
   const existing = await db
     .select({ id: vendorsTable.id })
     .from(vendorsTable)
-    .where(eq(vendorsTable.phone, phone))
+    .where(phoneEq(vendorsTable.phone, phone))
     .limit(1);
 
   if (existing.length > 0) {
@@ -93,12 +95,13 @@ router.post("/vendors/login", async (req, res) => {
   if (!parsed.success) {
     return res.status(400).json({ error: parsed.error.message });
   }
-  const { phone, password } = parsed.data;
+  const phone = normalizePhone(parsed.data.phone);
+  const { password } = parsed.data;
 
   const vendors = await db
     .select()
     .from(vendorsTable)
-    .where(eq(vendorsTable.phone, phone))
+    .where(phoneEq(vendorsTable.phone, phone))
     .limit(1);
 
   if (vendors.length === 0) {
@@ -125,12 +128,13 @@ router.post("/vendors/profile/update", async (req, res) => {
   if (!parsed.success) {
     return res.status(400).json({ error: parsed.error.message });
   }
-  const { phone, password, profilePhoto } = parsed.data;
+  const phone = normalizePhone(parsed.data.phone);
+  const { password, profilePhoto } = parsed.data;
 
   const vendors = await db
     .select()
     .from(vendorsTable)
-    .where(eq(vendorsTable.phone, phone))
+    .where(phoneEq(vendorsTable.phone, phone))
     .limit(1);
 
   if (vendors.length === 0) {
@@ -274,7 +278,8 @@ router.post("/admin/vendors/generate-code", async (req, res) => {
 });
 
 router.post("/vendors/listings", async (req, res) => {
-  const { phone, password } = req.body;
+  const { password } = req.body;
+  const phone = normalizePhone(String(req.body.phone ?? ""));
   if (!phone || !password) {
     return res.status(400).json({ error: "Champs requis manquants" });
   }
@@ -282,7 +287,7 @@ router.post("/vendors/listings", async (req, res) => {
   const vendors = await db
     .select()
     .from(vendorsTable)
-    .where(eq(vendorsTable.phone, phone))
+    .where(phoneEq(vendorsTable.phone, phone))
     .limit(1);
 
   if (vendors.length === 0) {
@@ -324,7 +329,8 @@ router.post("/vendors/listings", async (req, res) => {
 });
 
 router.post("/vendors/profile/update-name", async (req, res) => {
-  const { phone, password, firstName, lastName } = req.body;
+  const { password, firstName, lastName } = req.body;
+  const phone = normalizePhone(String(req.body.phone ?? ""));
   if (!phone || !password || !firstName?.trim() || !lastName?.trim()) {
     return res.status(400).json({ error: "Champs requis manquants" });
   }
@@ -332,7 +338,7 @@ router.post("/vendors/profile/update-name", async (req, res) => {
   const vendors = await db
     .select()
     .from(vendorsTable)
-    .where(eq(vendorsTable.phone, phone))
+    .where(phoneEq(vendorsTable.phone, phone))
     .limit(1);
 
   if (vendors.length === 0) {
@@ -362,7 +368,8 @@ router.post("/vendors/profile/update-name", async (req, res) => {
 });
 
 router.post("/vendors/profile/change-password", async (req, res) => {
-  const { phone, oldPassword, newPassword } = req.body;
+  const { oldPassword, newPassword } = req.body;
+  const phone = normalizePhone(String(req.body.phone ?? ""));
   if (!phone || !oldPassword || !newPassword) {
     return res.status(400).json({ error: "Champs requis manquants" });
   }
@@ -373,7 +380,7 @@ router.post("/vendors/profile/change-password", async (req, res) => {
   const vendors = await db
     .select()
     .from(vendorsTable)
-    .where(eq(vendorsTable.phone, phone))
+    .where(phoneEq(vendorsTable.phone, phone))
     .limit(1);
 
   if (vendors.length === 0) {

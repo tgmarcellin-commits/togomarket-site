@@ -1,5 +1,6 @@
 import { Router, type IRouter } from "express";
 import { eq, ilike, and, gt, desc, sql, type SQL } from "drizzle-orm";
+import { normalizePhone, phoneEq } from "../lib/phone";
 import bcrypt from "bcryptjs";
 import { db, listingsTable, vendorsTable, publishCodesTable } from "@workspace/db";
 import {
@@ -97,12 +98,13 @@ router.post("/listings", async (req, res): Promise<void> => {
     return;
   }
 
-  const { vendorPhone, vendorPassword, vendorPublishCode } = parsed.data;
+  const vendorPhone = normalizePhone(parsed.data.vendorPhone);
+  const { vendorPassword, vendorPublishCode } = parsed.data;
 
   const vendors = await db
     .select()
     .from(vendorsTable)
-    .where(eq(vendorsTable.phone, vendorPhone))
+    .where(phoneEq(vendorsTable.phone, vendorPhone))
     .limit(1);
 
   if (vendors.length === 0) {
@@ -153,7 +155,8 @@ router.post("/listings", async (req, res): Promise<void> => {
 });
 
 router.post("/listings/update-price", async (req, res): Promise<void> => {
-  const { id, phone, password, newPrice } = req.body;
+  const { id, password, newPrice } = req.body;
+  const phone = normalizePhone(String(req.body.phone ?? ""));
   if (!id || !phone || !password || newPrice === undefined) {
     res.status(400).json({ error: "Champs requis manquants" });
     return;
@@ -162,7 +165,7 @@ router.post("/listings/update-price", async (req, res): Promise<void> => {
   const vendors = await db
     .select()
     .from(vendorsTable)
-    .where(eq(vendorsTable.phone, phone))
+    .where(phoneEq(vendorsTable.phone, phone))
     .limit(1);
 
   if (vendors.length === 0) {
@@ -204,7 +207,8 @@ router.post("/listings/update-price", async (req, res): Promise<void> => {
 });
 
 router.post("/listings/vendor-delete", async (req, res): Promise<void> => {
-  const { id, phone, password } = req.body;
+  const { id, password } = req.body;
+  const phone = normalizePhone(String(req.body.phone ?? ""));
   if (!id || !phone || !password) {
     res.status(400).json({ error: "Champs requis manquants" });
     return;
@@ -213,7 +217,7 @@ router.post("/listings/vendor-delete", async (req, res): Promise<void> => {
   const vendors = await db
     .select()
     .from(vendorsTable)
-    .where(eq(vendorsTable.phone, phone))
+    .where(phoneEq(vendorsTable.phone, phone))
     .limit(1);
 
   if (vendors.length === 0) {

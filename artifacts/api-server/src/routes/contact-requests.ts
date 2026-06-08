@@ -2,6 +2,7 @@ import { Router, type IRouter } from "express";
 import { eq, sql } from "drizzle-orm";
 import { db, contactRequestsTable, listingsTable, vendorsTable } from "@workspace/db";
 import bcrypt from "bcryptjs";
+import { normalizePhone, phoneEq } from "../lib/phone";
 
 const router: IRouter = Router();
 const ADMIN_PASSWORD = process.env.ADMIN_PASSWORD ?? "17210";
@@ -32,13 +33,14 @@ router.post("/contact-requests", async (req, res) => {
 });
 
 router.post("/vendor/contact-requests", async (req, res) => {
-  const { phone, password } = req.body;
+  const { password } = req.body;
+  const phone = normalizePhone(String(req.body.phone ?? ""));
   if (!phone || !password) return res.status(400).json({ error: "Champs requis" });
   try {
     const [vendor] = await db
       .select()
       .from(vendorsTable)
-      .where(eq(vendorsTable.phone, phone));
+      .where(phoneEq(vendorsTable.phone, phone));
     if (!vendor) return res.status(403).json({ error: "Compte introuvable" });
     const valid = await bcrypt.compare(password, vendor.passwordHash);
     if (!valid) return res.status(403).json({ error: "Mot de passe incorrect" });
@@ -51,7 +53,7 @@ router.post("/vendor/contact-requests", async (req, res) => {
       })
       .from(listingsTable)
       .leftJoin(contactRequestsTable, eq(contactRequestsTable.listingId, listingsTable.id))
-      .where(eq(listingsTable.phone, phone))
+      .where(eq(listingsTable.phone, vendor.phone))
       .groupBy(listingsTable.id, listingsTable.name);
 
     return res.json(stats);
