@@ -10,4 +10,5 @@ export interface PlatformSettings {
   commissionRate: number;
   whatsappCommission: string;
   whatsappOrders: string;
+  subAdminPassword: string;
 }

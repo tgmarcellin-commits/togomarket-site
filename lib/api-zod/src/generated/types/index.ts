@@ -37,6 +37,8 @@ export * from './platformSettings';
 export * from './sectorStat';
 export * from './shopStatusResponse';
 export * from './storageCleanupResult';
+export * from './subAdminVerifyInput';
+export * from './subAdminVerifyResponse';
 export * from './successResult';
 export * from './updateSettingsInput';
 export * from './uploadUrlRequest';

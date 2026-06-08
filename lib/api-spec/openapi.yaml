@@ -387,6 +387,25 @@ paths:
         "403":
           description: Forbidden
 
+  /admin/sub-admin-verify:
+    post:
+      operationId: verifySubAdmin
+      tags: [admin]
+      summary: Verify sub-admin password
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/SubAdminVerifyInput"
+      responses:
+        "200":
+          description: Verification result
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/SubAdminVerifyResponse"
+
   /ads:
     get:
       operationId: getActiveAds
@@ -1200,13 +1219,15 @@ components:
 
     PlatformSettings:
       type: object
-      required: [commissionRate, whatsappCommission, whatsappOrders]
+      required: [commissionRate, whatsappCommission, whatsappOrders, subAdminPassword]
       properties:
         commissionRate:
           type: integer
         whatsappCommission:
           type: string
         whatsappOrders:
+          type: string
+        subAdminPassword:
           type: string
 
     UpdateSettingsInput:
@@ -1221,6 +1242,22 @@ components:
           type: string
         whatsappOrders:
           type: string
+        subAdminPassword:
+          type: string
+
+    SubAdminVerifyInput:
+      type: object
+      required: [password]
+      properties:
+        password:
+          type: string
+
+    SubAdminVerifyResponse:
+      type: object
+      required: [valid]
+      properties:
+        valid:
+          type: boolean
 
     MarketStats:
       type: object

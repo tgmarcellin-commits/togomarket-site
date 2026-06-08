@@ -153,6 +153,7 @@ export function AdminModal({
 
   const [whatsappCommissionInput, setWhatsappCommissionInput] = useState("");
   const [whatsappOrdersInput, setWhatsappOrdersInput] = useState("");
+  const [subAdminPwdInput, setSubAdminPwdInput] = useState("");
 
   const [adminPublishForm, setAdminPublishForm] = useState({
     name: "", price: "", location: "", sector: "Divers", phone: "", images: [] as string[],
@@ -1474,6 +1475,48 @@ export function AdminModal({
                       disabled={updateSettings.isPending}
                     >
                       Enregistrer les numéros
+                    </Button>
+                  </div>
+                </div>
+
+                <div>
+                  <p className="text-sm font-semibold mb-1">Code sous-admin (Pub & Événements)</p>
+                  <p className="text-xs text-muted-foreground mb-3">
+                    Code d'accès pour le sous-admin Publicités et Événements (défaut : 0101).
+                  </p>
+                  <div className="flex gap-2">
+                    <Input
+                      placeholder="Nouveau code (ex: 0101)"
+                      value={subAdminPwdInput}
+                      onChange={(e) => setSubAdminPwdInput(e.target.value)}
+                      className="h-9 text-sm"
+                    />
+                    <Button
+                      size="sm"
+                      className="h-9 px-3"
+                      onClick={() => {
+                        if (!subAdminPwdInput.trim()) return;
+                        updateSettings.mutate(
+                          {
+                            data: {
+                              password: storedPassword,
+                              commissionRate: settings?.commissionRate ?? 2,
+                              whatsappCommission: settings?.whatsappCommission ?? "22870703131",
+                              whatsappOrders: settings?.whatsappOrders ?? "22870703131",
+                              subAdminPassword: subAdminPwdInput.trim(),
+                            },
+                          },
+                          {
+                            onSuccess: () => {
+                              toast({ title: "Code sous-admin enregistré" });
+                              setSubAdminPwdInput("");
+                            },
+                          }
+                        );
+                      }}
+                      disabled={updateSettings.isPending || !subAdminPwdInput.trim()}
+                    >
+                      {updateSettings.isPending ? "..." : "OK"}
                     </Button>
                   </div>
                 </div>

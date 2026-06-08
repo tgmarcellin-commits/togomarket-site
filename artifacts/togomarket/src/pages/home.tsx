@@ -23,6 +23,7 @@ import { InstallPrompt } from "@/components/install-prompt";
 import { AdBanner } from "@/components/ad-banner";
 import { BottomNav, type NavTab } from "@/components/bottom-nav";
 import { BoutiqueView } from "@/components/boutique-view";
+import { SubAdminModal } from "@/components/sub-admin-modal";
 import { PubliciteView } from "@/components/publicite-view";
 import { EvenementielView } from "@/components/evenementiel-view";
 import { ProfileSettingsModal } from "@/components/profile-settings-modal";
@@ -70,6 +71,7 @@ export default function Home() {
   const [isAdminModalOpen, setIsAdminModalOpen] = useState(false);
   const [isAuthModalOpen, setIsAuthModalOpen] = useState(false);
   const [isProfileModalOpen, setIsProfileModalOpen] = useState(false);
+  const [subAdminSection, setSubAdminSection] = useState<"publicite" | "evenementiel" | null>(null);
   const [logoTapCount, setLogoTapCount] = useState(0);
   const logoTapTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
@@ -604,7 +606,11 @@ export default function Home() {
       )}
 
       {/* ── BOTTOM NAVIGATION ─────────────────────────────────────────── */}
-      <BottomNav activeTab={activeTab} onTabChange={setActiveTab} />
+      <BottomNav
+        activeTab={activeTab}
+        onTabChange={setActiveTab}
+        onSecretTap={(tab) => setSubAdminSection(tab)}
+      />
 
       {/* ── MODALS ────────────────────────────────────────────────────── */}
       <PublishModal
@@ -634,6 +640,13 @@ export default function Home() {
         onOpenChange={setIsAuthModalOpen}
         onLoginSuccess={handleLoginSuccess}
       />
+      {subAdminSection && (
+        <SubAdminModal
+          section={subAdminSection}
+          open={!!subAdminSection}
+          onOpenChange={(v) => { if (!v) setSubAdminSection(null); }}
+        />
+      )}
       {vendor && (
         <ProfileSettingsModal
           open={isProfileModalOpen}

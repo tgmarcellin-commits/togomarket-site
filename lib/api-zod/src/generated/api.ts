@@ -246,7 +246,8 @@ export const AdminGetPendingListingsResponse = zod.array(AdminGetPendingListings
 export const GetAdminSettingsResponse = zod.object({
   "commissionRate": zod.number(),
   "whatsappCommission": zod.string(),
-  "whatsappOrders": zod.string()
+  "whatsappOrders": zod.string(),
+  "subAdminPassword": zod.string()
 })
 
 
@@ -257,13 +258,27 @@ export const UpdateAdminSettingsBody = zod.object({
   "password": zod.string(),
   "commissionRate": zod.number(),
   "whatsappCommission": zod.string(),
-  "whatsappOrders": zod.string()
+  "whatsappOrders": zod.string(),
+  "subAdminPassword": zod.string().optional()
 })
 
 export const UpdateAdminSettingsResponse = zod.object({
   "commissionRate": zod.number(),
   "whatsappCommission": zod.string(),
-  "whatsappOrders": zod.string()
+  "whatsappOrders": zod.string(),
+  "subAdminPassword": zod.string()
+})
+
+
+/**
+ * @summary Verify sub-admin password
+ */
+export const VerifySubAdminBody = zod.object({
+  "password": zod.string()
+})
+
+export const VerifySubAdminResponse = zod.object({
+  "valid": zod.boolean()
 })
 
 

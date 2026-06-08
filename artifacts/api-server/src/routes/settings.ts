@@ -4,6 +4,8 @@ import {
   GetAdminSettingsResponse,
   UpdateAdminSettingsBody,
   UpdateAdminSettingsResponse,
+  VerifySubAdminBody,
+  VerifySubAdminResponse,
 } from "@workspace/api-zod";
 
 const router: IRouter = Router();
@@ -15,7 +17,7 @@ async function getSettings() {
   if (rows.length === 0) {
     const [row] = await db
       .insert(platformSettingsTable)
-      .values({ commissionRate: 2, whatsappCommission: "22870703131", whatsappOrders: "22870703131" })
+      .values({ commissionRate: 2, whatsappCommission: "22870703131", whatsappOrders: "22870703131", subAdminPassword: "0101" })
       .returning();
     return row;
   }
@@ -28,6 +30,7 @@ router.get("/admin/settings", async (_req, res): Promise<void> => {
     commissionRate: settings.commissionRate,
     whatsappCommission: settings.whatsappCommission,
     whatsappOrders: settings.whatsappOrders,
+    subAdminPassword: settings.subAdminPassword,
   }));
 });
 
@@ -50,6 +53,9 @@ router.post("/admin/settings", async (req, res): Promise<void> => {
       commissionRate: parsed.data.commissionRate,
       whatsappCommission: parsed.data.whatsappCommission,
       whatsappOrders: parsed.data.whatsappOrders,
+      ...(parsed.data.subAdminPassword !== undefined
+        ? { subAdminPassword: parsed.data.subAdminPassword }
+        : {}),
     })
     .returning();
 
@@ -62,7 +68,19 @@ router.post("/admin/settings", async (req, res): Promise<void> => {
     commissionRate: updated.commissionRate,
     whatsappCommission: updated.whatsappCommission,
     whatsappOrders: updated.whatsappOrders,
+    subAdminPassword: updated.subAdminPassword,
   }));
+});
+
+router.post("/admin/sub-admin-verify", async (req, res): Promise<void> => {
+  const parsed = VerifySubAdminBody.safeParse(req.body);
+  if (!parsed.success) {
+    res.status(400).json({ error: parsed.error.message });
+    return;
+  }
+  const settings = await getSettings();
+  const valid = parsed.data.password === settings.subAdminPassword;
+  res.json(VerifySubAdminResponse.parse({ valid }));
 });
 
 export default router;

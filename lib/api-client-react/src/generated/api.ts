@@ -49,6 +49,8 @@ import type {
   PlatformSettings,
   ShopStatusResponse,
   StorageCleanupResult,
+  SubAdminVerifyInput,
+  SubAdminVerifyResponse,
   SuccessResult,
   UpdateSettingsInput,
   UploadUrlRequest,
@@ -1248,6 +1250,77 @@ export const useUpdateAdminSettings = <TError = ErrorType<void>,
         TContext
       > => {
       return useMutation(getUpdateAdminSettingsMutationOptions(options));
+    }
+
+export const getVerifySubAdminUrl = () => {
+
+
+
+
+  return `/api/admin/sub-admin-verify`
+}
+
+/**
+ * @summary Verify sub-admin password
+ */
+export const verifySubAdmin = async (subAdminVerifyInput: SubAdminVerifyInput, options?: RequestInit): Promise<SubAdminVerifyResponse> => {
+
+  return customFetch<SubAdminVerifyResponse>(getVerifySubAdminUrl(),
+  {
+    ...options,
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...options?.headers },
+    body: JSON.stringify(
+      subAdminVerifyInput,)
+  }
+);}
+
+
+
+
+export const getVerifySubAdminMutationOptions = <TError = ErrorType<unknown>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof verifySubAdmin>>, TError,{data: BodyType<SubAdminVerifyInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof verifySubAdmin>>, TError,{data: BodyType<SubAdminVerifyInput>}, TContext> => {
+
+const mutationKey = ['verifySubAdmin'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof verifySubAdmin>>, {data: BodyType<SubAdminVerifyInput>}> = (props) => {
+          const {data} = props ?? {};
+
+          return  verifySubAdmin(data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type VerifySubAdminMutationResult = NonNullable<Awaited<ReturnType<typeof verifySubAdmin>>>
+    export type VerifySubAdminMutationBody = BodyType<SubAdminVerifyInput>
+    export type VerifySubAdminMutationError = ErrorType<unknown>
+
+    /**
+ * @summary Verify sub-admin password
+ */
+export const useVerifySubAdmin = <TError = ErrorType<unknown>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof verifySubAdmin>>, TError,{data: BodyType<SubAdminVerifyInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof verifySubAdmin>>,
+        TError,
+        {data: BodyType<SubAdminVerifyInput>},
+        TContext
+      > => {
+      return useMutation(getVerifySubAdminMutationOptions(options));
     }
 
 export const getGetActiveAdsUrl = () => {

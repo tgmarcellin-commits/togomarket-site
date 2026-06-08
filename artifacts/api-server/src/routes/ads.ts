@@ -1,11 +1,9 @@
 import { Router, type IRouter } from "express";
-import { gt, lte, eq } from "drizzle-orm";
+import { gt, eq } from "drizzle-orm";
 import { db, adsTable } from "@workspace/db";
-import { logger } from "../lib/logger";
+import { isAdminOrSubAdmin } from "../lib/auth-sub";
 
 const router: IRouter = Router();
-
-const ADMIN_PASSWORD = process.env.ADMIN_PASSWORD ?? "17210";
 
 function mapAd(a: typeof adsTable.$inferSelect) {
   return {
@@ -36,7 +34,7 @@ router.get("/ads", async (req, res) => {
 
 router.post("/admin/ads", async (req, res) => {
   const { password, advertiserName, advertiserPhone, message, image, videoPath } = req.body;
-  if (password !== ADMIN_PASSWORD) {
+  if (!await isAdminOrSubAdmin(password)) {
     return res.status(403).json({ error: "Forbidden" });
   }
   if (!advertiserName || !advertiserPhone || !message) {
@@ -66,7 +64,7 @@ router.post("/admin/ads", async (req, res) => {
 
 router.post("/admin/ads/all", async (req, res) => {
   const { password } = req.body;
-  if (password !== ADMIN_PASSWORD) {
+  if (!await isAdminOrSubAdmin(password)) {
     return res.status(403).json({ error: "Forbidden" });
   }
   try {
@@ -80,7 +78,7 @@ router.post("/admin/ads/all", async (req, res) => {
 
 router.post("/admin/ads/delete", async (req, res) => {
   const { id, password } = req.body;
-  if (password !== ADMIN_PASSWORD) {
+  if (!await isAdminOrSubAdmin(password)) {
     return res.status(403).json({ error: "Forbidden" });
   }
   try {

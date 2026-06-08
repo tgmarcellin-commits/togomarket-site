@@ -188,6 +188,7 @@ export interface PlatformSettings {
   commissionRate: number;
   whatsappCommission: string;
   whatsappOrders: string;
+  subAdminPassword: string;
 }
 
 export interface UpdateSettingsInput {
@@ -195,6 +196,15 @@ export interface UpdateSettingsInput {
   commissionRate: number;
   whatsappCommission: string;
   whatsappOrders: string;
+  subAdminPassword?: string;
+}
+
+export interface SubAdminVerifyInput {
+  password: string;
+}
+
+export interface SubAdminVerifyResponse {
+  valid: boolean;
 }
 
 export interface SectorStat {

@@ -1,10 +1,9 @@
 import { Router, type IRouter } from "express";
 import { eq, desc } from "drizzle-orm";
 import { db, eventsTable } from "@workspace/db";
+import { isAdminOrSubAdmin } from "../lib/auth-sub";
 
 const router: IRouter = Router();
-
-const ADMIN_PASSWORD = process.env.ADMIN_PASSWORD ?? "17210";
 
 function mapEvent(e: typeof eventsTable.$inferSelect) {
   return {
@@ -32,7 +31,7 @@ router.get("/events", async (req, res) => {
 
 router.post("/admin/events", async (req, res) => {
   const { password, title, description, flyerImage, date, location, ticketLink, ticketPrice } = req.body;
-  if (password !== ADMIN_PASSWORD) {
+  if (!await isAdminOrSubAdmin(password)) {
     return res.status(403).json({ error: "Forbidden" });
   }
   if (!title?.trim() || !description?.trim() || !date || !location?.trim()) {
@@ -61,7 +60,7 @@ router.post("/admin/events", async (req, res) => {
 
 router.post("/admin/events/delete", async (req, res) => {
   const { id, password } = req.body;
-  if (password !== ADMIN_PASSWORD) {
+  if (!await isAdminOrSubAdmin(password)) {
     return res.status(403).json({ error: "Forbidden" });
   }
   try {
