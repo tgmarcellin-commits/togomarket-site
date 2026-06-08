@@ -445,7 +445,7 @@ export default function Home() {
                     setShopLinkExpired(false);
                     setSearchMode("article");
                   }}
-                  className="rounded-full px-8"
+                  className="rounded-full px-8 bg-violet-600 hover:bg-violet-700 text-white border-0"
                 >
                   {t.goToMarketplace}
                 </Button>
@@ -497,8 +497,7 @@ export default function Home() {
                 {shopNumber && (
                   <div className="flex justify-center mt-8">
                     <Button
-                      variant="outline"
-                      className="rounded-full px-8"
+                      className="rounded-full px-8 bg-violet-600 hover:bg-violet-700 text-white border-0"
                       onClick={() => {
                         setShopNumber(undefined);
                         setSearchMode("article");
@@ -532,8 +531,7 @@ export default function Home() {
                 </p>
                 {shopNumber && (
                   <Button
-                    variant="outline"
-                    className="mt-6 rounded-full px-8"
+                    className="mt-6 rounded-full px-8 bg-violet-600 hover:bg-violet-700 text-white border-0"
                     onClick={() => {
                       setShopNumber(undefined);
                       setSearchMode("article");
