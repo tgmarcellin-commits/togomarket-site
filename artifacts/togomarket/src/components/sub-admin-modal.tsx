@@ -449,7 +449,7 @@ export function SubAdminModal({ section, open, onOpenChange }: SubAdminModalProp
                   return (
                     <div key={event.id} className={`border rounded-lg p-3 space-y-1.5 ${isPast ? "opacity-60 bg-muted/30" : ""}`}>
                       {event.flyerImage && (
-                        <img src={event.flyerImage} alt={event.title} className="w-full h-28 rounded object-contain bg-black" />
+                        <img src={resolveImageUrl(event.flyerImage)} alt={event.title} className="w-full h-28 rounded object-contain bg-black" />
                       )}
                       <div className="flex items-start justify-between gap-2">
                         <div className="flex-1 min-w-0">

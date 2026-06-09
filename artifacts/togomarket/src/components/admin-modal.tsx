@@ -241,8 +241,9 @@ export function AdminModal({
     if (!file) return;
     e.target.value = "";
     try {
-      const resized = await resizeImage(file);
-      setEventForm((f) => ({ ...f, flyerImage: resized, flyerPreview: resized }));
+      const { blob, dataUrl } = await resizeImageToBlob(file);
+      const objectPath = await uploadImageFile(blob, file.name);
+      setEventForm((f) => ({ ...f, flyerImage: objectPath, flyerPreview: dataUrl }));
     } catch {
       toast({ title: "Impossible de lire l'image", variant: "destructive" });
     }
@@ -1358,7 +1359,7 @@ export function AdminModal({
                         <div key={event.id} className={`border rounded-lg p-3 space-y-1.5 ${isPast ? "opacity-60 bg-muted/30" : ""}`}>
                           <div className="flex items-start gap-2">
                             {event.flyerImage && (
-                              <img src={event.flyerImage} alt={event.title} className="w-12 h-12 rounded object-cover border flex-shrink-0" />
+                              <img src={resolveImageUrl(event.flyerImage)} alt={event.title} className="w-12 h-12 rounded object-cover border flex-shrink-0" />
                             )}
                             <div className="flex-1 min-w-0">
                               <div className="flex items-center gap-1.5">

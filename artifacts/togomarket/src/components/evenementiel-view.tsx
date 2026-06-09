@@ -6,6 +6,7 @@ import { Calendar, MapPin, Ticket, ExternalLink } from "lucide-react";
 import { openWhatsApp } from "@/lib/whatsapp";
 import { useSiteSettings } from "@/lib/site-settings";
 import { useT } from "@/lib/i18n";
+import { resolveImageUrl } from "@/lib/image";
 
 function EventDetailModal({ event, open, onClose, locale, t }: {
   event: Event | null;
@@ -38,7 +39,7 @@ function EventDetailModal({ event, open, onClose, locale, t }: {
           {event.flyerImage && (
             <div className="w-full rounded-xl overflow-hidden bg-black flex items-center justify-center" style={{ maxHeight: 250 }}>
               <img
-                src={event.flyerImage}
+                src={resolveImageUrl(event.flyerImage)}
                 alt={event.title}
                 className="w-full object-contain"
                 style={{ maxHeight: 250 }}
@@ -120,7 +121,7 @@ export function EvenementielView() {
               {event.flyerImage && (
                 <div className="w-full bg-black flex items-center justify-center" style={{ maxHeight: 176 }}>
                   <img
-                    src={event.flyerImage}
+                    src={resolveImageUrl(event.flyerImage)}
                     alt={event.title}
                     className="w-full object-contain"
                     style={{ maxHeight: 176 }}
