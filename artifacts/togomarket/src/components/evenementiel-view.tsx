@@ -7,6 +7,7 @@ import { openWhatsApp } from "@/lib/whatsapp";
 import { useSiteSettings } from "@/lib/site-settings";
 import { useT } from "@/lib/i18n";
 import { resolveImageUrl } from "@/lib/image";
+import { ImageViewer } from "@/components/image-viewer";
 
 function EventDetailModal({ event, open, onClose, locale, t }: {
   event: Event | null;
@@ -86,6 +87,7 @@ export function EvenementielView() {
   const locale = t.dateLocale;
   const { data: events, isLoading } = useGetEvents();
   const [selectedEvent, setSelectedEvent] = useState<Event | null>(null);
+  const [viewerImage, setViewerImage] = useState<string | null>(null);
 
   if (isLoading) {
     return (
@@ -119,14 +121,19 @@ export function EvenementielView() {
           return (
             <div key={event.id} className={`rounded-xl border bg-card overflow-hidden ${isPast ? "opacity-60" : ""}`}>
               {event.flyerImage && (
-                <div className="w-full bg-black flex items-center justify-center" style={{ maxHeight: 176 }}>
+                <button
+                  type="button"
+                  className="w-full bg-black flex items-center justify-center cursor-zoom-in focus:outline-none"
+                  style={{ maxHeight: 176 }}
+                  onClick={() => setViewerImage(event.flyerImage!)}
+                >
                   <img
                     src={resolveImageUrl(event.flyerImage)}
                     alt={event.title}
                     className="w-full object-contain"
                     style={{ maxHeight: 176 }}
                   />
-                </div>
+                </button>
               )}
               <div className="p-4 space-y-2">
                 <div className="flex items-start justify-between gap-2">
@@ -178,6 +185,14 @@ export function EvenementielView() {
         locale={locale}
         t={t}
       />
+
+      {viewerImage && (
+        <ImageViewer
+          images={[viewerImage]}
+          startIndex={0}
+          onClose={() => setViewerImage(null)}
+        />
+      )}
     </div>
   );
 }
