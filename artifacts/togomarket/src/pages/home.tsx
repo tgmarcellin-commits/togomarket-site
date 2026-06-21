@@ -27,6 +27,7 @@ import { SubAdminModal } from "@/components/sub-admin-modal";
 import { PubliciteView } from "@/components/publicite-view";
 import { EvenementielView } from "@/components/evenementiel-view";
 import { ProfileSettingsModal } from "@/components/profile-settings-modal";
+import { AiAssistant } from "@/components/ai-assistant";
 import { useToast } from "@/hooks/use-toast";
 
 const STORAGE_KEY = "togomarket_vendor_session";
@@ -604,6 +605,9 @@ export default function Home() {
           </p>
         </div>
       )}
+
+      {/* ── AI ASSISTANT ──────────────────────────────────────────────── */}
+      <AiAssistant lang={lang} />
 
       {/* ── BOTTOM NAVIGATION ─────────────────────────────────────────── */}
       <BottomNav
