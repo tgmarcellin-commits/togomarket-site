@@ -8,6 +8,7 @@ import ordersRouter from "./orders";
 import adminRouter from "./admin";
 import statsRouter from "./stats";
 import settingsRouter from "./settings";
+<<<<<<< HEAD
 import adsRouter from "./ads";
 import vendorsRouter from "./vendors";
 import storageRouter from "./storage";
@@ -15,6 +16,9 @@ import eventsRouter from "./events";
 import contactRequestsRouter from "./contact-requests";
 import assistantRouter from "./assistant";
 import { ObjectStorageService } from "../lib/objectStorage";
+=======
+import sellersRouter from "./sellers";
+>>>>>>> ff327cc6faa65bc31cede8f1f72c866a500b59d5
 
 const router: IRouter = Router();
 const objectStorage = new ObjectStorageService();
@@ -25,12 +29,16 @@ router.use(ordersRouter);
 router.use(adminRouter);
 router.use(statsRouter);
 router.use(settingsRouter);
+<<<<<<< HEAD
 router.use(adsRouter);
 router.use(vendorsRouter);
 router.use(storageRouter);
 router.use(eventsRouter);
 router.use(contactRequestsRouter);
 router.use(assistantRouter);
+=======
+router.use(sellersRouter);
+>>>>>>> ff327cc6faa65bc31cede8f1f72c866a500b59d5
 
 async function cleanupOldListings() {
   const cutoff = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000);

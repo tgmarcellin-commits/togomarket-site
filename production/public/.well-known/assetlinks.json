@@ -1,0 +1,16 @@
+[
+  {
+    "relation": [
+      "delegate_permission/common.handle_all_urls",
+      "delegate_permission/common.get_login_creds"
+    ],
+    "target": {
+      "namespace": "android_app",
+      "package_name": "com.togomarket.app",
+      "sha256_cert_fingerprints": [
+        "23:B4:9C:1D:57:8C:03:45:02:8D:23:EB:FF:EA:E9:DA:F9:8B:EB:1E:3D:05:79:CE:51:23:D7:C1:86:33:FF:DA",
+        "50:36:C7:FA:EB:C3:37:7D:89:17:06:F4:13:46:1A:37:EB:74:EE:03:17:C0:E3:CF:26:3F:EB:77:F6:59:44:1C"
+      ]
+    }
+  }
+]
