@@ -60,6 +60,7 @@ Plateforme de marketplace multi-secteurs pour le Togo — permet à n'importe qu
 - Default admin password: "17210" (override with ADMIN_PASSWORD env var)
 - Language: French
 - Commande pour envoyer les mises à jour vers GitHub : `./push.sh`
+- À chaque nouvelle fonctionnalité ajoutée, mettre à jour automatiquement le fichier `artifacts/api-server/src/lib/assistant-prompt.ts` pour que l'assistante IA soit toujours à jour.
 
 ## Gotchas
 
