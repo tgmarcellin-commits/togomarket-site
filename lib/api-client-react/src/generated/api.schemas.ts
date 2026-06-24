@@ -292,6 +292,13 @@ export interface UploadUrlResponse {
   metadata?: UploadUrlRequest;
 }
 
+export interface AdminResetVendorPasswordInput {
+  password: string;
+  vendorPhone: string;
+  /** @minLength 6 */
+  newPassword: string;
+}
+
 export interface SuccessResult {
   success: boolean;
 }

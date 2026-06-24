@@ -561,6 +561,24 @@ export const AdminStorageCleanupResponse = zod.object({
 
 
 /**
+ * @summary Reset a vendor's password (admin only)
+ */
+export const adminResetVendorPasswordBodyNewPasswordMin = 6;
+
+
+
+export const AdminResetVendorPasswordBody = zod.object({
+  "password": zod.string(),
+  "vendorPhone": zod.string(),
+  "newPassword": zod.string().min(adminResetVendorPasswordBodyNewPasswordMin)
+})
+
+export const AdminResetVendorPasswordResponse = zod.object({
+  "success": zod.boolean()
+})
+
+
+/**
  * @summary Delete a vendor account and all their data (admin only)
  */
 export const AdminDeleteVendorBody = zod.object({

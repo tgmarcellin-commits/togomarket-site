@@ -16,6 +16,7 @@ import {
   AdminGenerateVendorCodeBody,
   AdminGenerateVendorCodeResponse,
   AdminDeleteVendorBody,
+  AdminResetVendorPasswordBody,
 } from "@workspace/api-zod";
 
 const router: IRouter = Router();
@@ -445,6 +446,41 @@ router.get("/vendors/shop-status", async (req, res) => {
     });
   } catch (err) {
     req.log.error({ err }, "Failed to check shop status");
+    return res.status(500).json({ error: "Erreur interne" });
+  }
+});
+
+router.post("/admin/vendors/reset-password", async (req, res) => {
+  const parsed = AdminResetVendorPasswordBody.safeParse(req.body);
+  if (!parsed.success) {
+    return res.status(400).json({ error: parsed.error.message });
+  }
+  if (parsed.data.password !== ADMIN_PASSWORD) {
+    return res.status(403).json({ error: "Forbidden" });
+  }
+
+  const normalizedPhone = normalizePhone(parsed.data.vendorPhone);
+  try {
+    const existing = await db
+      .select({ id: vendorsTable.id })
+      .from(vendorsTable)
+      .where(phoneEq(vendorsTable.phone, normalizedPhone))
+      .limit(1);
+
+    if (existing.length === 0) {
+      return res.status(404).json({ error: "Vendeur introuvable" });
+    }
+
+    const hashedPassword = await bcrypt.hash(parsed.data.newPassword, 10);
+    await db
+      .update(vendorsTable)
+      .set({ passwordHash: hashedPassword })
+      .where(phoneEq(vendorsTable.phone, normalizedPhone));
+
+    req.log.info({ phone: normalizedPhone }, "Vendor password reset by admin");
+    return res.json({ success: true });
+  } catch (err) {
+    req.log.error({ err }, "Failed to reset vendor password");
     return res.status(500).json({ error: "Erreur interne" });
   }
 });

@@ -10,7 +10,7 @@ import {
 } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { useToast } from "@/hooks/use-toast";
-import { UserPlus, LogIn, Eye, EyeOff, ShieldCheck } from "lucide-react";
+import { UserPlus, LogIn, Eye, EyeOff, ShieldCheck, HelpCircle } from "lucide-react";
 import { useSiteSettings } from "@/lib/site-settings";
 import { useT } from "@/lib/i18n";
 
@@ -228,6 +228,19 @@ export function AuthModal({ open, onOpenChange, onLoginSuccess }: AuthModalProps
             <Button className="w-full" onClick={handleLogin} disabled={loginMutation.isPending}>
               {loginMutation.isPending ? t.signingIn : t.signIn}
             </Button>
+            <button
+              type="button"
+              className="flex items-center justify-center gap-1 text-xs text-primary underline w-full text-center"
+              onClick={() => {
+                const msg = lang === "fr"
+                  ? `Bonjour, j'ai oublié mon mot de passe TogoMarket. Mon numéro : ${loginPhone.trim() || "?"}`
+                  : `Hello, I forgot my TogoMarket password. My number: ${loginPhone.trim() || "?"}`;
+                openWhatsApp(`https://wa.me/22870703131?text=${encodeURIComponent(msg)}`);
+              }}
+            >
+              <HelpCircle className="w-3 h-3" />
+              {t.forgotPassword}
+            </button>
             <button className="text-xs text-muted-foreground underline w-full text-center" onClick={() => setScreen("choice")}>
               {t.back}
             </button>

@@ -19,6 +19,7 @@ import {
   useAdminActivateVendor,
   useAdminGenerateVendorCode,
   useAdminDeleteVendor,
+  useAdminResetVendorPassword,
   useAdminCreateListing,
   useAdminStorageCleanup,
   useAdminCreateEvent,
@@ -115,6 +116,55 @@ function StorageCleanupSection({ password }: { password: string }) {
   );
 }
 
+function ResetVendorPwdPanel({
+  name,
+  vendorPhone,
+  resetPwdInput,
+  setResetPwdInput,
+  isPending,
+  onConfirm,
+  onCancel,
+}: {
+  name: string;
+  vendorPhone: string;
+  resetPwdInput: string;
+  setResetPwdInput: (v: string) => void;
+  isPending: boolean;
+  onConfirm: (phone: string, pwd: string) => void;
+  onCancel: () => void;
+}) {
+  return (
+    <div className="bg-blue-50 border border-blue-200 rounded-lg p-2.5 space-y-2">
+      <div className="flex items-center gap-1.5">
+        <KeyRound className="w-3.5 h-3.5 text-blue-600 flex-shrink-0" />
+        <p className="text-xs font-semibold text-blue-800">
+          Nouveau mot de passe pour {name}
+        </p>
+      </div>
+      <Input
+        className="h-7 text-xs"
+        placeholder="Min. 6 caractères"
+        value={resetPwdInput}
+        onChange={(e) => setResetPwdInput(e.target.value)}
+        autoFocus
+      />
+      <div className="flex gap-2">
+        <Button
+          size="sm"
+          className="flex-1 h-7 text-xs bg-blue-600 hover:bg-blue-700 text-white"
+          onClick={() => onConfirm(vendorPhone, resetPwdInput)}
+          disabled={isPending || resetPwdInput.length < 6}
+        >
+          {isPending ? "..." : "Réinitialiser"}
+        </Button>
+        <Button size="sm" variant="outline" className="flex-1 h-7 text-xs" onClick={onCancel}>
+          Annuler
+        </Button>
+      </div>
+    </div>
+  );
+}
+
 type DashTab = "pending" | "vendors" | "publish" | "ads" | "events" | "settings";
 
 export function AdminModal({
@@ -165,11 +215,13 @@ export function AdminModal({
   const [confirmAction, setConfirmAction] = useState<
     | { type: "newCode"; vendorId: number }
     | { type: "deleteVendor"; vendorId: number; name: string }
+    | { type: "resetVendorPwd"; vendorId: number; vendorPhone: string; name: string }
     | { type: "deleteListing"; listingId: number }
     | { type: "deleteAd"; adId: number }
     | { type: "deleteEvent"; eventId: number }
     | null
   >(null);
+  const [resetPwdInput, setResetPwdInput] = useState("");
 
   const [allEvents, setAllEvents] = useState<ApiEvent[]>([]);
   const [eventsLoading, setEventsLoading] = useState(false);
@@ -257,6 +309,7 @@ export function AdminModal({
   const activateVendor = useAdminActivateVendor();
   const generateCode = useAdminGenerateVendorCode();
   const deleteVendor = useAdminDeleteVendor();
+  const resetVendorPassword = useAdminResetVendorPassword();
 
   const refetchAds = () => {
     if (!storedPassword) return;
@@ -323,6 +376,24 @@ export function AdminModal({
           refetchVendors();
         },
         onError: () => toast({ title: "Erreur lors de la suppression", variant: "destructive" }),
+      }
+    );
+  };
+
+  const handleResetVendorPassword = (vendorPhone: string, newPassword: string) => {
+    if (newPassword.length < 6) {
+      toast({ title: "Minimum 6 caractères", variant: "destructive" });
+      return;
+    }
+    resetVendorPassword.mutate(
+      { data: { password: storedPassword, vendorPhone, newPassword } },
+      {
+        onSuccess: () => {
+          setConfirmAction(null);
+          setResetPwdInput("");
+          toast({ title: "Mot de passe réinitialisé", description: "Le vendeur peut maintenant se connecter avec son nouveau mot de passe." });
+        },
+        onError: () => toast({ title: "Erreur lors de la réinitialisation", variant: "destructive" }),
       }
     );
   };
@@ -933,7 +1004,20 @@ export function AdminModal({
                             </div>
                           )}
 
-                          {(confirmAction?.type !== "newCode" && confirmAction?.type !== "deleteVendor" || confirmAction?.vendorId !== v.id) && (
+                          {/* Confirmation inline : réinitialiser MDP */}
+                          {confirmAction?.type === "resetVendorPwd" && confirmAction.vendorId === v.id && (
+                            <ResetVendorPwdPanel
+                              name={confirmAction.name}
+                              vendorPhone={confirmAction.vendorPhone}
+                              resetPwdInput={resetPwdInput}
+                              setResetPwdInput={setResetPwdInput}
+                              isPending={resetVendorPassword.isPending}
+                              onConfirm={handleResetVendorPassword}
+                              onCancel={() => { setConfirmAction(null); setResetPwdInput(""); }}
+                            />
+                          )}
+
+                          {((confirmAction?.type !== "newCode" && confirmAction?.type !== "deleteVendor" && confirmAction?.type !== "resetVendorPwd") || confirmAction?.vendorId !== v.id) && (
                             <div className="flex gap-2">
                               {!v.verified && (
                                 <Button
@@ -958,6 +1042,15 @@ export function AdminModal({
                                   {hasCode ? "Nouveau code" : "Générer code"}
                                 </Button>
                               )}
+                              <Button
+                                size="sm"
+                                variant="outline"
+                                className="h-7 px-2 text-blue-500 hover:text-blue-700 hover:bg-blue-50 border-blue-200"
+                                onClick={() => { setResetPwdInput(""); setConfirmAction({ type: "resetVendorPwd", vendorId: v.id, vendorPhone: v.phone, name: `${v.firstName} ${v.lastName}` }); }}
+                                title="Réinitialiser le mot de passe"
+                              >
+                                <KeyRound className="w-3 h-3" />
+                              </Button>
                               <Button
                                 size="sm"
                                 variant="outline"
@@ -1407,6 +1500,10 @@ export function AdminModal({
                         </div>
                       );
                     })}
+                  </div>
+                )}
+              </div>
+            )}
 
             {/* Tab: Paramètres */}
             {tab === "settings" && (

@@ -64,6 +64,13 @@ export function ProfileSettingsModal({
   const [showNewPwd, setShowNewPwd] = useState(false);
   const [showConfirmPwd, setShowConfirmPwd] = useState(false);
 
+  const [showResetSection, setShowResetSection] = useState(false);
+  const [resetNewPwd, setResetNewPwd] = useState("");
+  const [resetConfirmPwd, setResetConfirmPwd] = useState("");
+  const [showResetNewPwd, setShowResetNewPwd] = useState(false);
+  const [showResetConfirmPwd, setShowResetConfirmPwd] = useState(false);
+  const [confirmResetOpen, setConfirmResetOpen] = useState(false);
+
   const [confirmNameOpen, setConfirmNameOpen] = useState(false);
   const [confirmPwdOpen, setConfirmPwdOpen] = useState(false);
   const [confirmLogoutOpen, setConfirmLogoutOpen] = useState(false);
@@ -108,6 +115,34 @@ export function ProfileSettingsModal({
           toast({ title: t.nameUpdated });
         },
         onError: () => toast({ title: t.updateError, variant: "destructive" }),
+      }
+    );
+  };
+
+  const handleResetPassword = () => {
+    if (resetNewPwd !== resetConfirmPwd) {
+      toast({ title: t.passwordsDontMatch, variant: "destructive" });
+      return;
+    }
+    if (resetNewPwd.length < 6) {
+      toast({ title: t.min6Chars, variant: "destructive" });
+      return;
+    }
+    changePassword.mutate(
+      { data: { phone: vendor.phone, oldPassword: vendorPassword, newPassword: resetNewPwd } },
+      {
+        onSuccess: () => {
+          setConfirmResetOpen(false);
+          onVendorUpdate(vendor, resetNewPwd);
+          setResetNewPwd("");
+          setResetConfirmPwd("");
+          setShowResetSection(false);
+          toast({ title: t.resetPasswordSuccess });
+        },
+        onError: () => {
+          setConfirmResetOpen(false);
+          toast({ title: t.updateError, variant: "destructive" });
+        },
       }
     );
   };
@@ -296,6 +331,85 @@ export function ProfileSettingsModal({
               </Button>
             </div>
 
+            {/* Reset password (forgot old password) */}
+            <div className="border-t pt-3">
+              {!showResetSection ? (
+                <button
+                  className="text-xs text-muted-foreground underline"
+                  onClick={() => setShowResetSection(true)}
+                >
+                  {t.forgotPassword}
+                </button>
+              ) : (
+                <div className="space-y-3">
+                  <p className="text-xs font-semibold text-amber-700 bg-amber-50 border border-amber-200 rounded-lg px-3 py-2">
+                    {t.resetPasswordDesc}
+                  </p>
+                  <div>
+                    <label className="text-xs font-medium mb-1 block">{t.newPassword}</label>
+                    <div className="relative">
+                      <Input
+                        type={showResetNewPwd ? "text" : "password"}
+                        value={resetNewPwd}
+                        onChange={(e) => setResetNewPwd(e.target.value)}
+                        className="pr-10"
+                        placeholder={t.minChars}
+                      />
+                      <button type="button" onClick={() => setShowResetNewPwd((v) => !v)} className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground">
+                        {showResetNewPwd ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                      </button>
+                    </div>
+                  </div>
+                  <div>
+                    <label className="text-xs font-medium mb-1 block">{t.confirmNewPassword}</label>
+                    <div className="relative">
+                      <Input
+                        type={showResetConfirmPwd ? "text" : "password"}
+                        value={resetConfirmPwd}
+                        onChange={(e) => setResetConfirmPwd(e.target.value)}
+                        className="pr-10"
+                        placeholder={t.repeatPassword}
+                      />
+                      <button type="button" onClick={() => setShowResetConfirmPwd((v) => !v)} className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground">
+                        {showResetConfirmPwd ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                      </button>
+                    </div>
+                  </div>
+                  <div className="flex gap-2">
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      className="flex-1"
+                      onClick={() => { setShowResetSection(false); setResetNewPwd(""); setResetConfirmPwd(""); }}
+                    >
+                      {t.cancel}
+                    </Button>
+                    <Button
+                      size="sm"
+                      className="flex-1"
+                      onClick={() => {
+                        if (!resetNewPwd || !resetConfirmPwd) {
+                          toast({ title: t.allFieldsRequired, variant: "destructive" });
+                          return;
+                        }
+                        if (resetNewPwd !== resetConfirmPwd) {
+                          toast({ title: t.passwordsDontMatch, variant: "destructive" });
+                          return;
+                        }
+                        if (resetNewPwd.length < 6) {
+                          toast({ title: t.min6Chars, variant: "destructive" });
+                          return;
+                        }
+                        setConfirmResetOpen(true);
+                      }}
+                    >
+                      {t.resetPassword}
+                    </Button>
+                  </div>
+                </div>
+              )}
+            </div>
+
             {/* Privacy Policy */}
             <div className="border-t pt-4">
               <button
@@ -346,6 +460,20 @@ export function ProfileSettingsModal({
             <Button variant="outline" onClick={() => setConfirmNameOpen(false)}>{t.cancel}</Button>
             <Button onClick={handleSaveName} disabled={updateName.isPending}>
               {updateName.isPending ? t.saving : t.confirm}
+            </Button>
+          </div>
+        </DialogContent>
+      </Dialog>
+
+      {/* Confirm password reset */}
+      <Dialog open={confirmResetOpen} onOpenChange={setConfirmResetOpen}>
+        <DialogContent className="sm:max-w-[340px]">
+          <DialogHeader><DialogTitle>{t.resetPasswordTitle}</DialogTitle></DialogHeader>
+          <p className="text-sm text-muted-foreground">{t.resetPasswordDesc}</p>
+          <div className="flex gap-2 justify-end">
+            <Button variant="outline" onClick={() => setConfirmResetOpen(false)}>{t.cancel}</Button>
+            <Button onClick={handleResetPassword} disabled={changePassword.isPending}>
+              {changePassword.isPending ? t.modifying : t.confirm}
             </Button>
           </div>
         </DialogContent>

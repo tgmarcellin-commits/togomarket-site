@@ -739,6 +739,29 @@ paths:
         '403':
           description: Forbidden
 
+  /admin/vendors/reset-password:
+    post:
+      operationId: adminResetVendorPassword
+      tags: [admin, vendors]
+      summary: Reset a vendor's password (admin only)
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/AdminResetVendorPasswordInput"
+      responses:
+        "200":
+          description: Password reset
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/SuccessResult"
+        "403":
+          description: Forbidden
+        "404":
+          description: Vendor not found
+
   /admin/vendors/delete:
     post:
       operationId: adminDeleteVendor
@@ -1412,6 +1435,18 @@ components:
           type: string
         metadata:
           $ref: '#/components/schemas/UploadUrlRequest'
+    AdminResetVendorPasswordInput:
+      type: object
+      required: [password, vendorPhone, newPassword]
+      properties:
+        password:
+          type: string
+        vendorPhone:
+          type: string
+        newPassword:
+          type: string
+          minLength: 6
+
     SuccessResult:
       type: object
       required: [success]

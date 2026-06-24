@@ -30,6 +30,7 @@ import type {
   AdminCreateListingInput,
   AdminDeleteInput,
   AdminPasswordInput,
+  AdminResetVendorPasswordInput,
   AdminVerifyInput,
   AdminVerifyResult,
   ContactRequestInput,
@@ -2482,6 +2483,77 @@ export const useAdminStorageCleanup = <TError = ErrorType<void>,
         TContext
       > => {
       return useMutation(getAdminStorageCleanupMutationOptions(options));
+    }
+
+export const getAdminResetVendorPasswordUrl = () => {
+
+
+
+
+  return `/api/admin/vendors/reset-password`
+}
+
+/**
+ * @summary Reset a vendor's password (admin only)
+ */
+export const adminResetVendorPassword = async (adminResetVendorPasswordInput: AdminResetVendorPasswordInput, options?: RequestInit): Promise<SuccessResult> => {
+
+  return customFetch<SuccessResult>(getAdminResetVendorPasswordUrl(),
+  {
+    ...options,
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...options?.headers },
+    body: JSON.stringify(
+      adminResetVendorPasswordInput,)
+  }
+);}
+
+
+
+
+export const getAdminResetVendorPasswordMutationOptions = <TError = ErrorType<void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof adminResetVendorPassword>>, TError,{data: BodyType<AdminResetVendorPasswordInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof adminResetVendorPassword>>, TError,{data: BodyType<AdminResetVendorPasswordInput>}, TContext> => {
+
+const mutationKey = ['adminResetVendorPassword'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof adminResetVendorPassword>>, {data: BodyType<AdminResetVendorPasswordInput>}> = (props) => {
+          const {data} = props ?? {};
+
+          return  adminResetVendorPassword(data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type AdminResetVendorPasswordMutationResult = NonNullable<Awaited<ReturnType<typeof adminResetVendorPassword>>>
+    export type AdminResetVendorPasswordMutationBody = BodyType<AdminResetVendorPasswordInput>
+    export type AdminResetVendorPasswordMutationError = ErrorType<void>
+
+    /**
+ * @summary Reset a vendor's password (admin only)
+ */
+export const useAdminResetVendorPassword = <TError = ErrorType<void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof adminResetVendorPassword>>, TError,{data: BodyType<AdminResetVendorPasswordInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof adminResetVendorPassword>>,
+        TError,
+        {data: BodyType<AdminResetVendorPasswordInput>},
+        TContext
+      > => {
+      return useMutation(getAdminResetVendorPasswordMutationOptions(options));
     }
 
 export const getAdminDeleteVendorUrl = () => {
