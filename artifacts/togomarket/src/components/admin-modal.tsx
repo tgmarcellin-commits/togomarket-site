@@ -51,23 +51,9 @@ import {
 } from "@/components/ui/form";
 import { Input } from "@/components/ui/input";
 import { useToast } from "@/hooks/use-toast";
-<<<<<<< HEAD
 import { Settings, LogOut, CheckCircle, Trash2, Clock, KeyRound, Megaphone, Plus, RefreshCw, Users, UploadCloud, X, Eye, EyeOff, AlertTriangle, Calendar } from "lucide-react";
 import { resizeImage, resizeImageToBlob, resolveImageUrl } from "@/lib/image";
 import { uploadImageFile } from "@/lib/upload";
-=======
-import { Settings, LogOut, CheckCircle, Trash2, Clock, KeyRound, Store, UserPlus } from "lucide-react";
-
-function getBaseUrl(): string {
-  return import.meta.env.BASE_URL?.replace(/\/$/, "") || "";
-}
-
-interface SellerRecord {
-  id: number;
-  firstName: string;
-  phone: string;
-}
->>>>>>> ff327cc6faa65bc31cede8f1f72c866a500b59d5
 
 const loginSchema = z.object({
   password: z.string().min(1, "Mot de passe requis"),
@@ -90,7 +76,6 @@ const COMMISSION_OPTIONS = [
   { rate: 5, label: "5% (max 5 000 FCFA pour les articles > 100 000 FCFA)" },
 ];
 
-<<<<<<< HEAD
 function StorageCleanupSection({ password }: { password: string }) {
   const storageCleanup = useAdminStorageCleanup();
   const { toast } = useToast();
@@ -131,9 +116,6 @@ function StorageCleanupSection({ password }: { password: string }) {
 }
 
 type DashTab = "pending" | "vendors" | "publish" | "ads" | "events" | "settings";
-=======
-type DashTab = "pending" | "settings" | "sellers";
->>>>>>> ff327cc6faa65bc31cede8f1f72c866a500b59d5
 
 export function AdminModal({
   open,
@@ -150,7 +132,6 @@ export function AdminModal({
   const [viewerImages, setViewerImages] = useState<string[]>([]);
   const [viewerIndex, setViewerIndex] = useState(0);
 
-<<<<<<< HEAD
   const [allAds, setAllAds] = useState<Ad[]>([]);
   const [adsLoading, setAdsLoading] = useState(false);
   const [showAdForm, setShowAdForm] = useState(false);
@@ -466,76 +447,6 @@ export function AdminModal({
   const handleRenewWhatsApp = (ad: Ad) => {
     const msg = `Bonjour ${ad.advertiserName}, votre publicité sur TogoMarket a expiré. Souhaitez-vous la renouveler pour 1 000 FCFA/mois ?`;
     openWhatsApp(`https://wa.me/${ad.advertiserPhone.replace(/\D/g, "")}?text=${encodeURIComponent(msg)}`);
-=======
-  const [sellers, setSellers] = useState<SellerRecord[]>([]);
-  const [sellersLoading, setSellersLoading] = useState(false);
-  const [newSellerFirstName, setNewSellerFirstName] = useState("");
-  const [newSellerPhone, setNewSellerPhone] = useState("");
-  const [sellerSaving, setSellerSaving] = useState(false);
-
-  const fetchSellers = async (pwd: string) => {
-    setSellersLoading(true);
-    try {
-      const base = getBaseUrl();
-      const res = await fetch(`${base}/api/admin/sellers/list`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ password: pwd }),
-      });
-      if (res.ok) {
-        const data = await res.json();
-        setSellers(data);
-      }
-    } finally {
-      setSellersLoading(false);
-    }
-  };
-
-  const handleAddSeller = async () => {
-    if (!newSellerFirstName.trim() || !newSellerPhone.trim()) {
-      toast({ title: "Champs requis", description: "Remplissez le prénom et le numéro.", variant: "destructive" });
-      return;
-    }
-    setSellerSaving(true);
-    try {
-      const base = getBaseUrl();
-      const res = await fetch(`${base}/api/admin/sellers`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ password: storedPassword, firstName: newSellerFirstName.trim(), phone: newSellerPhone.trim() }),
-      });
-      if (res.ok) {
-        const seller = await res.json();
-        setSellers((prev) => [...prev, seller]);
-        setNewSellerFirstName("");
-        setNewSellerPhone("");
-        toast({ title: `Boutique N°${seller.id} créée`, description: `Vendeur : ${seller.firstName}` });
-      } else {
-        const err = await res.json();
-        toast({ title: "Erreur", description: err.error ?? "Impossible de créer.", variant: "destructive" });
-      }
-    } finally {
-      setSellerSaving(false);
-    }
-  };
-
-  const handleDeleteSeller = async (id: number) => {
-    if (!confirm(`Supprimer la boutique N°${id} ?`)) return;
-    try {
-      const base = getBaseUrl();
-      const res = await fetch(`${base}/api/admin/sellers/delete`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ password: storedPassword, id }),
-      });
-      if (res.ok) {
-        setSellers((prev) => prev.filter((s) => s.id !== id));
-        toast({ title: "Boutique supprimée" });
-      }
-    } catch {
-      toast({ title: "Erreur", description: "Impossible de supprimer.", variant: "destructive" });
-    }
->>>>>>> ff327cc6faa65bc31cede8f1f72c866a500b59d5
   };
 
   const openViewer = (images: string[], index: number) => {
@@ -590,14 +501,10 @@ export function AdminModal({
                 onError: () => setPendingLoading(false),
               }
             );
-<<<<<<< HEAD
             getAllAds.mutate(
               { data: { password: data.password } },
               { onSuccess: (d) => setAllAds(d) }
             );
-=======
-            fetchSellers(data.password);
->>>>>>> ff327cc6faa65bc31cede8f1f72c866a500b59d5
           } else {
             form.setError("password", { message: "Mot de passe incorrect" });
           }
@@ -750,7 +657,6 @@ export function AdminModal({
                 )}
               </button>
               <button
-<<<<<<< HEAD
                 onClick={() => { setTab("vendors"); refetchVendors(); }}
                 className={`py-2 text-[10px] font-medium flex items-center justify-center gap-0.5 transition-colors ${
                   tab === "vendors" ? "bg-primary text-primary-foreground" : "bg-background hover:bg-muted"
@@ -785,15 +691,6 @@ export function AdminModal({
               >
                 <Calendar className="w-3 h-3" />
                 Évén.
-=======
-                onClick={() => { setTab("sellers"); fetchSellers(storedPassword); }}
-                className={`flex-1 py-2 text-sm font-medium flex items-center justify-center gap-1.5 transition-colors ${
-                  tab === "sellers" ? "bg-primary text-primary-foreground" : "bg-background hover:bg-muted"
-                }`}
-              >
-                <Store className="w-4 h-4" />
-                Boutiques
->>>>>>> ff327cc6faa65bc31cede8f1f72c866a500b59d5
               </button>
               <button
                 onClick={() => setTab("settings")}
@@ -898,7 +795,6 @@ export function AdminModal({
               </div>
             )}
 
-<<<<<<< HEAD
             {/* Tab: Vendeurs */}
             {tab === "vendors" && (
               <div className="space-y-3">
@@ -1511,72 +1407,6 @@ export function AdminModal({
                         </div>
                       );
                     })}
-=======
-            {/* Tab: Boutiques / Vendeurs */}
-            {tab === "sellers" && (
-              <div className="space-y-4">
-                {/* Add seller form */}
-                <div className="border rounded-lg p-3 space-y-2 bg-muted/30">
-                  <p className="text-sm font-semibold flex items-center gap-1">
-                    <UserPlus className="w-4 h-4" /> Ajouter un vendeur
-                  </p>
-                  <div className="flex gap-2">
-                    <Input
-                      placeholder="Prénom du vendeur"
-                      value={newSellerFirstName}
-                      onChange={(e) => setNewSellerFirstName(e.target.value)}
-                      className="flex-1"
-                    />
-                    <Input
-                      placeholder="Numéro WhatsApp"
-                      value={newSellerPhone}
-                      onChange={(e) => setNewSellerPhone(e.target.value)}
-                      className="flex-1"
-                    />
-                  </div>
-                  <Button
-                    onClick={handleAddSeller}
-                    disabled={sellerSaving}
-                    className="w-full"
-                    size="sm"
-                  >
-                    {sellerSaving ? "Ajout..." : "Créer la boutique"}
-                  </Button>
-                </div>
-
-                {/* Sellers list */}
-                {sellersLoading ? (
-                  <p className="text-sm text-center text-muted-foreground py-4">Chargement...</p>
-                ) : sellers.length === 0 ? (
-                  <div className="text-center py-6 text-muted-foreground">
-                    <Store className="w-8 h-8 mx-auto mb-2 opacity-40" />
-                    <p className="text-sm">Aucune boutique enregistrée</p>
-                  </div>
-                ) : (
-                  <div className="space-y-2">
-                    {sellers.map((s) => (
-                      <div key={s.id} className="flex items-center justify-between border rounded-lg px-3 py-2">
-                        <div>
-                          <p className="text-sm font-semibold">
-                            N°{s.id} — {s.firstName}
-                          </p>
-                          <p className="text-xs text-muted-foreground">{s.phone}</p>
-                        </div>
-                        <Button
-                          variant="destructive"
-                          size="sm"
-                          onClick={() => handleDeleteSeller(s.id)}
-                          className="h-7 px-2"
-                        >
-                          <Trash2 className="w-3.5 h-3.5" />
-                        </Button>
-                      </div>
-                    ))}
->>>>>>> ff327cc6faa65bc31cede8f1f72c866a500b59d5
-                  </div>
-                )}
-              </div>
-            )}
 
             {/* Tab: Paramètres */}
             {tab === "settings" && (

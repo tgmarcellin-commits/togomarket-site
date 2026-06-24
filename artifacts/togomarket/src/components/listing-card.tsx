@@ -96,7 +96,7 @@ export function ListingCard({ listing, isAdmin, adminPassword, commissionRate, w
                 key={i}
                 src={resolveImageUrl(img)}
                 alt={`${listing.name} ${i + 1}`}
-                className="w-full h-full object-contain snap-center flex-shrink-0 cursor-zoom-in"
+                className="w-full h-full object-cover snap-center flex-shrink-0 cursor-zoom-in"
                 onClick={() => openViewer(i)}
               />
             ))
