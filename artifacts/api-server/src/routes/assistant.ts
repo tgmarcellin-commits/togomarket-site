@@ -110,10 +110,15 @@ router.post("/assistant/chat", async (req, res) => {
       systemInstruction: systemPrompt,
     });
 
-    const history = messages.slice(0, -1).map((m) => ({
-      role: m.role === "assistant" ? "model" : "user",
+    // Gemini requires: history starts with 'user' and strictly alternates user/model
+    const rawHistory = messages.slice(0, -1).map((m) => ({
+      role: m.role === "assistant" ? "model" : ("user" as const),
       parts: [{ text: m.content }],
     }));
+
+    // Drop any leading 'model' entries — Gemini rejects history not starting with 'user'
+    const firstUserIdx = rawHistory.findIndex((m) => m.role === "user");
+    const history = firstUserIdx >= 0 ? rawHistory.slice(firstUserIdx) : [];
 
     const lastMessage = messages[messages.length - 1];
 
