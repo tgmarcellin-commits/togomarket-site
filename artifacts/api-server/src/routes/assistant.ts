@@ -1,5 +1,7 @@
 import { Router, type IRouter } from "express";
 import { GoogleGenerativeAI } from "@google/generative-ai";
+import { ilike, eq, and, sql } from "drizzle-orm";
+import { db, listingsTable } from "@workspace/db";
 import { ASSISTANT_SYSTEM_PROMPT } from "../lib/assistant-prompt";
 
 const router: IRouter = Router();
@@ -24,6 +26,66 @@ function validateBody(body: unknown): { messages: ChatMessage[] } | null {
   return { messages };
 }
 
+async function buildDbContext(userMessage: string): Promise<string> {
+  try {
+    const countsBySector = await db
+      .select({
+        sector: listingsTable.sector,
+        count: sql<number>`cast(count(*) as int)`,
+      })
+      .from(listingsTable)
+      .where(eq(listingsTable.approved, true))
+      .groupBy(listingsTable.sector);
+
+    const totalApproved = countsBySector.reduce((s, r) => s + r.count, 0);
+    const sectorSummary = countsBySector
+      .map((r) => `${r.sector}: ${r.count} annonce(s)`)
+      .join(", ");
+
+    const keyword = userMessage.replace(/[^\w\s]/gi, " ").trim().split(/\s+/).filter(w => w.length > 2).join(" ");
+
+    let searchResults: Array<{ name: string; price: string; location: string; sector: string }> = [];
+    if (keyword.length > 0) {
+      const words = keyword.split(/\s+/).slice(0, 5);
+      const conditions = words.map(w => ilike(listingsTable.name, `%${w}%`));
+      const rows = await db
+        .select({
+          name: listingsTable.name,
+          price: listingsTable.price,
+          location: listingsTable.location,
+          sector: listingsTable.sector,
+        })
+        .from(listingsTable)
+        .where(and(eq(listingsTable.approved, true), ...conditions))
+        .limit(8);
+      searchResults = rows.map(r => ({
+        name: r.name,
+        price: r.price,
+        location: r.location,
+        sector: r.sector,
+      }));
+    }
+
+    let context = `\n━━━━ DONNÉES EN TEMPS RÉEL (base de données TogoMarket) ━━━━\n`;
+    context += `Total annonces approuvées : ${totalApproved}\n`;
+    if (sectorSummary) context += `Répartition : ${sectorSummary}\n`;
+
+    if (searchResults.length > 0) {
+      context += `\nAnnonces correspondant à "${keyword}" :\n`;
+      for (const r of searchResults) {
+        context += `• [${r.sector}] ${r.name} — ${Number(r.price).toLocaleString("fr-FR")} FCFA — ${r.location}\n`;
+      }
+    } else if (keyword.length > 0) {
+      context += `\nAucune annonce trouvée pour "${keyword}" en ce moment.\n`;
+    }
+
+    context += `━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n`;
+    return context;
+  } catch {
+    return "";
+  }
+}
+
 router.post("/assistant/chat", async (req, res) => {
   const validated = validateBody(req.body);
   if (!validated) {
@@ -32,6 +94,7 @@ router.post("/assistant/chat", async (req, res) => {
   }
 
   const { messages } = validated;
+  const lastUserMessage = messages.filter(m => m.role === "user").at(-1)?.content ?? "";
 
   res.setHeader("Content-Type", "text/event-stream");
   res.setHeader("Cache-Control", "no-cache");
@@ -39,9 +102,12 @@ router.post("/assistant/chat", async (req, res) => {
   res.setHeader("Access-Control-Allow-Origin", "*");
 
   try {
+    const dbContext = await buildDbContext(lastUserMessage);
+    const systemPrompt = ASSISTANT_SYSTEM_PROMPT + (dbContext ? `\n${dbContext}` : "");
+
     const model = genAI.getGenerativeModel({
       model: "gemini-2.5-flash",
-      systemInstruction: ASSISTANT_SYSTEM_PROMPT,
+      systemInstruction: systemPrompt,
     });
 
     const history = messages.slice(0, -1).map((m) => ({
