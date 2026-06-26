@@ -1,10 +1,10 @@
 import { Router, type IRouter } from "express";
-import OpenAI from "openai";
+import { GoogleGenerativeAI } from "@google/generative-ai";
 import { ASSISTANT_SYSTEM_PROMPT } from "../lib/assistant-prompt";
 
 const router: IRouter = Router();
 
-const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
+const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY ?? "");
 
 type ChatRole = "user" | "assistant";
 interface ChatMessage { role: ChatRole; content: string; }
@@ -39,20 +39,29 @@ router.post("/assistant/chat", async (req, res) => {
   res.setHeader("Access-Control-Allow-Origin", "*");
 
   try {
-    const stream = await openai.chat.completions.create({
-      model: "gpt-4o-mini",
-      max_completion_tokens: 1024,
-      messages: [
-        { role: "system", content: ASSISTANT_SYSTEM_PROMPT },
-        ...messages,
-      ],
-      stream: true,
+    const model = genAI.getGenerativeModel({
+      model: "gemini-2.5-flash",
+      systemInstruction: ASSISTANT_SYSTEM_PROMPT,
     });
 
-    for await (const chunk of stream) {
-      const content = chunk.choices[0]?.delta?.content;
-      if (content) {
-        res.write(`data: ${JSON.stringify({ content })}\n\n`);
+    const history = messages.slice(0, -1).map((m) => ({
+      role: m.role === "assistant" ? "model" : "user",
+      parts: [{ text: m.content }],
+    }));
+
+    const lastMessage = messages[messages.length - 1];
+
+    const chat = model.startChat({
+      history,
+      generationConfig: { maxOutputTokens: 1024 },
+    });
+
+    const result = await chat.sendMessageStream(lastMessage.content);
+
+    for await (const chunk of result.stream) {
+      const text = chunk.text();
+      if (text) {
+        res.write(`data: ${JSON.stringify({ content: text })}\n\n`);
       }
     }
 
