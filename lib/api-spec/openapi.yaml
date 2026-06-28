@@ -1242,7 +1242,7 @@ components:
 
     PlatformSettings:
       type: object
-      required: [commissionRate, whatsappCommission, whatsappOrders, subAdminPassword]
+      required: [commissionRate, whatsappCommission, whatsappOrders, subAdminPassword, whatsappAds]
       properties:
         commissionRate:
           type: integer
@@ -1251,6 +1251,8 @@ components:
         whatsappOrders:
           type: string
         subAdminPassword:
+          type: string
+        whatsappAds:
           type: string
 
     UpdateSettingsInput:
@@ -1266,6 +1268,8 @@ components:
         whatsappOrders:
           type: string
         subAdminPassword:
+          type: string
+        whatsappAds:
           type: string
 
     SubAdminVerifyInput:

@@ -189,6 +189,7 @@ export interface PlatformSettings {
   whatsappCommission: string;
   whatsappOrders: string;
   subAdminPassword: string;
+  whatsappAds: string;
 }
 
 export interface UpdateSettingsInput {
@@ -197,6 +198,7 @@ export interface UpdateSettingsInput {
   whatsappCommission: string;
   whatsappOrders: string;
   subAdminPassword?: string;
+  whatsappAds?: string;
 }
 
 export interface SubAdminVerifyInput {

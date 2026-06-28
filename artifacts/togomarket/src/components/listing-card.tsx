@@ -125,6 +125,12 @@ export function ListingCard({ listing, isAdmin, adminPassword, commissionRate, w
             </Badge>
           )}
         </div>
+        {listing.images && listing.images.length > 1 && (
+          <div className="absolute top-2 right-2 z-10 bg-black/60 text-white rounded-md px-1.5 py-0.5 text-[11px] font-medium flex items-center gap-1">
+            <span>📷</span>
+            <span>+{listing.images.length - 1}</span>
+          </div>
+        )}
         <button
           onClick={handleReport}
           className="absolute bottom-2 right-2 z-10 bg-white/80 hover:bg-white text-red-500 rounded-md px-2 py-1 text-[11px] font-medium shadow transition-colors"

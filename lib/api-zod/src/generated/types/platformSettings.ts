@@ -11,4 +11,5 @@ export interface PlatformSettings {
   whatsappCommission: string;
   whatsappOrders: string;
   subAdminPassword: string;
+  whatsappAds: string;
 }

@@ -1,5 +1,5 @@
 import { Router, type IRouter } from "express";
-import { lt } from "drizzle-orm";
+import { lt, eq, and, sql, inArray } from "drizzle-orm";
 import { db, listingsTable } from "@workspace/db";
 import { logger } from "../lib/logger";
 import healthRouter from "./health";
@@ -32,17 +32,37 @@ router.use(eventsRouter);
 router.use(contactRequestsRouter);
 router.use(assistantRouter);
 
+const LISTINGS_TARGET = 300;
+
 async function cleanupOldListings() {
+  const [{ count }] = await db
+    .select({ count: sql<number>`cast(count(*) as int)` })
+    .from(listingsTable)
+    .where(eq(listingsTable.approved, true));
+
+  if (count <= LISTINGS_TARGET) return;
+
+  const excess = count - LISTINGS_TARGET;
   const cutoff = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000);
+
+  const candidates = await db
+    .select({ id: listingsTable.id, images: listingsTable.images })
+    .from(listingsTable)
+    .where(and(eq(listingsTable.approved, true), lt(listingsTable.createdAt, cutoff)))
+    .orderBy(listingsTable.createdAt)
+    .limit(excess);
+
+  if (candidates.length === 0) return;
+
+  const ids = candidates.map((c) => c.id);
   const deleted = await db
     .delete(listingsTable)
-    .where(lt(listingsTable.createdAt, cutoff))
+    .where(inArray(listingsTable.id, ids))
     .returning({ id: listingsTable.id, images: listingsTable.images });
-  if (deleted.length > 0) {
-    const allImages = deleted.flatMap((d) => d.images ?? []);
-    await objectStorage.deleteObjectEntities(allImages);
-    logger.info({ count: deleted.length }, "Cleaned up listings older than 30 days");
-  }
+
+  const allImages = deleted.flatMap((d) => d.images ?? []);
+  if (allImages.length > 0) await objectStorage.deleteObjectEntities(allImages);
+  logger.info({ count: deleted.length, total: count }, "Cleanup: removed oldest listings to stay near 300");
 }
 
 cleanupOldListings().catch((err) => logger.error({ err }, "Startup cleanup failed"));

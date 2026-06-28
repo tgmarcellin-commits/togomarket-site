@@ -237,6 +237,8 @@ const translations = {
     buyTickets: "Réserver / Acheter des billets",
     entry: "Entrée",
     at: "à",
+    submitEventCta: "Soumettre votre événement",
+    submitEventDesc: "Cliquez pour soumettre votre affiche d'événement via WhatsApp",
     // Ads
     noAds: "Aucune publicité",
     noAdsDesc: "Aucune publicité n'est diffusée pour le moment. Revenez plus tard.",
@@ -244,6 +246,12 @@ const translations = {
     expiresOn: "Expire le",
     active: "Active",
     expired: "Expirée",
+    submitAdCta: "Soumettre votre publicité",
+    submitAdDesc: "Cliquez pour soumettre votre flyer publicitaire via WhatsApp",
+    // Share
+    shareViaWhatsApp: "Partager sur WhatsApp",
+    shareViaFacebook: "Partager sur Facebook",
+    whatsappAdsLabel: "WhatsApp Pub/Événements",
     introuvableTitle: "Article introuvable ?",
     introuvableDesc: "Vous ne trouvez pas ce que vous cherchez ? Notre équipe le déniche pour vous dans tout le Togo !",
     orderNow: "Commander maintenant",
@@ -486,6 +494,8 @@ const translations = {
     buyTickets: "Book / Buy tickets",
     entry: "Entry",
     at: "at",
+    submitEventCta: "Submit your event",
+    submitEventDesc: "Click to submit your event poster via WhatsApp",
     // Ads
     noAds: "No ads",
     noAdsDesc: "No ads are currently running. Check back later.",
@@ -493,6 +503,12 @@ const translations = {
     expiresOn: "Expires",
     active: "Active",
     expired: "Expired",
+    submitAdCta: "Submit your ad",
+    submitAdDesc: "Click to submit your advertising flyer via WhatsApp",
+    // Share
+    shareViaWhatsApp: "Share on WhatsApp",
+    shareViaFacebook: "Share on Facebook",
+    whatsappAdsLabel: "WhatsApp Ads/Events",
     introuvableTitle: "Can't find an item?",
     introuvableDesc: "Can't find what you're looking for? Our team will track it down for you anywhere in Togo!",
     orderNow: "Order now",

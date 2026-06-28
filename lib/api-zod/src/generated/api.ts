@@ -247,7 +247,8 @@ export const GetAdminSettingsResponse = zod.object({
   "commissionRate": zod.number(),
   "whatsappCommission": zod.string(),
   "whatsappOrders": zod.string(),
-  "subAdminPassword": zod.string()
+  "subAdminPassword": zod.string(),
+  "whatsappAds": zod.string()
 })
 
 
@@ -259,14 +260,16 @@ export const UpdateAdminSettingsBody = zod.object({
   "commissionRate": zod.number(),
   "whatsappCommission": zod.string(),
   "whatsappOrders": zod.string(),
-  "subAdminPassword": zod.string().optional()
+  "subAdminPassword": zod.string().optional(),
+  "whatsappAds": zod.string().optional()
 })
 
 export const UpdateAdminSettingsResponse = zod.object({
   "commissionRate": zod.number(),
   "whatsappCommission": zod.string(),
   "whatsappOrders": zod.string(),
-  "subAdminPassword": zod.string()
+  "subAdminPassword": zod.string(),
+  "whatsappAds": zod.string()
 })
 
 

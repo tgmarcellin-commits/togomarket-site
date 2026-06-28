@@ -12,4 +12,5 @@ export interface UpdateSettingsInput {
   whatsappCommission: string;
   whatsappOrders: string;
   subAdminPassword?: string;
+  whatsappAds?: string;
 }

@@ -203,6 +203,7 @@ export function AdminModal({
 
   const [whatsappCommissionInput, setWhatsappCommissionInput] = useState("");
   const [whatsappOrdersInput, setWhatsappOrdersInput] = useState("");
+  const [whatsappAdsInput, setWhatsappAdsInput] = useState("");
   const [subAdminPwdInput, setSubAdminPwdInput] = useState("");
 
   const [adminPublishForm, setAdminPublishForm] = useState({
@@ -650,6 +651,7 @@ export function AdminModal({
           commissionRate: settings?.commissionRate ?? 2,
           whatsappCommission: whatsappCommissionInput || (settings?.whatsappCommission ?? "22870703131"),
           whatsappOrders: whatsappOrdersInput || (settings?.whatsappOrders ?? "22870703131"),
+          whatsappAds: whatsappAdsInput || (settings?.whatsappAds ?? "22870703131"),
         },
       },
       {
@@ -1559,6 +1561,17 @@ export function AdminModal({
                         placeholder={settings?.whatsappOrders ?? "22870703131"}
                         value={whatsappOrdersInput}
                         onChange={(e) => setWhatsappOrdersInput(e.target.value.replace(/\D/g, ""))}
+                        className="h-9 text-sm"
+                      />
+                    </div>
+                    <div>
+                      <label className="text-xs font-medium text-muted-foreground mb-1 block">
+                        Publicités &amp; Événements (soumissions)
+                      </label>
+                      <Input
+                        placeholder={settings?.whatsappAds ?? "22870703131"}
+                        value={whatsappAdsInput}
+                        onChange={(e) => setWhatsappAdsInput(e.target.value.replace(/\D/g, ""))}
                         className="h-9 text-sm"
                       />
                     </div>

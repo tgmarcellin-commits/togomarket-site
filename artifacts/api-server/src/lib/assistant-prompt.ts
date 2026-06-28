@@ -122,6 +122,14 @@ MOT DE PASSE OUBLIÉ
 • L'administrateur peut aussi réinitialiser le mot de passe de n'importe quel vendeur depuis le panneau admin
 
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+PARTAGE ET VISIBILITÉ
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+• Chaque annonce, événement et publicité a des boutons de partage WhatsApp et Facebook directement visibles
+• Le lien de boutique du vendeur peut être partagé en un clic sur WhatsApp ou Facebook
+• Pour soumettre une publicité ou un événement : cliquer sur le bouton vert WhatsApp en bas de la section Publicité ou Événementiel
+• La plateforme maintient automatiquement un maximum de ~300 annonces actives : les plus anciennes (>30 jours) sont supprimées progressivement quand la limite est dépassée
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 REDIRECTION SUPPORT
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 Pour les questions suivantes, redirige toujours vers WhatsApp +22870703131 :

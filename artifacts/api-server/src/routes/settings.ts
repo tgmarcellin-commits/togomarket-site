@@ -17,7 +17,7 @@ async function getSettings() {
   if (rows.length === 0) {
     const [row] = await db
       .insert(platformSettingsTable)
-      .values({ commissionRate: 2, whatsappCommission: "22870703131", whatsappOrders: "22870703131", subAdminPassword: "0101" })
+      .values({ commissionRate: 2, whatsappCommission: "22870703131", whatsappOrders: "22870703131", subAdminPassword: "0101", whatsappAds: "22870703131" })
       .returning();
     return row;
   }
@@ -31,6 +31,7 @@ router.get("/admin/settings", async (_req, res): Promise<void> => {
     whatsappCommission: settings.whatsappCommission,
     whatsappOrders: settings.whatsappOrders,
     subAdminPassword: settings.subAdminPassword,
+    whatsappAds: settings.whatsappAds ?? "22870703131",
   }));
 });
 
@@ -56,6 +57,9 @@ router.post("/admin/settings", async (req, res): Promise<void> => {
       ...(parsed.data.subAdminPassword !== undefined
         ? { subAdminPassword: parsed.data.subAdminPassword }
         : {}),
+      ...(parsed.data.whatsappAds !== undefined
+        ? { whatsappAds: parsed.data.whatsappAds }
+        : {}),
     })
     .returning();
 
@@ -69,6 +73,7 @@ router.post("/admin/settings", async (req, res): Promise<void> => {
     whatsappCommission: updated.whatsappCommission,
     whatsappOrders: updated.whatsappOrders,
     subAdminPassword: updated.subAdminPassword,
+    whatsappAds: updated.whatsappAds ?? "22870703131",
   }));
 });
 
