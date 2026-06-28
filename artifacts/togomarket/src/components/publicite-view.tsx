@@ -6,6 +6,7 @@ import { Megaphone, Play } from "lucide-react";
 import { resolveImageUrl } from "@/lib/image";
 import { useSiteSettings } from "@/lib/site-settings";
 import { useT } from "@/lib/i18n";
+import { ImageViewer } from "@/components/image-viewer";
 
 function ShareButtons({ text, url }: { text: string; url: string }) {
   const waHref = `https://wa.me/?text=${encodeURIComponent(text)}`;
@@ -42,6 +43,8 @@ function AdDetailModal({ ad, open, onClose, t }: {
   onClose: () => void;
   t: ReturnType<typeof useT>;
 }) {
+  const [viewerOpen, setViewerOpen] = useState(false);
+
   if (!ad) return null;
   const isActive = new Date(ad.endDate) > new Date();
   const endDate = new Date(ad.endDate).toLocaleDateString(t.dateLocale, { day: "numeric", month: "long", year: "numeric" });
@@ -49,49 +52,64 @@ function AdDetailModal({ ad, open, onClose, t }: {
   const shareUrl = window.location.origin;
 
   return (
-    <Dialog open={open} onOpenChange={(v) => !v && onClose()}>
-      <DialogContent className="sm:max-w-[420px] max-h-[90vh] overflow-y-auto">
-        <DialogHeader>
-          <DialogTitle>{ad.advertiserName}</DialogTitle>
-        </DialogHeader>
-        <div className="space-y-4">
-          {ad.videoPath ? (
-            <video
-              src={resolveImageUrl(ad.videoPath)}
-              controls
-              autoPlay
-              playsInline
-              className="w-full rounded-xl bg-black"
-              style={{ maxHeight: 280 }}
-            />
-          ) : ad.image ? (
-            <div className="w-full rounded-xl overflow-hidden" style={{ maxHeight: 280 }}>
-              <img
-                src={resolveImageUrl(ad.image)}
-                alt={ad.advertiserName}
-                className="w-full h-full object-cover"
+    <>
+      <Dialog open={open} onOpenChange={(v) => !v && onClose()}>
+        <DialogContent className="sm:max-w-[420px] max-h-[90vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle>{ad.advertiserName}</DialogTitle>
+          </DialogHeader>
+          <div className="space-y-4">
+            {ad.videoPath ? (
+              <video
+                src={resolveImageUrl(ad.videoPath)}
+                controls
+                autoPlay
+                playsInline
+                className="w-full rounded-xl bg-black"
                 style={{ maxHeight: 280 }}
               />
-            </div>
-          ) : null}
-          <div className="space-y-2">
-            <p className="text-sm leading-relaxed">{ad.message}</p>
-            <div className="flex items-center justify-between text-xs text-muted-foreground border-t pt-2">
-              <span>{t.expiresOn} {endDate}</span>
-              <span className={`px-2 py-0.5 rounded-full font-medium ${
-                isActive ? "bg-green-100 text-green-700" : "bg-red-100 text-red-700"
-              }`}>
-                {isActive ? t.active : t.expired}
-              </span>
-            </div>
-            <div className="flex items-center justify-between pt-1">
-              <span className="text-xs text-muted-foreground">{t.shareViaWhatsApp} / Facebook</span>
-              <ShareButtons text={shareText} url={shareUrl} />
+            ) : ad.image ? (
+              <button
+                type="button"
+                className="w-full rounded-xl overflow-hidden cursor-zoom-in focus:outline-none"
+                style={{ maxHeight: 280 }}
+                onClick={() => setViewerOpen(true)}
+              >
+                <img
+                  src={resolveImageUrl(ad.image)}
+                  alt={ad.advertiserName}
+                  className="w-full object-cover"
+                  style={{ maxHeight: 280 }}
+                />
+              </button>
+            ) : null}
+            <div className="space-y-2">
+              <p className="text-sm leading-relaxed">{ad.message}</p>
+              <div className="flex items-center justify-between text-xs text-muted-foreground border-t pt-2">
+                <span>{t.expiresOn} {endDate}</span>
+                <span className={`px-2 py-0.5 rounded-full font-medium ${
+                  isActive ? "bg-green-100 text-green-700" : "bg-red-100 text-red-700"
+                }`}>
+                  {isActive ? t.active : t.expired}
+                </span>
+              </div>
+              <div className="flex items-center justify-between pt-1">
+                <span className="text-xs text-muted-foreground">{t.shareViaWhatsApp} / Facebook</span>
+                <ShareButtons text={shareText} url={shareUrl} />
+              </div>
             </div>
           </div>
-        </div>
-      </DialogContent>
-    </Dialog>
+        </DialogContent>
+      </Dialog>
+
+      {viewerOpen && ad.image && (
+        <ImageViewer
+          images={[ad.image]}
+          startIndex={0}
+          onClose={() => setViewerOpen(false)}
+        />
+      )}
+    </>
   );
 }
 
@@ -122,6 +140,7 @@ export function PubliciteView() {
   const { data: ads, isLoading } = useGetActiveAds();
   const { data: settings } = useGetAdminSettings();
   const [selectedAd, setSelectedAd] = useState<Ad | null>(null);
+  const [viewerImage, setViewerImage] = useState<string | null>(null);
   const whatsappAds = settings?.whatsappAds ?? "22870703131";
 
   if (isLoading) {
@@ -160,35 +179,39 @@ export function PubliciteView() {
           const shareUrl = window.location.origin;
           return (
             <div key={ad.id} className="rounded-xl border bg-card overflow-hidden hover:shadow-md transition-shadow">
-              <button
-                className="w-full text-left"
-                onClick={() => setSelectedAd(ad)}
-              >
-                <div className="flex gap-0">
-                  {ad.videoPath ? (
+              <div className="flex gap-0">
+                {ad.videoPath ? (
+                  <button type="button" className="flex-shrink-0 focus:outline-none" onClick={() => setSelectedAd(ad)}>
                     <VideoThumbnail src={ad.videoPath} />
-                  ) : ad.image ? (
-                    <div className="w-28 h-28 flex-shrink-0 overflow-hidden">
-                      <img
-                        src={resolveImageUrl(ad.image)}
-                        alt={ad.advertiserName}
-                        className="w-full h-full object-cover"
-                      />
-                    </div>
-                  ) : (
-                    <div className="w-28 h-28 bg-muted flex items-center justify-center flex-shrink-0">
-                      <Megaphone className="w-8 h-8 text-muted-foreground" />
-                    </div>
-                  )}
-                  <div className="p-3 flex-1 min-w-0">
-                    <p className="font-semibold text-sm">{ad.advertiserName}</p>
-                    <p className="text-xs text-muted-foreground line-clamp-2 mt-0.5">{ad.message}</p>
-                    <p className="text-xs text-muted-foreground mt-1.5">
-                      {t.expiresOn} {new Date(ad.endDate).toLocaleDateString(t.dateLocale, { day: "numeric", month: "short", year: "numeric" })}
-                    </p>
+                  </button>
+                ) : ad.image ? (
+                  <button
+                    type="button"
+                    className="w-28 h-28 flex-shrink-0 overflow-hidden cursor-zoom-in focus:outline-none"
+                    onClick={() => setViewerImage(ad.image!)}
+                  >
+                    <img
+                      src={resolveImageUrl(ad.image)}
+                      alt={ad.advertiserName}
+                      className="w-full h-full object-cover"
+                    />
+                  </button>
+                ) : (
+                  <div className="w-28 h-28 bg-muted flex items-center justify-center flex-shrink-0">
+                    <Megaphone className="w-8 h-8 text-muted-foreground" />
                   </div>
-                </div>
-              </button>
+                )}
+                <button
+                  className="flex-1 min-w-0 text-left p-3"
+                  onClick={() => setSelectedAd(ad)}
+                >
+                  <p className="font-semibold text-sm">{ad.advertiserName}</p>
+                  <p className="text-xs text-muted-foreground line-clamp-2 mt-0.5">{ad.message}</p>
+                  <p className="text-xs text-muted-foreground mt-1.5">
+                    {t.expiresOn} {new Date(ad.endDate).toLocaleDateString(t.dateLocale, { day: "numeric", month: "short", year: "numeric" })}
+                  </p>
+                </button>
+              </div>
               <div className="px-3 pb-2 flex justify-end">
                 <ShareButtons text={shareText} url={shareUrl} />
               </div>
@@ -218,6 +241,14 @@ export function PubliciteView() {
         onClose={() => setSelectedAd(null)}
         t={t}
       />
+
+      {viewerImage && (
+        <ImageViewer
+          images={[viewerImage]}
+          startIndex={0}
+          onClose={() => setViewerImage(null)}
+        />
+      )}
     </div>
   );
 }

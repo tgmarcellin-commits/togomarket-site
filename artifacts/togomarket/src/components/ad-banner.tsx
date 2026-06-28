@@ -1,63 +1,82 @@
 import { useEffect, useState } from "react";
 import { useGetActiveAds, type Ad } from "@workspace/api-client-react";
 import { Megaphone, X, ChevronLeft, ChevronRight, Play } from "lucide-react";
+import { resolveImageUrl } from "@/lib/image";
+import { ImageViewer } from "@/components/image-viewer";
 
 function AdModal({ ad, onClose }: { ad: Ad; onClose: () => void }) {
+  const [viewerOpen, setViewerOpen] = useState(false);
+
   return (
-    <div
-      className="fixed inset-0 z-[100] flex items-center justify-center bg-black/70 backdrop-blur-sm p-4"
-      onClick={onClose}
-    >
+    <>
       <div
-        className="bg-white rounded-2xl w-full max-w-sm overflow-hidden shadow-2xl"
-        onClick={(e) => e.stopPropagation()}
+        className="fixed inset-0 z-[100] flex items-center justify-center bg-black/70 backdrop-blur-sm p-4"
+        onClick={onClose}
       >
-        {ad.videoPath && (
-          <div className="w-full aspect-video bg-black">
-            <video
-              src={`/api/storage${ad.videoPath}`}
-              className="w-full h-full object-contain"
-              controls
-              playsInline
-            />
-          </div>
-        )}
-        {!ad.videoPath && ad.image && (
-          <div className="w-full aspect-video bg-black">
-            <img
-              src={ad.image}
-              alt={ad.advertiserName}
-              className="w-full h-full object-contain"
-            />
-          </div>
-        )}
-        <div className="p-5 space-y-3">
-          <div className="flex items-start justify-between gap-2">
-            <div>
-              <div className="flex items-center gap-2 mb-1">
-                <div className="bg-amber-400 rounded-full p-1">
-                  <Megaphone className="w-3 h-3 text-white" />
-                </div>
-                <span className="text-[10px] font-bold uppercase tracking-widest text-amber-600">
-                  Publicité
-                </span>
-              </div>
-              <h2 className="text-lg font-bold text-foreground">{ad.advertiserName}</h2>
+        <div
+          className="bg-white rounded-2xl w-full max-w-sm overflow-hidden shadow-2xl"
+          onClick={(e) => e.stopPropagation()}
+        >
+          {ad.videoPath && (
+            <div className="w-full aspect-video bg-black">
+              <video
+                src={resolveImageUrl(ad.videoPath)}
+                className="w-full h-full object-contain"
+                controls
+                autoPlay
+                playsInline
+              />
             </div>
+          )}
+          {!ad.videoPath && ad.image && (
             <button
-              onClick={onClose}
-              className="flex-shrink-0 rounded-full p-1.5 bg-muted hover:bg-muted/80 transition-colors"
+              type="button"
+              className="w-full aspect-video bg-black focus:outline-none cursor-zoom-in"
+              onClick={() => setViewerOpen(true)}
             >
-              <X className="w-4 h-4 text-muted-foreground" />
+              <img
+                src={resolveImageUrl(ad.image)}
+                alt={ad.advertiserName}
+                className="w-full h-full object-contain"
+              />
             </button>
-          </div>
-          <p className="text-sm text-foreground leading-relaxed">{ad.message}</p>
-          <div className="pt-2 border-t text-xs text-muted-foreground">
-            Expire le {new Date(ad.endDate).toLocaleDateString("fr-FR", { day: "2-digit", month: "long", year: "numeric" })}
+          )}
+          <div className="p-5 space-y-3">
+            <div className="flex items-start justify-between gap-2">
+              <div>
+                <div className="flex items-center gap-2 mb-1">
+                  <div className="bg-amber-400 rounded-full p-1">
+                    <Megaphone className="w-3 h-3 text-white" />
+                  </div>
+                  <span className="text-[10px] font-bold uppercase tracking-widest text-amber-600">
+                    Publicité
+                  </span>
+                </div>
+                <h2 className="text-lg font-bold text-foreground">{ad.advertiserName}</h2>
+              </div>
+              <button
+                onClick={onClose}
+                className="flex-shrink-0 rounded-full p-1.5 bg-muted hover:bg-muted/80 transition-colors"
+              >
+                <X className="w-4 h-4 text-muted-foreground" />
+              </button>
+            </div>
+            <p className="text-sm text-foreground leading-relaxed">{ad.message}</p>
+            <div className="pt-2 border-t text-xs text-muted-foreground">
+              Expire le {new Date(ad.endDate).toLocaleDateString("fr-FR", { day: "2-digit", month: "long", year: "numeric" })}
+            </div>
           </div>
         </div>
       </div>
-    </div>
+
+      {viewerOpen && ad.image && (
+        <ImageViewer
+          images={[ad.image]}
+          startIndex={0}
+          onClose={() => setViewerOpen(false)}
+        />
+      )}
+    </>
   );
 }
 
@@ -78,6 +97,7 @@ export function AdBanner() {
 
   const ad = ads[current];
   const hasMedia = !!(ad.image || ad.videoPath);
+  const thumbnailUrl = ad.image ? resolveImageUrl(ad.image) : null;
 
   return (
     <>
@@ -113,16 +133,22 @@ export function AdBanner() {
           >
             {/* Media thumbnail */}
             {hasMedia && (
-              <div className="relative flex-shrink-0 w-16 h-16 rounded-xl overflow-hidden border-2 border-white/30 shadow-md">
-                {ad.image && <img src={ad.image} alt={ad.advertiserName} className="w-full h-full object-cover" />}
-                {ad.videoPath && !ad.image && (
-                  <div className="w-full h-full bg-black/60 flex items-center justify-center">
-                    <Play className="w-6 h-6 text-white fill-white" />
-                  </div>
+              <div className="relative flex-shrink-0 w-16 h-16 rounded-xl overflow-hidden border-2 border-white/30 shadow-md bg-black/20">
+                {thumbnailUrl && (
+                  <img
+                    src={thumbnailUrl}
+                    alt={ad.advertiserName}
+                    className="w-full h-full object-cover"
+                    onError={(e) => {
+                      (e.currentTarget as HTMLImageElement).style.display = "none";
+                    }}
+                  />
                 )}
                 {ad.videoPath && (
-                  <div className="absolute bottom-0.5 right-0.5 bg-black/60 rounded-full p-0.5">
-                    <Play className="w-2.5 h-2.5 text-white fill-white" />
+                  <div className="absolute inset-0 flex items-center justify-center">
+                    <div className="bg-black/50 rounded-full p-1.5">
+                      <Play className="w-4 h-4 text-white fill-white" />
+                    </div>
                   </div>
                 )}
               </div>
