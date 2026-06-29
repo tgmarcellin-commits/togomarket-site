@@ -5,7 +5,7 @@ import { useT } from "@/lib/i18n";
 
 export type NavTab = "boutique" | "publicite" | "marketplace" | "evenementiel" | "introuvable" | "services";
 
-type SecretTab = "publicite" | "evenementiel";
+type SecretTab = "publicite" | "evenementiel" | "services";
 
 interface BottomNavProps {
   activeTab: NavTab;
@@ -13,7 +13,7 @@ interface BottomNavProps {
   onSecretTap?: (tab: SecretTab) => void;
 }
 
-const SECRET_TABS: SecretTab[] = ["publicite", "evenementiel"];
+const SECRET_TABS: SecretTab[] = ["publicite", "evenementiel", "services"];
 const SECRET_CLICKS = 5;
 const SECRET_RESET_MS = 2000;
 

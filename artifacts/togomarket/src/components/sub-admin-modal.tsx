@@ -8,8 +8,11 @@ import {
   useAdminDeleteEvent,
   useGetEvents,
   getGetEventsQueryKey,
+  useAdminGetAllServices,
+  useAdminDeleteService,
   type Ad,
   type Event as ApiEvent,
+  type Service,
 } from "@workspace/api-client-react";
 import { useQueryClient } from "@tanstack/react-query";
 import {
@@ -31,6 +34,8 @@ import {
   UploadCloud,
   MapPin,
   Ticket,
+  Briefcase,
+  Phone,
 } from "lucide-react";
 import { resizeImageToBlob, resolveImageUrl } from "@/lib/image";
 import { uploadImageFile, uploadVideoFile } from "@/lib/upload";
@@ -67,6 +72,7 @@ export function SubAdminModal({ section, open, onOpenChange }: SubAdminModalProp
             setStoredPwd(pwdInput.trim());
             setWrongPwd(false);
             if (section === "publicite") refetchAds();
+            if (section === "services") refetchServices();
           } else {
             setWrongPwd(true);
           }
@@ -252,8 +258,37 @@ export function SubAdminModal({ section, open, onOpenChange }: SubAdminModalProp
     );
   };
 
-  const title = section === "publicite" ? t.subAdminAdsTitle : t.subAdminEventsTitle;
-  const Icon = section === "publicite" ? Megaphone : Calendar;
+  /* ─── SERVICES STATE ─────────────────────────────────────────────────── */
+  const [allServices, setAllServices] = useState<Service[]>([]);
+  const [servicesLoading, setServicesLoading] = useState(false);
+  const [confirmService, setConfirmService] = useState<number | null>(null);
+
+  const getAllServices = useAdminGetAllServices();
+  const deleteService = useAdminDeleteService();
+
+  const refetchServices = () => {
+    setServicesLoading(true);
+    getAllServices.mutate(
+      { data: { password: storedPwd } },
+      {
+        onSuccess: (data) => { setAllServices(data); setServicesLoading(false); },
+        onError: () => setServicesLoading(false),
+      }
+    );
+  };
+
+  const handleDeleteService = (id: number) => {
+    deleteService.mutate(
+      { data: { id, password: storedPwd } },
+      {
+        onSuccess: () => { setConfirmService(null); toast({ title: "Service supprimé" }); refetchServices(); },
+        onError: () => toast({ title: "Erreur", variant: "destructive" }),
+      }
+    );
+  };
+
+  const title = section === "publicite" ? t.subAdminAdsTitle : section === "evenementiel" ? t.subAdminEventsTitle : "Gestion Services";
+  const Icon = section === "publicite" ? Megaphone : section === "evenementiel" ? Calendar : Briefcase;
 
   return (
     <Dialog open={open} onOpenChange={handleClose}>
@@ -378,7 +413,7 @@ export function SubAdminModal({ section, open, onOpenChange }: SubAdminModalProp
               </div>
             )}
           </div>
-        ) : (
+        ) : section === "evenementiel" ? (
           /* ── EVENTS SECTION ─────────────────────────────────────────── */
           <div className="space-y-3 pt-1">
             <div className="flex items-center justify-between">
@@ -482,6 +517,65 @@ export function SubAdminModal({ section, open, onOpenChange }: SubAdminModalProp
                         </div>
                       ) : (
                         <Button size="sm" variant="outline" className="h-7 text-xs text-red-500 border-red-200 hover:bg-red-50 gap-1" onClick={() => setConfirmEvent(event.id)}>
+                          <Trash2 className="w-3 h-3" /> Supprimer
+                        </Button>
+                      )}
+                    </div>
+                  );
+                })}
+              </div>
+            )}
+          </div>
+        ) : (
+          /* ── SERVICES SECTION ────────────────────────────────────────── */
+          <div className="space-y-3 pt-1">
+            <div className="flex items-center justify-between">
+              <p className="text-sm font-semibold">Services ({allServices.length})</p>
+              <Button size="sm" variant="outline" onClick={refetchServices} className="h-7 px-2">
+                <RefreshCw className="w-3.5 h-3.5" />
+              </Button>
+            </div>
+            {servicesLoading ? (
+              <p className="text-sm text-center text-muted-foreground py-6">Chargement...</p>
+            ) : allServices.length === 0 ? (
+              <div className="text-center py-8 text-muted-foreground">
+                <Briefcase className="w-10 h-10 mx-auto mb-2 opacity-30" />
+                <p className="text-sm">Aucun service</p>
+                <p className="text-xs mt-1">Appuyez sur Actualiser pour charger</p>
+              </div>
+            ) : (
+              <div className="space-y-2">
+                {allServices.map((svc) => {
+                  const isExpired = new Date(svc.expiresAt) < new Date();
+                  return (
+                    <div key={svc.id} className={`border rounded-lg p-3 space-y-1.5 ${isExpired ? "opacity-60 bg-muted/30" : ""}`}>
+                      <div className="flex items-start gap-2">
+                        <span className={`text-[10px] px-1.5 py-0.5 rounded-full font-bold flex-shrink-0 mt-0.5 ${svc.type === "offer" ? "bg-blue-100 text-blue-700" : "bg-orange-100 text-orange-700"}`}>
+                          {svc.type === "offer" ? "Offre" : "Cherche"}
+                        </span>
+                        <div className="flex-1 min-w-0">
+                          <p className="text-sm font-semibold truncate">{svc.title}</p>
+                          <p className="text-xs text-muted-foreground line-clamp-2">{svc.description}</p>
+                          <div className="flex items-center gap-1 text-xs text-muted-foreground mt-0.5">
+                            <Phone className="w-3 h-3" />
+                            <span>{svc.contact}</span>
+                            {svc.ville && <span>— {svc.ville}</span>}
+                          </div>
+                          <p className="text-[10px] text-muted-foreground">
+                            Expire : {new Date(svc.expiresAt).toLocaleDateString("fr-FR")}
+                            {isExpired && " (expiré)"}
+                          </p>
+                        </div>
+                      </div>
+                      {confirmService === svc.id ? (
+                        <div className="flex gap-2 pt-1">
+                          <Button size="sm" variant="destructive" className="flex-1 h-7 text-xs" onClick={() => handleDeleteService(svc.id)} disabled={deleteService.isPending}>
+                            {deleteService.isPending ? "..." : "Oui, supprimer"}
+                          </Button>
+                          <Button size="sm" variant="outline" className="flex-1 h-7 text-xs" onClick={() => setConfirmService(null)}>Annuler</Button>
+                        </div>
+                      ) : (
+                        <Button size="sm" variant="outline" className="h-7 text-xs text-red-500 border-red-200 hover:bg-red-50 gap-1" onClick={() => setConfirmService(svc.id)}>
                           <Trash2 className="w-3 h-3" /> Supprimer
                         </Button>
                       )}

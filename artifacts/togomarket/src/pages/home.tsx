@@ -99,7 +99,7 @@ export default function Home() {
   const [isAdminModalOpen, setIsAdminModalOpen] = useState(false);
   const [isAuthModalOpen, setIsAuthModalOpen] = useState(false);
   const [isProfileModalOpen, setIsProfileModalOpen] = useState(false);
-  const [subAdminSection, setSubAdminSection] = useState<"publicite" | "evenementiel" | null>(null);
+  const [subAdminSection, setSubAdminSection] = useState<"publicite" | "evenementiel" | "services" | null>(null);
   const [logoTapCount, setLogoTapCount] = useState(0);
   const logoTapTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
