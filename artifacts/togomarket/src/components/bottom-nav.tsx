@@ -1,9 +1,9 @@
 import { useRef } from "react";
-import { Store, Megaphone, ShoppingBag, Calendar, PackageSearch } from "lucide-react";
+import { Store, Megaphone, ShoppingBag, Calendar, PackageSearch, Briefcase } from "lucide-react";
 import { useSiteSettings } from "@/lib/site-settings";
 import { useT } from "@/lib/i18n";
 
-export type NavTab = "boutique" | "publicite" | "marketplace" | "evenementiel" | "introuvable";
+export type NavTab = "boutique" | "publicite" | "marketplace" | "evenementiel" | "introuvable" | "services";
 
 type SecretTab = "publicite" | "evenementiel";
 
@@ -30,6 +30,7 @@ export function BottomNav({ activeTab, onTabChange, onSecretTap }: BottomNavProp
     { id: "marketplace", label: t.navMarket, Icon: ShoppingBag },
     { id: "evenementiel", label: t.navEvents, Icon: Calendar },
     { id: "introuvable", label: t.navLost, Icon: PackageSearch },
+    { id: "services", label: t.navServices, Icon: Briefcase },
   ];
 
   const handleTabClick = (id: NavTab) => {

@@ -5,3 +5,4 @@ export * from "./ads";
 export * from "./vendors";
 export * from "./events";
 export * from "./contact_requests";
+export * from "./services";

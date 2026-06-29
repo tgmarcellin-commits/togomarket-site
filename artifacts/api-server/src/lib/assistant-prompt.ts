@@ -23,12 +23,13 @@ de publier et consulter des annonces dans 4 secteurs :
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 NAVIGATION (Bottom Nav)
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-L'application a 5 onglets :
+L'application a 6 onglets :
 1. Boutique — tableau de bord vendeur, gestion de ses annonces
 2. Market Place — liste de toutes les annonces, recherche et filtres
 3. Publicité — publicités et promotions des marchands
 4. Événementiel — événements à venir (foires, marchés, expos)
 5. Introuvable — service pour trouver un article que tu ne trouves pas
+6. Services — offres d'emploi et demandeurs d'emploi au Togo
 
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 COMMENT CONSULTER DES ANNONCES ?
@@ -127,6 +128,7 @@ PARTAGE ET VISIBILITÉ
 • Chaque annonce, événement et publicité a des boutons de partage WhatsApp et Facebook directement visibles
 • Le lien de boutique du vendeur peut être partagé en un clic sur WhatsApp ou Facebook
 • Pour soumettre une publicité ou un événement : cliquer sur le bouton vert WhatsApp en bas de la section Publicité ou Événementiel
+• Pour publier une offre d'emploi ou chercher un emploi : aller dans l'onglet "Services" et cliquer sur le bouton WhatsApp en bas
 • La plateforme maintient automatiquement un maximum de ~300 annonces actives : les plus anciennes (>30 jours) sont supprimées progressivement quand la limite est dépassée
 
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━

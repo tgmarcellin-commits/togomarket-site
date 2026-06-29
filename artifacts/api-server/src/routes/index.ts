@@ -14,6 +14,7 @@ import storageRouter from "./storage";
 import eventsRouter from "./events";
 import contactRequestsRouter from "./contact-requests";
 import assistantRouter from "./assistant";
+import servicesRouter from "./services";
 import { ObjectStorageService } from "../lib/objectStorage";
 
 const router: IRouter = Router();
@@ -31,6 +32,7 @@ router.use(storageRouter);
 router.use(eventsRouter);
 router.use(contactRequestsRouter);
 router.use(assistantRouter);
+router.use(servicesRouter);
 
 const LISTINGS_TARGET = 300;
 

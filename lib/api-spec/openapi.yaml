@@ -25,6 +25,8 @@ tags:
     description: Vendor account operations
   - name: events
     description: Event operations
+  - name: services
+    description: Services (emploi) operations
 paths:
   /storage/uploads/request-url:
     post:
@@ -842,6 +844,86 @@ paths:
         "403":
           description: Forbidden
 
+  /services:
+    get:
+      operationId: getServices
+      tags: [services]
+      summary: Get all active services
+      responses:
+        "200":
+          description: List of active services
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/Service"
+
+  /admin/services:
+    post:
+      operationId: adminCreateService
+      tags: [admin, services]
+      summary: Create a new service offer (admin/sub-admin)
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/AdminCreateServiceInput"
+      responses:
+        "201":
+          description: Service created
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Service"
+        "403":
+          description: Forbidden
+
+  /admin/services/all:
+    post:
+      operationId: adminGetAllServices
+      tags: [admin, services]
+      summary: Get all services including expired (admin/sub-admin)
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/AdminPasswordInput"
+      responses:
+        "200":
+          description: All services
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/Service"
+        "403":
+          description: Forbidden
+
+  /admin/services/delete:
+    post:
+      operationId: adminDeleteService
+      tags: [admin, services]
+      summary: Delete a service (admin/sub-admin)
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/AdminDeleteInput"
+      responses:
+        "200":
+          description: Deleted
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/DeleteResult"
+        "403":
+          description: Forbidden
+
   /contact-requests:
     post:
       tags: [listings]
@@ -1242,7 +1324,7 @@ components:
 
     PlatformSettings:
       type: object
-      required: [commissionRate, whatsappCommission, whatsappOrders, subAdminPassword, whatsappAds]
+      required: [commissionRate, whatsappCommission, whatsappOrders, subAdminPassword, whatsappAds, whatsappServices]
       properties:
         commissionRate:
           type: integer
@@ -1253,6 +1335,8 @@ components:
         subAdminPassword:
           type: string
         whatsappAds:
+          type: string
+        whatsappServices:
           type: string
 
     UpdateSettingsInput:
@@ -1270,6 +1354,50 @@ components:
         subAdminPassword:
           type: string
         whatsappAds:
+          type: string
+        whatsappServices:
+          type: string
+
+    Service:
+      type: object
+      required: [id, type, title, description, contact, quartier, ville, createdAt, expiresAt]
+      properties:
+        id:
+          type: integer
+        type:
+          type: string
+        title:
+          type: string
+        description:
+          type: string
+        contact:
+          type: string
+        quartier:
+          type: string
+        ville:
+          type: string
+        createdAt:
+          type: string
+        expiresAt:
+          type: string
+
+    AdminCreateServiceInput:
+      type: object
+      required: [password, type, title, description, contact, quartier, ville]
+      properties:
+        password:
+          type: string
+        type:
+          type: string
+        title:
+          type: string
+        description:
+          type: string
+        contact:
+          type: string
+        quartier:
+          type: string
+        ville:
           type: string
 
     SubAdminVerifyInput:

@@ -190,6 +190,7 @@ export interface PlatformSettings {
   whatsappOrders: string;
   subAdminPassword: string;
   whatsappAds: string;
+  whatsappServices: string;
 }
 
 export interface UpdateSettingsInput {
@@ -199,6 +200,29 @@ export interface UpdateSettingsInput {
   whatsappOrders: string;
   subAdminPassword?: string;
   whatsappAds?: string;
+  whatsappServices?: string;
+}
+
+export interface Service {
+  id: number;
+  type: string;
+  title: string;
+  description: string;
+  contact: string;
+  quartier: string;
+  ville: string;
+  createdAt: string;
+  expiresAt: string;
+}
+
+export interface AdminCreateServiceInput {
+  password: string;
+  type: string;
+  title: string;
+  description: string;
+  contact: string;
+  quartier: string;
+  ville: string;
 }
 
 export interface SubAdminVerifyInput {

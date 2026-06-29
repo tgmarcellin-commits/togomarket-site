@@ -26,6 +26,7 @@ import { BoutiqueView } from "@/components/boutique-view";
 import { SubAdminModal } from "@/components/sub-admin-modal";
 import { PubliciteView } from "@/components/publicite-view";
 import { EvenementielView } from "@/components/evenementiel-view";
+import { ServicesView } from "@/components/services-view";
 import { ProfileSettingsModal } from "@/components/profile-settings-modal";
 import { AiAssistant } from "@/components/ai-assistant";
 import { useToast } from "@/hooks/use-toast";
@@ -652,6 +653,9 @@ export default function Home() {
 
       {/* ── ÉVÉNEMENTIEL TAB ─────────────────────────────────────────── */}
       {activeTab === "evenementiel" && <EvenementielView />}
+
+      {/* ── SERVICES TAB ─────────────────────────────────────────────── */}
+      {activeTab === "services" && <ServicesView />}
 
       {/* ── ARTICLE INTROUVABLE TAB ──────────────────────────────────── */}
       {activeTab === "introuvable" && (

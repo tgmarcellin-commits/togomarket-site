@@ -26,13 +26,18 @@ import {
   useAdminDeleteEvent,
   useGetEvents,
   useGetAdminContactStats,
+  useAdminCreateService,
+  useAdminGetAllServices,
+  useAdminDeleteService,
   getGetAdminSettingsQueryKey,
   getGetListingsQueryKey,
   getGetEventsQueryKey,
+  getGetServicesQueryKey,
   type Ad,
   type VendorProfile,
   type Event as ApiEvent,
   type AdminContactStat,
+  type Service,
 } from "@workspace/api-client-react";
 import { useQueryClient } from "@tanstack/react-query";
 import { Button } from "@/components/ui/button";
@@ -52,7 +57,7 @@ import {
 } from "@/components/ui/form";
 import { Input } from "@/components/ui/input";
 import { useToast } from "@/hooks/use-toast";
-import { Settings, LogOut, CheckCircle, Trash2, Clock, KeyRound, Megaphone, Plus, RefreshCw, Users, UploadCloud, X, Eye, EyeOff, AlertTriangle, Calendar } from "lucide-react";
+import { Settings, LogOut, CheckCircle, Trash2, Clock, KeyRound, Megaphone, Plus, RefreshCw, Users, UploadCloud, X, Eye, EyeOff, AlertTriangle, Calendar, Briefcase, Search } from "lucide-react";
 import { resizeImage, resizeImageToBlob, resolveImageUrl } from "@/lib/image";
 import { uploadImageFile } from "@/lib/upload";
 
@@ -165,7 +170,7 @@ function ResetVendorPwdPanel({
   );
 }
 
-type DashTab = "pending" | "vendors" | "publish" | "ads" | "events" | "settings";
+type DashTab = "pending" | "vendors" | "ads" | "events" | "services" | "settings";
 
 export function AdminModal({
   open,
@@ -204,7 +209,30 @@ export function AdminModal({
   const [whatsappCommissionInput, setWhatsappCommissionInput] = useState("");
   const [whatsappOrdersInput, setWhatsappOrdersInput] = useState("");
   const [whatsappAdsInput, setWhatsappAdsInput] = useState("");
+  const [whatsappServicesInput, setWhatsappServicesInput] = useState("");
   const [subAdminPwdInput, setSubAdminPwdInput] = useState("");
+  const [vendorSearch, setVendorSearch] = useState("");
+
+  const [allServices, setAllServices] = useState<Service[]>([]);
+  const [servicesLoading, setServicesLoading] = useState(false);
+  const [showServiceForm, setShowServiceForm] = useState(false);
+  const [serviceForm, setServiceForm] = useState({ type: "offer" as "offer" | "seeker", title: "", description: "", contact: "", quartier: "", ville: "" });
+  const [confirmDeleteServiceId, setConfirmDeleteServiceId] = useState<number | null>(null);
+
+  const adminCreateService = useAdminCreateService();
+  const adminGetAllServices = useAdminGetAllServices();
+  const adminDeleteService = useAdminDeleteService();
+
+  const refetchServices = () => {
+    setServicesLoading(true);
+    adminGetAllServices.mutate(
+      { data: { password: storedPassword } },
+      {
+        onSuccess: (data) => { setAllServices(data); setServicesLoading(false); },
+        onError: () => setServicesLoading(false),
+      }
+    );
+  };
 
   const [adminPublishForm, setAdminPublishForm] = useState({
     name: "", price: "", location: "", sector: "Divers", phone: "", images: [] as string[],
@@ -652,6 +680,7 @@ export function AdminModal({
           whatsappCommission: whatsappCommissionInput || (settings?.whatsappCommission ?? "22870703131"),
           whatsappOrders: whatsappOrdersInput || (settings?.whatsappOrders ?? "22870703131"),
           whatsappAds: whatsappAdsInput || (settings?.whatsappAds ?? "22870703131"),
+          whatsappServices: whatsappServicesInput || (settings?.whatsappServices ?? "22870703131"),
         },
       },
       {
@@ -739,13 +768,13 @@ export function AdminModal({
                 Vend.
               </button>
               <button
-                onClick={() => setTab("publish")}
+                onClick={() => { setTab("services"); refetchServices(); }}
                 className={`py-2 text-[10px] font-medium flex items-center justify-center gap-0.5 transition-colors ${
-                  tab === "publish" ? "bg-primary text-primary-foreground" : "bg-background hover:bg-muted"
+                  tab === "services" ? "bg-primary text-primary-foreground" : "bg-background hover:bg-muted"
                 }`}
               >
-                <Plus className="w-3 h-3" />
-                Pub.
+                <Briefcase className="w-3 h-3" />
+                Serv.
               </button>
               <button
                 onClick={() => { setTab("ads"); refetchAds(); }}
@@ -893,6 +922,15 @@ export function AdminModal({
                     <RefreshCw className="w-3.5 h-3.5" />
                   </Button>
                 </div>
+                <div className="relative">
+                  <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-muted-foreground pointer-events-none" />
+                  <Input
+                    placeholder="Rechercher un vendeur..."
+                    value={vendorSearch}
+                    onChange={(e) => setVendorSearch(e.target.value)}
+                    className="h-8 text-xs pl-8"
+                  />
+                </div>
                 {vendorsLoading ? (
                   <p className="text-sm text-center text-muted-foreground py-6">Chargement...</p>
                 ) : vendors.length === 0 ? (
@@ -902,7 +940,15 @@ export function AdminModal({
                   </div>
                 ) : (
                   <div className="space-y-2">
-                    {vendors.map((v) => {
+                    {vendors.filter((v) => {
+                      if (!vendorSearch.trim()) return true;
+                      const q = vendorSearch.toLowerCase();
+                      return (
+                        v.firstName.toLowerCase().includes(q) ||
+                        v.lastName.toLowerCase().includes(q) ||
+                        v.phone.includes(q)
+                      );
+                    }).map((v) => {
                       const hasCode = !!v.publishCode;
                       const daysLeft = v.publishCode?.daysLeft ?? 0;
                       return (
@@ -1071,95 +1117,133 @@ export function AdminModal({
               </div>
             )}
 
-            {/* Tab: Publier pour un client */}
-            {tab === "publish" && (
+            {/* Tab: Services emploi */}
+            {tab === "services" && (
               <div className="space-y-3">
-                <p className="text-sm font-semibold">Publier au nom d'un client</p>
-                <p className="text-xs text-muted-foreground">L'annonce sera publiée directement et visible immédiatement.</p>
-
-                <div className="space-y-2">
-                  <Input
-                    placeholder="Titre de l'article *"
-                    value={adminPublishForm.name}
-                    onChange={(e) => setAdminPublishForm((p) => ({ ...p, name: e.target.value }))}
-                    className="h-9 text-sm"
-                  />
-                  <div className="grid grid-cols-2 gap-2">
-                    <Input
-                      type="number"
-                      placeholder="Prix (FCFA) *"
-                      value={adminPublishForm.price}
-                      onChange={(e) => setAdminPublishForm((p) => ({ ...p, price: e.target.value }))}
-                      className="h-9 text-sm"
-                    />
-                    <select
-                      value={adminPublishForm.sector}
-                      onChange={(e) => setAdminPublishForm((p) => ({ ...p, sector: e.target.value }))}
-                      className="h-9 text-sm border rounded-md px-2 bg-background"
-                    >
-                      <option value="AgriMarket">AgriMarket</option>
-                      <option value="Immobilier">Immobilier</option>
-                      <option value="Automobile">Automobile</option>
-                      <option value="Divers">Divers</option>
-                    </select>
-                  </div>
-                  <Input
-                    placeholder="Quartier / Ville *"
-                    value={adminPublishForm.location}
-                    onChange={(e) => setAdminPublishForm((p) => ({ ...p, location: e.target.value }))}
-                    className="h-9 text-sm"
-                  />
-                  <Input
-                    placeholder="Numéro WhatsApp du client *"
-                    value={adminPublishForm.phone}
-                    onChange={(e) => setAdminPublishForm((p) => ({ ...p, phone: e.target.value }))}
-                    className="h-9 text-sm"
-                  />
-
-                  <div>
-                    <p className="text-xs font-medium mb-1.5 text-muted-foreground">Photos (max 4)</p>
-                    <div className="flex flex-wrap gap-2">
-                      {adminPublishImagePreviews.map((preview, i) => (
-                        <div key={i} className="relative w-16 h-16 rounded-md overflow-hidden border flex-shrink-0">
-                          <img src={preview} alt="" className="w-full h-full object-cover" />
-                          <button
-                            type="button"
-                            onClick={() => {
-                              setAdminPublishForm((p) => ({ ...p, images: p.images.filter((_, idx) => idx !== i) }));
-                              setAdminPublishImagePreviews((p) => p.filter((_, idx) => idx !== i));
-                            }}
-                            className="absolute top-0.5 right-0.5 bg-black/50 text-white rounded-full p-0.5"
-                          >
-                            <X className="w-2.5 h-2.5" />
-                          </button>
-                        </div>
-                      ))}
-                      {adminPublishForm.images.length < 4 && (
-                        <label className="w-16 h-16 flex flex-col items-center justify-center border-2 border-dashed border-muted-foreground/30 rounded-md cursor-pointer hover:bg-muted/50">
-                          <UploadCloud className="w-4 h-4 text-muted-foreground mb-0.5" />
-                          <span className="text-[9px] text-muted-foreground">Ajouter</span>
-                          <input
-                            ref={adminPublishImageRef}
-                            type="file"
-                            accept="image/*"
-                            multiple
-                            className="hidden"
-                            onChange={handleAdminPublishImageChange}
-                            disabled={adminPublishProcessing}
-                          />
-                        </label>
-                      )}
-                    </div>
+                <div className="flex items-center justify-between">
+                  <p className="text-sm font-semibold">Services ({allServices.length})</p>
+                  <div className="flex gap-2">
+                    <Button size="sm" variant="outline" onClick={refetchServices} className="h-7 px-2">
+                      <RefreshCw className="w-3.5 h-3.5" />
+                    </Button>
+                    <Button size="sm" onClick={() => setShowServiceForm(!showServiceForm)} className="h-7 px-2 gap-1">
+                      <Plus className="w-3.5 h-3.5" />
+                      Ajouter
+                    </Button>
                   </div>
                 </div>
 
-                <Button
-                  className="w-full"
-                  onClick={handleAdminPublish}
-                  disabled={adminCreateListing.isPending || adminPublishProcessing}
-                >
-                  {adminCreateListing.isPending ? "Publication..." : "Publier maintenant"}
-                </Button>
+                {showServiceForm && (
+                  <div className="border rounded-lg p-3 space-y-2 bg-muted/30">
+                    <p className="text-xs font-semibold">Nouvelle annonce service</p>
+                    <div className="grid grid-cols-2 gap-2">
+                      <button
+                        onClick={() => setServiceForm((f) => ({ ...f, type: "offer" }))}
+                        className={`py-1.5 text-xs rounded-md border font-medium transition-colors ${serviceForm.type === "offer" ? "bg-primary text-primary-foreground border-primary" : "bg-background border-border"}`}
+                      >
+                        Offre d'emploi
+                      </button>
+                      <button
+                        onClick={() => setServiceForm((f) => ({ ...f, type: "seeker" }))}
+                        className={`py-1.5 text-xs rounded-md border font-medium transition-colors ${serviceForm.type === "seeker" ? "bg-primary text-primary-foreground border-primary" : "bg-background border-border"}`}
+                      >
+                        Cherche emploi
+                      </button>
+                    </div>
+                    <Input placeholder="Titre *" value={serviceForm.title} onChange={(e) => setServiceForm((f) => ({ ...f, title: e.target.value }))} className="h-8 text-xs" />
+                    <textarea
+                      placeholder="Description *"
+                      value={serviceForm.description}
+                      onChange={(e) => setServiceForm((f) => ({ ...f, description: e.target.value }))}
+                      className="w-full h-20 text-xs border rounded-md px-3 py-2 bg-background resize-none focus:outline-none focus:ring-1 focus:ring-primary"
+                    />
+                    <div className="grid grid-cols-2 gap-2">
+                      <Input placeholder="Quartier *" value={serviceForm.quartier} onChange={(e) => setServiceForm((f) => ({ ...f, quartier: e.target.value }))} className="h-8 text-xs" />
+                      <Input placeholder="Ville *" value={serviceForm.ville} onChange={(e) => setServiceForm((f) => ({ ...f, ville: e.target.value }))} className="h-8 text-xs" />
+                    </div>
+                    <Input placeholder="WhatsApp contact *" value={serviceForm.contact} onChange={(e) => setServiceForm((f) => ({ ...f, contact: e.target.value }))} className="h-8 text-xs" />
+                    <Button
+                      size="sm"
+                      className="w-full"
+                      disabled={adminCreateService.isPending}
+                      onClick={() => {
+                        const { type, title, description, contact, quartier, ville } = serviceForm;
+                        if (!title || !description || !contact || !quartier || !ville) return;
+                        adminCreateService.mutate(
+                          { data: { password: storedPassword, type, title, description, contact, quartier, ville } },
+                          {
+                            onSuccess: () => {
+                              toast({ title: "Service créé" });
+                              setServiceForm({ type: "offer", title: "", description: "", contact: "", quartier: "", ville: "" });
+                              setShowServiceForm(false);
+                              queryClient.invalidateQueries({ queryKey: getGetServicesQueryKey() });
+                              refetchServices();
+                            },
+                          }
+                        );
+                      }}
+                    >
+                      {adminCreateService.isPending ? "Création..." : "Créer l'annonce"}
+                    </Button>
+                  </div>
+                )}
+
+                {servicesLoading ? (
+                  <p className="text-sm text-center text-muted-foreground py-6">Chargement...</p>
+                ) : allServices.length === 0 ? (
+                  <div className="text-center py-8 text-muted-foreground">
+                    <Briefcase className="w-10 h-10 mx-auto mb-2 opacity-30" />
+                    <p className="text-sm">Aucun service publié</p>
+                  </div>
+                ) : (
+                  <div className="space-y-2">
+                    {allServices.map((s) => {
+                      const isOffer = s.type === "offer";
+                      const expires = new Date(s.expiresAt);
+                      const daysLeft = Math.max(0, Math.ceil((expires.getTime() - Date.now()) / (1000 * 60 * 60 * 24)));
+                      return (
+                        <div key={s.id} className="border rounded-lg p-3 space-y-1.5">
+                          <div className="flex items-start justify-between gap-2">
+                            <div>
+                              <span className={`text-[10px] font-bold px-1.5 py-0.5 rounded-full ${isOffer ? "bg-blue-100 text-blue-700" : "bg-orange-100 text-orange-700"}`}>
+                                {isOffer ? "Offre" : "Cherche"}
+                              </span>
+                              <p className="text-xs font-semibold mt-1">{s.title}</p>
+                              <p className="text-xs text-muted-foreground">{s.quartier}, {s.ville}</p>
+                            </div>
+                            <div className="flex flex-col items-end gap-1.5 flex-shrink-0">
+                              <span className="text-[10px] text-muted-foreground">{daysLeft}j restants</span>
+                              {confirmDeleteServiceId === s.id ? (
+                                <div className="flex gap-1">
+                                  <Button size="sm" variant="destructive" className="h-6 px-1.5 text-[10px]"
+                                    onClick={() => {
+                                      adminDeleteService.mutate(
+                                        { data: { id: s.id, password: storedPassword } },
+                                        {
+                                          onSuccess: () => {
+                                            toast({ title: "Service supprimé" });
+                                            setConfirmDeleteServiceId(null);
+                                            queryClient.invalidateQueries({ queryKey: getGetServicesQueryKey() });
+                                            refetchServices();
+                                          },
+                                        }
+                                      );
+                                    }}
+                                  >OK</Button>
+                                  <Button size="sm" variant="outline" className="h-6 px-1.5 text-[10px]" onClick={() => setConfirmDeleteServiceId(null)}>✕</Button>
+                                </div>
+                              ) : (
+                                <Button size="sm" variant="ghost" className="h-6 w-6 p-0 text-destructive hover:bg-destructive/10" onClick={() => setConfirmDeleteServiceId(s.id)}>
+                                  <Trash2 className="w-3.5 h-3.5" />
+                                </Button>
+                              )}
+                            </div>
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                )}
               </div>
             )}
 
@@ -1572,6 +1656,17 @@ export function AdminModal({
                         placeholder={settings?.whatsappAds ?? "22870703131"}
                         value={whatsappAdsInput}
                         onChange={(e) => setWhatsappAdsInput(e.target.value.replace(/\D/g, ""))}
+                        className="h-9 text-sm"
+                      />
+                    </div>
+                    <div>
+                      <label className="text-xs font-medium text-muted-foreground mb-1 block">
+                        Services Emploi (soumissions)
+                      </label>
+                      <Input
+                        placeholder={settings?.whatsappServices ?? "22870703131"}
+                        value={whatsappServicesInput}
+                        onChange={(e) => setWhatsappServicesInput(e.target.value.replace(/\D/g, ""))}
                         className="h-9 text-sm"
                       />
                     </div>

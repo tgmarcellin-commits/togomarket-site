@@ -23,6 +23,7 @@ const translations = {
     navAds: "Publicité",
     navEvents: "Événementiel",
     navLost: "Introuvable",
+    navServices: "Services",
     // Load more
     loadMore: "Voir plus",
     loading: "Chargement...",
@@ -256,6 +257,11 @@ const translations = {
     introuvableDesc: "Vous ne trouvez pas ce que vous cherchez ? Notre équipe le déniche pour vous dans tout le Togo !",
     orderNow: "Commander maintenant",
     introuvableNote: "Décrivez l'article et notre équipe vous contacte sous 24h via WhatsApp.",
+    // Services tab
+    servicesDesc: "Offres d'emploi et demandeurs d'emploi au Togo.",
+    noServices: "Aucune annonce de service disponible pour le moment.",
+    submitServiceCta: "Soumettre une annonce",
+    submitServiceDesc: "Vous cherchez un emploi ou recrutez ? Contactez-nous via WhatsApp pour publier votre annonce.",
     dateLocale: "fr-FR",
   },
   en: {
@@ -280,6 +286,7 @@ const translations = {
     navAds: "Ads",
     navEvents: "Events",
     navLost: "Can't find it",
+    navServices: "Services",
     // Load more
     loadMore: "Load more",
     loading: "Loading...",
@@ -513,6 +520,11 @@ const translations = {
     introuvableDesc: "Can't find what you're looking for? Our team will track it down for you anywhere in Togo!",
     orderNow: "Order now",
     introuvableNote: "Describe the item and our team will contact you within 24h via WhatsApp.",
+    // Services tab
+    servicesDesc: "Job offers and job seekers in Togo.",
+    noServices: "No service listings available at the moment.",
+    submitServiceCta: "Submit a listing",
+    submitServiceDesc: "Looking for a job or hiring? Contact us via WhatsApp to post your listing.",
     dateLocale: "en-US",
   },
 } as const;

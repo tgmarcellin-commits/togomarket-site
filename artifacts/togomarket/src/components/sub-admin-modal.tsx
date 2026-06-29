@@ -38,7 +38,7 @@ import { useSiteSettings } from "@/lib/site-settings";
 import { useT } from "@/lib/i18n";
 
 interface SubAdminModalProps {
-  section: "publicite" | "evenementiel";
+  section: "publicite" | "evenementiel" | "services";
   open: boolean;
   onOpenChange: (open: boolean) => void;
 }

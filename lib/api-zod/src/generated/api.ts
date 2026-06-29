@@ -248,7 +248,8 @@ export const GetAdminSettingsResponse = zod.object({
   "whatsappCommission": zod.string(),
   "whatsappOrders": zod.string(),
   "subAdminPassword": zod.string(),
-  "whatsappAds": zod.string()
+  "whatsappAds": zod.string(),
+  "whatsappServices": zod.string()
 })
 
 
@@ -261,7 +262,8 @@ export const UpdateAdminSettingsBody = zod.object({
   "whatsappCommission": zod.string(),
   "whatsappOrders": zod.string(),
   "subAdminPassword": zod.string().optional(),
-  "whatsappAds": zod.string().optional()
+  "whatsappAds": zod.string().optional(),
+  "whatsappServices": zod.string().optional()
 })
 
 export const UpdateAdminSettingsResponse = zod.object({
@@ -269,7 +271,8 @@ export const UpdateAdminSettingsResponse = zod.object({
   "whatsappCommission": zod.string(),
   "whatsappOrders": zod.string(),
   "subAdminPassword": zod.string(),
-  "whatsappAds": zod.string()
+  "whatsappAds": zod.string(),
+  "whatsappServices": zod.string()
 })
 
 
@@ -635,6 +638,71 @@ export const AdminDeleteEventBody = zod.object({
 })
 
 export const AdminDeleteEventResponse = zod.object({
+  "success": zod.boolean()
+})
+
+
+/**
+ * @summary Get all active services
+ */
+export const GetServicesResponseItem = zod.object({
+  "id": zod.number(),
+  "type": zod.string(),
+  "title": zod.string(),
+  "description": zod.string(),
+  "contact": zod.string(),
+  "quartier": zod.string(),
+  "ville": zod.string(),
+  "createdAt": zod.string(),
+  "expiresAt": zod.string()
+})
+export const GetServicesResponse = zod.array(GetServicesResponseItem)
+
+
+/**
+ * @summary Create a new service offer (admin/sub-admin)
+ */
+export const AdminCreateServiceBody = zod.object({
+  "password": zod.string(),
+  "type": zod.string(),
+  "title": zod.string(),
+  "description": zod.string(),
+  "contact": zod.string(),
+  "quartier": zod.string(),
+  "ville": zod.string()
+})
+
+
+/**
+ * @summary Get all services including expired (admin/sub-admin)
+ */
+export const AdminGetAllServicesBody = zod.object({
+  "password": zod.string()
+})
+
+export const AdminGetAllServicesResponseItem = zod.object({
+  "id": zod.number(),
+  "type": zod.string(),
+  "title": zod.string(),
+  "description": zod.string(),
+  "contact": zod.string(),
+  "quartier": zod.string(),
+  "ville": zod.string(),
+  "createdAt": zod.string(),
+  "expiresAt": zod.string()
+})
+export const AdminGetAllServicesResponse = zod.array(AdminGetAllServicesResponseItem)
+
+
+/**
+ * @summary Delete a service (admin/sub-admin)
+ */
+export const AdminDeleteServiceBody = zod.object({
+  "id": zod.number(),
+  "password": zod.string()
+})
+
+export const AdminDeleteServiceResponse = zod.object({
   "success": zod.boolean()
 })
 

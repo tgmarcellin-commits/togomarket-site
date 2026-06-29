@@ -7,4 +7,5 @@ export const platformSettingsTable = pgTable("platform_settings", {
   whatsappOrders: text("whatsapp_orders").notNull().default("22870703131"),
   subAdminPassword: text("sub_admin_password").notNull().default("0101"),
   whatsappAds: text("whatsapp_ads").notNull().default("22870703131"),
+  whatsappServices: text("whatsapp_services").notNull().default("22870703131"),
 });

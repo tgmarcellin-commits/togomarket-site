@@ -28,6 +28,7 @@ import type {
   AdminCreateAdInput,
   AdminCreateEventInput,
   AdminCreateListingInput,
+  AdminCreateServiceInput,
   AdminDeleteInput,
   AdminPasswordInput,
   AdminResetVendorPasswordInput,
@@ -48,6 +49,7 @@ import type {
   Order,
   OrderInput,
   PlatformSettings,
+  Service,
   ShopStatusResponse,
   StorageCleanupResult,
   SubAdminVerifyInput,
@@ -2844,6 +2846,296 @@ export const useAdminDeleteEvent = <TError = ErrorType<void>,
         TContext
       > => {
       return useMutation(getAdminDeleteEventMutationOptions(options));
+    }
+
+export const getGetServicesUrl = () => {
+
+
+
+
+  return `/api/services`
+}
+
+/**
+ * @summary Get all active services
+ */
+export const getServices = async ( options?: RequestInit): Promise<Service[]> => {
+
+  return customFetch<Service[]>(getGetServicesUrl(),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getGetServicesQueryKey = () => {
+    return [
+    `/api/services`
+    ] as const;
+    }
+
+
+export const getGetServicesQueryOptions = <TData = Awaited<ReturnType<typeof getServices>>, TError = ErrorType<unknown>>( options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getServices>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getGetServicesQueryKey();
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof getServices>>> = ({ signal }) => getServices({ signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof getServices>>, TError, TData> & { queryKey: QueryKey }
+}
+
+export type GetServicesQueryResult = NonNullable<Awaited<ReturnType<typeof getServices>>>
+export type GetServicesQueryError = ErrorType<unknown>
+
+
+/**
+ * @summary Get all active services
+ */
+
+export function useGetServices<TData = Awaited<ReturnType<typeof getServices>>, TError = ErrorType<unknown>>(
+  options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getServices>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+
+ ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+
+  const queryOptions = getGetServicesQueryOptions(options)
+
+  const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
+
+  return { ...query, queryKey: queryOptions.queryKey };
+}
+
+
+
+
+
+
+
+export const getAdminCreateServiceUrl = () => {
+
+
+
+
+  return `/api/admin/services`
+}
+
+/**
+ * @summary Create a new service offer (admin/sub-admin)
+ */
+export const adminCreateService = async (adminCreateServiceInput: AdminCreateServiceInput, options?: RequestInit): Promise<Service> => {
+
+  return customFetch<Service>(getAdminCreateServiceUrl(),
+  {
+    ...options,
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...options?.headers },
+    body: JSON.stringify(
+      adminCreateServiceInput,)
+  }
+);}
+
+
+
+
+export const getAdminCreateServiceMutationOptions = <TError = ErrorType<void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof adminCreateService>>, TError,{data: BodyType<AdminCreateServiceInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof adminCreateService>>, TError,{data: BodyType<AdminCreateServiceInput>}, TContext> => {
+
+const mutationKey = ['adminCreateService'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof adminCreateService>>, {data: BodyType<AdminCreateServiceInput>}> = (props) => {
+          const {data} = props ?? {};
+
+          return  adminCreateService(data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type AdminCreateServiceMutationResult = NonNullable<Awaited<ReturnType<typeof adminCreateService>>>
+    export type AdminCreateServiceMutationBody = BodyType<AdminCreateServiceInput>
+    export type AdminCreateServiceMutationError = ErrorType<void>
+
+    /**
+ * @summary Create a new service offer (admin/sub-admin)
+ */
+export const useAdminCreateService = <TError = ErrorType<void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof adminCreateService>>, TError,{data: BodyType<AdminCreateServiceInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof adminCreateService>>,
+        TError,
+        {data: BodyType<AdminCreateServiceInput>},
+        TContext
+      > => {
+      return useMutation(getAdminCreateServiceMutationOptions(options));
+    }
+
+export const getAdminGetAllServicesUrl = () => {
+
+
+
+
+  return `/api/admin/services/all`
+}
+
+/**
+ * @summary Get all services including expired (admin/sub-admin)
+ */
+export const adminGetAllServices = async (adminPasswordInput: AdminPasswordInput, options?: RequestInit): Promise<Service[]> => {
+
+  return customFetch<Service[]>(getAdminGetAllServicesUrl(),
+  {
+    ...options,
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...options?.headers },
+    body: JSON.stringify(
+      adminPasswordInput,)
+  }
+);}
+
+
+
+
+export const getAdminGetAllServicesMutationOptions = <TError = ErrorType<void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof adminGetAllServices>>, TError,{data: BodyType<AdminPasswordInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof adminGetAllServices>>, TError,{data: BodyType<AdminPasswordInput>}, TContext> => {
+
+const mutationKey = ['adminGetAllServices'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof adminGetAllServices>>, {data: BodyType<AdminPasswordInput>}> = (props) => {
+          const {data} = props ?? {};
+
+          return  adminGetAllServices(data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type AdminGetAllServicesMutationResult = NonNullable<Awaited<ReturnType<typeof adminGetAllServices>>>
+    export type AdminGetAllServicesMutationBody = BodyType<AdminPasswordInput>
+    export type AdminGetAllServicesMutationError = ErrorType<void>
+
+    /**
+ * @summary Get all services including expired (admin/sub-admin)
+ */
+export const useAdminGetAllServices = <TError = ErrorType<void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof adminGetAllServices>>, TError,{data: BodyType<AdminPasswordInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof adminGetAllServices>>,
+        TError,
+        {data: BodyType<AdminPasswordInput>},
+        TContext
+      > => {
+      return useMutation(getAdminGetAllServicesMutationOptions(options));
+    }
+
+export const getAdminDeleteServiceUrl = () => {
+
+
+
+
+  return `/api/admin/services/delete`
+}
+
+/**
+ * @summary Delete a service (admin/sub-admin)
+ */
+export const adminDeleteService = async (adminDeleteInput: AdminDeleteInput, options?: RequestInit): Promise<DeleteResult> => {
+
+  return customFetch<DeleteResult>(getAdminDeleteServiceUrl(),
+  {
+    ...options,
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...options?.headers },
+    body: JSON.stringify(
+      adminDeleteInput,)
+  }
+);}
+
+
+
+
+export const getAdminDeleteServiceMutationOptions = <TError = ErrorType<void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof adminDeleteService>>, TError,{data: BodyType<AdminDeleteInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof adminDeleteService>>, TError,{data: BodyType<AdminDeleteInput>}, TContext> => {
+
+const mutationKey = ['adminDeleteService'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof adminDeleteService>>, {data: BodyType<AdminDeleteInput>}> = (props) => {
+          const {data} = props ?? {};
+
+          return  adminDeleteService(data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type AdminDeleteServiceMutationResult = NonNullable<Awaited<ReturnType<typeof adminDeleteService>>>
+    export type AdminDeleteServiceMutationBody = BodyType<AdminDeleteInput>
+    export type AdminDeleteServiceMutationError = ErrorType<void>
+
+    /**
+ * @summary Delete a service (admin/sub-admin)
+ */
+export const useAdminDeleteService = <TError = ErrorType<void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof adminDeleteService>>, TError,{data: BodyType<AdminDeleteInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof adminDeleteService>>,
+        TError,
+        {data: BodyType<AdminDeleteInput>},
+        TContext
+      > => {
+      return useMutation(getAdminDeleteServiceMutationOptions(options));
     }
 
 export const getCreateContactRequestUrl = () => {
