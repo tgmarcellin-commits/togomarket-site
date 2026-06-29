@@ -28,9 +28,9 @@ export function BottomNav({ activeTab, onTabChange, onSecretTap }: BottomNavProp
     { id: "boutique", label: t.navBoutique, Icon: Store },
     { id: "publicite", label: t.navAds, Icon: Megaphone },
     { id: "marketplace", label: t.navMarket, Icon: ShoppingBag },
+    { id: "services", label: t.navServices, Icon: Briefcase },
     { id: "evenementiel", label: t.navEvents, Icon: Calendar },
     { id: "introuvable", label: t.navLost, Icon: PackageSearch },
-    { id: "services", label: t.navServices, Icon: Briefcase },
   ];
 
   const handleTabClick = (id: NavTab) => {
