@@ -10,6 +10,8 @@ import {
   getGetEventsQueryKey,
   useAdminGetAllServices,
   useAdminDeleteService,
+  useAdminCreateService,
+  getGetServicesQueryKey,
   type Ad,
   type Event as ApiEvent,
   type Service,
@@ -262,9 +264,12 @@ export function SubAdminModal({ section, open, onOpenChange }: SubAdminModalProp
   const [allServices, setAllServices] = useState<Service[]>([]);
   const [servicesLoading, setServicesLoading] = useState(false);
   const [confirmService, setConfirmService] = useState<number | null>(null);
+  const [showServiceForm, setShowServiceForm] = useState(false);
+  const [serviceForm, setServiceForm] = useState({ type: "offer" as "offer" | "seeker", title: "", description: "", contact: "", quartier: "", ville: "" });
 
   const getAllServices = useAdminGetAllServices();
   const deleteService = useAdminDeleteService();
+  const createService = useAdminCreateService();
 
   const refetchServices = () => {
     setServicesLoading(true);
@@ -273,6 +278,27 @@ export function SubAdminModal({ section, open, onOpenChange }: SubAdminModalProp
       {
         onSuccess: (data) => { setAllServices(data); setServicesLoading(false); },
         onError: () => setServicesLoading(false),
+      }
+    );
+  };
+
+  const handleCreateService = () => {
+    const { type, title, description, contact, quartier, ville } = serviceForm;
+    if (!title.trim() || !description.trim() || !contact.trim() || !quartier.trim() || !ville.trim()) {
+      toast({ title: "Tous les champs sont requis", variant: "destructive" });
+      return;
+    }
+    createService.mutate(
+      { data: { password: storedPwd, type, title, description, contact, quartier, ville } },
+      {
+        onSuccess: () => {
+          toast({ title: "Service créé ✓" });
+          setServiceForm({ type: "offer", title: "", description: "", contact: "", quartier: "", ville: "" });
+          setShowServiceForm(false);
+          queryClient.invalidateQueries({ queryKey: getGetServicesQueryKey() });
+          refetchServices();
+        },
+        onError: () => toast({ title: "Erreur", variant: "destructive" }),
       }
     );
   };
@@ -531,10 +557,55 @@ export function SubAdminModal({ section, open, onOpenChange }: SubAdminModalProp
           <div className="space-y-3 pt-1">
             <div className="flex items-center justify-between">
               <p className="text-sm font-semibold">Services ({allServices.length})</p>
-              <Button size="sm" variant="outline" onClick={refetchServices} className="h-7 px-2">
-                <RefreshCw className="w-3.5 h-3.5" />
-              </Button>
+              <div className="flex gap-2">
+                <Button size="sm" variant="outline" onClick={refetchServices} className="h-7 px-2">
+                  <RefreshCw className="w-3.5 h-3.5" />
+                </Button>
+                <Button size="sm" onClick={() => setShowServiceForm(!showServiceForm)} className="h-7 px-2 gap-1 bg-violet-600 hover:bg-violet-700 text-white">
+                  <Plus className="w-3.5 h-3.5" />
+                  Ajouter
+                </Button>
+              </div>
             </div>
+
+            {showServiceForm && (
+              <div className="border rounded-lg p-3 space-y-2 bg-muted/30">
+                <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">Nouvelle annonce service</p>
+                <div className="grid grid-cols-2 gap-2">
+                  <button
+                    onClick={() => setServiceForm((f) => ({ ...f, type: "offer" }))}
+                    className={`py-1.5 text-xs rounded-md border font-medium transition-colors ${serviceForm.type === "offer" ? "bg-primary text-primary-foreground border-primary" : "bg-background border-border"}`}
+                  >
+                    Offre d'emploi
+                  </button>
+                  <button
+                    onClick={() => setServiceForm((f) => ({ ...f, type: "seeker" }))}
+                    className={`py-1.5 text-xs rounded-md border font-medium transition-colors ${serviceForm.type === "seeker" ? "bg-primary text-primary-foreground border-primary" : "bg-background border-border"}`}
+                  >
+                    Cherche emploi
+                  </button>
+                </div>
+                <Input placeholder="Titre *" value={serviceForm.title} onChange={(e) => setServiceForm((f) => ({ ...f, title: e.target.value }))} className="h-8 text-sm" />
+                <textarea
+                  placeholder="Description *"
+                  value={serviceForm.description}
+                  onChange={(e) => setServiceForm((f) => ({ ...f, description: e.target.value }))}
+                  className="w-full h-20 text-sm border rounded-md px-3 py-2 bg-background resize-none focus:outline-none focus:ring-1 focus:ring-primary"
+                />
+                <div className="grid grid-cols-2 gap-2">
+                  <Input placeholder="Quartier *" value={serviceForm.quartier} onChange={(e) => setServiceForm((f) => ({ ...f, quartier: e.target.value }))} className="h-8 text-sm" />
+                  <Input placeholder="Ville *" value={serviceForm.ville} onChange={(e) => setServiceForm((f) => ({ ...f, ville: e.target.value }))} className="h-8 text-sm" />
+                </div>
+                <Input placeholder="WhatsApp contact *" value={serviceForm.contact} onChange={(e) => setServiceForm((f) => ({ ...f, contact: e.target.value }))} className="h-8 text-sm" />
+                <div className="flex gap-2">
+                  <Button size="sm" className="flex-1 h-7 bg-violet-600 hover:bg-violet-700 text-white" onClick={handleCreateService} disabled={createService.isPending}>
+                    {createService.isPending ? "Création..." : "Créer l'annonce"}
+                  </Button>
+                  <Button size="sm" variant="outline" className="flex-1 h-7" onClick={() => setShowServiceForm(false)}>Annuler</Button>
+                </div>
+              </div>
+            )}
+
             {servicesLoading ? (
               <p className="text-sm text-center text-muted-foreground py-6">Chargement...</p>
             ) : allServices.length === 0 ? (
