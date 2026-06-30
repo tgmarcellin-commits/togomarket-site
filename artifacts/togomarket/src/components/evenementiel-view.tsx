@@ -11,7 +11,7 @@ import { ImageViewer } from "@/components/image-viewer";
 
 function ShareButtons({ text, url }: { text: string; url: string }) {
   const waHref = `https://wa.me/?text=${encodeURIComponent(text)}`;
-  const fbHref = `https://www.facebook.com/sharer/sharer.php?u=${encodeURIComponent(url)}`;
+  const fbHref = `https://www.facebook.com/sharer/sharer.php?u=${encodeURIComponent(url)}&quote=${encodeURIComponent(text)}`;
   return (
     <div className="flex items-center gap-1.5">
       <a
