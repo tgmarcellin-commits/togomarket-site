@@ -14,6 +14,7 @@ export interface Service {
   contact: string;
   quartier: string;
   ville: string;
+  image?: string | null;
   createdAt: string;
   expiresAt: string;
 }

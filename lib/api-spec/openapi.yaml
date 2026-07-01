@@ -1376,6 +1376,9 @@ components:
           type: string
         ville:
           type: string
+        image:
+          type: string
+          nullable: true
         createdAt:
           type: string
         expiresAt:
@@ -1398,6 +1401,8 @@ components:
         quartier:
           type: string
         ville:
+          type: string
+        image:
           type: string
 
     SubAdminVerifyInput:

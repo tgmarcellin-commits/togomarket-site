@@ -653,6 +653,7 @@ export const GetServicesResponseItem = zod.object({
   "contact": zod.string(),
   "quartier": zod.string(),
   "ville": zod.string(),
+  "image": zod.string().nullish(),
   "createdAt": zod.string(),
   "expiresAt": zod.string()
 })
@@ -669,7 +670,8 @@ export const AdminCreateServiceBody = zod.object({
   "description": zod.string(),
   "contact": zod.string(),
   "quartier": zod.string(),
-  "ville": zod.string()
+  "ville": zod.string(),
+  "image": zod.string().optional()
 })
 
 
@@ -688,6 +690,7 @@ export const AdminGetAllServicesResponseItem = zod.object({
   "contact": zod.string(),
   "quartier": zod.string(),
   "ville": zod.string(),
+  "image": zod.string().nullish(),
   "createdAt": zod.string(),
   "expiresAt": zod.string()
 })

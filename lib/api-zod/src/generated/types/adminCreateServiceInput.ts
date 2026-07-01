@@ -14,4 +14,5 @@ export interface AdminCreateServiceInput {
   contact: string;
   quartier: string;
   ville: string;
+  image?: string;
 }

@@ -29,7 +29,7 @@ L'application a 6 onglets :
 3. Publicité — publicités et promotions des marchands
 4. Événementiel — événements à venir (foires, marchés, expos)
 5. Introuvable — service pour trouver un article que tu ne trouves pas
-6. Services — offres d'emploi et demandeurs d'emploi au Togo
+6. Services — offres d'emploi, demandeurs d'emploi et ateliers au Togo
 
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 COMMENT CONSULTER DES ANNONCES ?

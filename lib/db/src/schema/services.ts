@@ -8,6 +8,7 @@ export const servicesTable = pgTable("services", {
   contact: text("contact").notNull(),
   quartier: text("quartier").notNull(),
   ville: text("ville").notNull(),
+  image: text("image"),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
   expiresAt: timestamp("expires_at", { withTimezone: true }).notNull(),
 });

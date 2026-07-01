@@ -216,8 +216,9 @@ export function AdminModal({
   const [allServices, setAllServices] = useState<Service[]>([]);
   const [servicesLoading, setServicesLoading] = useState(false);
   const [showServiceForm, setShowServiceForm] = useState(false);
-  const [serviceForm, setServiceForm] = useState({ type: "offer" as "offer" | "seeker", title: "", description: "", contact: "", quartier: "", ville: "" });
+  const [serviceForm, setServiceForm] = useState({ type: "offer" as "offer" | "seeker" | "atelier", title: "", description: "", contact: "", quartier: "", ville: "", image: "", imagePreview: "" });
   const [confirmDeleteServiceId, setConfirmDeleteServiceId] = useState<number | null>(null);
+  const serviceImageRef = useRef<HTMLInputElement>(null);
 
   const adminCreateService = useAdminCreateService();
   const adminGetAllServices = useAdminGetAllServices();
@@ -1136,12 +1137,18 @@ export function AdminModal({
                 {showServiceForm && (
                   <div className="border rounded-lg p-3 space-y-2 bg-muted/30">
                     <p className="text-xs font-semibold">Nouvelle annonce service</p>
-                    <div className="grid grid-cols-2 gap-2">
+                    <div className="grid grid-cols-3 gap-1.5">
                       <button
                         onClick={() => setServiceForm((f) => ({ ...f, type: "offer" }))}
                         className={`py-1.5 text-xs rounded-md border font-medium transition-colors ${serviceForm.type === "offer" ? "bg-primary text-primary-foreground border-primary" : "bg-background border-border"}`}
                       >
-                        Offre d'emploi
+                        Offre emploi
+                      </button>
+                      <button
+                        onClick={() => setServiceForm((f) => ({ ...f, type: "atelier" }))}
+                        className={`py-1.5 text-xs rounded-md border font-medium transition-colors ${serviceForm.type === "atelier" ? "bg-purple-600 text-white border-purple-600" : "bg-background border-border"}`}
+                      >
+                        Atelier
                       </button>
                       <button
                         onClick={() => setServiceForm((f) => ({ ...f, type: "seeker" }))}
@@ -1162,19 +1169,55 @@ export function AdminModal({
                       <Input placeholder="Ville *" value={serviceForm.ville} onChange={(e) => setServiceForm((f) => ({ ...f, ville: e.target.value }))} className="h-8 text-xs" />
                     </div>
                     <Input placeholder="WhatsApp contact *" value={serviceForm.contact} onChange={(e) => setServiceForm((f) => ({ ...f, contact: e.target.value }))} className="h-8 text-xs" />
+                    {serviceForm.type === "atelier" && (
+                      <div className="space-y-1.5">
+                        <p className="text-xs text-muted-foreground">Photo / Flyer (optionnel)</p>
+                        <input
+                          ref={serviceImageRef}
+                          type="file"
+                          accept="image/*"
+                          className="hidden"
+                          onChange={async (e) => {
+                            const file = e.target.files?.[0];
+                            if (!file) return;
+                            const { resizeImageToBlob } = await import("@/lib/image");
+                            const { uploadImageFile } = await import("@/lib/upload");
+                            const { blob, dataUrl } = await resizeImageToBlob(file);
+                            const objectPath = await uploadImageFile(blob, file.name);
+                            setServiceForm((f) => ({ ...f, image: objectPath, imagePreview: dataUrl }));
+                          }}
+                        />
+                        {serviceForm.imagePreview ? (
+                          <div className="relative">
+                            <img src={serviceForm.imagePreview} alt="aperçu" className="w-full h-28 object-cover rounded-md" />
+                            <button
+                              className="absolute top-1 right-1 bg-black/60 text-white rounded-full w-5 h-5 flex items-center justify-center text-xs"
+                              onClick={() => setServiceForm((f) => ({ ...f, image: "", imagePreview: "" }))}
+                            >✕</button>
+                          </div>
+                        ) : (
+                          <button
+                            className="w-full h-16 border-2 border-dashed border-border rounded-md text-xs text-muted-foreground hover:bg-muted transition-colors"
+                            onClick={() => serviceImageRef.current?.click()}
+                          >
+                            + Ajouter un flyer
+                          </button>
+                        )}
+                      </div>
+                    )}
                     <Button
                       size="sm"
                       className="w-full"
                       disabled={adminCreateService.isPending}
                       onClick={() => {
-                        const { type, title, description, contact, quartier, ville } = serviceForm;
+                        const { type, title, description, contact, quartier, ville, image } = serviceForm;
                         if (!title || !description || !contact || !quartier || !ville) return;
                         adminCreateService.mutate(
-                          { data: { password: storedPassword, type, title, description, contact, quartier, ville } },
+                          { data: { password: storedPassword, type, title, description, contact, quartier, ville, image: image || undefined } },
                           {
                             onSuccess: () => {
                               toast({ title: "Service créé" });
-                              setServiceForm({ type: "offer", title: "", description: "", contact: "", quartier: "", ville: "" });
+                              setServiceForm({ type: "offer", title: "", description: "", contact: "", quartier: "", ville: "", image: "", imagePreview: "" });
                               setShowServiceForm(false);
                               queryClient.invalidateQueries({ queryKey: getGetServicesQueryKey() });
                               refetchServices();
@@ -1198,15 +1241,14 @@ export function AdminModal({
                 ) : (
                   <div className="space-y-2">
                     {allServices.map((s) => {
-                      const isOffer = s.type === "offer";
                       const expires = new Date(s.expiresAt);
                       const daysLeft = Math.max(0, Math.ceil((expires.getTime() - Date.now()) / (1000 * 60 * 60 * 24)));
                       return (
                         <div key={s.id} className="border rounded-lg p-3 space-y-1.5">
                           <div className="flex items-start justify-between gap-2">
                             <div>
-                              <span className={`text-[10px] font-bold px-1.5 py-0.5 rounded-full ${isOffer ? "bg-blue-100 text-blue-700" : "bg-orange-100 text-orange-700"}`}>
-                                {isOffer ? "Offre" : "Cherche"}
+                              <span className={`text-[10px] font-bold px-1.5 py-0.5 rounded-full ${s.type === "offer" ? "bg-blue-100 text-blue-700" : s.type === "atelier" ? "bg-purple-100 text-purple-700" : "bg-orange-100 text-orange-700"}`}>
+                                {s.type === "offer" ? "Offre" : s.type === "atelier" ? "Atelier" : "Cherche"}
                               </span>
                               <p className="text-xs font-semibold mt-1">{s.title}</p>
                               <p className="text-xs text-muted-foreground">{s.quartier}, {s.ville}</p>

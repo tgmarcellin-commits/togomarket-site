@@ -265,7 +265,8 @@ export function SubAdminModal({ section, open, onOpenChange }: SubAdminModalProp
   const [servicesLoading, setServicesLoading] = useState(false);
   const [confirmService, setConfirmService] = useState<number | null>(null);
   const [showServiceForm, setShowServiceForm] = useState(false);
-  const [serviceForm, setServiceForm] = useState({ type: "offer" as "offer" | "seeker", title: "", description: "", contact: "", quartier: "", ville: "" });
+  const [serviceForm, setServiceForm] = useState({ type: "offer" as "offer" | "seeker" | "atelier", title: "", description: "", contact: "", quartier: "", ville: "", image: "", imagePreview: "" });
+  const serviceImageRef = useRef<HTMLInputElement>(null);
 
   const getAllServices = useAdminGetAllServices();
   const deleteService = useAdminDeleteService();
@@ -282,18 +283,18 @@ export function SubAdminModal({ section, open, onOpenChange }: SubAdminModalProp
     );
   };
 
-  const handleCreateService = () => {
-    const { type, title, description, contact, quartier, ville } = serviceForm;
+  const handleCreateService = async () => {
+    const { type, title, description, contact, quartier, ville, image } = serviceForm;
     if (!title.trim() || !description.trim() || !contact.trim() || !quartier.trim() || !ville.trim()) {
       toast({ title: "Tous les champs sont requis", variant: "destructive" });
       return;
     }
     createService.mutate(
-      { data: { password: storedPwd, type, title, description, contact, quartier, ville } },
+      { data: { password: storedPwd, type, title, description, contact, quartier, ville, image: image || undefined } },
       {
         onSuccess: () => {
           toast({ title: "Service créé ✓" });
-          setServiceForm({ type: "offer", title: "", description: "", contact: "", quartier: "", ville: "" });
+          setServiceForm({ type: "offer", title: "", description: "", contact: "", quartier: "", ville: "", image: "", imagePreview: "" });
           setShowServiceForm(false);
           queryClient.invalidateQueries({ queryKey: getGetServicesQueryKey() });
           refetchServices();
@@ -571,12 +572,18 @@ export function SubAdminModal({ section, open, onOpenChange }: SubAdminModalProp
             {showServiceForm && (
               <div className="border rounded-lg p-3 space-y-2 bg-muted/30">
                 <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">Nouvelle annonce service</p>
-                <div className="grid grid-cols-2 gap-2">
+                <div className="grid grid-cols-3 gap-1.5">
                   <button
                     onClick={() => setServiceForm((f) => ({ ...f, type: "offer" }))}
                     className={`py-1.5 text-xs rounded-md border font-medium transition-colors ${serviceForm.type === "offer" ? "bg-primary text-primary-foreground border-primary" : "bg-background border-border"}`}
                   >
-                    Offre d'emploi
+                    Offre emploi
+                  </button>
+                  <button
+                    onClick={() => setServiceForm((f) => ({ ...f, type: "atelier" }))}
+                    className={`py-1.5 text-xs rounded-md border font-medium transition-colors ${serviceForm.type === "atelier" ? "bg-purple-600 text-white border-purple-600" : "bg-background border-border"}`}
+                  >
+                    Atelier
                   </button>
                   <button
                     onClick={() => setServiceForm((f) => ({ ...f, type: "seeker" }))}
@@ -597,6 +604,42 @@ export function SubAdminModal({ section, open, onOpenChange }: SubAdminModalProp
                   <Input placeholder="Ville *" value={serviceForm.ville} onChange={(e) => setServiceForm((f) => ({ ...f, ville: e.target.value }))} className="h-8 text-sm" />
                 </div>
                 <Input placeholder="WhatsApp contact *" value={serviceForm.contact} onChange={(e) => setServiceForm((f) => ({ ...f, contact: e.target.value }))} className="h-8 text-sm" />
+                {serviceForm.type === "atelier" && (
+                  <div className="space-y-1.5">
+                    <p className="text-xs text-muted-foreground">Photo / Flyer (optionnel)</p>
+                    <input
+                      ref={serviceImageRef}
+                      type="file"
+                      accept="image/*"
+                      className="hidden"
+                      onChange={async (e) => {
+                        const file = e.target.files?.[0];
+                        if (!file) return;
+                        const { resizeImageToBlob, resolveImageUrl: _r } = await import("@/lib/image");
+                        const { uploadImageFile } = await import("@/lib/upload");
+                        const { blob, dataUrl } = await resizeImageToBlob(file);
+                        const objectPath = await uploadImageFile(blob, file.name);
+                        setServiceForm((f) => ({ ...f, image: objectPath, imagePreview: dataUrl }));
+                      }}
+                    />
+                    {serviceForm.imagePreview ? (
+                      <div className="relative">
+                        <img src={serviceForm.imagePreview} alt="aperçu" className="w-full h-28 object-cover rounded-md" />
+                        <button
+                          className="absolute top-1 right-1 bg-black/60 text-white rounded-full w-5 h-5 flex items-center justify-center text-xs"
+                          onClick={() => setServiceForm((f) => ({ ...f, image: "", imagePreview: "" }))}
+                        >✕</button>
+                      </div>
+                    ) : (
+                      <button
+                        className="w-full h-16 border-2 border-dashed border-border rounded-md text-xs text-muted-foreground hover:bg-muted transition-colors"
+                        onClick={() => serviceImageRef.current?.click()}
+                      >
+                        + Ajouter un flyer
+                      </button>
+                    )}
+                  </div>
+                )}
                 <div className="flex gap-2">
                   <Button size="sm" className="flex-1 h-7 bg-violet-600 hover:bg-violet-700 text-white" onClick={handleCreateService} disabled={createService.isPending}>
                     {createService.isPending ? "Création..." : "Créer l'annonce"}
@@ -621,8 +664,8 @@ export function SubAdminModal({ section, open, onOpenChange }: SubAdminModalProp
                   return (
                     <div key={svc.id} className={`border rounded-lg p-3 space-y-1.5 ${isExpired ? "opacity-60 bg-muted/30" : ""}`}>
                       <div className="flex items-start gap-2">
-                        <span className={`text-[10px] px-1.5 py-0.5 rounded-full font-bold flex-shrink-0 mt-0.5 ${svc.type === "offer" ? "bg-blue-100 text-blue-700" : "bg-orange-100 text-orange-700"}`}>
-                          {svc.type === "offer" ? "Offre" : "Cherche"}
+                        <span className={`text-[10px] px-1.5 py-0.5 rounded-full font-bold flex-shrink-0 mt-0.5 ${svc.type === "offer" ? "bg-blue-100 text-blue-700" : svc.type === "atelier" ? "bg-purple-100 text-purple-700" : "bg-orange-100 text-orange-700"}`}>
+                          {svc.type === "offer" ? "Offre" : svc.type === "atelier" ? "Atelier" : "Cherche"}
                         </span>
                         <div className="flex-1 min-w-0">
                           <p className="text-sm font-semibold truncate">{svc.title}</p>

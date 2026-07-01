@@ -6,3 +6,4 @@ export * from "./vendors";
 export * from "./events";
 export * from "./contact_requests";
 export * from "./services";
+export * from "./sellers";

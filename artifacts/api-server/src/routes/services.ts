@@ -14,6 +14,7 @@ function mapService(s: typeof servicesTable.$inferSelect) {
     contact: s.contact,
     quartier: s.quartier,
     ville: s.ville,
+    image: s.image ?? null,
     createdAt: s.createdAt.toISOString(),
     expiresAt: s.expiresAt.toISOString(),
   };
@@ -35,22 +36,22 @@ router.get("/services", async (req, res) => {
 });
 
 router.post("/admin/services", async (req, res) => {
-  const { password, type, title, description, contact, quartier, ville } = req.body;
+  const { password, type, title, description, contact, quartier, ville, image } = req.body;
   if (!await isAdminOrSubAdmin(password)) {
     return res.status(403).json({ error: "Forbidden" });
   }
   if (!type || !title || !description || !contact || !quartier || !ville) {
     return res.status(400).json({ error: "Missing required fields" });
   }
-  if (type !== "seeker" && type !== "offer") {
-    return res.status(400).json({ error: "type must be seeker or offer" });
+  if (type !== "seeker" && type !== "offer" && type !== "atelier") {
+    return res.status(400).json({ error: "type must be seeker, offer or atelier" });
   }
   try {
     const now = new Date();
     const expiresAt = new Date(now.getTime() + 30 * 24 * 60 * 60 * 1000);
     const [service] = await db
       .insert(servicesTable)
-      .values({ type, title, description, contact, quartier, ville, createdAt: now, expiresAt })
+      .values({ type, title, description, contact, quartier, ville, image: image ?? null, createdAt: now, expiresAt })
       .returning();
     return res.status(201).json(mapService(service));
   } catch (err) {

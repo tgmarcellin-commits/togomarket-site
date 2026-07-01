@@ -6,7 +6,8 @@ import {
 } from "@workspace/api-client-react";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
-import { Briefcase, MapPin, Search, User, Building2 } from "lucide-react";
+import { Briefcase, MapPin, User, Building2, Wrench } from "lucide-react";
+import { resolveImageUrl } from "@/lib/image";
 import { useSiteSettings } from "@/lib/site-settings";
 import { useT } from "@/lib/i18n";
 
@@ -30,15 +31,36 @@ function WaBtn({ contact, label }: { contact: string; label: string }) {
   );
 }
 
+function typeConfig(type: string, lang: string) {
+  if (type === "offer") return {
+    label: lang === "fr" ? "Offre d'emploi" : "Job offer",
+    icon: Building2,
+    bg: "bg-blue-100 text-blue-600",
+    badge: "bg-blue-100 text-blue-700",
+    waLabel: lang === "fr" ? "Postuler via WhatsApp" : "Apply via WhatsApp",
+  };
+  if (type === "atelier") return {
+    label: lang === "fr" ? "Atelier" : "Workshop",
+    icon: Wrench,
+    bg: "bg-purple-100 text-purple-600",
+    badge: "bg-purple-100 text-purple-700",
+    waLabel: lang === "fr" ? "Contacter l'atelier" : "Contact workshop",
+  };
+  return {
+    label: lang === "fr" ? "Cherche emploi" : "Job seeker",
+    icon: User,
+    bg: "bg-orange-100 text-orange-600",
+    badge: "bg-orange-100 text-orange-700",
+    waLabel: lang === "fr" ? "Contacter via WhatsApp" : "Contact via WhatsApp",
+  };
+}
+
 function ServiceCard({ service, lang }: { service: Service; lang: string }) {
   const [open, setOpen] = useState(false);
-  const isOffer = service.type === "offer";
+  const cfg = typeConfig(service.type, lang);
+  const Icon = cfg.icon;
   const expiresAt = new Date(service.expiresAt);
   const daysLeft = Math.max(0, Math.ceil((expiresAt.getTime() - Date.now()) / (1000 * 60 * 60 * 24)));
-
-  const waContactLabel = lang === "fr"
-    ? (isOffer ? "Postuler via WhatsApp" : "Contacter via WhatsApp")
-    : (isOffer ? "Apply via WhatsApp" : "Contact via WhatsApp");
 
   return (
     <>
@@ -46,28 +68,28 @@ function ServiceCard({ service, lang }: { service: Service; lang: string }) {
         className="w-full text-left rounded-xl border bg-card hover:shadow-md transition-shadow overflow-hidden"
         onClick={() => setOpen(true)}
       >
+        {/* Flyer image for ateliers */}
+        {service.type === "atelier" && service.image && (
+          <img
+            src={resolveImageUrl(service.image)}
+            alt={service.title}
+            className="w-full h-36 object-cover"
+          />
+        )}
         <div className="p-4 space-y-2">
           <div className="flex items-start justify-between gap-2">
             <div className="flex items-center gap-2">
-              <div className={`w-8 h-8 rounded-full flex items-center justify-center flex-shrink-0 ${
-                isOffer ? "bg-blue-100 text-blue-600" : "bg-orange-100 text-orange-600"
-              }`}>
-                {isOffer ? <Building2 className="w-4 h-4" /> : <User className="w-4 h-4" />}
+              <div className={`w-8 h-8 rounded-full flex items-center justify-center flex-shrink-0 ${cfg.bg}`}>
+                <Icon className="w-4 h-4" />
               </div>
               <div className="min-w-0">
-                <span className={`text-[10px] font-bold uppercase tracking-wide ${
-                  isOffer ? "text-blue-600" : "text-orange-600"
-                }`}>
-                  {isOffer
-                    ? (lang === "fr" ? "Offre d'emploi" : "Job offer")
-                    : (lang === "fr" ? "Cherche emploi" : "Job seeker")}
+                <span className={`text-[10px] font-bold uppercase tracking-wide ${cfg.badge.split(" ")[1]}`}>
+                  {cfg.label}
                 </span>
                 <p className="text-sm font-semibold leading-tight truncate">{service.title}</p>
               </div>
             </div>
-            <span className="text-[10px] text-muted-foreground flex-shrink-0 mt-1">
-              {daysLeft}j
-            </span>
+            <span className="text-[10px] text-muted-foreground flex-shrink-0 mt-1">{daysLeft}j</span>
           </div>
           <p className="text-xs text-muted-foreground line-clamp-2">{service.description}</p>
           <div className="flex items-center gap-1 text-xs text-muted-foreground">
@@ -76,7 +98,7 @@ function ServiceCard({ service, lang }: { service: Service; lang: string }) {
           </div>
         </div>
         <div className="px-4 pb-3 flex justify-end" onClick={(e) => e.stopPropagation()}>
-          <WaBtn contact={service.contact} label={waContactLabel} />
+          <WaBtn contact={service.contact} label={cfg.waLabel} />
         </div>
       </button>
 
@@ -86,12 +108,15 @@ function ServiceCard({ service, lang }: { service: Service; lang: string }) {
             <DialogTitle className="pr-6">{service.title}</DialogTitle>
           </DialogHeader>
           <div className="space-y-3">
-            <span className={`inline-block text-xs font-bold px-2.5 py-1 rounded-full ${
-              isOffer ? "bg-blue-100 text-blue-700" : "bg-orange-100 text-orange-700"
-            }`}>
-              {isOffer
-                ? (lang === "fr" ? "Offre d'emploi" : "Job offer")
-                : (lang === "fr" ? "Cherche emploi" : "Job seeker")}
+            {service.type === "atelier" && service.image && (
+              <img
+                src={resolveImageUrl(service.image)}
+                alt={service.title}
+                className="w-full rounded-lg object-contain max-h-48 bg-black/5"
+              />
+            )}
+            <span className={`inline-block text-xs font-bold px-2.5 py-1 rounded-full ${cfg.badge}`}>
+              {cfg.label}
             </span>
             <p className="text-sm leading-relaxed whitespace-pre-wrap">{service.description}</p>
             <div className="flex items-center gap-2 text-sm text-muted-foreground border-t pt-2">
@@ -101,7 +126,7 @@ function ServiceCard({ service, lang }: { service: Service; lang: string }) {
             <div className="text-xs text-muted-foreground">
               {lang === "fr" ? "Expire le" : "Expires"} {expiresAt.toLocaleDateString(lang === "fr" ? "fr-FR" : "en-US", { day: "numeric", month: "long", year: "numeric" })}
             </div>
-            <WaBtn contact={service.contact} label={waContactLabel} />
+            <WaBtn contact={service.contact} label={cfg.waLabel} />
           </div>
         </DialogContent>
       </Dialog>
@@ -114,11 +139,11 @@ export function ServicesView() {
   const t = useT(lang);
   const { data: services, isLoading } = useGetServices();
   const { data: settings } = useGetAdminSettings();
-  const [filter, setFilter] = useState<"all" | "offer" | "seeker">("all");
+  const [filter, setFilter] = useState<"all" | "offer" | "seeker" | "atelier">("all");
   const whatsappServices = settings?.whatsappServices ?? "22870703131";
 
   const submitText = lang === "fr"
-    ? "🔍 Bonjour TogoMarket, je souhaite soumettre une offre de service. Pouvez-vous m'indiquer la marche à suivre ?"
+    ? "🔍 Bonjour TogoMarket, je souhaite soumettre une annonce de service. Pouvez-vous m'indiquer la marche à suivre ?"
     : "🔍 Hello TogoMarket, I'd like to submit a service listing. Can you guide me?";
 
   if (isLoading) {
@@ -133,9 +158,21 @@ export function ServicesView() {
 
   const offers = services?.filter((s) => s.type === "offer") ?? [];
   const seekers = services?.filter((s) => s.type === "seeker") ?? [];
+  const ateliers = services?.filter((s) => s.type === "atelier") ?? [];
   const all = services ?? [];
 
-  const filtered = filter === "offer" ? offers : filter === "seeker" ? seekers : all;
+  const filtered =
+    filter === "offer" ? offers :
+    filter === "seeker" ? seekers :
+    filter === "atelier" ? ateliers :
+    all;
+
+  const tabs: { id: "all" | "offer" | "seeker" | "atelier"; label: string }[] = [
+    { id: "all", label: lang === "fr" ? `Tout (${all.length})` : `All (${all.length})` },
+    { id: "offer", label: lang === "fr" ? `Offres (${offers.length})` : `Jobs (${offers.length})` },
+    { id: "atelier", label: lang === "fr" ? `Ateliers (${ateliers.length})` : `Workshops (${ateliers.length})` },
+    { id: "seeker", label: lang === "fr" ? `Chercheurs (${seekers.length})` : `Seekers (${seekers.length})` },
+  ];
 
   return (
     <div className="container mx-auto px-4 py-6 max-w-2xl">
@@ -143,22 +180,18 @@ export function ServicesView() {
       <p className="text-xs text-muted-foreground mb-4">{t.servicesDesc}</p>
 
       {/* Filter tabs */}
-      <div className="flex gap-2 mb-4">
-        {(["all", "offer", "seeker"] as const).map((f) => (
+      <div className="flex gap-1.5 mb-4 overflow-x-auto pb-1">
+        {tabs.map(({ id, label }) => (
           <button
-            key={f}
-            onClick={() => setFilter(f)}
-            className={`flex-1 py-1.5 text-xs font-semibold rounded-lg border transition-colors ${
-              filter === f
+            key={id}
+            onClick={() => setFilter(id)}
+            className={`flex-shrink-0 px-3 py-1.5 text-xs font-semibold rounded-lg border transition-colors ${
+              filter === id
                 ? "bg-primary text-primary-foreground border-primary"
                 : "bg-background border-border hover:bg-muted"
             }`}
           >
-            {f === "all"
-              ? (lang === "fr" ? `Tout (${all.length})` : `All (${all.length})`)
-              : f === "offer"
-              ? (lang === "fr" ? `Offres (${offers.length})` : `Jobs (${offers.length})`)
-              : (lang === "fr" ? `Chercheurs (${seekers.length})` : `Seekers (${seekers.length})`)}
+            {label}
           </button>
         ))}
       </div>
