@@ -18,10 +18,9 @@ import {
   AdminDeleteVendorBody,
   AdminResetVendorPasswordBody,
 } from "@workspace/api-zod";
+import { ADMIN_PASSWORD } from "../lib/admin-auth";
 
 const router: IRouter = Router();
-
-const ADMIN_PASSWORD = process.env.ADMIN_PASSWORD ?? "17210";
 
 function randomCode(digits: number): string {
   const min = Math.pow(10, digits - 1);

@@ -16,12 +16,11 @@ import {
 } from "@workspace/api-zod";
 import { logger } from "../lib/logger";
 import { ObjectStorageService } from "../lib/objectStorage";
+import { ADMIN_PASSWORD } from "../lib/admin-auth";
 
 const objectStorage = new ObjectStorageService();
 
 const router: IRouter = Router();
-
-const ADMIN_PASSWORD = process.env.ADMIN_PASSWORD ?? "17210";
 
 function mapListing(l: typeof listingsTable.$inferSelect) {
   return {

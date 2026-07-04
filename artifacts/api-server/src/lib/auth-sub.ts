@@ -1,6 +1,5 @@
 import { db, platformSettingsTable } from "@workspace/db";
-
-const ADMIN_PASSWORD = process.env.ADMIN_PASSWORD ?? "17210";
+import { ADMIN_PASSWORD, SUB_ADMIN_PASSWORD_DEFAULT } from "./admin-auth";
 
 export async function isAdminOrSubAdmin(password: string): Promise<boolean> {
   if (password === ADMIN_PASSWORD) return true;
@@ -17,5 +16,5 @@ export async function getSubAdminPassword(): Promise<string> {
     .select({ subAdminPassword: platformSettingsTable.subAdminPassword })
     .from(platformSettingsTable)
     .limit(1);
-  return rows[0]?.subAdminPassword ?? "0101";
+  return rows[0]?.subAdminPassword ?? SUB_ADMIN_PASSWORD_DEFAULT;
 }

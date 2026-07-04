@@ -1,10 +1,9 @@
 import { Router, type IRouter } from "express";
 import { eq, and } from "drizzle-orm";
 import { db, sellersTable, listingsTable } from "@workspace/db";
+import { ADMIN_PASSWORD } from "../lib/admin-auth";
 
 const router: IRouter = Router();
-
-const ADMIN_PASSWORD = process.env.ADMIN_PASSWORD ?? "17210";
 
 router.get("/sellers/:id", async (req, res): Promise<void> => {
   const id = parseInt(req.params.id, 10);

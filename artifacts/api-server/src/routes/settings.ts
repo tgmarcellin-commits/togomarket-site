@@ -7,17 +7,16 @@ import {
   VerifySubAdminBody,
   VerifySubAdminResponse,
 } from "@workspace/api-zod";
+import { ADMIN_PASSWORD, SUB_ADMIN_PASSWORD_DEFAULT } from "../lib/admin-auth";
 
 const router: IRouter = Router();
-
-const ADMIN_PASSWORD = process.env.ADMIN_PASSWORD ?? "17210";
 
 async function getSettings() {
   const rows = await db.select().from(platformSettingsTable).limit(1);
   if (rows.length === 0) {
     const [row] = await db
       .insert(platformSettingsTable)
-      .values({ commissionRate: 2, whatsappCommission: "22870703131", whatsappOrders: "22870703131", subAdminPassword: "0101", whatsappAds: "22870703131", whatsappServices: "22870703131" })
+      .values({ commissionRate: 2, whatsappCommission: "22870703131", whatsappOrders: "22870703131", subAdminPassword: SUB_ADMIN_PASSWORD_DEFAULT, whatsappAds: "22870703131", whatsappServices: "22870703131" })
       .returning();
     return row;
   }

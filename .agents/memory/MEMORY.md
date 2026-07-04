@@ -2,3 +2,4 @@
 - [Scripts package DB access](scripts-db-deps.md) — le package scripts doit déclarer `drizzle-orm` ET `@workspace/db` dans ses dépendances pour accéder à la base via tsx.
 - [DB SSL production](db-ssl-prod.md) — ne jamais forcer SSL sur le pool pg en production avec le Helium local (sslmode=disable dans l'URL) ; laisser l'URL gérer le SSL.
 - [Mise à jour prompt assistante IA](assistant-prompt-rule.md) — mettre à jour `artifacts/api-server/src/lib/assistant-prompt.ts` à chaque nouvelle feature ; règle utilisateur explicite.
+- [Admin password secrets](admin-password-secrets.md) — ADMIN_PASSWORD et SUB_ADMIN_PASSWORD sont des secrets requis (pas de fallback en dur) lus via `artifacts/api-server/src/lib/admin-auth.ts`.

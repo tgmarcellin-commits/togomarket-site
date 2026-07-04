@@ -3,9 +3,9 @@ import { eq, sql } from "drizzle-orm";
 import { db, contactRequestsTable, listingsTable, vendorsTable } from "@workspace/db";
 import bcrypt from "bcryptjs";
 import { normalizePhone, phoneEq } from "../lib/phone";
+import { ADMIN_PASSWORD } from "../lib/admin-auth";
 
 const router: IRouter = Router();
-const ADMIN_PASSWORD = process.env.ADMIN_PASSWORD ?? "17210";
 
 router.post("/contact-requests", async (req, res) => {
   const { listingId, buyerName, buyerPhone } = req.body;

@@ -9,10 +9,10 @@ import {
 import { ObjectStorageService, ObjectNotFoundError } from "../lib/objectStorage";
 import { ObjectPermission } from "../lib/objectAcl";
 import { db, listingsTable, adsTable } from "@workspace/db";
+import { ADMIN_PASSWORD } from "../lib/admin-auth";
 
 const router: IRouter = Router();
 const objectStorageService = new ObjectStorageService();
-const ADMIN_PASSWORD = process.env.ADMIN_PASSWORD ?? "17210";
 
 /**
  * POST /storage/uploads/request-url

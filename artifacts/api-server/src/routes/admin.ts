@@ -1,9 +1,8 @@
 import { Router, type IRouter } from "express";
 import { VerifyAdminBody, VerifyAdminResponse } from "@workspace/api-zod";
+import { ADMIN_PASSWORD } from "../lib/admin-auth";
 
 const router: IRouter = Router();
-
-const ADMIN_PASSWORD = process.env.ADMIN_PASSWORD ?? "17210";
 
 router.post("/admin/verify", async (req, res): Promise<void> => {
   const parsed = VerifyAdminBody.safeParse(req.body);
