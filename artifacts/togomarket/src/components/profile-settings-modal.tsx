@@ -183,7 +183,7 @@ export function ProfileSettingsModal({
   return (
     <>
       <Dialog open={open} onOpenChange={handleOpenChange}>
-        <DialogContent className="sm:max-w-[420px] max-h-[90vh] overflow-y-auto">
+        <DialogContent className="sm:max-w-[420px] max-h-[90vh] overflow-y-auto overflow-x-hidden">
           <DialogHeader>
             <div className="flex items-center gap-2">
               {screen !== "menu" && (

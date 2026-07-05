@@ -229,8 +229,8 @@ export function BoutiqueView({ vendor, vendorPassword, onNeedLogin }: BoutiqueVi
             </div>
             {!isExpired && (
               <>
-                <div className="flex items-center gap-2">
-                  <p className="text-xs text-muted-foreground truncate flex-1 font-mono bg-muted rounded px-2 py-1.5">
+                <div className="flex items-center gap-2 min-w-0">
+                  <p className="text-xs text-muted-foreground truncate min-w-0 flex-1 font-mono bg-muted rounded px-2 py-1.5">
                     {shopUrl}
                   </p>
                   <button
