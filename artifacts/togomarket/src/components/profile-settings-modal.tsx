@@ -15,9 +15,23 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { useToast } from "@/hooks/use-toast";
 import { resizeImage } from "@/lib/image";
-import { UserCircle2, Camera, Eye, EyeOff, LogOut, ShieldCheck, CheckSquare } from "lucide-react";
+import {
+  UserCircle2,
+  Camera,
+  Eye,
+  EyeOff,
+  LogOut,
+  ShieldCheck,
+  CheckSquare,
+  Store,
+  Settings,
+  ChevronRight,
+  ChevronLeft,
+  UserCog,
+} from "lucide-react";
 import { useSiteSettings } from "@/lib/site-settings";
 import { useT } from "@/lib/i18n";
+import { BoutiqueView } from "@/components/boutique-view";
 
 const PRIVACY_POLICY_FR = `TogoMarket collecte et utilise vos informations personnelles (nom, prénom, numéro de téléphone et photo de profil) dans le seul but de gérer votre compte, afficher vos annonces et faciliter la mise en relation avec les acheteurs sur la plateforme.
 
@@ -26,6 +40,8 @@ Vos données ne seront jamais vendues ni partagées avec des tiers à des fins c
 const PRIVACY_POLICY_EN = `TogoMarket collects and uses your personal information (name, first name, phone number and profile photo) solely for the purpose of managing your account, displaying your listings and facilitating contact with buyers on the platform.
 
 Your data will never be sold or shared with third parties for commercial purposes. It is kept securely and used only within the scope of TogoMarket services. You can request the deletion of your account and data at any time by contacting the administrator via WhatsApp.`;
+
+type ProfileScreen = "menu" | "boutique" | "parametres" | "info" | "securite";
 
 interface ProfileSettingsModalProps {
   open: boolean;
@@ -52,6 +68,8 @@ export function ProfileSettingsModal({
   const updateName = useVendorUpdateName();
   const changePassword = useVendorChangePassword();
 
+  const [screen, setScreen] = useState<ProfileScreen>("menu");
+
   const [firstName, setFirstName] = useState(vendor.firstName);
   const [lastName, setLastName] = useState(vendor.lastName);
   const [isUploadingPhoto, setIsUploadingPhoto] = useState(false);
@@ -63,13 +81,6 @@ export function ProfileSettingsModal({
   const [showOldPwd, setShowOldPwd] = useState(false);
   const [showNewPwd, setShowNewPwd] = useState(false);
   const [showConfirmPwd, setShowConfirmPwd] = useState(false);
-
-  const [showResetSection, setShowResetSection] = useState(false);
-  const [resetNewPwd, setResetNewPwd] = useState("");
-  const [resetConfirmPwd, setResetConfirmPwd] = useState("");
-  const [showResetNewPwd, setShowResetNewPwd] = useState(false);
-  const [showResetConfirmPwd, setShowResetConfirmPwd] = useState(false);
-  const [confirmResetOpen, setConfirmResetOpen] = useState(false);
 
   const [confirmNameOpen, setConfirmNameOpen] = useState(false);
   const [confirmPwdOpen, setConfirmPwdOpen] = useState(false);
@@ -119,34 +130,6 @@ export function ProfileSettingsModal({
     );
   };
 
-  const handleResetPassword = () => {
-    if (resetNewPwd !== resetConfirmPwd) {
-      toast({ title: t.passwordsDontMatch, variant: "destructive" });
-      return;
-    }
-    if (resetNewPwd.length < 6) {
-      toast({ title: t.min6Chars, variant: "destructive" });
-      return;
-    }
-    changePassword.mutate(
-      { data: { phone: vendor.phone, oldPassword: vendorPassword, newPassword: resetNewPwd } },
-      {
-        onSuccess: () => {
-          setConfirmResetOpen(false);
-          onVendorUpdate(vendor, resetNewPwd);
-          setResetNewPwd("");
-          setResetConfirmPwd("");
-          setShowResetSection(false);
-          toast({ title: t.resetPasswordSuccess });
-        },
-        onError: () => {
-          setConfirmResetOpen(false);
-          toast({ title: t.updateError, variant: "destructive" });
-        },
-      }
-    );
-  };
-
   const handleChangePassword = () => {
     if (!oldPwd || !newPwd || !confirmPwd) {
       toast({ title: t.allFieldsRequired, variant: "destructive" });
@@ -184,84 +167,226 @@ export function ProfileSettingsModal({
     );
   };
 
+  const handleOpenChange = (val: boolean) => {
+    if (!val) setScreen("menu");
+    onOpenChange(val);
+  };
+
+  const screenTitle: Record<ProfileScreen, string> = {
+    menu: t.profileSettings,
+    boutique: t.myShopMenu,
+    parametres: t.settingsMenu,
+    info: t.personalInfo,
+    securite: t.security,
+  };
+
   return (
     <>
-      <Dialog open={open} onOpenChange={onOpenChange}>
+      <Dialog open={open} onOpenChange={handleOpenChange}>
         <DialogContent className="sm:max-w-[420px] max-h-[90vh] overflow-y-auto">
           <DialogHeader>
-            <DialogTitle>{t.profileSettings}</DialogTitle>
+            <div className="flex items-center gap-2">
+              {screen !== "menu" && (
+                <button
+                  onClick={() => setScreen(screen === "info" || screen === "securite" ? "parametres" : "menu")}
+                  className="text-muted-foreground hover:text-foreground -ml-1"
+                  title={screen === "info" || screen === "securite" ? t.backToSettings : t.backToMenu}
+                >
+                  <ChevronLeft className="w-5 h-5" />
+                </button>
+              )}
+              <DialogTitle>{screenTitle[screen]}</DialogTitle>
+            </div>
           </DialogHeader>
 
-          <div className="space-y-6 pb-2">
-            {/* Photo */}
-            <div className="flex flex-col items-center gap-2">
-              <input ref={photoInputRef} type="file" accept="image/*" className="hidden" onChange={handlePhotoChange} />
-              <button
-                onClick={() => photoInputRef.current?.click()}
-                disabled={isUploadingPhoto}
-                className="relative group rounded-full border-2 border-primary/30 overflow-hidden w-20 h-20 hover:border-primary transition-colors disabled:opacity-60"
-              >
-                {vendor.profilePhoto ? (
-                  <img src={vendor.profilePhoto} alt={vendor.firstName} className="w-full h-full object-cover" />
-                ) : (
-                  <div className="w-full h-full bg-muted flex items-center justify-center">
-                    <UserCircle2 className="w-10 h-10 text-muted-foreground" />
-                  </div>
-                )}
-                <div className="absolute inset-0 bg-black/40 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity">
-                  {isUploadingPhoto ? (
-                    <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
+          {/* ── MENU PRINCIPAL ─────────────────────────────────────── */}
+          {screen === "menu" && (
+            <div className="space-y-3 pb-2">
+              <div className="flex flex-col items-center gap-2 pb-2">
+                <div className="rounded-full border-2 border-primary/30 overflow-hidden w-16 h-16">
+                  {vendor.profilePhoto ? (
+                    <img src={vendor.profilePhoto} alt={vendor.firstName} className="w-full h-full object-cover" />
                   ) : (
-                    <Camera className="w-5 h-5 text-white" />
+                    <div className="w-full h-full bg-muted flex items-center justify-center">
+                      <UserCircle2 className="w-8 h-8 text-muted-foreground" />
+                    </div>
                   )}
                 </div>
-              </button>
-              <p className="text-xs text-muted-foreground">{t.tapToChangePhoto}</p>
-            </div>
+                <p className="font-semibold text-sm">{vendor.firstName} {vendor.lastName}</p>
+              </div>
 
-            {/* Name */}
-            <div className="space-y-3">
-              <h3 className="text-sm font-semibold">{t.personalInfo}</h3>
-              <div className="grid grid-cols-2 gap-2">
-                <div>
-                  <label className="text-xs font-medium mb-1 block">{t.firstName}</label>
-                  <Input value={firstName} onChange={(e) => setFirstName(e.target.value)} />
-                </div>
-                <div>
-                  <label className="text-xs font-medium mb-1 block">{t.lastName}</label>
-                  <Input value={lastName} onChange={(e) => setLastName(e.target.value)} />
-                </div>
-              </div>
-              <div>
-                <label className="text-xs font-medium mb-1 block text-muted-foreground">{t.phoneReadonly}</label>
-                <Input value={vendor.phone} readOnly className="bg-muted text-muted-foreground" />
-              </div>
-              <Button
-                size="sm"
-                variant="outline"
-                className="w-full"
-                onClick={() => {
-                  if (!firstName.trim() || !lastName.trim()) {
-                    toast({ title: t.nameRequired, variant: "destructive" });
-                    return;
-                  }
-                  if (firstName.trim() === vendor.firstName && lastName.trim() === vendor.lastName) {
-                    toast({ title: t.noChangesDetected });
-                    return;
-                  }
-                  setConfirmNameOpen(true);
-                }}
+              <button
+                onClick={() => setScreen("boutique")}
+                className="w-full flex items-center gap-3 rounded-xl border bg-card p-4 hover:bg-muted/60 transition-colors text-left"
               >
-                {t.saveChanges}
-              </Button>
-            </div>
+                <div className="w-10 h-10 rounded-full bg-primary/10 flex items-center justify-center flex-shrink-0">
+                  <Store className="w-5 h-5 text-primary" />
+                </div>
+                <div className="flex-1 min-w-0">
+                  <p className="font-semibold text-sm">{t.myShopMenu}</p>
+                  <p className="text-xs text-muted-foreground truncate">{t.myShopMenuDesc}</p>
+                </div>
+                <ChevronRight className="w-4 h-4 text-muted-foreground flex-shrink-0" />
+              </button>
 
-            {/* Password */}
-            <div className="space-y-3 border-t pt-4">
-              <h3 className="text-sm font-semibold flex items-center gap-2">
-                <ShieldCheck className="w-4 h-4 text-primary" />
-                {t.security}
-              </h3>
+              <button
+                onClick={() => setScreen("parametres")}
+                className="w-full flex items-center gap-3 rounded-xl border bg-card p-4 hover:bg-muted/60 transition-colors text-left"
+              >
+                <div className="w-10 h-10 rounded-full bg-primary/10 flex items-center justify-center flex-shrink-0">
+                  <Settings className="w-5 h-5 text-primary" />
+                </div>
+                <div className="flex-1 min-w-0">
+                  <p className="font-semibold text-sm">{t.settingsMenu}</p>
+                  <p className="text-xs text-muted-foreground truncate">{t.settingsMenuDesc}</p>
+                </div>
+                <ChevronRight className="w-4 h-4 text-muted-foreground flex-shrink-0" />
+              </button>
+            </div>
+          )}
+
+          {/* ── MA BOUTIQUE ────────────────────────────────────────── */}
+          {screen === "boutique" && (
+            <div className="-mx-6 -mb-6">
+              <BoutiqueView vendor={vendor} vendorPassword={vendorPassword} onNeedLogin={() => {}} />
+            </div>
+          )}
+
+          {/* ── PARAMÈTRES (sous-menu) ─────────────────────────────── */}
+          {screen === "parametres" && (
+            <div className="space-y-3 pb-2">
+              <button
+                onClick={() => setScreen("info")}
+                className="w-full flex items-center gap-3 rounded-xl border bg-card p-4 hover:bg-muted/60 transition-colors text-left"
+              >
+                <div className="w-10 h-10 rounded-full bg-primary/10 flex items-center justify-center flex-shrink-0">
+                  <UserCog className="w-5 h-5 text-primary" />
+                </div>
+                <div className="flex-1 min-w-0">
+                  <p className="font-semibold text-sm">{t.personalInfo}</p>
+                </div>
+                <ChevronRight className="w-4 h-4 text-muted-foreground flex-shrink-0" />
+              </button>
+
+              <button
+                onClick={() => setScreen("securite")}
+                className="w-full flex items-center gap-3 rounded-xl border bg-card p-4 hover:bg-muted/60 transition-colors text-left"
+              >
+                <div className="w-10 h-10 rounded-full bg-primary/10 flex items-center justify-center flex-shrink-0">
+                  <ShieldCheck className="w-5 h-5 text-primary" />
+                </div>
+                <div className="flex-1 min-w-0">
+                  <p className="font-semibold text-sm">{t.security}</p>
+                </div>
+                <ChevronRight className="w-4 h-4 text-muted-foreground flex-shrink-0" />
+              </button>
+
+              {/* Privacy Policy */}
+              <div className="border-t pt-4">
+                <button
+                  className="flex items-start gap-2 w-full text-left"
+                  onClick={() => setShowPrivacy(!showPrivacy)}
+                >
+                  <CheckSquare className="w-4 h-4 text-primary mt-0.5 flex-shrink-0" />
+                  <span className="text-xs text-muted-foreground underline">{t.privacyAccepted}</span>
+                </button>
+                {showPrivacy && (
+                  <div className="mt-2 p-3 bg-muted rounded-lg text-xs text-muted-foreground leading-relaxed whitespace-pre-wrap">
+                    {privacyPolicy}
+                    <a
+                      href="https://togomarket.site/privacy.html"
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="block mt-2 text-primary underline"
+                    >
+                      {t.viewFullPrivacyShort}
+                    </a>
+                  </div>
+                )}
+              </div>
+
+              {/* Logout */}
+              <div className="border-t pt-4">
+                <Button
+                  variant="destructive"
+                  className="w-full gap-2"
+                  onClick={() => setConfirmLogoutOpen(true)}
+                >
+                  <LogOut className="w-4 h-4" />
+                  {t.logout}
+                </Button>
+              </div>
+            </div>
+          )}
+
+          {/* ── INFORMATIONS PERSONNELLES ──────────────────────────── */}
+          {screen === "info" && (
+            <div className="space-y-6 pb-2">
+              <div className="flex flex-col items-center gap-2">
+                <input ref={photoInputRef} type="file" accept="image/*" className="hidden" onChange={handlePhotoChange} />
+                <button
+                  onClick={() => photoInputRef.current?.click()}
+                  disabled={isUploadingPhoto}
+                  className="relative group rounded-full border-2 border-primary/30 overflow-hidden w-20 h-20 hover:border-primary transition-colors disabled:opacity-60"
+                >
+                  {vendor.profilePhoto ? (
+                    <img src={vendor.profilePhoto} alt={vendor.firstName} className="w-full h-full object-cover" />
+                  ) : (
+                    <div className="w-full h-full bg-muted flex items-center justify-center">
+                      <UserCircle2 className="w-10 h-10 text-muted-foreground" />
+                    </div>
+                  )}
+                  <div className="absolute inset-0 bg-black/40 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity">
+                    {isUploadingPhoto ? (
+                      <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
+                    ) : (
+                      <Camera className="w-5 h-5 text-white" />
+                    )}
+                  </div>
+                </button>
+                <p className="text-xs text-muted-foreground">{t.tapToChangePhoto}</p>
+              </div>
+
+              <div className="space-y-3">
+                <div className="grid grid-cols-2 gap-2">
+                  <div>
+                    <label className="text-xs font-medium mb-1 block">{t.firstName}</label>
+                    <Input value={firstName} onChange={(e) => setFirstName(e.target.value)} />
+                  </div>
+                  <div>
+                    <label className="text-xs font-medium mb-1 block">{t.lastName}</label>
+                    <Input value={lastName} onChange={(e) => setLastName(e.target.value)} />
+                  </div>
+                </div>
+                <div>
+                  <label className="text-xs font-medium mb-1 block text-muted-foreground">{t.phoneReadonly}</label>
+                  <Input value={vendor.phone} readOnly className="bg-muted text-muted-foreground" />
+                </div>
+                <Button
+                  size="sm"
+                  variant="outline"
+                  className="w-full"
+                  onClick={() => {
+                    if (!firstName.trim() || !lastName.trim()) {
+                      toast({ title: t.nameRequired, variant: "destructive" });
+                      return;
+                    }
+                    if (firstName.trim() === vendor.firstName && lastName.trim() === vendor.lastName) {
+                      toast({ title: t.noChangesDetected });
+                      return;
+                    }
+                    setConfirmNameOpen(true);
+                  }}
+                >
+                  {t.saveChanges}
+                </Button>
+              </div>
+            </div>
+          )}
+
+          {/* ── SÉCURITÉ ────────────────────────────────────────────── */}
+          {screen === "securite" && (
+            <div className="space-y-3 pb-2">
               <div>
                 <label className="text-xs font-medium mb-1 block">{t.oldPassword}</label>
                 <div className="relative">
@@ -330,122 +455,7 @@ export function ProfileSettingsModal({
                 {t.changePassword}
               </Button>
             </div>
-
-            {/* Reset password (forgot old password) */}
-            <div className="border-t pt-3">
-              {!showResetSection ? (
-                <button
-                  className="text-xs text-muted-foreground underline"
-                  onClick={() => setShowResetSection(true)}
-                >
-                  {t.forgotPassword}
-                </button>
-              ) : (
-                <div className="space-y-3">
-                  <p className="text-xs font-semibold text-amber-700 bg-amber-50 border border-amber-200 rounded-lg px-3 py-2">
-                    {t.resetPasswordDesc}
-                  </p>
-                  <div>
-                    <label className="text-xs font-medium mb-1 block">{t.newPassword}</label>
-                    <div className="relative">
-                      <Input
-                        type={showResetNewPwd ? "text" : "password"}
-                        value={resetNewPwd}
-                        onChange={(e) => setResetNewPwd(e.target.value)}
-                        className="pr-10"
-                        placeholder={t.minChars}
-                      />
-                      <button type="button" onClick={() => setShowResetNewPwd((v) => !v)} className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground">
-                        {showResetNewPwd ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
-                      </button>
-                    </div>
-                  </div>
-                  <div>
-                    <label className="text-xs font-medium mb-1 block">{t.confirmNewPassword}</label>
-                    <div className="relative">
-                      <Input
-                        type={showResetConfirmPwd ? "text" : "password"}
-                        value={resetConfirmPwd}
-                        onChange={(e) => setResetConfirmPwd(e.target.value)}
-                        className="pr-10"
-                        placeholder={t.repeatPassword}
-                      />
-                      <button type="button" onClick={() => setShowResetConfirmPwd((v) => !v)} className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground">
-                        {showResetConfirmPwd ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
-                      </button>
-                    </div>
-                  </div>
-                  <div className="flex gap-2">
-                    <Button
-                      size="sm"
-                      variant="outline"
-                      className="flex-1"
-                      onClick={() => { setShowResetSection(false); setResetNewPwd(""); setResetConfirmPwd(""); }}
-                    >
-                      {t.cancel}
-                    </Button>
-                    <Button
-                      size="sm"
-                      className="flex-1"
-                      onClick={() => {
-                        if (!resetNewPwd || !resetConfirmPwd) {
-                          toast({ title: t.allFieldsRequired, variant: "destructive" });
-                          return;
-                        }
-                        if (resetNewPwd !== resetConfirmPwd) {
-                          toast({ title: t.passwordsDontMatch, variant: "destructive" });
-                          return;
-                        }
-                        if (resetNewPwd.length < 6) {
-                          toast({ title: t.min6Chars, variant: "destructive" });
-                          return;
-                        }
-                        setConfirmResetOpen(true);
-                      }}
-                    >
-                      {t.resetPassword}
-                    </Button>
-                  </div>
-                </div>
-              )}
-            </div>
-
-            {/* Privacy Policy */}
-            <div className="border-t pt-4">
-              <button
-                className="flex items-start gap-2 w-full text-left"
-                onClick={() => setShowPrivacy(!showPrivacy)}
-              >
-                <CheckSquare className="w-4 h-4 text-primary mt-0.5 flex-shrink-0" />
-                <span className="text-xs text-muted-foreground underline">{t.privacyAccepted}</span>
-              </button>
-              {showPrivacy && (
-                <div className="mt-2 p-3 bg-muted rounded-lg text-xs text-muted-foreground leading-relaxed whitespace-pre-wrap">
-                  {privacyPolicy}
-                  <a
-                    href="https://togomarket.site/privacy.html"
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="block mt-2 text-primary underline"
-                  >
-                    {t.viewFullPrivacyShort}
-                  </a>
-                </div>
-              )}
-            </div>
-
-            {/* Logout */}
-            <div className="border-t pt-4">
-              <Button
-                variant="destructive"
-                className="w-full gap-2"
-                onClick={() => setConfirmLogoutOpen(true)}
-              >
-                <LogOut className="w-4 h-4" />
-                {t.logout}
-              </Button>
-            </div>
-          </div>
+          )}
         </DialogContent>
       </Dialog>
 
@@ -460,20 +470,6 @@ export function ProfileSettingsModal({
             <Button variant="outline" onClick={() => setConfirmNameOpen(false)}>{t.cancel}</Button>
             <Button onClick={handleSaveName} disabled={updateName.isPending}>
               {updateName.isPending ? t.saving : t.confirm}
-            </Button>
-          </div>
-        </DialogContent>
-      </Dialog>
-
-      {/* Confirm password reset */}
-      <Dialog open={confirmResetOpen} onOpenChange={setConfirmResetOpen}>
-        <DialogContent className="sm:max-w-[340px]">
-          <DialogHeader><DialogTitle>{t.resetPasswordTitle}</DialogTitle></DialogHeader>
-          <p className="text-sm text-muted-foreground">{t.resetPasswordDesc}</p>
-          <div className="flex gap-2 justify-end">
-            <Button variant="outline" onClick={() => setConfirmResetOpen(false)}>{t.cancel}</Button>
-            <Button onClick={handleResetPassword} disabled={changePassword.isPending}>
-              {changePassword.isPending ? t.modifying : t.confirm}
             </Button>
           </div>
         </DialogContent>

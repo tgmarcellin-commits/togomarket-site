@@ -22,7 +22,6 @@ import { AuthModal } from "@/components/auth-modal";
 import { InstallPrompt } from "@/components/install-prompt";
 import { AdBanner } from "@/components/ad-banner";
 import { BottomNav, type NavTab } from "@/components/bottom-nav";
-import { BoutiqueView } from "@/components/boutique-view";
 import { SubAdminModal } from "@/components/sub-admin-modal";
 import { PubliciteView } from "@/components/publicite-view";
 import { EvenementielView } from "@/components/evenementiel-view";
@@ -637,15 +636,6 @@ export default function Home() {
             </div>
           </footer>
         </>
-      )}
-
-      {/* ── BOUTIQUE TAB ─────────────────────────────────────────────── */}
-      {activeTab === "boutique" && (
-        <BoutiqueView
-          vendor={vendor}
-          vendorPassword={vendorPassword}
-          onNeedLogin={() => setIsAuthModalOpen(true)}
-        />
       )}
 
       {/* ── PUBLICITÉ TAB ─────────────────────────────────────────────── */}

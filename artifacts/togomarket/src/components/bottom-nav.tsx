@@ -1,9 +1,9 @@
 import { useRef } from "react";
-import { Store, Megaphone, ShoppingBag, Calendar, PackageSearch, Briefcase } from "lucide-react";
+import { Megaphone, ShoppingBag, Calendar, PackageSearch, Briefcase } from "lucide-react";
 import { useSiteSettings } from "@/lib/site-settings";
 import { useT } from "@/lib/i18n";
 
-export type NavTab = "boutique" | "publicite" | "marketplace" | "evenementiel" | "introuvable" | "services";
+export type NavTab = "publicite" | "marketplace" | "evenementiel" | "introuvable" | "services";
 
 type SecretTab = "publicite" | "evenementiel" | "services";
 
@@ -25,10 +25,9 @@ export function BottomNav({ activeTab, onTabChange, onSecretTap }: BottomNavProp
   const clickTimers = useRef<Partial<Record<SecretTab, ReturnType<typeof setTimeout>>>>({});
 
   const tabs: { id: NavTab; label: string; Icon: React.ComponentType<{ className?: string }> }[] = [
-    { id: "boutique", label: t.navBoutique, Icon: Store },
     { id: "publicite", label: t.navAds, Icon: Megaphone },
-    { id: "marketplace", label: t.navMarket, Icon: ShoppingBag },
     { id: "services", label: t.navServices, Icon: Briefcase },
+    { id: "marketplace", label: t.navMarket, Icon: ShoppingBag },
     { id: "evenementiel", label: t.navEvents, Icon: Calendar },
     { id: "introuvable", label: t.navLost, Icon: PackageSearch },
   ];

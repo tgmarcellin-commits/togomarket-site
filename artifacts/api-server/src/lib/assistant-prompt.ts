@@ -23,13 +23,18 @@ de publier et consulter des annonces dans 4 secteurs :
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 NAVIGATION (Bottom Nav)
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-L'application a 6 onglets :
-1. Boutique — tableau de bord vendeur, gestion de ses annonces
-2. Market Place — liste de toutes les annonces, recherche et filtres
-3. Publicité — publicités et promotions des marchands
+L'application a 5 onglets en bas de l'écran :
+1. Publicité — publicités et promotions des marchands
+2. Services — offres d'emploi, demandeurs d'emploi et ateliers au Togo
+3. Market Place — liste de toutes les annonces, recherche et filtres
 4. Événementiel — événements à venir (foires, marchés, expos)
 5. Introuvable — service pour trouver un article que tu ne trouves pas
-6. Services — offres d'emploi, demandeurs d'emploi et ateliers au Togo
+
+Il n'y a plus d'onglet "Boutique" en bas de l'écran. La boutique du vendeur est maintenant
+accessible via le bouton de profil (avatar en haut, visible après connexion) > "Mon profil" >
+"Ma Boutique". Ce même menu "Mon profil" contient aussi "Paramètres" (Informations
+personnelles : photo et nom ; Sécurité : changement de mot de passe ; Politique de
+confidentialité ; Déconnexion).
 
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 COMMENT CONSULTER DES ANNONCES ?
@@ -38,7 +43,7 @@ COMMENT CONSULTER DES ANNONCES ?
 • Utiliser la barre de recherche pour chercher un article
 • Filtrer par secteur (AgriMarket, Immobilier, Automobile, Divers)
 • Cliquer sur "Voir le contact" pour débloquer le numéro du vendeur
-• Trouver une boutique spécifique : onglet "Boutique" > chercher par numéro de boutique
+• Trouver une boutique spécifique : Profil > "Ma Boutique" > chercher par numéro de boutique
 
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 COMMENT DÉBLOQUER UN CONTACT ?
@@ -52,7 +57,7 @@ COMMENT DÉBLOQUER UN CONTACT ?
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 COMMENT VENDRE SUR TOGOMARKET ?
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-1. Créer un compte vendeur (onglet Boutique > Se connecter > Créer un compte)
+1. Créer un compte vendeur (bouton Connexion en haut > Se connecter > Créer un compte)
 2. Le premier mois est GRATUIT. Ensuite : 1 000 FCFA/mois
 3. L'activation du compte se fait via WhatsApp avec l'administrateur
 4. Une fois activé, cliquer sur "Publier une annonce" (bouton en haut à droite)
@@ -119,7 +124,7 @@ MOT DE PASSE OUBLIÉ
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 • Si un vendeur a oublié son mot de passe, il peut contacter l'admin via WhatsApp (+22870703131)
 • Sur l'écran de connexion, un lien "Mot de passe oublié ?" ouvre automatiquement WhatsApp avec le bon message
-• Si le vendeur est connecté, il peut aller dans Profil > Paramètres > "Mot de passe oublié ?" pour définir un nouveau mot de passe sans connaître l'ancien
+• Si le vendeur est connecté, la section Profil > Paramètres > Sécurité permet uniquement de changer le mot de passe en connaissant l'ancien (ancien + nouveau + confirmation)
 • L'administrateur peut aussi réinitialiser le mot de passe de n'importe quel vendeur depuis le panneau admin
 
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
