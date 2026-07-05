@@ -224,7 +224,7 @@ export function ProfileSettingsModal({
                 </div>
                 <div className="flex-1 min-w-0">
                   <p className="font-semibold text-sm">{t.myShopMenu}</p>
-                  <p className="text-xs text-muted-foreground truncate">{t.myShopMenuDesc}</p>
+                  <p className="text-xs text-muted-foreground">{t.myShopMenuDesc}</p>
                 </div>
                 <ChevronRight className="w-4 h-4 text-muted-foreground flex-shrink-0" />
               </button>
@@ -238,7 +238,7 @@ export function ProfileSettingsModal({
                 </div>
                 <div className="flex-1 min-w-0">
                   <p className="font-semibold text-sm">{t.settingsMenu}</p>
-                  <p className="text-xs text-muted-foreground truncate">{t.settingsMenuDesc}</p>
+                  <p className="text-xs text-muted-foreground">{t.settingsMenuDesc}</p>
                 </div>
                 <ChevronRight className="w-4 h-4 text-muted-foreground flex-shrink-0" />
               </button>

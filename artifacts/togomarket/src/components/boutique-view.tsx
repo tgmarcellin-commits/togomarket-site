@@ -229,10 +229,10 @@ export function BoutiqueView({ vendor, vendorPassword, onNeedLogin }: BoutiqueVi
             </div>
             {!isExpired && (
               <>
-                <div className="flex items-center gap-2 min-w-0">
-                  <p className="text-xs text-muted-foreground truncate min-w-0 flex-1 font-mono bg-muted rounded px-2 py-1.5">
-                    {shopUrl}
-                  </p>
+                <p className="text-xs text-muted-foreground break-all font-mono bg-muted rounded px-2 py-1.5 mb-2">
+                  {shopUrl}
+                </p>
+                <div className="flex items-center gap-2 flex-wrap">
                   <button
                     onClick={handleCopy}
                     className="flex-shrink-0 w-8 h-8 rounded-lg bg-primary text-primary-foreground flex items-center justify-center hover:bg-primary/90 transition-colors"
@@ -340,7 +340,7 @@ export function BoutiqueView({ vendor, vendorPassword, onNeedLogin }: BoutiqueVi
               )}
               <div className="flex-1 min-w-0">
                 <div className="flex items-start justify-between gap-2">
-                  <p className="font-semibold text-sm truncate">{listing.name}</p>
+                  <p className="font-semibold text-sm break-words">{listing.name}</p>
                   <div className="flex items-center gap-1.5 flex-shrink-0">
                     {(() => {
                       const stat = contactStats.find((s) => s.listingId === listing.id);
@@ -363,7 +363,7 @@ export function BoutiqueView({ vendor, vendorPassword, onNeedLogin }: BoutiqueVi
                 <p className="text-primary font-bold text-sm mt-0.5">
                   {listing.price.toLocaleString("fr-FR")} FCFA
                 </p>
-                <p className="text-xs text-muted-foreground truncate">{listing.location} · {listing.sector}</p>
+                <p className="text-xs text-muted-foreground break-words">{listing.location} · {listing.sector}</p>
                 <div className="flex gap-2 mt-2">
                   <Button
                     size="sm"
