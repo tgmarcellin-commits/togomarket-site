@@ -1,0 +1,72 @@
+Tu es l'architecte expert de TogoMarket. Ton objectif est d'intégrer les nouvelles fonctionnalités de paiement, de sécurité et d'affichage avec FedaPay tout en préservant strictement toutes les fonctionnalités administratives existantes. Le système doit conserver son comportement actuel pour toutes les tâches de gestion courante (gestion du contenu, des utilisateurs, etc.) qui ne sont pas explicitement modifiées ici.
+
+1. Maintien de l'existant :
+Toutes les fonctionnalités d'administration actuelles (gestion du contenu, suivi des utilisateurs, tableaux de bord, etc.) doivent rester fonctionnelles et accessibles, sauf là où elles sont explicitement complétées par les points ci-dessous.
+
+2. Automatisation FedaPay (avec togomarket.site) :
+* Utilise l'URL de callback exacte pour le Webhook : https://togomarket.site
+* Crée la route /api/fedapay-callback en PHP pour écouter les notifications de paiement. Le script doit intercepter le payload JSON envoyé par FedaPay, valider l'authenticité de la requête et vérifier que l'événement reçu est strictement égal à "transaction.approved".
+* Les clés de l'API FedaPay doivent être récupérées de manière sécurisée depuis les Secrets (variables d'environnement) de Replit sous les noms : FEDAPAY_SECRET_KEY et FEDAPAY_PUBLIC_KEY.
+* À la réception et validation de la notification de paiement approuvé, extrait l'identifiant de l'élément concerné et passe son statut is_published à TRUE. Mets à jour la date d'expiration (expiry_date) selon les règles de structure définies au point 3.
+
+3. Flux de Paiement Spécifique et Logique d'Expiration par Section :
+* L'abonnement pour l'affichage d'une Boutique Vendeur, d'une Publicité, d'un Événement ou d'un Service est fixé à 1 000 FCFA net.
+* Statut Initial : Lorsqu'un sous-admin crée une publicité, un événement ou un service, l'élément possède initialement le statut is_published: FALSE et génère un lien de paiement FedaPay unique de 1 000 FCFA associé.
+* RÈGLE D'EXPIRATION PUBLICITÉS ET SERVICES : Le paiement valide l'affichage pour une durée stricte de 30 jours (expiry_date = Date du jour + 30 jours).
+* RÈGLE D'EXPIRATION ÉVÉNEMENTIEL (Spécifique) : La date d'expiration ne dure pas 30 jours. L'élément reste actif et publié jusqu'à ce que la date réelle de l'événement soit passée (expiry_date = Date de fin de l'événement configurée par l'admin). Une fois la date de l'événement dépassée, il expire automatiquement.
+* Dérogation Superadmin : Le superadmin dispose d'un bouton pour forcer manuellement le statut is_published à TRUE pour n'importe quel élément sans exiger de paiement. Dans ce cas, l'attribut validation_method doit passer à 'admin'.
+
+4. Statistiques et Tableaux de Gestion Superadmin :
+Dans le panneau d'administration du superadmin, configure pour CHAQUE section (Vendeurs, Publicités, Services, Événements) un tableau de suivi statistique affichant les compteurs précis suivants :
+* Section Vendeurs : Nombre total de vendeurs, nombre de vendeurs ayant payé leur abonnement (via FedaPay), nombre de vendeurs ayant profité d'une activation manuelle par l'admin.
+* Section Publicités : Nombre total de publicités, nombre de publicités payées, nombre de publicités activées manuellement.
+* Section Services : Nombre total de services, nombre de services payés, nombre de services activés manuellement.
+* Section Événementiel : Nombre total d'événements créés, nombre d'événements payés, nombre d'événements activés manuellement.
+
+5. Automatisation Intelligente du Widget FedaPay (Mode Test / Réel) :
+* Installe le SDK PHP officiel de FedaPay via Composer (`fedapay/fedapay-php`).
+* Pour l'intégration du widget de paiement FedaPay sur la page web, fais en sorte que l'environnement s'active ou se désactive de manière totalement dynamique.
+* Si la valeur de FEDAPAY_PUBLIC_KEY dans les Secrets commence par un préfixe de production (comme pk_live), configure automatiquement FedaPay en mode réel (`FedaPay::setEnvironment('live')`). Sinon, configure-le en mode test (`FedaPay::setEnvironment('sandbox')`).
+* Note sur les frais : Intègre le paramètre nécessaire dans l'API de création de transaction FedaPay pour spécifier que les frais de transaction sont supportés à 100% par le client final (le vendeur), afin que la plateforme reçoive exactement 1 000 FCFA net.
+
+6. Design de la page de Paiement et Mentions Légales :
+* Juste en dessous du bouton "S'abonner" ou "Payer", ajoute : « Le paiement est sécurisé par FedaPay. Note : Les frais réglementaires de transaction par Mobile Money / Carte seront ajoutés au montant net lors de la validation. »
+* Modifie le formulaire de création de compte des vendeurs. Juste avant le bouton de validation, ajoute une case à cocher obligatoire : « En créant mon compte, j'accepte les Conditions Générales d'Utilisation, la Politique de Confidentialité, et je reconnais que les frais de transaction liés aux paiements FedaPay sont à ma charge. » Fais en sorte que les mots "Conditions Générales d'Utilisation" et "Politique de Confidentialité" soient des liens cliquables.
+
+7. Création de la page des CGU (Conditions Générales d'Utilisation) :
+Crée la page /cgu qui devra renfermer textuellement la clause suivante :
+---
+Article 1 – Tarifs et Frais de Transaction
+1.1 Prix de l'abonnement : L'accès aux fonctionnalités de vente de TogoMarket est soumis à un abonnement mensuel de 1000 F CFA net pour la plateforme.
+1.2 Prise en charge des frais de paiement : Les paiements sont sécurisés et traités par notre partenaire agréé FedaPay. Afin de garantir le maintien et la qualité des services de TogoMarket, l'intégralité des frais techniques de transaction (frais appliqués par les opérateurs de Mobile Money ou les réseaux bancaires) est supportée par le vendeur (client final).
+---
+
+8. Notification Visuelle Flash après Paiement Réussi :
+Dès que FedaPay confirme le succès de la transaction sur la page de retour, déclenche une redirection ou un modal pour afficher une Notification Flash immédiate à l'écran :
+« 🎉 Félicitations ! Votre paiement a été validé avec succès par FedaPay. Votre élément sur TogoMarket est actif (Date d'expiration : [Affiche la date d'expiration calculée dynamiquement]). Il est désormais visible en ligne ! »
+
+9. Système de Relance et Blocage Automatique dans l'Espace Vendeur (Dashboard) :
+Ajoute un système de notification automatique dans l'espace privé de chaque vendeur :
+* Si la expiry_date du vendeur expire dans moins de 3 jours, affiche un bandeau orange d'avertissement en haut de son écran avec un bouton 'Renouveler mon abonnement' qui ouvre FedaPay.
+* Si la expiry_date est dépassée, bloque complètement l'accès à son espace vendeur par un écran rouge indiquant 'Abonnement expiré - Boutique suspendue' avec un bouton central pour payer et réactiver sa boutique via FedaPay.
+
+10. Sécurité des Accès Admin (Nouveau système) :
+* Crée une page de connexion dédiée accessible uniquement via /admin-login.
+* superadmin : accès sécurisé via un code à 5 chiffres.
+* admin_pub, admin_event, admin_service : accès sécurisé via un code à 4 chiffres.
+* Interface superadmin : permet de créer, visualiser et modifier les codes de tous les admins (ces codes doivent être stockés hashés de manière sécurisée en base de données).
+* Suppression de l'ancien système : supprime la méthode des 5 clics qui permettait auparavant d'accéder à l'espace admin et sous-admin.
+* Conservation spécifique : conserve uniquement le mécanisme des 5 clics dédié à l'ouverture directe de la marketplace, qui permettait de voir instantanément le numéro caché des vendeurs et de procéder à la suppression directe d'un article.
+* Utilise des sessions PHP sécurisées pour maintenir l'état de connexion.
+
+11. Verrou de sécurité général et Validation :
+* Un contenu/article n'est visible publiquement que si is_published est TRUE et que sa expiry_date est strictement valide (non expirée).
+* Ajoute une option 'Validation Manuelle' dans le panneau d'administration pour forcer l'attribut validation_method: 'admin'.
+
+12. Système de Relance WhatsApp Superadmin & Parrainage :
+* Dans le tableau de bord superadmin, crée une section 'Alertes' listant tous les vendeurs dont l'abonnement expire dans moins de 3 jours. Pour chaque vendeur listé, ajoute un bouton 'Relancer via WhatsApp' qui ouvre ce lien d'API pré-rempli : wa.me/[numero_vendeur]?text=Bonjour, votre boutique TogoMarket expire dans 3 jours. Pensez à renouveler pour garder vos articles visibles. Lien : https://togomarket.site
+* Migration des données : Écris un script de migration : les vendeurs déjà existants en base de données conservent leur expiry_date actuelle, avec les attributs par défaut suivants : payment_status: 'paid', validation_method: 'legacy', et is_published: TRUE.
+* Système d'affiliation/parrainage : Si un nouveau vendeur s'inscrit via le lien d'affiliation d'une boutique existante, la boutique parrain gagne automatiquement 3 jours supplémentaires sur sa propre expiry_date. Ajoute un compteur visible dans l'espace de chaque boutique pour indiquer le nombre total de jours gagnés grâce aux parrainages.
+* Supprime définitivement l'ancienne règle qui laissait les articles visibles gratuitement tant que la marketplace comptait moins de 300 articles. À la place, configure un système d'Offre de Bienvenue : lors de la création de son compte, chaque nouveau vendeur bénéficie automatiquement d'une période d'essai gratuite de 30 jours (sa expiry_date est initialisée à Date du jour + 30 jours et is_published passe à TRUE). À l'expiration de ces 30 jours d'essai, la logique de blocage et de paiement via FedaPay définie précédemment s'applique normalement.
+
+Analyse le code existant, implémente toute cette architecture proprement avec FedaPay et assure-toi que l'administration précédente reste opérationnelle et fluide.
