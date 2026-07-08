@@ -56,7 +56,7 @@ export default function AdminLogin() {
         return;
       }
       saveAdminSession(data.role, trimmed);
-      navigate("/");
+      navigate("/admin");
     } catch {
       setError("Erreur de connexion. Réessayez.");
     } finally {

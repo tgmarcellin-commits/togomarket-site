@@ -93,6 +93,30 @@ export default function Home() {
   const [boutiqueInput, setBoutiqueInput] = useState("");
   const [sellerResult, setSellerResult] = useState<SellerResult>({ status: "idle" });
 
+  const logoClickCount = useRef(0);
+  const logoClickTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  const handleLogoClick = () => {
+    setActiveTab("marketplace");
+    setSector(undefined);
+    setSearch("");
+    setSearchInput("");
+    setBoutiqueInput("");
+    setSellerResult({ status: "idle" });
+    setSearchMode("article");
+
+    logoClickCount.current += 1;
+    if (logoClickTimer.current) clearTimeout(logoClickTimer.current);
+    if (logoClickCount.current >= 5) {
+      logoClickCount.current = 0;
+      setIsAdminModalOpen(true);
+    } else {
+      logoClickTimer.current = setTimeout(() => {
+        logoClickCount.current = 0;
+      }, 2000);
+    }
+  };
+
   const [isPublishModalOpen, setIsPublishModalOpen] = useState(false);
   const [isOrderModalOpen, setIsOrderModalOpen] = useState(false);
   const [isAdminModalOpen, setIsAdminModalOpen] = useState(false);
@@ -307,15 +331,7 @@ export default function Home() {
         <div className="container mx-auto px-4 h-16 flex items-center justify-between">
           <div
             className="flex items-center gap-2 cursor-pointer"
-            onClick={() => {
-              setActiveTab("marketplace");
-              setSector(undefined);
-              setSearch("");
-              setSearchInput("");
-              setBoutiqueInput("");
-              setSellerResult({ status: "idle" });
-              setSearchMode("article");
-            }}
+            onClick={handleLogoClick}
           >
             <img src="/logo.jpg" alt="TogoMarket" className="h-9 w-9 rounded-lg object-cover flex-shrink-0" />
             <span className="font-bold text-2xl tracking-tight">
