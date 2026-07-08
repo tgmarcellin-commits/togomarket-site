@@ -12,17 +12,31 @@ function mapEvent(e: typeof eventsTable.$inferSelect) {
     description: e.description,
     flyerImage: e.flyerImage ?? null,
     date: e.date.toISOString(),
+    endDate: e.endDate?.toISOString() ?? null,
     location: e.location,
     ticketLink: e.ticketLink ?? null,
     ticketPrice: e.ticketPrice ?? null,
     createdAt: e.createdAt.toISOString(),
+    isPublished: e.isPublished,
+    paymentStatus: e.paymentStatus,
+    validationMethod: e.validationMethod,
+    fedapayTransactionId: e.fedapayTransactionId ?? null,
   };
 }
 
 router.get("/events", async (req, res) => {
   try {
-    const events = await db.select().from(eventsTable).orderBy(desc(eventsTable.date));
-    res.json(events.map(mapEvent));
+    const now = new Date();
+    const events = await db
+      .select()
+      .from(eventsTable)
+      .where(eq(eventsTable.isPublished, true))
+      .orderBy(desc(eventsTable.date));
+    const active = events.filter((e) => {
+      const expiry = e.endDate ?? e.date;
+      return expiry >= now;
+    });
+    res.json(active.map(mapEvent));
   } catch (err) {
     req.log.error({ err }, "Failed to get events");
     res.status(500).json({ error: "Erreur interne" });
@@ -30,7 +44,7 @@ router.get("/events", async (req, res) => {
 });
 
 router.post("/admin/events", async (req, res) => {
-  const { password, title, description, flyerImage, date, location, ticketLink, ticketPrice } = req.body;
+  const { password, title, description, flyerImage, date, endDate, location, ticketLink, ticketPrice } = req.body;
   if (!await isAdminOrSubAdmin(password)) {
     return res.status(403).json({ error: "Forbidden" });
   }
@@ -45,15 +59,33 @@ router.post("/admin/events", async (req, res) => {
         description: description.trim(),
         flyerImage: flyerImage ?? null,
         date: new Date(date),
+        endDate: endDate ? new Date(endDate) : null,
         location: location.trim(),
         ticketLink: ticketLink ?? null,
         ticketPrice: ticketPrice ?? null,
+        isPublished: false,
+        paymentStatus: "unpaid",
+        validationMethod: "pending",
       })
       .returning();
     req.log.info({ id: event.id }, "Event created");
     return res.status(201).json(mapEvent(event));
   } catch (err) {
     req.log.error({ err }, "Failed to create event");
+    return res.status(500).json({ error: "Erreur interne" });
+  }
+});
+
+router.post("/admin/events/all", async (req, res) => {
+  const { password } = req.body;
+  if (!await isAdminOrSubAdmin(password)) {
+    return res.status(403).json({ error: "Forbidden" });
+  }
+  try {
+    const events = await db.select().from(eventsTable).orderBy(desc(eventsTable.date));
+    return res.json(events.map(mapEvent));
+  } catch (err) {
+    req.log.error({ err }, "Failed to get all events");
     return res.status(500).json({ error: "Erreur interne" });
   }
 });

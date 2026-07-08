@@ -369,7 +369,8 @@ export const VendorRegisterBody = zod.object({
   "firstName": zod.string(),
   "lastName": zod.string(),
   "phone": zod.string(),
-  "password": zod.string()
+  "password": zod.string(),
+  "referredBy": zod.number().nullish()
 })
 
 
@@ -409,7 +410,13 @@ export const VendorLoginResponse = zod.object({
   "code": zod.string(),
   "endDate": zod.string(),
   "daysLeft": zod.number()
-}),zod.null()]).optional()
+}),zod.null()]).optional(),
+  "expiryDate": zod.string().nullish(),
+  "isPublished": zod.boolean().optional(),
+  "paymentStatus": zod.string().optional(),
+  "validationMethod": zod.string().optional(),
+  "daysUntilExpiry": zod.number().nullish(),
+  "referralDaysEarned": zod.number().optional()
 })
 
 
@@ -434,7 +441,13 @@ export const VendorUpdateProfileResponse = zod.object({
   "code": zod.string(),
   "endDate": zod.string(),
   "daysLeft": zod.number()
-}),zod.null()]).optional()
+}),zod.null()]).optional(),
+  "expiryDate": zod.string().nullish(),
+  "isPublished": zod.boolean().optional(),
+  "paymentStatus": zod.string().optional(),
+  "validationMethod": zod.string().optional(),
+  "daysUntilExpiry": zod.number().nullish(),
+  "referralDaysEarned": zod.number().optional()
 })
 
 
@@ -460,7 +473,13 @@ export const VendorUpdateNameResponse = zod.object({
   "code": zod.string(),
   "endDate": zod.string(),
   "daysLeft": zod.number()
-}),zod.null()]).optional()
+}),zod.null()]).optional(),
+  "expiryDate": zod.string().nullish(),
+  "isPublished": zod.boolean().optional(),
+  "paymentStatus": zod.string().optional(),
+  "validationMethod": zod.string().optional(),
+  "daysUntilExpiry": zod.number().nullish(),
+  "referralDaysEarned": zod.number().optional()
 })
 
 
@@ -519,7 +538,13 @@ export const AdminGetVendorsResponseItem = zod.object({
   "code": zod.string(),
   "endDate": zod.string(),
   "daysLeft": zod.number()
-}),zod.null()]).optional()
+}),zod.null()]).optional(),
+  "expiryDate": zod.string().nullish(),
+  "isPublished": zod.boolean().optional(),
+  "paymentStatus": zod.string().optional(),
+  "validationMethod": zod.string().optional(),
+  "daysUntilExpiry": zod.number().nullish(),
+  "referralDaysEarned": zod.number().optional()
 })
 export const AdminGetVendorsResponse = zod.array(AdminGetVendorsResponseItem)
 

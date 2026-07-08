@@ -99,9 +99,6 @@ export default function Home() {
   const [isAuthModalOpen, setIsAuthModalOpen] = useState(false);
   const [isProfileModalOpen, setIsProfileModalOpen] = useState(false);
   const [subAdminSection, setSubAdminSection] = useState<"publicite" | "evenementiel" | "services" | null>(null);
-  const [logoTapCount, setLogoTapCount] = useState(0);
-  const logoTapTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
-
   const [isAdmin, setIsAdmin] = useState(false);
   const [adminPassword, setAdminPassword] = useState("");
 
@@ -118,6 +115,17 @@ export default function Home() {
       setVendor(session.vendor);
       setVendorPassword(session.password);
     }
+    try {
+      const raw = localStorage.getItem("togomarket_admin_session");
+      if (raw) {
+        const parsed = JSON.parse(raw);
+        const age = Date.now() - (parsed.at ?? 0);
+        if (age < 8 * 60 * 60 * 1000 && parsed.code) {
+          setIsAdmin(true);
+          setAdminPassword(parsed.code);
+        }
+      }
+    } catch {}
   }, []);
 
   useEffect(() => {
@@ -307,15 +315,6 @@ export default function Home() {
               setBoutiqueInput("");
               setSellerResult({ status: "idle" });
               setSearchMode("article");
-              const next = logoTapCount + 1;
-              setLogoTapCount(next);
-              if (logoTapTimer.current) clearTimeout(logoTapTimer.current);
-              if (next >= 5) {
-                setLogoTapCount(0);
-                setIsAdminModalOpen(true);
-              } else {
-                logoTapTimer.current = setTimeout(() => setLogoTapCount(0), 2000);
-              }
             }}
           >
             <img src="/logo.jpg" alt="TogoMarket" className="h-9 w-9 rounded-lg object-cover flex-shrink-0" />

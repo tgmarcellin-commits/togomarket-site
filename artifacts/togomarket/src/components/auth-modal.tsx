@@ -18,6 +18,7 @@ interface AuthModalProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   onLoginSuccess: (vendor: VendorProfile, password: string) => void;
+  referredBy?: number;
 }
 
 type Screen = "choice" | "login" | "register" | "privacy" | "verify";
@@ -33,6 +34,7 @@ interface PendingRegister {
   lastName: string;
   phone: string;
   password: string;
+  referredBy?: number;
 }
 
 const PRIVACY_POLICY_FR = `En créant votre compte vendeur sur TogoMarket, vous autorisez TogoMarket à collecter et utiliser vos informations personnelles (nom, prénom, numéro de téléphone et photo de profil) dans le seul but de gérer votre compte, afficher vos annonces et faciliter la mise en relation avec les acheteurs sur la plateforme.
@@ -47,7 +49,7 @@ Your data will never be sold or shared with third parties for commercial purpose
 
 By clicking "I accept and continue", you confirm that you have read and accepted this privacy policy.`;
 
-export function AuthModal({ open, onOpenChange, onLoginSuccess }: AuthModalProps) {
+export function AuthModal({ open, onOpenChange, onLoginSuccess, referredBy }: AuthModalProps) {
   const { lang } = useSiteSettings();
   const t = useT(lang);
   const { toast } = useToast();
@@ -66,6 +68,7 @@ export function AuthModal({ open, onOpenChange, onLoginSuccess }: AuthModalProps
   const [regPhone, setRegPhone] = useState("");
   const [regPassword, setRegPassword] = useState("");
   const [regPassword2, setRegPassword2] = useState("");
+  const [cguAccepted, setCguAccepted] = useState(false);
 
   const registerMutation = useVendorRegister();
   const loginMutation = useVendorLogin();
@@ -81,6 +84,7 @@ export function AuthModal({ open, onOpenChange, onLoginSuccess }: AuthModalProps
     setRegPhone("");
     setRegPassword("");
     setRegPassword2("");
+    setCguAccepted(false);
     setVerifyInfo(null);
     setPendingRegister(null);
   };
@@ -127,11 +131,16 @@ export function AuthModal({ open, onOpenChange, onLoginSuccess }: AuthModalProps
       toast({ title: t.passwordTooShort, variant: "destructive" });
       return;
     }
+    if (!cguAccepted) {
+      toast({ title: "Veuillez accepter les CGU et la Politique de Confidentialité", variant: "destructive" });
+      return;
+    }
     setPendingRegister({
       firstName: regFirstName.trim(),
       lastName: regLastName.trim(),
       phone: regPhone.trim(),
       password: regPassword,
+      referredBy,
     });
     setScreen("privacy");
   };
@@ -293,10 +302,43 @@ export function AuthModal({ open, onOpenChange, onLoginSuccess }: AuthModalProps
                 </button>
               </div>
             </div>
-            <div className="text-xs text-muted-foreground bg-blue-50 border border-blue-100 rounded-lg p-3">
-              {t.freeMonth}
+            <div className="text-xs text-muted-foreground bg-green-50 border border-green-100 rounded-lg p-3">
+              🎁 <strong>30 jours d'essai gratuits</strong> — Votre boutique sera active immédiatement !
             </div>
-            <Button className="w-full" onClick={handleRegisterValidate}>
+
+            <label className="flex items-start gap-2.5 cursor-pointer group">
+              <input
+                type="checkbox"
+                checked={cguAccepted}
+                onChange={(e) => setCguAccepted(e.target.checked)}
+                className="mt-0.5 flex-shrink-0 w-4 h-4 rounded border-border accent-primary cursor-pointer"
+              />
+              <span className="text-xs text-muted-foreground leading-relaxed">
+                En créant mon compte, j'accepte les{" "}
+                <a
+                  href="/cgu"
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="text-primary underline font-medium"
+                  onClick={(e) => e.stopPropagation()}
+                >
+                  Conditions Générales d'Utilisation
+                </a>
+                , la{" "}
+                <a
+                  href="https://togomarket.site/privacy.html"
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="text-primary underline font-medium"
+                  onClick={(e) => e.stopPropagation()}
+                >
+                  Politique de Confidentialité
+                </a>
+                , et je reconnais que les frais de transaction liés aux paiements FedaPay sont à ma charge.
+              </span>
+            </label>
+
+            <Button className="w-full" onClick={handleRegisterValidate} disabled={!cguAccepted}>
               {t.continue_}
             </Button>
             <button className="text-xs text-muted-foreground underline w-full text-center" onClick={() => setScreen("choice")}>

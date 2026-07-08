@@ -9,6 +9,12 @@ export const vendorsTable = pgTable("vendors", {
   profilePhoto: text("profile_photo"),
   verified: boolean("verified").notNull().default(false),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  expiryDate: timestamp("expiry_date", { withTimezone: true }),
+  isPublished: boolean("is_published").notNull().default(false),
+  paymentStatus: text("payment_status").notNull().default("unpaid"),
+  validationMethod: text("validation_method").notNull().default("pending"),
+  referralDaysEarned: integer("referral_days_earned").notNull().default(0),
+  referredBy: integer("referred_by"),
 });
 
 export const publishCodesTable = pgTable("publish_codes", {
@@ -22,5 +28,14 @@ export const publishCodesTable = pgTable("publish_codes", {
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
 });
 
+export const adminAccountsTable = pgTable("admin_accounts", {
+  id: serial("id").primaryKey(),
+  username: text("username").notNull().unique(),
+  role: text("role").notNull(),
+  codeHash: text("code_hash").notNull(),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+});
+
 export type Vendor = typeof vendorsTable.$inferSelect;
 export type PublishCode = typeof publishCodesTable.$inferSelect;
+export type AdminAccount = typeof adminAccountsTable.$inferSelect;

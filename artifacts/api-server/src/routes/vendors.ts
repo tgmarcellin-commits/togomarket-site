@@ -18,7 +18,7 @@ import {
   AdminDeleteVendorBody,
   AdminResetVendorPasswordBody,
 } from "@workspace/api-zod";
-import { ADMIN_PASSWORD } from "../lib/admin-auth";
+import { isSuperAdmin, isAdminAny } from "../lib/admin-auth";
 
 const router: IRouter = Router();
 
@@ -43,6 +43,12 @@ async function getActivePublishCode(vendorId: number) {
 }
 
 function mapVendor(v: typeof vendorsTable.$inferSelect, publishCode: { code: string; endDate: string; daysLeft: number } | null) {
+  const now = new Date();
+  const expiry = v.expiryDate;
+  const daysUntilExpiry = expiry
+    ? Math.ceil((expiry.getTime() - now.getTime()) / (1000 * 60 * 60 * 24))
+    : null;
+
   return {
     id: v.id,
     firstName: v.firstName,
@@ -52,6 +58,12 @@ function mapVendor(v: typeof vendorsTable.$inferSelect, publishCode: { code: str
     profilePhoto: v.profilePhoto ?? null,
     createdAt: v.createdAt.toISOString(),
     publishCode,
+    expiryDate: expiry?.toISOString() ?? null,
+    isPublished: v.isPublished,
+    paymentStatus: v.paymentStatus,
+    validationMethod: v.validationMethod,
+    daysUntilExpiry,
+    referralDaysEarned: v.referralDaysEarned ?? 0,
   };
 }
 
@@ -62,6 +74,7 @@ router.post("/vendors/register", async (req, res) => {
   }
   const { firstName, lastName, password } = parsed.data;
   const phone = normalizePhone(parsed.data.phone);
+  const referredBy = parsed.data.referredBy ? Number(parsed.data.referredBy) : null;
 
   const existing = await db
     .select({ id: vendorsTable.id })
@@ -77,12 +90,26 @@ router.post("/vendors/register", async (req, res) => {
     const passwordHash = await bcrypt.hash(password, 10);
     const verifyCode = randomCode(6);
 
+    const now = new Date();
+    const trialEnd = new Date(now.getTime() + 30 * 24 * 60 * 60 * 1000);
+
     const [vendor] = await db
       .insert(vendorsTable)
-      .values({ firstName, lastName, phone, passwordHash, verified: false })
+      .values({
+        firstName,
+        lastName,
+        phone,
+        passwordHash,
+        verified: false,
+        expiryDate: trialEnd,
+        isPublished: true,
+        paymentStatus: "trial",
+        validationMethod: "trial",
+        referredBy: referredBy ?? undefined,
+      })
       .returning();
 
-    req.log.info({ id: vendor.id }, "Vendor registered");
+    req.log.info({ id: vendor.id }, "Vendor registered with 30-day trial");
     return res.status(201).json({ id: vendor.id, firstName, lastName, phone, verifyCode });
   } catch (err) {
     req.log.error({ err }, "Failed to register vendor");
@@ -131,21 +158,12 @@ router.post("/vendors/profile/update", async (req, res) => {
   const phone = normalizePhone(parsed.data.phone);
   const { password, profilePhoto } = parsed.data;
 
-  const vendors = await db
-    .select()
-    .from(vendorsTable)
-    .where(phoneEq(vendorsTable.phone, phone))
-    .limit(1);
-
-  if (vendors.length === 0) {
-    return res.status(401).json({ error: "Compte introuvable." });
-  }
+  const vendors = await db.select().from(vendorsTable).where(phoneEq(vendorsTable.phone, phone)).limit(1);
+  if (vendors.length === 0) return res.status(401).json({ error: "Compte introuvable." });
 
   const vendor = vendors[0];
   const match = await bcrypt.compare(password, vendor.passwordHash);
-  if (!match) {
-    return res.status(401).json({ error: "Mot de passe incorrect." });
-  }
+  if (!match) return res.status(401).json({ error: "Mot de passe incorrect." });
 
   try {
     const [updated] = await db
@@ -153,7 +171,6 @@ router.post("/vendors/profile/update", async (req, res) => {
       .set({ profilePhoto: profilePhoto ?? null })
       .where(eq(vendorsTable.id, vendor.id))
       .returning();
-
     const publishCode = await getActivePublishCode(updated.id);
     return res.json(VendorUpdateProfileResponse.parse(mapVendor(updated, publishCode)));
   } catch (err) {
@@ -164,26 +181,17 @@ router.post("/vendors/profile/update", async (req, res) => {
 
 router.post("/admin/vendors", async (req, res) => {
   const parsed = AdminGetVendorsBody.safeParse(req.body);
-  if (!parsed.success) {
-    return res.status(400).json({ error: parsed.error.message });
-  }
-  if (parsed.data.password !== ADMIN_PASSWORD) {
-    return res.status(403).json({ error: "Forbidden" });
-  }
+  if (!parsed.success) return res.status(400).json({ error: parsed.error.message });
+  if (!await isAdminAny(parsed.data.password)) return res.status(403).json({ error: "Forbidden" });
 
   try {
-    const vendors = await db
-      .select()
-      .from(vendorsTable)
-      .orderBy(desc(vendorsTable.createdAt));
-
+    const vendors = await db.select().from(vendorsTable).orderBy(desc(vendorsTable.createdAt));
     const withCodes = await Promise.all(
       vendors.map(async (v) => {
         const publishCode = await getActivePublishCode(v.id);
         return mapVendor(v, publishCode);
       })
     );
-
     return res.json(AdminGetVendorsResponse.parse(withCodes));
   } catch (err) {
     req.log.error({ err }, "Failed to get vendors");
@@ -193,43 +201,25 @@ router.post("/admin/vendors", async (req, res) => {
 
 router.post("/admin/vendors/activate", async (req, res) => {
   const parsed = AdminActivateVendorBody.safeParse(req.body);
-  if (!parsed.success) {
-    return res.status(400).json({ error: parsed.error.message });
-  }
-  if (parsed.data.password !== ADMIN_PASSWORD) {
-    return res.status(403).json({ error: "Forbidden" });
-  }
+  if (!parsed.success) return res.status(400).json({ error: parsed.error.message });
+  if (!await isAdminAny(parsed.data.password)) return res.status(403).json({ error: "Forbidden" });
 
   try {
-    const vendors = await db
-      .select()
-      .from(vendorsTable)
-      .where(eq(vendorsTable.id, parsed.data.vendorId))
-      .limit(1);
-
-    if (vendors.length === 0) {
-      return res.status(404).json({ error: "Vendeur introuvable" });
-    }
+    const vendors = await db.select().from(vendorsTable).where(eq(vendorsTable.id, parsed.data.vendorId)).limit(1);
+    if (vendors.length === 0) return res.status(404).json({ error: "Vendeur introuvable" });
 
     const vendor = vendors[0];
-
-    await db
-      .update(vendorsTable)
-      .set({ verified: true })
-      .where(eq(vendorsTable.id, vendor.id));
-
-    const code = randomCode(4);
     const now = new Date();
     const endDate = new Date(now.getTime() + 30 * 24 * 60 * 60 * 1000);
 
-    await db.insert(publishCodesTable).values({
-      vendorId: vendor.id,
-      code,
-      startDate: now,
-      endDate,
-    });
+    await db.update(vendorsTable)
+      .set({ verified: true, isPublished: true, validationMethod: "admin", expiryDate: endDate })
+      .where(eq(vendorsTable.id, vendor.id));
 
-    req.log.info({ vendorId: vendor.id, code }, "Vendor activated with free publish code");
+    const code = randomCode(4);
+    await db.insert(publishCodesTable).values({ vendorId: vendor.id, code, startDate: now, endDate });
+
+    req.log.info({ vendorId: vendor.id, code }, "Vendor activated by admin");
     return res.json(AdminActivateVendorResponse.parse({ success: true, code, vendorPhone: vendor.phone }));
   } catch (err) {
     req.log.error({ err }, "Failed to activate vendor");
@@ -239,35 +229,19 @@ router.post("/admin/vendors/activate", async (req, res) => {
 
 router.post("/admin/vendors/generate-code", async (req, res) => {
   const parsed = AdminGenerateVendorCodeBody.safeParse(req.body);
-  if (!parsed.success) {
-    return res.status(400).json({ error: parsed.error.message });
-  }
-  if (parsed.data.password !== ADMIN_PASSWORD) {
-    return res.status(403).json({ error: "Forbidden" });
-  }
+  if (!parsed.success) return res.status(400).json({ error: parsed.error.message });
+  if (!await isAdminAny(parsed.data.password)) return res.status(403).json({ error: "Forbidden" });
 
   try {
-    const vendors = await db
-      .select()
-      .from(vendorsTable)
-      .where(eq(vendorsTable.id, parsed.data.vendorId))
-      .limit(1);
-
-    if (vendors.length === 0) {
-      return res.status(404).json({ error: "Vendeur introuvable" });
-    }
+    const vendors = await db.select().from(vendorsTable).where(eq(vendorsTable.id, parsed.data.vendorId)).limit(1);
+    if (vendors.length === 0) return res.status(404).json({ error: "Vendeur introuvable" });
 
     const vendor = vendors[0];
     const code = randomCode(4);
     const now = new Date();
     const endDate = new Date(now.getTime() + 30 * 24 * 60 * 60 * 1000);
 
-    await db.insert(publishCodesTable).values({
-      vendorId: vendor.id,
-      code,
-      startDate: now,
-      endDate,
-    });
+    await db.insert(publishCodesTable).values({ vendorId: vendor.id, code, startDate: now, endDate });
 
     req.log.info({ vendorId: vendor.id, code }, "New publish code generated for vendor");
     return res.json(AdminGenerateVendorCodeResponse.parse({ success: true, code, vendorPhone: vendor.phone }));
@@ -280,25 +254,14 @@ router.post("/admin/vendors/generate-code", async (req, res) => {
 router.post("/vendors/listings", async (req, res) => {
   const { password } = req.body;
   const phone = normalizePhone(String(req.body.phone ?? ""));
-  if (!phone || !password) {
-    return res.status(400).json({ error: "Champs requis manquants" });
-  }
+  if (!phone || !password) return res.status(400).json({ error: "Champs requis manquants" });
 
-  const vendors = await db
-    .select()
-    .from(vendorsTable)
-    .where(phoneEq(vendorsTable.phone, phone))
-    .limit(1);
-
-  if (vendors.length === 0) {
-    return res.status(401).json({ error: "Compte introuvable." });
-  }
+  const vendors = await db.select().from(vendorsTable).where(phoneEq(vendorsTable.phone, phone)).limit(1);
+  if (vendors.length === 0) return res.status(401).json({ error: "Compte introuvable." });
 
   const vendor = vendors[0];
   const match = await bcrypt.compare(password, vendor.passwordHash);
-  if (!match) {
-    return res.status(401).json({ error: "Mot de passe incorrect." });
-  }
+  if (!match) return res.status(401).json({ error: "Mot de passe incorrect." });
 
   try {
     const { listingsTable } = await import("@workspace/db");
@@ -311,15 +274,9 @@ router.post("/vendors/listings", async (req, res) => {
 
     return res.json(
       listings.map((l) => ({
-        id: l.id,
-        name: l.name,
-        price: parseFloat(l.price),
-        location: l.location,
-        sector: l.sector,
-        images: l.images,
-        createdAt: l.createdAt.toISOString(),
-        phone: l.phone,
-        approved: l.approved,
+        id: l.id, name: l.name, price: parseFloat(l.price),
+        location: l.location, sector: l.sector, images: l.images,
+        createdAt: l.createdAt.toISOString(), phone: l.phone, approved: l.approved,
       }))
     );
   } catch (err) {
@@ -335,21 +292,12 @@ router.post("/vendors/profile/update-name", async (req, res) => {
     return res.status(400).json({ error: "Champs requis manquants" });
   }
 
-  const vendors = await db
-    .select()
-    .from(vendorsTable)
-    .where(phoneEq(vendorsTable.phone, phone))
-    .limit(1);
-
-  if (vendors.length === 0) {
-    return res.status(401).json({ error: "Compte introuvable." });
-  }
+  const vendors = await db.select().from(vendorsTable).where(phoneEq(vendorsTable.phone, phone)).limit(1);
+  if (vendors.length === 0) return res.status(401).json({ error: "Compte introuvable." });
 
   const vendor = vendors[0];
   const match = await bcrypt.compare(password, vendor.passwordHash);
-  if (!match) {
-    return res.status(401).json({ error: "Mot de passe incorrect." });
-  }
+  if (!match) return res.status(401).json({ error: "Mot de passe incorrect." });
 
   try {
     const [updated] = await db
@@ -357,7 +305,6 @@ router.post("/vendors/profile/update-name", async (req, res) => {
       .set({ firstName: firstName.trim(), lastName: lastName.trim() })
       .where(eq(vendorsTable.id, vendor.id))
       .returning();
-
     const publishCode = await getActivePublishCode(updated.id);
     req.log.info({ id: vendor.id }, "Vendor name updated");
     return res.json(VendorLoginResponse.parse(mapVendor(updated, publishCode)));
@@ -377,29 +324,16 @@ router.post("/vendors/profile/change-password", async (req, res) => {
     return res.status(400).json({ error: "Le nouveau mot de passe doit faire au moins 6 caractères." });
   }
 
-  const vendors = await db
-    .select()
-    .from(vendorsTable)
-    .where(phoneEq(vendorsTable.phone, phone))
-    .limit(1);
-
-  if (vendors.length === 0) {
-    return res.status(401).json({ error: "Compte introuvable." });
-  }
+  const vendors = await db.select().from(vendorsTable).where(phoneEq(vendorsTable.phone, phone)).limit(1);
+  if (vendors.length === 0) return res.status(401).json({ error: "Compte introuvable." });
 
   const vendor = vendors[0];
   const match = await bcrypt.compare(oldPassword, vendor.passwordHash);
-  if (!match) {
-    return res.status(401).json({ error: "Ancien mot de passe incorrect." });
-  }
+  if (!match) return res.status(401).json({ error: "Ancien mot de passe incorrect." });
 
   try {
     const newHash = await bcrypt.hash(newPassword, 10);
-    await db
-      .update(vendorsTable)
-      .set({ passwordHash: newHash })
-      .where(eq(vendorsTable.id, vendor.id));
-
+    await db.update(vendorsTable).set({ passwordHash: newHash }).where(eq(vendorsTable.id, vendor.id));
     req.log.info({ id: vendor.id }, "Vendor password changed");
     return res.json({ success: true });
   } catch (err) {
@@ -424,9 +358,7 @@ router.get("/vendors/shop-status", async (req, res) => {
       .orderBy(desc(publishCodesTable.endDate))
       .limit(1);
 
-    if (codeRows.length === 0) {
-      return res.json({ active: false, exists: false });
-    }
+    if (codeRows.length === 0) return res.json({ active: false, exists: false });
 
     const now = new Date();
     const isActive = codeRows[0].endDate > now;
@@ -437,12 +369,7 @@ router.get("/vendors/shop-status", async (req, res) => {
       .where(eq(vendorsTable.id, vendorId))
       .limit(1);
 
-    return res.json({
-      active: isActive,
-      exists: true,
-      vendorId,
-      firstName: vendorRows[0]?.firstName ?? null,
-    });
+    return res.json({ active: isActive, exists: true, vendorId, firstName: vendorRows[0]?.firstName ?? null });
   } catch (err) {
     req.log.error({ err }, "Failed to check shop status");
     return res.status(500).json({ error: "Erreur interne" });
@@ -451,30 +378,16 @@ router.get("/vendors/shop-status", async (req, res) => {
 
 router.post("/admin/vendors/reset-password", async (req, res) => {
   const parsed = AdminResetVendorPasswordBody.safeParse(req.body);
-  if (!parsed.success) {
-    return res.status(400).json({ error: parsed.error.message });
-  }
-  if (parsed.data.password !== ADMIN_PASSWORD) {
-    return res.status(403).json({ error: "Forbidden" });
-  }
+  if (!parsed.success) return res.status(400).json({ error: parsed.error.message });
+  if (!await isAdminAny(parsed.data.password)) return res.status(403).json({ error: "Forbidden" });
 
   const normalizedPhone = normalizePhone(parsed.data.vendorPhone);
   try {
-    const existing = await db
-      .select({ id: vendorsTable.id })
-      .from(vendorsTable)
-      .where(phoneEq(vendorsTable.phone, normalizedPhone))
-      .limit(1);
-
-    if (existing.length === 0) {
-      return res.status(404).json({ error: "Vendeur introuvable" });
-    }
+    const existing = await db.select({ id: vendorsTable.id }).from(vendorsTable).where(phoneEq(vendorsTable.phone, normalizedPhone)).limit(1);
+    if (existing.length === 0) return res.status(404).json({ error: "Vendeur introuvable" });
 
     const hashedPassword = await bcrypt.hash(parsed.data.newPassword, 10);
-    await db
-      .update(vendorsTable)
-      .set({ passwordHash: hashedPassword })
-      .where(phoneEq(vendorsTable.phone, normalizedPhone));
+    await db.update(vendorsTable).set({ passwordHash: hashedPassword }).where(phoneEq(vendorsTable.phone, normalizedPhone));
 
     req.log.info({ phone: normalizedPhone }, "Vendor password reset by admin");
     return res.json({ success: true });
@@ -486,23 +399,12 @@ router.post("/admin/vendors/reset-password", async (req, res) => {
 
 router.post("/admin/vendors/delete", async (req, res) => {
   const parsed = AdminDeleteVendorBody.safeParse(req.body);
-  if (!parsed.success) {
-    return res.status(400).json({ error: parsed.error.message });
-  }
-  if (parsed.data.password !== ADMIN_PASSWORD) {
-    return res.status(403).json({ error: "Forbidden" });
-  }
+  if (!parsed.success) return res.status(400).json({ error: parsed.error.message });
+  if (!await isAdminAny(parsed.data.password)) return res.status(403).json({ error: "Forbidden" });
 
   try {
-    const existing = await db
-      .select({ id: vendorsTable.id })
-      .from(vendorsTable)
-      .where(eq(vendorsTable.id, parsed.data.vendorId))
-      .limit(1);
-
-    if (existing.length === 0) {
-      return res.status(404).json({ error: "Vendeur introuvable" });
-    }
+    const existing = await db.select({ id: vendorsTable.id }).from(vendorsTable).where(eq(vendorsTable.id, parsed.data.vendorId)).limit(1);
+    if (existing.length === 0) return res.status(404).json({ error: "Vendeur introuvable" });
 
     await db.delete(publishCodesTable).where(eq(publishCodesTable.vendorId, parsed.data.vendorId));
     await db.delete(vendorsTable).where(eq(vendorsTable.id, parsed.data.vendorId));

@@ -1,4 +1,4 @@
-import { pgTable, serial, text, timestamp } from "drizzle-orm/pg-core";
+import { pgTable, serial, text, timestamp, boolean } from "drizzle-orm/pg-core";
 
 export const servicesTable = pgTable("services", {
   id: serial("id").primaryKey(),
@@ -11,6 +11,10 @@ export const servicesTable = pgTable("services", {
   image: text("image"),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
   expiresAt: timestamp("expires_at", { withTimezone: true }).notNull(),
+  isPublished: boolean("is_published").notNull().default(false),
+  paymentStatus: text("payment_status").notNull().default("unpaid"),
+  validationMethod: text("validation_method").notNull().default("pending"),
+  fedapayTransactionId: text("fedapay_transaction_id"),
 });
 
 export type Service = typeof servicesTable.$inferSelect;

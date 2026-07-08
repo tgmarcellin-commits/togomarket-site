@@ -1,5 +1,5 @@
 import { Router, type IRouter } from "express";
-import { gt, eq } from "drizzle-orm";
+import { gt, eq, and } from "drizzle-orm";
 import { db, servicesTable } from "@workspace/db";
 import { isAdminOrSubAdmin } from "../lib/auth-sub";
 
@@ -17,6 +17,10 @@ function mapService(s: typeof servicesTable.$inferSelect) {
     image: s.image ?? null,
     createdAt: s.createdAt.toISOString(),
     expiresAt: s.expiresAt.toISOString(),
+    isPublished: s.isPublished,
+    paymentStatus: s.paymentStatus,
+    validationMethod: s.validationMethod,
+    fedapayTransactionId: s.fedapayTransactionId ?? null,
   };
 }
 
@@ -26,7 +30,7 @@ router.get("/services", async (req, res) => {
     const services = await db
       .select()
       .from(servicesTable)
-      .where(gt(servicesTable.expiresAt, now))
+      .where(and(gt(servicesTable.expiresAt, now), eq(servicesTable.isPublished, true)))
       .orderBy(servicesTable.createdAt);
     res.json(services.map(mapService));
   } catch (err) {
@@ -51,7 +55,15 @@ router.post("/admin/services", async (req, res) => {
     const expiresAt = new Date(now.getTime() + 30 * 24 * 60 * 60 * 1000);
     const [service] = await db
       .insert(servicesTable)
-      .values({ type, title, description, contact, quartier, ville, image: image ?? null, createdAt: now, expiresAt })
+      .values({
+        type, title, description, contact, quartier, ville,
+        image: image ?? null,
+        createdAt: now,
+        expiresAt,
+        isPublished: false,
+        paymentStatus: "unpaid",
+        validationMethod: "pending",
+      })
       .returning();
     return res.status(201).json(mapService(service));
   } catch (err) {
@@ -66,10 +78,7 @@ router.post("/admin/services/all", async (req, res) => {
     return res.status(403).json({ error: "Forbidden" });
   }
   try {
-    const services = await db
-      .select()
-      .from(servicesTable)
-      .orderBy(servicesTable.expiresAt);
+    const services = await db.select().from(servicesTable).orderBy(servicesTable.expiresAt);
     return res.json(services.map(mapService));
   } catch (err) {
     req.log.error({ err }, "Failed to get all services");

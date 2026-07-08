@@ -6,6 +6,8 @@ import { TooltipProvider } from "@/components/ui/tooltip";
 import { SiteSettingsProvider } from "@/lib/site-settings";
 import NotFound from "@/pages/not-found";
 import Home from "@/pages/home";
+import AdminLogin from "@/pages/admin-login";
+import CGU from "@/pages/cgu";
 
 const queryClient = new QueryClient();
 
@@ -51,6 +53,8 @@ function Router() {
   return (
     <Switch>
       <Route path="/" component={Home} />
+      <Route path="/admin-login" component={AdminLogin} />
+      <Route path="/cgu" component={CGU} />
       <Route component={NotFound} />
     </Switch>
   );

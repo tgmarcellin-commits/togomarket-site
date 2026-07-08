@@ -1,5 +1,5 @@
 import { Router, type IRouter } from "express";
-import { gt, eq } from "drizzle-orm";
+import { gt, eq, and } from "drizzle-orm";
 import { db, adsTable } from "@workspace/db";
 import { isAdminOrSubAdmin } from "../lib/auth-sub";
 
@@ -15,6 +15,10 @@ function mapAd(a: typeof adsTable.$inferSelect) {
     videoPath: a.videoPath ?? null,
     startDate: a.startDate.toISOString(),
     endDate: a.endDate.toISOString(),
+    isPublished: a.isPublished,
+    paymentStatus: a.paymentStatus,
+    validationMethod: a.validationMethod,
+    fedapayTransactionId: a.fedapayTransactionId ?? null,
   };
 }
 
@@ -24,7 +28,7 @@ router.get("/ads", async (req, res) => {
     const ads = await db
       .select()
       .from(adsTable)
-      .where(gt(adsTable.endDate, now));
+      .where(and(gt(adsTable.endDate, now), eq(adsTable.isPublished, true)));
     res.json(ads.map(mapAd));
   } catch (err) {
     req.log.error({ err }, "Failed to get ads");
@@ -53,6 +57,9 @@ router.post("/admin/ads", async (req, res) => {
         videoPath: videoPath ?? null,
         startDate: now,
         endDate,
+        isPublished: false,
+        paymentStatus: "unpaid",
+        validationMethod: "pending",
       })
       .returning();
     return res.status(201).json(mapAd(ad));

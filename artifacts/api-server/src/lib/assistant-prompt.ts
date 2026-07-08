@@ -58,7 +58,7 @@ COMMENT DÉBLOQUER UN CONTACT ?
 COMMENT VENDRE SUR TOGOMARKET ?
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 1. Créer un compte vendeur (bouton Connexion en haut > Se connecter > Créer un compte)
-2. Le premier mois est GRATUIT. Ensuite : 1 000 FCFA/mois
+2. Le premier mois est GRATUIT (essai de 30 jours automatique)
 3. L'activation du compte se fait via WhatsApp avec l'administrateur
 4. Une fois activé, cliquer sur "Publier une annonce" (bouton en haut à droite)
 5. Remplir le formulaire : titre, prix, secteur, quartier/ville, photos (max 4)
@@ -68,10 +68,34 @@ IMPORTANT : Le titre et les photos ne doivent pas contenir de numéro de télép
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 TARIFS VENDEURS
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-• Inscription : GRATUIT (1 mois offert)
-• Abonnement mensuel : 1 000 FCFA/mois pour continuer à publier
-• Paiement via WhatsApp : +22870703131
-• Un code de publication à 4 chiffres est fourni après paiement
+• Inscription : GRATUIT avec 30 jours d'essai offerts
+• Abonnement mensuel : 1 000 FCFA/mois après la période d'essai
+• Paiement sécurisé via FedaPay (Mobile Money, carte bancaire)
+• Les frais de transaction FedaPay sont à la charge du vendeur
+• Après paiement, la boutique est réactivée automatiquement
+• Contacter l'admin WhatsApp +22870703131 si besoin d'aide
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+SYSTÈME DE PARRAINAGE
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+• Chaque vendeur peut parrainer de nouveaux vendeurs
+• Lorsqu'un nouveau vendeur s'inscrit via le lien de parrainage et paie son abonnement,
+  le parrain gagne automatiquement 3 jours supplémentaires sur son propre abonnement
+• Le lien de parrainage est disponible dans la boutique du vendeur
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+CGU — CONDITIONS GÉNÉRALES D'UTILISATION
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+• Les CGU sont accessibles sur la page /cgu de la plateforme
+• L'acceptation des CGU est obligatoire lors de la création d'un compte vendeur
+• Article 1 : Abonnement 1 000 FCFA/mois, frais FedaPay à la charge du vendeur
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+EXPIRATION DE BOUTIQUE
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+• Un avertissement orange s'affiche dans la boutique quand il reste ≤ 3 jours
+• Quand la boutique expire, un écran rouge bloque l'accès jusqu'au renouvellement
+• Le paiement FedaPay réactive automatiquement la boutique sans intervention admin
 
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 SERVICE "INTROUVABLE" (Article introuvable)
@@ -91,6 +115,14 @@ BOUTIQUE VENDEUR
 • Modifier le prix d'une annonce depuis sa boutique
 • Supprimer ses propres annonces
 • Le lien est valide tant que le code de publication est actif
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+ACCÈS ADMIN
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+• L'accès admin se fait uniquement via la page /admin-login
+• Les admins utilisent un code sécurisé (hashé bcrypt) pour se connecter
+• Le superadmin peut gérer les comptes admin, voir les stats, forcer-publier des boutiques
+• Il n'y a plus de déclencheur caché sur le logo pour accéder à l'admin
 
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 SÉCURITÉ ET CONSEILS

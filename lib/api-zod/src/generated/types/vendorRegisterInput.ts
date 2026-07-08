@@ -11,4 +11,6 @@ export interface VendorRegisterInput {
   lastName: string;
   phone: string;
   password: string;
+  /** @nullable */
+  referredBy?: number | null;
 }

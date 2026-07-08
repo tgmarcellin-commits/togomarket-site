@@ -1472,6 +1472,18 @@ components:
           oneOf:
             - $ref: "#/components/schemas/VendorPublishCode"
             - type: "null"
+        expiryDate:
+          type: ["string", "null"]
+        isPublished:
+          type: boolean
+        paymentStatus:
+          type: string
+        validationMethod:
+          type: string
+        daysUntilExpiry:
+          type: ["integer", "null"]
+        referralDaysEarned:
+          type: integer
 
     StorageCleanupResult:
       type: object
@@ -1492,6 +1504,8 @@ components:
           type: string
         password:
           type: string
+        referredBy:
+          type: ["integer", "null"]
 
     VendorRegisterResult:
       type: object

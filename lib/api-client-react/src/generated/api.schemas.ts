@@ -261,6 +261,14 @@ export interface VendorProfile {
   profilePhoto?: string | null;
   createdAt: string;
   publishCode?: VendorPublishCode | null;
+  /** @nullable */
+  expiryDate?: string | null;
+  isPublished?: boolean;
+  paymentStatus?: string;
+  validationMethod?: string;
+  /** @nullable */
+  daysUntilExpiry?: number | null;
+  referralDaysEarned?: number;
 }
 
 export interface StorageCleanupResult {
@@ -272,6 +280,8 @@ export interface VendorRegisterInput {
   lastName: string;
   phone: string;
   password: string;
+  /** @nullable */
+  referredBy?: number | null;
 }
 
 export interface VendorRegisterResult {
