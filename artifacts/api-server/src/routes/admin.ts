@@ -113,9 +113,8 @@ router.post("/admin/stats", async (req, res): Promise<void> => {
   const [vendorStats] = await db
     .select({
       total: sql<number>`cast(count(*) as int)`,
-      paid: sql<number>`cast(sum(case when payment_status = 'paid' then 1 else 0 end) as int)`,
+      paid: sql<number>`cast(sum(case when validation_method = 'fedapay' then 1 else 0 end) as int)`,
       admin: sql<number>`cast(sum(case when validation_method = 'admin' then 1 else 0 end) as int)`,
-      legacy: sql<number>`cast(sum(case when validation_method = 'legacy' then 1 else 0 end) as int)`,
     })
     .from(vendorsTable);
 
@@ -149,7 +148,7 @@ router.post("/admin/stats", async (req, res): Promise<void> => {
     .from(servicesTable);
 
   res.json({
-    vendors: { total: vendorStats.total ?? 0, paid: vendorStats.paid ?? 0, admin: vendorStats.admin ?? 0, legacy: vendorStats.legacy ?? 0 },
+    vendors: { total: vendorStats.total ?? 0, paid: vendorStats.paid ?? 0, admin: vendorStats.admin ?? 0 },
     ads: { total: adStats.total ?? 0, paid: adStats.paid ?? 0, admin: adStats.admin ?? 0 },
     events: { total: eventStats.total ?? 0, paid: eventStats.paid ?? 0, admin: eventStats.admin ?? 0 },
     services: { total: serviceStats.total ?? 0, paid: serviceStats.paid ?? 0, admin: serviceStats.admin ?? 0 },

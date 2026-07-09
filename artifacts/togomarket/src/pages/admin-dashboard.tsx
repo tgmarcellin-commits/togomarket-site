@@ -90,7 +90,7 @@ interface AdminAccount {
 }
 
 interface AdminStats {
-  vendors: { total: number; paid: number; admin: number; legacy: number };
+  vendors: { total: number; paid: number; admin: number };
   ads: { total: number; paid: number; admin: number };
   events: { total: number; paid: number; admin: number };
   services: { total: number; paid: number; admin: number };
@@ -823,11 +823,10 @@ export default function AdminDashboard() {
             </div>
             {stats ? (
               <>
-                <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
-                  <StatCard label="Vendeurs" value={stats.vendors.total} sub={`${stats.vendors.paid} payants`} color="text-primary" />
-                  <StatCard label="Via FedaPay" value={stats.vendors.paid} sub="paiement en ligne" />
+                <div className="grid grid-cols-3 gap-3">
+                  <StatCard label="Vendeurs total" value={stats.vendors.total} sub={`${stats.vendors.paid} via FedaPay`} color="text-primary" />
+                  <StatCard label="Via FedaPay" value={stats.vendors.paid} sub="paiement confirmé" />
                   <StatCard label="Validés admin" value={stats.vendors.admin} sub="par l'admin" />
-                  <StatCard label="Hérités" value={stats.vendors.legacy} sub="anciens comptes" />
                 </div>
                 <div className="grid grid-cols-3 gap-3">
                   <StatCard label="Publicités" value={stats.ads.total} />
