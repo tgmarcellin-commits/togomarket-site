@@ -284,10 +284,14 @@ export default function AdminDashboard() {
 
   const loadEvents = () => {
     setEventsLoading(true);
-    getEventsQuery.refetch().then((r) => {
-      setAllEvents(r.data ?? []);
-      setEventsLoading(false);
-    }).catch(() => setEventsLoading(false));
+    fetch("/api/admin/events/all", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ password }),
+    })
+      .then((r) => r.json())
+      .then((d) => { setAllEvents(Array.isArray(d) ? d : []); setEventsLoading(false); })
+      .catch(() => setEventsLoading(false));
   };
 
   const loadServices = () => {

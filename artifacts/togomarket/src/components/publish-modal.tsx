@@ -24,7 +24,7 @@ import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { resizeImageToBlob } from "@/lib/image";
 import { uploadImageFile } from "@/lib/upload";
-import { UploadCloud, X, Lock, AlertCircle, UserCircle2, Store } from "lucide-react";
+import { UploadCloud, X, Lock, AlertCircle, UserCircle2, Store, CreditCard, Loader2 } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { useSiteSettings } from "@/lib/site-settings";
 import { useT } from "@/lib/i18n";
@@ -61,6 +61,7 @@ export function PublishModal({ open, onOpenChange, vendor, vendorPassword, onNee
   const [screen, setScreen] = useState<"gate" | "form">("gate");
   const [images, setImages] = useState<{ dataUrl: string; objectPath: string }[]>([]);
   const [isProcessing, setIsProcessing] = useState(false);
+  const [fedapayLoading, setFedapayLoading] = useState(false);
   const { toast } = useToast();
   const queryClient = useQueryClient();
   const createListing = useCreateListing();
@@ -188,6 +189,32 @@ export function PublishModal({ open, onOpenChange, vendor, vendorPassword, onNee
     }
 
     if (!vendor.isPublished) {
+      const handleFedapay = async () => {
+        setFedapayLoading(true);
+        try {
+          const r = await fetch("/api/fedapay/create-transaction", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+              entityType: "vendor",
+              entityId: vendor.id,
+              customerName: `${vendor.firstName} ${vendor.lastName}`,
+              customerPhone: vendor.phone,
+            }),
+          });
+          const data = await r.json() as { widgetUrl?: string; error?: string };
+          if (!r.ok || !data.widgetUrl) {
+            toast({ title: lang === "fr" ? "Erreur paiement" : "Payment error", description: data.error ?? "Erreur", variant: "destructive" });
+            return;
+          }
+          window.open(data.widgetUrl, "_blank");
+        } catch {
+          toast({ title: lang === "fr" ? "Erreur réseau" : "Network error", variant: "destructive" });
+        } finally {
+          setFedapayLoading(false);
+        }
+      };
+
       return (
         <div className="py-6 text-center space-y-4">
           <div className="w-14 h-14 bg-red-100 rounded-full flex items-center justify-center mx-auto">
@@ -199,15 +226,28 @@ export function PublishModal({ open, onOpenChange, vendor, vendorPassword, onNee
             </p>
             <p className="text-sm text-muted-foreground">
               {lang === "fr"
-                ? "Votre boutique est expirée ou désactivée. Contactez l'administrateur TogoMarket pour la réactiver (1 000 FCFA/mois)."
-                : "Your shop is expired or deactivated. Contact TogoMarket admin to reactivate it (1,000 FCFA/month)."}
+                ? "Votre boutique est expirée ou désactivée. Renouvelez pour 1 000 FCFA/mois via FedaPay ou contactez l'administrateur."
+                : "Your shop is expired or deactivated. Renew for 1,000 FCFA/month via FedaPay or contact admin."}
             </p>
           </div>
           <Button
-            className="w-full bg-green-500 hover:bg-green-600 text-white"
+            className="w-full bg-blue-600 hover:bg-blue-700 text-white"
+            onClick={handleFedapay}
+            disabled={fedapayLoading}
+          >
+            {fedapayLoading ? (
+              <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+            ) : (
+              <CreditCard className="w-4 h-4 mr-2" />
+            )}
+            {lang === "fr" ? "Payer par FedaPay (1 000 FCFA)" : "Pay via FedaPay (1,000 FCFA)"}
+          </Button>
+          <Button
+            variant="outline"
+            className="w-full border-green-500 text-green-600 hover:bg-green-50"
             onClick={() => openWhatsApp(`https://wa.me/22870703131?text=${encodeURIComponent(lang === "fr" ? `Bonjour TogoMarket, je souhaite réactiver ma boutique.\nNom : ${vendor.firstName} ${vendor.lastName}\nTéléphone : ${vendor.phone}` : `Hello TogoMarket, I want to reactivate my shop.\nName: ${vendor.firstName} ${vendor.lastName}\nPhone: ${vendor.phone}`)}`)}
           >
-            {lang === "fr" ? "Contacter l'administrateur" : "Contact admin"}
+            {lang === "fr" ? "Contacter via WhatsApp" : "Contact via WhatsApp"}
           </Button>
         </div>
       );

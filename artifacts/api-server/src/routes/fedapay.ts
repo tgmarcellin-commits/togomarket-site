@@ -25,7 +25,7 @@ async function createFedapayTransaction(opts: {
   customerPhone: string;
   callbackUrl: string;
   metadata: Record<string, string>;
-}) {
+}): Promise<{ id: string; token: string }> {
   const baseUrl = getFedapayBaseUrl();
   const res = await fetch(`${baseUrl}/transactions`, {
     method: "POST",
@@ -50,7 +50,20 @@ async function createFedapayTransaction(opts: {
     const text = await res.text();
     throw new Error(`FedaPay error ${res.status}: ${text}`);
   }
-  return res.json() as Promise<{ v1: { transaction: { id: number; token: string } } }>;
+  const json = await res.json() as Record<string, unknown>;
+  // FedaPay REST API peut retourner { v1: { transaction: {...} } }
+  // ou { transaction: {...} } ou directement l'objet transaction
+  const v1 = json["v1"] as Record<string, unknown> | undefined;
+  const txRaw: Record<string, unknown> =
+    (v1?.["transaction"] as Record<string, unknown> | undefined)
+    ?? (json["transaction"] as Record<string, unknown> | undefined)
+    ?? (typeof json["token"] === "string" ? json : {});
+  const id = String(txRaw["id"] ?? "");
+  const token = String(txRaw["token"] ?? "");
+  if (!token) {
+    throw new Error(`FedaPay: token absent dans la réponse: ${JSON.stringify(json)}`);
+  }
+  return { id, token };
 }
 
 router.post("/fedapay/create-transaction", async (req, res) => {
@@ -75,8 +88,8 @@ router.post("/fedapay/create-transaction", async (req, res) => {
       metadata: { entityType, entityId: String(entityId) },
     });
 
-    const txId = String(data.v1.transaction.id);
-    const token = String(data.v1.transaction.token ?? "");
+    const txId = data.id;
+    const token = data.token;
 
     const baseCheckout = getFedapayEnv() === "live"
       ? "https://checkout.fedapay.com"

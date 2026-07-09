@@ -3,6 +3,7 @@ import bcrypt from "bcryptjs";
 import { db, adminAccountsTable, vendorsTable, adsTable, eventsTable, servicesTable, publishCodesTable } from "@workspace/db";
 import { eq, and, lt, gte, sql, count } from "drizzle-orm";
 import { isSuperAdmin, verifyAdminCode, getAdminRole, initDefaultSuperAdmin } from "../lib/admin-auth";
+import { isAdminOrSubAdmin } from "../lib/auth-sub";
 
 const router: IRouter = Router();
 
@@ -100,7 +101,8 @@ router.post("/admin/accounts/delete", async (req, res): Promise<void> => {
 
 router.post("/admin/stats", async (req, res): Promise<void> => {
   const { code } = req.body;
-  if (!await isSuperAdmin(String(code ?? ""))) {
+  const codeStr = String(code ?? "");
+  if (!await isAdminOrSubAdmin(codeStr)) {
     res.status(403).json({ error: "Accès refusé" });
     return;
   }

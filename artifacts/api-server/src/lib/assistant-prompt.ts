@@ -135,6 +135,9 @@ ACCÈS ADMIN
 • Les sous-admins (pub/event/service) postent du contenu en "non publié" ; seul le paiement ou la validation superadmin débloque la publication
 • Le superadmin peut valider/forcer-publier via un bouton "Valider" dans chaque section
 • Le bouton "+30 jours" pour réactiver une boutique demande toujours confirmation avant d'appliquer
+• Les sous-admins ont accès aux statistiques globales (page stats visible pour tous les rôles admin)
+• La section Événements dans l'admin affiche TOUS les événements (publiés et non publiés)
+• Boutique expirée : le vendeur peut payer directement via FedaPay (bouton "Payer 1000 FCFA") ou contacter l'admin via WhatsApp
 
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 SÉCURITÉ ET CONSEILS
