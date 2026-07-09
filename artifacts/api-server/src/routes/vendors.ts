@@ -361,32 +361,27 @@ router.post("/vendors/profile/change-password", async (req, res) => {
 
 router.get("/vendors/shop-status", async (req, res) => {
   const vendorId = parseInt(String(req.query.vendorId ?? ""), 10);
-  const code = String(req.query.code ?? "");
 
-  if (isNaN(vendorId) || vendorId <= 0 || !code) {
+  if (isNaN(vendorId) || vendorId <= 0) {
     return res.status(400).json({ error: "Paramètres manquants ou invalides" });
   }
 
   try {
-    const codeRows = await db
-      .select()
-      .from(publishCodesTable)
-      .where(and(eq(publishCodesTable.vendorId, vendorId), eq(publishCodesTable.code, code)))
-      .orderBy(desc(publishCodesTable.endDate))
-      .limit(1);
-
-    if (codeRows.length === 0) return res.json({ active: false, exists: false });
-
-    const now = new Date();
-    const isActive = codeRows[0].endDate > now;
-
     const vendorRows = await db
-      .select({ firstName: vendorsTable.firstName })
+      .select()
       .from(vendorsTable)
       .where(eq(vendorsTable.id, vendorId))
       .limit(1);
 
-    return res.json({ active: isActive, exists: true, vendorId, firstName: vendorRows[0]?.firstName ?? null });
+    if (vendorRows.length === 0) return res.json({ active: false, exists: false });
+
+    const vendor = vendorRows[0];
+    const now = new Date();
+    // La validité du lien de boutique est liée à la durée de l'abonnement actif
+    // (isPublished + expiryDate), et non plus au code de publication (obsolète).
+    const isActive = vendor.isPublished && (!vendor.expiryDate || vendor.expiryDate > now);
+
+    return res.json({ active: isActive, exists: true, vendorId, firstName: vendor.firstName });
   } catch (err) {
     req.log.error({ err }, "Failed to check shop status");
     return res.status(500).json({ error: "Erreur interne" });

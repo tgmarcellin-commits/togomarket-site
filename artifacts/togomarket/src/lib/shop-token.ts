@@ -1,10 +1,11 @@
 /**
  * Shop link token encoding.
- * Format: base64url("vendorId:publishCode")
- * e.g. vendorId=5, code="4567" → btoa("5:4567") → "NTo0NTY3"
+ * Format: base64url(String(vendorId))
+ * e.g. vendorId=5 → btoa("5") → "NQ"
  *
- * The token is opaque — neither the ID nor the code is readable.
- * The link expires when the publish code expires.
+ * The token is opaque. Its validity is tied to the vendor's active
+ * subscription (checked server-side via /vendors/shop-status), not to
+ * any publish code.
  * Legacy ?shopNumber= (integer) links are handled separately in home.tsx.
  */
 
@@ -20,22 +21,18 @@ function fromBase64Url(s: string): string {
 
 export interface ShopToken {
   vendorId: number;
-  code: string;
 }
 
-export function encodeShopToken(vendorId: number, code: string): string {
-  return toBase64Url(`${vendorId}:${code}`);
+export function encodeShopToken(vendorId: number): string {
+  return toBase64Url(String(vendorId));
 }
 
 export function decodeShopToken(token: string): ShopToken | null {
   try {
     const decoded = fromBase64Url(token);
-    const colon = decoded.indexOf(":");
-    if (colon < 1) return null;
-    const vendorId = parseInt(decoded.slice(0, colon), 10);
-    const code = decoded.slice(colon + 1);
-    if (isNaN(vendorId) || vendorId <= 0 || !code) return null;
-    return { vendorId, code };
+    const vendorId = parseInt(decoded, 10);
+    if (isNaN(vendorId) || vendorId <= 0) return null;
+    return { vendorId };
   } catch {
     return null;
   }

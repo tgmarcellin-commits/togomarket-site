@@ -318,11 +318,11 @@ export function BoutiqueView({ vendor, vendorPassword, onNeedLogin }: BoutiqueVi
         </div>
       </div>
 
-      {/* Lien partageable de la boutique */}
-      {vendor.publishCode ? (() => {
-        const shopUrl = `${window.location.origin}/?shop=${encodeShopToken(vendor.id, vendor.publishCode!.code)}`;
-        const daysLeft = vendor.publishCode!.daysLeft;
-        const isCodeExpired = daysLeft <= 0;
+      {/* Lien partageable de la boutique — validité liée à l'abonnement actif */}
+      {vendor.isPublished ? (() => {
+        const shopUrl = `${window.location.origin}/?shop=${encodeShopToken(vendor.id)}`;
+        const daysLeft = vendor.daysUntilExpiry ?? 0;
+        const isCodeExpired = !vendor.isPublished || daysLeft <= 0;
         const handleCopy = () => {
           navigator.clipboard.writeText(shopUrl).then(() => {
             setCopied(true);

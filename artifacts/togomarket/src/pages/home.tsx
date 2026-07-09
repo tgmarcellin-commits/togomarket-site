@@ -158,7 +158,7 @@ export default function Home() {
     if (shopToken) {
       const parsed = decodeShopToken(shopToken);
       if (parsed) {
-        fetch(`/api/vendors/shop-status?vendorId=${parsed.vendorId}&code=${encodeURIComponent(parsed.code)}`)
+        fetch(`/api/vendors/shop-status?vendorId=${parsed.vendorId}`)
           .then((r) => r.json())
           .then((status: { active: boolean; exists: boolean }) => {
             if (status.active) {
