@@ -144,6 +144,7 @@ ACCÈS ADMIN
 • Stats — colonne "Hérités" supprimée ; décompte "Via FedaPay" ne compte que validation_method='fedapay' (webhook FedaPay reçu + isPublished=true actif) — jamais avant confirmation FedaPay
 • Mode Consultation (4 clics sur le logo) : affiche les numéros de téléphone des vendeurs + bouton supprimer avec confirmation directement sur le marketplace — aucun mot de passe requis pour voir les numéros, le mot de passe admin est demandé uniquement si la session admin-login n'est pas active
 • Accès admin : uniquement via togomarket.site/admin-login — le logo ne donne plus accès à l'interface d'administration
+• Session vendeur : au chargement de la page, le profil vendeur est automatiquement rafraîchi depuis le serveur (relogin silencieux) — après activation/renouvellement d'abonnement, un simple rafraîchissement de page suffit, plus besoin de se déconnecter/reconnecter
 
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 SÉCURITÉ ET CONSEILS

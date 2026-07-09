@@ -6,6 +6,7 @@ import {
   getGetListingsQueryKey,
   useGetStats,
   useGetAdminSettings,
+  useVendorLogin,
   type VendorProfile,
   type Listing,
 } from "@workspace/api-client-react";
@@ -129,12 +130,24 @@ export default function Home() {
   const [loadedListings, setLoadedListings] = useState<Listing[]>([]);
   const seenDataRef = useRef<typeof pageData>(undefined);
 
+  const refreshVendorMutation = useVendorLogin();
+
   useEffect(() => {
     const session = loadSession();
     if (session) {
       setVendor(session.vendor);
       setVendorPassword(session.password);
+      refreshVendorMutation.mutate(
+        { data: { phone: session.vendor.phone, password: session.password } },
+        {
+          onSuccess: (fresh) => {
+            setVendor(fresh);
+            saveSession(fresh, session.password);
+          },
+        }
+      );
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   useEffect(() => {
