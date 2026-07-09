@@ -26,17 +26,12 @@ function mapEvent(e: typeof eventsTable.$inferSelect) {
 
 router.get("/events", async (req, res) => {
   try {
-    const now = new Date();
     const events = await db
       .select()
       .from(eventsTable)
       .where(eq(eventsTable.isPublished, true))
       .orderBy(desc(eventsTable.date));
-    const active = events.filter((e) => {
-      const expiry = e.endDate ?? e.date;
-      return expiry >= now;
-    });
-    res.json(active.map(mapEvent));
+    res.json(events.map(mapEvent));
   } catch (err) {
     req.log.error({ err }, "Failed to get events");
     res.status(500).json({ error: "Erreur interne" });

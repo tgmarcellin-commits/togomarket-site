@@ -1149,7 +1149,7 @@ components:
 
     ListingInput:
       type: object
-      required: [name, price, location, sector, images, vendorPhone, vendorPassword, vendorPublishCode]
+      required: [name, price, location, sector, images, vendorPhone, vendorPassword]
       properties:
         name:
           type: string
@@ -1168,8 +1168,6 @@ components:
         vendorPhone:
           type: string
         vendorPassword:
-          type: string
-        vendorPublishCode:
           type: string
 
     VendorUpdatePriceInput:

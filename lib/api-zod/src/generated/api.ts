@@ -114,8 +114,7 @@ export const CreateListingBody = zod.object({
   "sector": zod.enum(['AgriMarket', 'Immobilier', 'Automobile', 'Divers']),
   "images": zod.array(zod.string()).max(createListingBodyImagesMax),
   "vendorPhone": zod.string(),
-  "vendorPassword": zod.string(),
-  "vendorPublishCode": zod.string()
+  "vendorPassword": zod.string()
 })
 
 

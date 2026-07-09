@@ -114,7 +114,9 @@ BOUTIQUE VENDEUR
 • Tableau de bord : voir ses annonces publiées et en attente
 • Modifier le prix d'une annonce depuis sa boutique
 • Supprimer ses propres annonces
-• Le lien est valide tant que le code de publication est actif
+• La publication est accessible dès que la boutique est active (isPublished=true)
+• Si la boutique est expirée/désactivée, le bouton Publier affiche un écran de réactivation avec contact admin
+• Il n'y a plus de code à 4 chiffres : la publication est directe, gérée par FedaPay/admin
 
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 MODE GESTION (5 clics sur le logo)

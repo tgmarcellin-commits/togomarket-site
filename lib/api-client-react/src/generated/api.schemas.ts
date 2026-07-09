@@ -102,7 +102,6 @@ export interface ListingInput {
   images: string[];
   vendorPhone: string;
   vendorPassword: string;
-  vendorPublishCode: string;
 }
 
 export interface VendorUpdatePriceInput {

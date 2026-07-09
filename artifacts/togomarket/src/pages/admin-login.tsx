@@ -112,9 +112,6 @@ export default function AdminLogin() {
             {loading ? "Vérification…" : "Se connecter"}
           </Button>
 
-          <p className="text-xs text-center text-muted-foreground">
-            Superadmin : 5 chiffres · Sous-admin : 4 chiffres
-          </p>
         </div>
 
         <button

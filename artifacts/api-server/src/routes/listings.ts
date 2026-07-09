@@ -1,8 +1,8 @@
 import { Router, type IRouter } from "express";
-import { eq, ilike, and, gt, desc, sql, type SQL } from "drizzle-orm";
+import { eq, ilike, and, desc, sql, type SQL } from "drizzle-orm";
 import { normalizePhone, phoneEq } from "../lib/phone";
 import bcrypt from "bcryptjs";
-import { db, listingsTable, vendorsTable, publishCodesTable } from "@workspace/db";
+import { db, listingsTable, vendorsTable } from "@workspace/db";
 import {
   CreateListingBody,
   GetListingsQueryParams,
@@ -98,7 +98,7 @@ router.post("/listings", async (req, res): Promise<void> => {
   }
 
   const vendorPhone = normalizePhone(parsed.data.vendorPhone);
-  const { vendorPassword, vendorPublishCode } = parsed.data;
+  const { vendorPassword } = parsed.data;
 
   const vendors = await db
     .select()
@@ -123,16 +123,8 @@ router.post("/listings", async (req, res): Promise<void> => {
     return;
   }
 
-  const now = new Date();
-  const codes = await db
-    .select()
-    .from(publishCodesTable)
-    .where(and(eq(publishCodesTable.vendorId, vendor.id), gt(publishCodesTable.endDate, now)))
-    .orderBy(desc(publishCodesTable.endDate))
-    .limit(1);
-
-  if (codes.length === 0 || codes[0].code !== vendorPublishCode) {
-    res.status(403).json({ error: "Code de publication invalide ou expiré." });
+  if (!vendor.isPublished) {
+    res.status(403).json({ error: "Votre boutique est désactivée. Contactez l'administrateur pour la réactiver." });
     return;
   }
 

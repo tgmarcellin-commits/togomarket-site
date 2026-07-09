@@ -126,7 +126,14 @@ export default function AdminDashboard() {
 
   const password = session.code;
 
-  const [tab, setTab] = useState<DashTab>("stats");
+  const initialTab = (): DashTab => {
+    if (!session) return "stats";
+    if (session.role === "admin_pub") return "ads";
+    if (session.role === "admin_event") return "events";
+    if (session.role === "admin_service") return "services";
+    return "stats";
+  };
+  const [tab, setTab] = useState<DashTab>(initialTab);
   const [vendorSearch, setVendorSearch] = useState("");
   const [viewerImages, setViewerImages] = useState<string[]>([]);
   const [viewerIndex, setViewerIndex] = useState(0);
@@ -173,6 +180,14 @@ export default function AdminDashboard() {
   const [confirm30Loading, setConfirm30Loading] = useState(false);
   const [confirmPublishItem, setConfirmPublishItem] = useState<{ type: "ad" | "event" | "service"; id: number; title: string } | null>(null);
   const [confirmPublishLoading, setConfirmPublishLoading] = useState(false);
+
+  const [paymentLinkDialog, setPaymentLinkDialog] = useState<{
+    entityType: "ad" | "event" | "service";
+    entityId: number;
+    customerName: string;
+    customerPhone: string;
+  } | null>(null);
+  const [paymentLinkLoading, setPaymentLinkLoading] = useState(false);
 
   const [settingsForm, setSettingsForm] = useState({
     whatsappCommission: "",
@@ -299,8 +314,14 @@ export default function AdminDashboard() {
   };
 
   useEffect(() => {
-    loadStats();
-    loadPending();
+    if (isSuperAdmin) {
+      loadStats();
+      loadPending();
+    } else {
+      if (session.role === "admin_pub") loadAds();
+      else if (session.role === "admin_event") loadEvents();
+      else if (session.role === "admin_service") loadServices();
+    }
   }, []);
 
   const handleTabChange = (t: DashTab) => {
@@ -438,6 +459,41 @@ export default function AdminDashboard() {
   const handleSendCodeWhatsApp = (code: string, phone: string) => {
     const msg = `Bonjour ! Votre code de publication TogoMarket est : ${code}\nIl est valable 30 jours. Bonne vente !`;
     openWhatsApp(`https://wa.me/${phone.replace(/\D/g, "")}?text=${encodeURIComponent(msg)}`);
+  };
+
+  const handleSendPaymentLink = async () => {
+    if (!paymentLinkDialog) return;
+    setPaymentLinkLoading(true);
+    try {
+      const res = await fetch("/api/fedapay/create-transaction", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          entityType: paymentLinkDialog.entityType,
+          entityId: paymentLinkDialog.entityId,
+          customerName: paymentLinkDialog.customerName,
+          customerPhone: paymentLinkDialog.customerPhone,
+        }),
+      });
+      if (!res.ok) {
+        const err = await res.json() as { error?: string };
+        toast({ title: "Erreur", description: err.error ?? "Impossible de créer le lien de paiement", variant: "destructive" });
+        return;
+      }
+      const data = await res.json() as { widgetUrl?: string };
+      const link = data.widgetUrl ?? "";
+      if (!link) {
+        toast({ title: "Erreur", description: "Lien de paiement introuvable dans la réponse", variant: "destructive" });
+        return;
+      }
+      const msg = `Bonjour ${paymentLinkDialog.customerName},\n\nVoici votre lien de paiement TogoMarket (1 000 FCFA) :\n${link}\n\nMerci de procéder au paiement pour valider votre annonce sur TogoMarket.`;
+      openWhatsApp(`https://wa.me/${paymentLinkDialog.customerPhone.replace(/\D/g, "")}?text=${encodeURIComponent(msg)}`);
+      setPaymentLinkDialog(null);
+    } catch {
+      toast({ title: "Erreur réseau", variant: "destructive" });
+    } finally {
+      setPaymentLinkLoading(false);
+    }
   };
 
   const handleAdImageChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -1126,7 +1182,7 @@ export default function AdminDashboard() {
                             Valider
                           </Button>
                         )}
-                        <Button size="sm" variant="ghost" className="h-8 w-8 p-0 text-green-600" onClick={() => openWhatsApp(`https://wa.me/${ad.advertiserPhone.replace(/\D/g, "")}?text=${encodeURIComponent(`Bonjour ${ad.advertiserName}, souhaitez-vous renouveler votre publicité ?`)}`)}>
+                        <Button size="sm" variant="ghost" className="h-8 w-8 p-0 text-green-600" title="Envoyer lien de paiement" onClick={() => setPaymentLinkDialog({ entityType: "ad", entityId: ad.id, customerName: ad.advertiserName, customerPhone: ad.advertiserPhone })}>
                           📲
                         </Button>
                         <Button size="sm" variant="ghost" className="h-8 w-8 p-0 text-destructive" onClick={() => { if (confirm("Supprimer cette publicité ?")) handleDeleteAd(ad.id); }}>
@@ -1208,6 +1264,9 @@ export default function AdminDashboard() {
                           Valider
                         </Button>
                       )}
+                      <Button size="sm" variant="ghost" className="h-8 w-8 p-0 text-green-600" title="Envoyer lien de paiement" onClick={() => setPaymentLinkDialog({ entityType: "event", entityId: ev.id, customerName: ev.title, customerPhone: "" })}>
+                        📲
+                      </Button>
                       <Button size="sm" variant="ghost" className="h-8 w-8 p-0 text-destructive" onClick={() => { if (confirm("Supprimer cet événement ?")) handleDeleteEvent(ev.id); }}>
                         <Trash2 className="w-3.5 h-3.5" />
                       </Button>
@@ -1294,6 +1353,9 @@ export default function AdminDashboard() {
                           Valider
                         </Button>
                       )}
+                      <Button size="sm" variant="ghost" className="h-8 w-8 p-0 text-green-600" title="Envoyer lien de paiement" onClick={() => setPaymentLinkDialog({ entityType: "service", entityId: s.id, customerName: s.title, customerPhone: s.contact ?? "" })}>
+                        📲
+                      </Button>
                       <Button size="sm" variant="ghost" className="h-8 w-8 p-0 text-destructive" onClick={() => { if (confirm("Supprimer ce service ?")) handleDeleteService(s.id); }}>
                         <Trash2 className="w-3.5 h-3.5" />
                       </Button>
@@ -1466,6 +1528,48 @@ export default function AdminDashboard() {
             </Button>
             <Button onClick={handleForcePublishItem} disabled={confirmPublishLoading} className="bg-green-600 hover:bg-green-700 text-white">
               {confirmPublishLoading ? "Publication…" : "Valider et publier"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* ── LIEN DE PAIEMENT FEDAPAY ───────────────────────────── */}
+      <Dialog open={!!paymentLinkDialog} onOpenChange={(v) => { if (!v) setPaymentLinkDialog(null); }}>
+        <DialogContent className="sm:max-w-[380px]">
+          <DialogHeader>
+            <DialogTitle>Envoyer lien de paiement (1 000 FCFA)</DialogTitle>
+          </DialogHeader>
+          <div className="space-y-3">
+            <p className="text-sm text-muted-foreground">
+              Générez un lien FedaPay et envoyez-le au client via WhatsApp.
+            </p>
+            <div>
+              <label className="text-xs font-medium text-muted-foreground block mb-1">Nom du client</label>
+              <Input
+                value={paymentLinkDialog?.customerName ?? ""}
+                onChange={(e) => setPaymentLinkDialog((d) => d ? { ...d, customerName: e.target.value } : d)}
+                placeholder="Nom du client"
+              />
+            </div>
+            <div>
+              <label className="text-xs font-medium text-muted-foreground block mb-1">Téléphone du client</label>
+              <Input
+                value={paymentLinkDialog?.customerPhone ?? ""}
+                onChange={(e) => setPaymentLinkDialog((d) => d ? { ...d, customerPhone: e.target.value } : d)}
+                placeholder="Ex: 22890123456"
+              />
+            </div>
+          </div>
+          <DialogFooter className="gap-2">
+            <Button variant="outline" onClick={() => setPaymentLinkDialog(null)} disabled={paymentLinkLoading}>
+              Annuler
+            </Button>
+            <Button
+              onClick={handleSendPaymentLink}
+              disabled={paymentLinkLoading || !paymentLinkDialog?.customerName || !paymentLinkDialog?.customerPhone}
+              className="bg-green-600 hover:bg-green-700 text-white"
+            >
+              {paymentLinkLoading ? "Génération…" : "Générer & Envoyer via WhatsApp"}
             </Button>
           </DialogFooter>
         </DialogContent>

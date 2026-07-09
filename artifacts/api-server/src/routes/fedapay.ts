@@ -75,18 +75,13 @@ router.post("/fedapay/create-transaction", async (req, res) => {
       metadata: { entityType, entityId: String(entityId) },
     });
 
-    const raw = data as unknown as Record<string, unknown>;
-    const tx: Record<string, unknown> =
-      (raw["v1"] as Record<string, unknown>)?.["transaction"] as Record<string, unknown>
-      ?? raw["transaction"] as Record<string, unknown>
-      ?? raw;
-    const txId = String(tx["id"] ?? "");
-    const token = String(tx["token"] ?? "");
+    const txId = String(data.v1.transaction.id);
+    const token = String(data.v1.transaction.token ?? "");
 
-    const widgetUrl =
-      getFedapayEnv() === "live"
-        ? `https://checkout.fedapay.com/${token}`
-        : `https://sandbox-checkout.fedapay.com/${token}`;
+    const baseCheckout = getFedapayEnv() === "live"
+      ? "https://checkout.fedapay.com"
+      : "https://sandbox-checkout.fedapay.com";
+    const widgetUrl = `${baseCheckout}/${token}`;
 
     return res.json({
       transactionId: txId,

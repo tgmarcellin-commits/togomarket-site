@@ -3,7 +3,7 @@ import { openWhatsApp } from "@/lib/whatsapp";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import * as z from "zod";
-import { useCreateListing, useVendorLogin, getGetListingsQueryKey, type VendorProfile } from "@workspace/api-client-react";
+import { useCreateListing, getGetListingsQueryKey, type VendorProfile } from "@workspace/api-client-react";
 import { useQueryClient } from "@tanstack/react-query";
 import { Button } from "@/components/ui/button";
 import {
@@ -24,46 +24,12 @@ import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { resizeImageToBlob } from "@/lib/image";
 import { uploadImageFile } from "@/lib/upload";
-import { UploadCloud, X, Lock, KeyRound, AlertCircle, UserCircle2, Eye, EyeOff } from "lucide-react";
+import { UploadCloud, X, Lock, AlertCircle, UserCircle2, Store } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { useSiteSettings } from "@/lib/site-settings";
 import { useT } from "@/lib/i18n";
 
 const PHONE_REGEX = /\d[\s\-\.]?\d[\s\-\.]?\d[\s\-\.]?\d[\s\-\.]?\d[\s\-\.]?\d[\s\-\.]?\d[\s\-\.]?\d/;
-
-interface SavedCode {
-  code: string;
-  endDate: string;
-}
-
-function getSavedCode(vendorPhone: string): SavedCode | null {
-  try {
-    const raw = localStorage.getItem(`togomarket_pub_${vendorPhone}`);
-    if (!raw) return null;
-    return JSON.parse(raw) as SavedCode;
-  } catch {
-    return null;
-  }
-}
-
-function saveCode(vendorPhone: string, code: string, endDate: string) {
-  try {
-    localStorage.setItem(`togomarket_pub_${vendorPhone}`, JSON.stringify({ code, endDate }));
-  } catch {}
-}
-
-function clearSavedCode(vendorPhone: string) {
-  try {
-    localStorage.removeItem(`togomarket_pub_${vendorPhone}`);
-  } catch {}
-}
-
-function isCodeStillValid(saved: SavedCode, publishCode: NonNullable<VendorProfile["publishCode"]>): boolean {
-  if (saved.code !== publishCode.code) return false;
-  if (new Date(saved.endDate).getTime() !== new Date(publishCode.endDate).getTime()) return false;
-  if (new Date(publishCode.endDate) <= new Date()) return false;
-  return true;
-}
 
 interface PublishModalProps {
   open: boolean;
@@ -74,14 +40,9 @@ interface PublishModalProps {
   onVendorRefresh: (updated: VendorProfile) => void;
 }
 
-export function PublishModal({ open, onOpenChange, vendor, vendorPassword, onNeedLogin, onVendorRefresh }: PublishModalProps) {
+export function PublishModal({ open, onOpenChange, vendor, vendorPassword, onNeedLogin }: PublishModalProps) {
   const { lang } = useSiteSettings();
   const t = useT(lang);
-
-  const codeSchema = z.object({
-    code: z.string().length(4, t.codeSchemaError),
-  });
-  type CodeValues = z.infer<typeof codeSchema>;
 
   const formSchema = z.object({
     name: z
@@ -97,20 +58,12 @@ export function PublishModal({ open, onOpenChange, vendor, vendorPassword, onNee
   });
   type FormValues = z.infer<typeof formSchema>;
 
-  const [showCode, setShowCode] = useState(false);
-  const [screen, setScreen] = useState<"gate" | "code" | "form">("gate");
-  const [verifiedCode, setVerifiedCode] = useState("");
+  const [screen, setScreen] = useState<"gate" | "form">("gate");
   const [images, setImages] = useState<{ dataUrl: string; objectPath: string }[]>([]);
   const [isProcessing, setIsProcessing] = useState(false);
   const { toast } = useToast();
   const queryClient = useQueryClient();
   const createListing = useCreateListing();
-  const loginMutation = useVendorLogin();
-
-  const codeForm = useForm<CodeValues>({
-    resolver: zodResolver(codeSchema),
-    defaultValues: { code: "" },
-  });
 
   const form = useForm<FormValues>({
     resolver: zodResolver(formSchema),
@@ -124,31 +77,8 @@ export function PublishModal({ open, onOpenChange, vendor, vendorPassword, onNee
 
   useEffect(() => {
     if (!open) return;
-    if (!vendor?.publishCode || !vendor.verified) return;
-
-    const saved = getSavedCode(vendor.phone);
-    if (saved && isCodeStillValid(saved, vendor.publishCode)) {
-      setVerifiedCode(saved.code);
-      setScreen("form");
-    } else {
-      if (saved) clearSavedCode(vendor.phone);
-      setScreen("gate");
-    }
-  }, [open, vendor]);
-
-  const onVerifyCode = (data: CodeValues) => {
-    const activeCode = vendor?.publishCode?.code;
-    if (!activeCode || data.code.trim() !== activeCode) {
-      codeForm.setError("code", { message: t.incorrectCode });
-      return;
-    }
-    const code = data.code.trim();
-    setVerifiedCode(code);
-    if (vendor?.publishCode) {
-      saveCode(vendor.phone, code, vendor.publishCode.endDate);
-    }
-    setScreen("form");
-  };
+    setScreen("gate");
+  }, [open]);
 
   const handleFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
     if (!e.target.files) return;
@@ -187,7 +117,6 @@ export function PublishModal({ open, onOpenChange, vendor, vendorPassword, onNee
           images: images.map((img) => img.objectPath),
           vendorPhone: vendor.phone,
           vendorPassword,
-          vendorPublishCode: verifiedCode,
         },
       },
       {
@@ -199,10 +128,8 @@ export function PublishModal({ open, onOpenChange, vendor, vendorPassword, onNee
             : `New listing submitted on TogoMarket (pending validation)\n\nTitle: ${data.name}\nPrice: ${data.price} FCFA\nSector: ${data.sector}\nSeller: ${vendor.firstName} ${vendor.lastName}\nPhone: ${vendor.phone}`;
           openWhatsApp(`https://wa.me/22870703131?text=${encodeURIComponent(message)}`);
           form.reset();
-          codeForm.reset();
           setImages([]);
           setScreen("gate");
-          setVerifiedCode("");
           onOpenChange(false);
         },
         onError: (err: unknown) => {
@@ -216,19 +143,10 @@ export function PublishModal({ open, onOpenChange, vendor, vendorPassword, onNee
   const handleOpenChange = (val: boolean) => {
     if (!val) {
       setScreen("gate");
-      codeForm.reset();
       form.reset();
       setImages([]);
-      setVerifiedCode("");
     }
     onOpenChange(val);
-  };
-
-  const handleRenewWhatsApp = () => {
-    const msg = lang === "fr"
-      ? `Bonjour, je souhaite renouveler mon code de publication TogoMarket.\nNom : ${vendor?.firstName} ${vendor?.lastName}\nNuméro : ${vendor?.phone}\nMontant : 1 000 FCFA`
-      : `Hello, I want to renew my TogoMarket publish code.\nName: ${vendor?.firstName} ${vendor?.lastName}\nNumber: ${vendor?.phone}\nAmount: 1,000 FCFA`;
-    openWhatsApp(`https://wa.me/22870703131?text=${encodeURIComponent(msg)}`);
   };
 
   const Gate = () => {
@@ -260,29 +178,6 @@ export function PublishModal({ open, onOpenChange, vendor, vendorPassword, onNee
             <p className="text-sm text-muted-foreground">{t.accountPendingDesc}</p>
           </div>
           <Button
-            className="w-full"
-            variant="outline"
-            disabled={loginMutation.isPending}
-            onClick={() => {
-              loginMutation.mutate(
-                { data: { phone: vendor.phone, password: vendorPassword } },
-                {
-                  onSuccess: (updated) => {
-                    onVendorRefresh(updated);
-                    if (!updated.verified) {
-                      toast({ title: t.accountStillPending, description: t.accountStillPendingDesc, variant: "destructive" });
-                    }
-                  },
-                  onError: () => {
-                    toast({ title: t.updateError, variant: "destructive" });
-                  },
-                }
-              );
-            }}
-          >
-            {loginMutation.isPending ? t.verifying : t.refreshStatus}
-          </Button>
-          <Button
             className="w-full bg-green-500 hover:bg-green-600 text-white"
             onClick={() => openWhatsApp(`https://wa.me/22870703131?text=${encodeURIComponent(lang === "fr" ? "Bonjour, je veux activer mon compte vendeur TogoMarket." : "Hello, I want to activate my TogoMarket seller account.")}`)}
           >
@@ -292,18 +187,27 @@ export function PublishModal({ open, onOpenChange, vendor, vendorPassword, onNee
       );
     }
 
-    if (!vendor.publishCode) {
+    if (!vendor.isPublished) {
       return (
         <div className="py-6 text-center space-y-4">
           <div className="w-14 h-14 bg-red-100 rounded-full flex items-center justify-center mx-auto">
-            <KeyRound className="w-8 h-8 text-red-400" />
+            <Store className="w-8 h-8 text-red-400" />
           </div>
           <div>
-            <p className="font-semibold text-base mb-1">{t.expiredCode}</p>
-            <p className="text-sm text-muted-foreground">{t.expiredCodeDesc}</p>
+            <p className="font-semibold text-base mb-1">
+              {lang === "fr" ? "Boutique désactivée" : "Shop deactivated"}
+            </p>
+            <p className="text-sm text-muted-foreground">
+              {lang === "fr"
+                ? "Votre boutique est expirée ou désactivée. Contactez l'administrateur TogoMarket pour la réactiver (1 000 FCFA/mois)."
+                : "Your shop is expired or deactivated. Contact TogoMarket admin to reactivate it (1,000 FCFA/month)."}
+            </p>
           </div>
-          <Button className="w-full bg-green-500 hover:bg-green-600 text-white" onClick={handleRenewWhatsApp}>
-            {t.renewCode}
+          <Button
+            className="w-full bg-green-500 hover:bg-green-600 text-white"
+            onClick={() => openWhatsApp(`https://wa.me/22870703131?text=${encodeURIComponent(lang === "fr" ? `Bonjour TogoMarket, je souhaite réactiver ma boutique.\nNom : ${vendor.firstName} ${vendor.lastName}\nTéléphone : ${vendor.phone}` : `Hello TogoMarket, I want to reactivate my shop.\nName: ${vendor.firstName} ${vendor.lastName}\nPhone: ${vendor.phone}`)}`)}
+          >
+            {lang === "fr" ? "Contacter l'administrateur" : "Contact admin"}
           </Button>
         </div>
       );
@@ -321,10 +225,12 @@ export function PublishModal({ open, onOpenChange, vendor, vendorPassword, onNee
           )}
           <div className="min-w-0">
             <p className="font-semibold text-sm truncate">{vendor.firstName} {vendor.lastName}</p>
-            <p className="text-xs text-muted-foreground">{t.codeValid(vendor.publishCode.daysLeft)}</p>
+            <p className="text-xs text-muted-foreground">
+              {lang === "fr" ? "Boutique active" : "Active shop"}
+            </p>
           </div>
         </div>
-        <Button className="w-full" onClick={() => setScreen("code")}>
+        <Button className="w-full" onClick={() => setScreen("form")}>
           <Lock className="w-4 h-4 mr-2" />
           {t.publishListing}
         </Button>
@@ -337,9 +243,7 @@ export function PublishModal({ open, onOpenChange, vendor, vendorPassword, onNee
       <DialogContent className="sm:max-w-[500px] max-h-[90vh] overflow-y-auto">
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2">
-            {screen === "code" ? (
-              <><KeyRound className="w-5 h-5" /> {t.enterPublishCode}</>
-            ) : screen === "form" ? (
+            {screen === "form" ? (
               t.sellItem
             ) : (
               <><Lock className="w-5 h-5" /> {t.publishListing}</>
@@ -348,52 +252,6 @@ export function PublishModal({ open, onOpenChange, vendor, vendorPassword, onNee
         </DialogHeader>
 
         {screen === "gate" && <Gate />}
-
-        {screen === "code" && vendor?.publishCode && (
-          <div className="pt-2">
-            <p className="text-sm text-muted-foreground mb-4">{t.enterCodeDesc}</p>
-            <Form {...codeForm}>
-              <form onSubmit={codeForm.handleSubmit(onVerifyCode)} className="space-y-4">
-                <FormField
-                  control={codeForm.control}
-                  name="code"
-                  render={({ field }) => (
-                    <FormItem>
-                      <FormLabel className="flex items-center gap-1">
-                        <KeyRound className="w-4 h-4" /> {t.codeLabel}
-                      </FormLabel>
-                      <FormControl>
-                        <div className="relative">
-                          <Input
-                            type={showCode ? "text" : "password"}
-                            placeholder="• • • •"
-                            maxLength={4}
-                            className="text-center text-2xl font-mono tracking-widest pr-10"
-                            {...field}
-                          />
-                          <button type="button" onClick={() => setShowCode((v) => !v)} className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground">
-                            {showCode ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
-                          </button>
-                        </div>
-                      </FormControl>
-                      <FormMessage />
-                    </FormItem>
-                  )}
-                />
-                <Button type="submit" className="w-full bg-primary hover:bg-primary/90">
-                  {t.validate}
-                </Button>
-                <button
-                  type="button"
-                  className="text-xs text-muted-foreground underline w-full text-center"
-                  onClick={() => setScreen("gate")}
-                >
-                  {t.back}
-                </button>
-              </form>
-            </Form>
-          </div>
-        )}
 
         {screen === "form" && (
           <Form {...form}>
