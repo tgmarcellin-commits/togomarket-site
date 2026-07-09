@@ -74,6 +74,7 @@ export function ProfileSettingsModal({
   const [lastName, setLastName] = useState(vendor.lastName);
   const [isUploadingPhoto, setIsUploadingPhoto] = useState(false);
   const [showPrivacy, setShowPrivacy] = useState(false);
+  const [showCGU, setShowCGU] = useState(false);
 
   const [oldPwd, setOldPwd] = useState("");
   const [newPwd, setNewPwd] = useState("");
@@ -300,6 +301,32 @@ export function ProfileSettingsModal({
                       className="block mt-2 text-primary underline"
                     >
                       {t.viewFullPrivacyShort}
+                    </a>
+                  </div>
+                )}
+              </div>
+
+              {/* CGU */}
+              <div className="border-t pt-4">
+                <button
+                  className="flex items-start gap-2 w-full text-left"
+                  onClick={() => setShowCGU(!showCGU)}
+                >
+                  <CheckSquare className="w-4 h-4 text-primary mt-0.5 flex-shrink-0" />
+                  <span className="text-xs text-muted-foreground underline">
+                    Conditions Générales d'Utilisation acceptées
+                  </span>
+                </button>
+                {showCGU && (
+                  <div className="mt-2 p-3 bg-muted rounded-lg text-xs text-muted-foreground leading-relaxed space-y-2">
+                    <p>L'accès aux fonctionnalités de vente est soumis à un abonnement de <strong>1 000 FCFA/mois</strong>. Les frais de transaction FedaPay sont à la charge du vendeur. Tout nouveau compte bénéficie de <strong>30 jours d'essai gratuits</strong>.</p>
+                    <a
+                      href="/cgu"
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="block text-primary underline font-medium"
+                    >
+                      Consulter les CGU complètes →
                     </a>
                   </div>
                 )}

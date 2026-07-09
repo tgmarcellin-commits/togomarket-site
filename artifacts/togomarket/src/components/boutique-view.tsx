@@ -190,8 +190,9 @@ export function BoutiqueView({ vendor, vendorPassword, onNeedLogin }: BoutiqueVi
   }
 
   const daysUntilExpiry = vendor.daysUntilExpiry ?? null;
-  const isExpired = daysUntilExpiry !== null && daysUntilExpiry <= 0;
-  const isExpiringSoon = daysUntilExpiry !== null && daysUntilExpiry > 0 && daysUntilExpiry <= 3;
+  const isInactive = vendor.isPublished === false;
+  const isExpired = isInactive || (daysUntilExpiry !== null && daysUntilExpiry <= 0);
+  const isExpiringSoon = !isInactive && daysUntilExpiry !== null && daysUntilExpiry > 0 && daysUntilExpiry <= 3;
 
   if (isExpired) {
     return (
@@ -199,9 +200,15 @@ export function BoutiqueView({ vendor, vendorPassword, onNeedLogin }: BoutiqueVi
         <div className="w-20 h-20 bg-destructive/10 rounded-full flex items-center justify-center mb-6">
           <XCircle className="w-10 h-10 text-destructive" />
         </div>
-        <h2 className="text-2xl font-bold text-destructive mb-2">Boutique expirée</h2>
+        <h2 className="text-2xl font-bold text-destructive mb-2">
+          {isInactive && daysUntilExpiry !== null && daysUntilExpiry > 0
+            ? "Boutique désactivée"
+            : "Boutique expirée"}
+        </h2>
         <p className="text-muted-foreground mb-2 max-w-xs">
-          Votre abonnement a expiré. Renouvelez maintenant pour remettre votre boutique en ligne et continuer à vendre.
+          {isInactive && daysUntilExpiry !== null && daysUntilExpiry > 0
+            ? "Votre boutique a été désactivée par l'administrateur. Contactez l'admin ou renouvelez votre abonnement pour la réactiver."
+            : "Votre abonnement a expiré. Renouvelez maintenant pour remettre votre boutique en ligne et continuer à vendre."}
         </p>
         <div className="bg-muted rounded-xl p-4 mb-6 max-w-xs text-sm text-left space-y-1">
           <p className="font-semibold">{vendor.firstName} {vendor.lastName} — N°{vendor.id}</p>

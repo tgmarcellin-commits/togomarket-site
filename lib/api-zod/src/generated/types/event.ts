@@ -19,4 +19,6 @@ export interface Event {
   /** @nullable */
   ticketPrice?: string | null;
   createdAt: string;
+  /** @nullable */
+  isPublished?: boolean | null;
 }

@@ -1049,6 +1049,8 @@ components:
           type: string
         endDate:
           type: string
+        isPublished:
+          type: ["boolean", "null"]
 
     AdminCreateAdInput:
       type: object
@@ -1089,6 +1091,8 @@ components:
           type: ["string", "null"]
         createdAt:
           type: string
+        isPublished:
+          type: ["boolean", "null"]
 
     AdminCreateEventInput:
       type: object
@@ -1383,6 +1387,8 @@ components:
           type: string
         expiresAt:
           type: string
+        isPublished:
+          type: ["boolean", "null"]
 
     AdminCreateServiceInput:
       type: object

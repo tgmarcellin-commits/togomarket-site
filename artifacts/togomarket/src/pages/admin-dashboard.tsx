@@ -40,6 +40,13 @@ import { openWhatsApp } from "@/lib/whatsapp";
 import { ImageViewer } from "@/components/image-viewer";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogFooter,
+} from "@/components/ui/dialog";
 import { useToast } from "@/hooks/use-toast";
 import {
   LayoutDashboard,
@@ -161,6 +168,11 @@ export default function AdminDashboard() {
   const [accountsLoading, setAccountsLoading] = useState(false);
   const [showNewAccountForm, setShowNewAccountForm] = useState(false);
   const [newAccount, setNewAccount] = useState({ username: "", role: "admin_pub", code: "" });
+
+  const [confirm30Vendor, setConfirm30Vendor] = useState<{ id: number; name: string } | null>(null);
+  const [confirm30Loading, setConfirm30Loading] = useState(false);
+  const [confirmPublishItem, setConfirmPublishItem] = useState<{ type: "ad" | "event" | "service"; id: number; title: string } | null>(null);
+  const [confirmPublishLoading, setConfirmPublishLoading] = useState(false);
 
   const [settingsForm, setSettingsForm] = useState({
     whatsappCommission: "",
@@ -384,15 +396,43 @@ export default function AdminDashboard() {
     );
   };
 
-  const handleForcePublishVendor = (vendorId: number) => {
+  const handleForcePublishVendor = () => {
+    if (!confirm30Vendor) return;
+    setConfirm30Loading(true);
     fetch("/api/admin/vendors/force-publish", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ code: password, vendorId }),
+      body: JSON.stringify({ code: password, vendorId: confirm30Vendor.id }),
     })
       .then((r) => r.json())
-      .then(() => { toast({ title: "Boutique réactivée 30 jours" }); loadVendors(); })
-      .catch(() => toast({ title: "Erreur", variant: "destructive" }));
+      .then(() => { toast({ title: "Boutique réactivée 30 jours" }); setConfirm30Vendor(null); loadVendors(); })
+      .catch(() => toast({ title: "Erreur", variant: "destructive" }))
+      .finally(() => setConfirm30Loading(false));
+  };
+
+  const handleForcePublishItem = () => {
+    if (!confirmPublishItem) return;
+    setConfirmPublishLoading(true);
+    const endpoint = confirmPublishItem.type === "ad"
+      ? "/api/admin/ads/force-publish"
+      : confirmPublishItem.type === "event"
+      ? "/api/admin/events/force-publish"
+      : "/api/admin/services/force-publish";
+    fetch(endpoint, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ code: password, id: confirmPublishItem.id }),
+    })
+      .then((r) => r.json())
+      .then(() => {
+        toast({ title: "Publié avec succès" });
+        setConfirmPublishItem(null);
+        if (confirmPublishItem.type === "ad") loadAds();
+        else if (confirmPublishItem.type === "event") loadEvents();
+        else loadServices();
+      })
+      .catch(() => toast({ title: "Erreur", variant: "destructive" }))
+      .finally(() => setConfirmPublishLoading(false));
   };
 
   const handleSendCodeWhatsApp = (code: string, phone: string) => {
@@ -634,18 +674,20 @@ export default function AdminDashboard() {
     );
   });
 
-  const tabs: Array<{ key: DashTab; label: string; icon: React.ReactNode; superOnly?: boolean }> = [
+  const role = session?.role ?? "";
+
+  const tabs: Array<{ key: DashTab; label: string; icon: React.ReactNode; roles?: string[] }> = [
     { key: "stats", label: "Statistiques", icon: <LayoutDashboard className="w-4 h-4" /> },
-    { key: "pending", label: "En attente", icon: <Clock className="w-4 h-4" /> },
-    { key: "vendors", label: "Vendeurs", icon: <Users className="w-4 h-4" /> },
-    { key: "ads", label: "Publicités", icon: <Megaphone className="w-4 h-4" /> },
-    { key: "events", label: "Événements", icon: <Calendar className="w-4 h-4" /> },
-    { key: "services", label: "Services", icon: <Briefcase className="w-4 h-4" /> },
-    { key: "settings", label: "Paramètres", icon: <Settings className="w-4 h-4" /> },
-    { key: "accounts", label: "Comptes", icon: <Shield className="w-4 h-4" />, superOnly: true },
+    { key: "pending", label: "En attente", icon: <Clock className="w-4 h-4" />, roles: ["superadmin"] },
+    { key: "vendors", label: "Vendeurs", icon: <Users className="w-4 h-4" />, roles: ["superadmin"] },
+    { key: "ads", label: "Publicités", icon: <Megaphone className="w-4 h-4" />, roles: ["superadmin", "admin_pub"] },
+    { key: "events", label: "Événements", icon: <Calendar className="w-4 h-4" />, roles: ["superadmin", "admin_event"] },
+    { key: "services", label: "Services", icon: <Briefcase className="w-4 h-4" />, roles: ["superadmin", "admin_service"] },
+    { key: "settings", label: "Paramètres", icon: <Settings className="w-4 h-4" />, roles: ["superadmin"] },
+    { key: "accounts", label: "Comptes", icon: <Shield className="w-4 h-4" />, roles: ["superadmin"] },
   ];
 
-  const visibleTabs = tabs.filter((t) => !t.superOnly || isSuperAdmin);
+  const visibleTabs = tabs.filter((t) => !t.roles || t.roles.includes(role));
 
   return (
     <div className="min-h-[100dvh] flex flex-col bg-muted/30">
@@ -951,7 +993,7 @@ export default function AdminDashboard() {
                               </Button>
                             )}
                             {isSuperAdmin && (
-                              <Button size="sm" variant="outline" className="h-7 text-xs border-blue-300 text-blue-700 hover:bg-blue-50" onClick={() => handleForcePublishVendor(v.id)}>
+                              <Button size="sm" variant="outline" className="h-7 text-xs border-blue-300 text-blue-700 hover:bg-blue-50" onClick={() => setConfirm30Vendor({ id: v.id, name: `${v.firstName} ${v.lastName}` })}>
                                 <RefreshCw className="w-3 h-3 mr-1" />
                                 +30 jours
                               </Button>
@@ -1077,7 +1119,13 @@ export default function AdminDashboard() {
                         <p className="text-xs text-muted-foreground truncate">{ad.message}</p>
                         <p className="text-xs text-muted-foreground">{ad.advertiserPhone} · {active ? <span className="text-green-600">Active</span> : <span className="text-red-500">Expirée</span>}</p>
                       </div>
-                      <div className="flex gap-2 flex-shrink-0">
+                      <div className="flex gap-2 flex-shrink-0 flex-wrap justify-end">
+                        {!ad.isPublished && (
+                          <Button size="sm" variant="outline" className="h-7 text-xs border-green-400 text-green-700 hover:bg-green-50" onClick={() => setConfirmPublishItem({ type: "ad", id: ad.id, title: ad.advertiserName })}>
+                            <CheckCircle className="w-3 h-3 mr-1" />
+                            Valider
+                          </Button>
+                        )}
                         <Button size="sm" variant="ghost" className="h-8 w-8 p-0 text-green-600" onClick={() => openWhatsApp(`https://wa.me/${ad.advertiserPhone.replace(/\D/g, "")}?text=${encodeURIComponent(`Bonjour ${ad.advertiserName}, souhaitez-vous renouveler votre publicité ?`)}`)}>
                           📲
                         </Button>
@@ -1153,9 +1201,17 @@ export default function AdminDashboard() {
                       <p className="font-semibold text-sm truncate">{ev.title}</p>
                       <p className="text-xs text-muted-foreground">{ev.location} · {new Date(ev.date).toLocaleDateString("fr-FR")}</p>
                     </div>
-                    <Button size="sm" variant="ghost" className="h-8 w-8 p-0 text-destructive flex-shrink-0" onClick={() => { if (confirm("Supprimer cet événement ?")) handleDeleteEvent(ev.id); }}>
-                      <Trash2 className="w-3.5 h-3.5" />
-                    </Button>
+                    <div className="flex gap-2 flex-shrink-0">
+                      {!ev.isPublished && (
+                        <Button size="sm" variant="outline" className="h-7 text-xs border-green-400 text-green-700 hover:bg-green-50" onClick={() => setConfirmPublishItem({ type: "event", id: ev.id, title: ev.title })}>
+                          <CheckCircle className="w-3 h-3 mr-1" />
+                          Valider
+                        </Button>
+                      )}
+                      <Button size="sm" variant="ghost" className="h-8 w-8 p-0 text-destructive" onClick={() => { if (confirm("Supprimer cet événement ?")) handleDeleteEvent(ev.id); }}>
+                        <Trash2 className="w-3.5 h-3.5" />
+                      </Button>
+                    </div>
                   </div>
                 ))}
               </div>
@@ -1231,9 +1287,17 @@ export default function AdminDashboard() {
                       <p className="font-semibold text-sm truncate">{s.title}</p>
                       <p className="text-xs text-muted-foreground">{s.type} · {s.ville ?? s.quartier ?? ""}</p>
                     </div>
-                    <Button size="sm" variant="ghost" className="h-8 w-8 p-0 text-destructive flex-shrink-0" onClick={() => { if (confirm("Supprimer ce service ?")) handleDeleteService(s.id); }}>
-                      <Trash2 className="w-3.5 h-3.5" />
-                    </Button>
+                    <div className="flex gap-2 flex-shrink-0">
+                      {!s.isPublished && (
+                        <Button size="sm" variant="outline" className="h-7 text-xs border-green-400 text-green-700 hover:bg-green-50" onClick={() => setConfirmPublishItem({ type: "service", id: s.id, title: s.title })}>
+                          <CheckCircle className="w-3 h-3 mr-1" />
+                          Valider
+                        </Button>
+                      )}
+                      <Button size="sm" variant="ghost" className="h-8 w-8 p-0 text-destructive" onClick={() => { if (confirm("Supprimer ce service ?")) handleDeleteService(s.id); }}>
+                        <Trash2 className="w-3.5 h-3.5" />
+                      </Button>
+                    </div>
                   </div>
                 ))}
               </div>
@@ -1364,6 +1428,48 @@ export default function AdminDashboard() {
           onClose={() => setViewerImages([])}
         />
       )}
+
+      {/* ── CONFIRMATION +30 JOURS ────────────────────────────── */}
+      <Dialog open={!!confirm30Vendor} onOpenChange={(v) => { if (!v) setConfirm30Vendor(null); }}>
+        <DialogContent className="sm:max-w-[380px]">
+          <DialogHeader>
+            <DialogTitle>Confirmer +30 jours</DialogTitle>
+          </DialogHeader>
+          <p className="text-sm text-muted-foreground">
+            Réactiver la boutique de <strong>{confirm30Vendor?.name}</strong> pour 30 jours supplémentaires ?
+          </p>
+          <DialogFooter className="gap-2">
+            <Button variant="outline" onClick={() => setConfirm30Vendor(null)} disabled={confirm30Loading}>
+              Annuler
+            </Button>
+            <Button onClick={handleForcePublishVendor} disabled={confirm30Loading} className="bg-blue-600 hover:bg-blue-700 text-white">
+              {confirm30Loading ? "En cours…" : "Confirmer +30 jours"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* ── CONFIRMATION VALIDATION PUBLICITÉ/ÉVÉNEMENT/SERVICE ── */}
+      <Dialog open={!!confirmPublishItem} onOpenChange={(v) => { if (!v) setConfirmPublishItem(null); }}>
+        <DialogContent className="sm:max-w-[380px]">
+          <DialogHeader>
+            <DialogTitle>Confirmer la publication</DialogTitle>
+          </DialogHeader>
+          <p className="text-sm text-muted-foreground">
+            Valider et publier <strong>« {confirmPublishItem?.title} »</strong> ?
+            {confirmPublishItem?.type === "ad" && " La publicité sera active 30 jours."}
+            {confirmPublishItem?.type === "service" && " Le service sera actif 30 jours."}
+          </p>
+          <DialogFooter className="gap-2">
+            <Button variant="outline" onClick={() => setConfirmPublishItem(null)} disabled={confirmPublishLoading}>
+              Annuler
+            </Button>
+            <Button onClick={handleForcePublishItem} disabled={confirmPublishLoading} className="bg-green-600 hover:bg-green-700 text-white">
+              {confirmPublishLoading ? "Publication…" : "Valider et publier"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

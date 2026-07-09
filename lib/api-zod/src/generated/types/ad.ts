@@ -17,4 +17,6 @@ export interface Ad {
   videoPath?: string | null;
   startDate: string;
   endDate: string;
+  /** @nullable */
+  isPublished?: boolean | null;
 }

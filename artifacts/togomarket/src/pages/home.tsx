@@ -22,7 +22,6 @@ import { AuthModal } from "@/components/auth-modal";
 import { InstallPrompt } from "@/components/install-prompt";
 import { AdBanner } from "@/components/ad-banner";
 import { BottomNav, type NavTab } from "@/components/bottom-nav";
-import { SubAdminModal } from "@/components/sub-admin-modal";
 import { PubliciteView } from "@/components/publicite-view";
 import { EvenementielView } from "@/components/evenementiel-view";
 import { ServicesView } from "@/components/services-view";
@@ -122,7 +121,6 @@ export default function Home() {
   const [isAdminModalOpen, setIsAdminModalOpen] = useState(false);
   const [isAuthModalOpen, setIsAuthModalOpen] = useState(false);
   const [isProfileModalOpen, setIsProfileModalOpen] = useState(false);
-  const [subAdminSection, setSubAdminSection] = useState<"publicite" | "evenementiel" | "services" | null>(null);
   const [isAdmin, setIsAdmin] = useState(false);
   const [adminPassword, setAdminPassword] = useState("");
 
@@ -139,17 +137,6 @@ export default function Home() {
       setVendor(session.vendor);
       setVendorPassword(session.password);
     }
-    try {
-      const raw = localStorage.getItem("togomarket_admin_session");
-      if (raw) {
-        const parsed = JSON.parse(raw);
-        const age = Date.now() - (parsed.at ?? 0);
-        if (age < 8 * 60 * 60 * 1000 && parsed.code) {
-          setIsAdmin(true);
-          setAdminPassword(parsed.code);
-        }
-      }
-    } catch {}
   }, []);
 
   useEffect(() => {
@@ -322,7 +309,7 @@ export default function Home() {
 
       {isAdmin && (
         <div className="bg-primary text-primary-foreground text-center py-1 text-xs font-bold uppercase tracking-widest">
-          Mode Admin activé
+          Mode Gestion activé
         </div>
       )}
 
@@ -693,7 +680,6 @@ export default function Home() {
       <BottomNav
         activeTab={activeTab}
         onTabChange={setActiveTab}
-        onSecretTap={(tab) => setSubAdminSection(tab)}
       />
 
       {/* ── MODALS ────────────────────────────────────────────────────── */}
@@ -724,13 +710,6 @@ export default function Home() {
         onOpenChange={setIsAuthModalOpen}
         onLoginSuccess={handleLoginSuccess}
       />
-      {subAdminSection && (
-        <SubAdminModal
-          section={subAdminSection}
-          open={!!subAdminSection}
-          onOpenChange={(v) => { if (!v) setSubAdminSection(null); }}
-        />
-      )}
       {vendor && (
         <ProfileSettingsModal
           open={isProfileModalOpen}

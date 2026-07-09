@@ -117,12 +117,22 @@ BOUTIQUE VENDEUR
 • Le lien est valide tant que le code de publication est actif
 
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+MODE GESTION (5 clics sur le logo)
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+• Cliquer 5 fois rapidement sur le logo TogoMarket active le "Mode Gestion"
+• Ce mode permet : voir les numéros de téléphone cachés des vendeurs, supprimer des annonces directement depuis la marketplace
+• Il est temporaire : perdu au rafraîchissement de la page (pas de persistance)
+• Il nécessite le mot de passe administrateur pour s'activer
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 ACCÈS ADMIN
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-• L'accès admin se fait uniquement via la page /admin-login
-• Les admins utilisent un code sécurisé (hashé bcrypt) pour se connecter
-• Le superadmin peut gérer les comptes admin, voir les stats, forcer-publier des boutiques
-• Il n'y a plus de déclencheur caché sur le logo pour accéder à l'admin
+• L'accès admin complet se fait uniquement via /admin-login
+• Rôles : superadmin (tout), admin_pub (publicités), admin_event (événements), admin_service (services)
+• Le tableau de bord /admin est filtré selon le rôle connecté
+• Les sous-admins (pub/event/service) postent du contenu en "non publié" ; seul le paiement ou la validation superadmin débloque la publication
+• Le superadmin peut valider/forcer-publier via un bouton "Valider" dans chaque section
+• Le bouton "+30 jours" pour réactiver une boutique demande toujours confirmation avant d'appliquer
 
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 SÉCURITÉ ET CONSEILS

@@ -299,7 +299,8 @@ export const GetActiveAdsResponseItem = zod.object({
   "image": zod.string().nullish(),
   "videoPath": zod.string().nullish(),
   "startDate": zod.string(),
-  "endDate": zod.string()
+  "endDate": zod.string(),
+  "isPublished": zod.boolean().nullish()
 })
 export const GetActiveAdsResponse = zod.array(GetActiveAdsResponseItem)
 
@@ -332,7 +333,8 @@ export const AdminGetAllAdsResponseItem = zod.object({
   "image": zod.string().nullish(),
   "videoPath": zod.string().nullish(),
   "startDate": zod.string(),
-  "endDate": zod.string()
+  "endDate": zod.string(),
+  "isPublished": zod.boolean().nullish()
 })
 export const AdminGetAllAdsResponse = zod.array(AdminGetAllAdsResponseItem)
 
@@ -634,7 +636,8 @@ export const GetEventsResponseItem = zod.object({
   "location": zod.string(),
   "ticketLink": zod.string().nullish(),
   "ticketPrice": zod.string().nullish(),
-  "createdAt": zod.string()
+  "createdAt": zod.string(),
+  "isPublished": zod.boolean().nullish()
 })
 export const GetEventsResponse = zod.array(GetEventsResponseItem)
 
@@ -680,7 +683,8 @@ export const GetServicesResponseItem = zod.object({
   "ville": zod.string(),
   "image": zod.string().nullish(),
   "createdAt": zod.string(),
-  "expiresAt": zod.string()
+  "expiresAt": zod.string(),
+  "isPublished": zod.boolean().nullish()
 })
 export const GetServicesResponse = zod.array(GetServicesResponseItem)
 
@@ -717,7 +721,8 @@ export const AdminGetAllServicesResponseItem = zod.object({
   "ville": zod.string(),
   "image": zod.string().nullish(),
   "createdAt": zod.string(),
-  "expiresAt": zod.string()
+  "expiresAt": zod.string(),
+  "isPublished": zod.boolean().nullish()
 })
 export const AdminGetAllServicesResponse = zod.array(AdminGetAllServicesResponseItem)
 

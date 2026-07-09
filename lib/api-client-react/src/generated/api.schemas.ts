@@ -38,6 +38,8 @@ export interface Ad {
   videoPath?: string | null;
   startDate: string;
   endDate: string;
+  /** @nullable */
+  isPublished?: boolean | null;
 }
 
 export interface AdminCreateAdInput {
@@ -62,6 +64,8 @@ export interface Event {
   /** @nullable */
   ticketPrice?: string | null;
   createdAt: string;
+  /** @nullable */
+  isPublished?: boolean | null;
 }
 
 export interface AdminCreateEventInput {
@@ -214,6 +218,8 @@ export interface Service {
   image?: string | null;
   createdAt: string;
   expiresAt: string;
+  /** @nullable */
+  isPublished?: boolean | null;
 }
 
 export interface AdminCreateServiceInput {

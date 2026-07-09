@@ -17,4 +17,6 @@ export interface Service {
   image?: string | null;
   createdAt: string;
   expiresAt: string;
+  /** @nullable */
+  isPublished?: boolean | null;
 }
