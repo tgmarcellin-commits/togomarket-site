@@ -12,7 +12,6 @@ import {
   useAdminDeleteAd,
   useAdminGetVendors,
   useAdminActivateVendor,
-  useAdminGenerateVendorCode,
   useAdminDeleteVendor,
   useAdminResetVendorPassword,
   useAdminCreateEvent,
@@ -166,7 +165,7 @@ export default function AdminDashboard() {
   const [serviceForm, setServiceForm] = useState({ type: "offer" as "offer" | "seeker" | "atelier", title: "", description: "", contact: "", quartier: "", ville: "", image: "", imagePreview: "" });
   const serviceImageRef = useRef<HTMLInputElement>(null);
 
-  const [generatedCode, setGeneratedCode] = useState<{ code: string; phone: string } | null>(null);
+  const [vendorWhatsappLoading, setVendorWhatsappLoading] = useState<number | null>(null);
   const [expandedVendorId, setExpandedVendorId] = useState<number | null>(null);
   const [resetPwdVendor, setResetPwdVendor] = useState<{ id: number; phone: string; name: string } | null>(null);
   const [resetPwdInput, setResetPwdInput] = useState("");
@@ -203,7 +202,7 @@ export default function AdminDashboard() {
   const deleteListing = useAdminDeleteListing();
   const getVendors = useAdminGetVendors();
   const activateVendor = useAdminActivateVendor();
-  const generateCode = useAdminGenerateVendorCode();
+
   const deleteVendor = useAdminDeleteVendor();
   const resetVendorPassword = useAdminResetVendorPassword();
   const createAd = useAdminCreateAd();
@@ -371,24 +370,11 @@ export default function AdminDashboard() {
     activateVendor.mutate(
       { data: { password, vendorId } },
       {
-        onSuccess: (res) => {
-          setGeneratedCode({ code: res.code, phone: res.vendorPhone });
+        onSuccess: () => {
+          toast({ title: "Vendeur activé" });
           loadVendors();
         },
         onError: () => toast({ title: "Erreur lors de l'activation", variant: "destructive" }),
-      }
-    );
-  };
-
-  const handleGenerateCode = (vendorId: number) => {
-    generateCode.mutate(
-      { data: { password, vendorId } },
-      {
-        onSuccess: (res) => {
-          setGeneratedCode({ code: res.code, phone: res.vendorPhone });
-          loadVendors();
-        },
-        onError: () => toast({ title: "Erreur", variant: "destructive" }),
       }
     );
   };
@@ -460,9 +446,31 @@ export default function AdminDashboard() {
       .finally(() => setConfirmPublishLoading(false));
   };
 
-  const handleSendCodeWhatsApp = (code: string, phone: string) => {
-    const msg = `Bonjour ! Votre code de publication TogoMarket est : ${code}\nIl est valable 30 jours. Bonne vente !`;
-    openWhatsApp(`https://wa.me/${phone.replace(/\D/g, "")}?text=${encodeURIComponent(msg)}`);
+  const handleVendorWhatsApp = async (vendorId: number, firstName: string, phone: string) => {
+    setVendorWhatsappLoading(vendorId);
+    try {
+      const r = await fetch("/api/fedapay/create-transaction", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          entityType: "vendor",
+          entityId: vendorId,
+          customerName: firstName,
+          customerPhone: phone,
+        }),
+      });
+      const data = await r.json() as { widgetUrl?: string; error?: string };
+      if (!r.ok || !data.widgetUrl) {
+        toast({ title: "Erreur génération lien", description: data.error ?? "Impossible de créer le lien", variant: "destructive" });
+        return;
+      }
+      const msg = `Bonjour ${firstName} ! 👋\n\nVotre abonnement TogoMarket arrive à expiration.\n\nRenouvelez facilement en ligne pour 1 000 FCFA/mois :\n${data.widgetUrl}\n\nMerci de votre confiance !`;
+      openWhatsApp(`https://wa.me/${phone.replace(/\D/g, "")}?text=${encodeURIComponent(msg)}`);
+    } catch {
+      toast({ title: "Erreur réseau", variant: "destructive" });
+    } finally {
+      setVendorWhatsappLoading(null);
+    }
   };
 
   const handleSendPaymentLink = async () => {
@@ -962,22 +970,6 @@ export default function AdminDashboard() {
                 onChange={(e) => setVendorSearch(e.target.value)}
               />
             </div>
-            {generatedCode && (
-              <div className="bg-green-50 border border-green-200 rounded-xl p-4 flex items-center justify-between gap-4">
-                <div>
-                  <p className="text-sm font-semibold text-green-800">Code généré</p>
-                  <p className="text-2xl font-mono font-bold text-green-700 mt-1">{generatedCode.code}</p>
-                </div>
-                <div className="flex gap-2">
-                  <Button size="sm" className="bg-green-600 hover:bg-green-700 text-white" onClick={() => handleSendCodeWhatsApp(generatedCode.code, generatedCode.phone)}>
-                    Envoyer WhatsApp
-                  </Button>
-                  <Button size="sm" variant="ghost" onClick={() => setGeneratedCode(null)}>
-                    <X className="w-4 h-4" />
-                  </Button>
-                </div>
-              </div>
-            )}
             {vendorsLoading ? (
               <div className="flex justify-center py-16"><RefreshCw className="w-6 h-6 animate-spin text-muted-foreground" /></div>
             ) : filteredVendors.length === 0 ? (
@@ -1032,24 +1024,12 @@ export default function AdminDashboard() {
                             <div><span className="text-muted-foreground">Validation : </span><span className="font-medium">{v.validationMethod ?? "—"}</span></div>
                             <div><span className="text-muted-foreground">Expiration : </span><span className="font-medium">{v.expiryDate ? new Date(v.expiryDate).toLocaleDateString("fr-FR") : "—"}</span></div>
                             <div><span className="text-muted-foreground">Contacts débloqués : </span><span className="font-medium">{stat?.count ?? 0}</span></div>
-                            {v.publishCode && (
-                              <div className="col-span-2">
-                                <span className="text-muted-foreground">Code de publication : </span>
-                                <span className="font-mono font-bold text-primary">{v.publishCode.code}</span>
-                              </div>
-                            )}
                           </div>
                           <div className="flex flex-wrap gap-2">
                             {!v.verified && (
                               <Button size="sm" className="h-7 text-xs bg-primary hover:bg-primary/90" onClick={() => handleActivateVendor(v.id)}>
                                 <CheckCircle className="w-3 h-3 mr-1" />
                                 Activer
-                              </Button>
-                            )}
-                            {v.verified && (
-                              <Button size="sm" variant="outline" className="h-7 text-xs" onClick={() => handleGenerateCode(v.id)}>
-                                <KeyRound className="w-3 h-3 mr-1" />
-                                Nouveau code
                               </Button>
                             )}
                             {isSuperAdmin && (
@@ -1068,9 +1048,21 @@ export default function AdminDashboard() {
                             <Button
                               size="sm"
                               variant="outline"
-                              className="h-7 text-xs"
-                              onClick={() => openWhatsApp(`https://wa.me/${v.phone.replace(/\D/g, "")}?text=${encodeURIComponent(`Bonjour ${v.firstName} !`)}`)}
+                              disabled={vendorWhatsappLoading === v.id}
+                              className={`h-7 text-xs ${
+                                expired
+                                  ? "border-red-400 text-red-600 hover:bg-red-50"
+                                  : expiringSoon
+                                  ? "border-amber-400 text-amber-700 hover:bg-amber-50"
+                                  : "border-green-400 text-green-700 hover:bg-green-50"
+                              }`}
+                              onClick={() => handleVendorWhatsApp(v.id, v.firstName, v.phone)}
                             >
+                              {vendorWhatsappLoading === v.id ? (
+                                <RefreshCw className="w-3 h-3 mr-1 animate-spin" />
+                              ) : (
+                                <Phone className="w-3 h-3 mr-1" />
+                              )}
                               WhatsApp
                             </Button>
                             {isSuperAdmin && (

@@ -138,6 +138,8 @@ ACCÈS ADMIN
 • Les sous-admins ont accès aux statistiques globales (page stats visible pour tous les rôles admin)
 • La section Événements dans l'admin affiche TOUS les événements (publiés et non publiés)
 • Boutique expirée : le vendeur peut payer directement via FedaPay (bouton "Payer 1000 FCFA") ou contacter l'admin via WhatsApp
+• Section vendeurs (superadmin) : bouton WhatsApp génère un lien FedaPay de renouvellement et ouvre WhatsApp automatiquement ; couleur rouge=expiré, jaune=expire dans 3j, vert=actif
+• +30 jours admin : active isPublished=true + paymentStatus=paid → boutique immédiatement accessible
 
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 SÉCURITÉ ET CONSEILS

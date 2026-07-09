@@ -25,7 +25,7 @@ async function createFedapayTransaction(opts: {
   customerPhone: string;
   callbackUrl: string;
   metadata: Record<string, string>;
-}): Promise<{ id: string; token: string }> {
+}): Promise<{ id: string; paymentUrl: string }> {
   const baseUrl = getFedapayBaseUrl();
   const res = await fetch(`${baseUrl}/transactions`, {
     method: "POST",
@@ -51,19 +51,19 @@ async function createFedapayTransaction(opts: {
     throw new Error(`FedaPay error ${res.status}: ${text}`);
   }
   const json = await res.json() as Record<string, unknown>;
-  // FedaPay REST API peut retourner { v1: { transaction: {...} } }
-  // ou { transaction: {...} } ou directement l'objet transaction
-  const v1 = json["v1"] as Record<string, unknown> | undefined;
-  const txRaw: Record<string, unknown> =
-    (v1?.["transaction"] as Record<string, unknown> | undefined)
-    ?? (json["transaction"] as Record<string, unknown> | undefined)
-    ?? (typeof json["token"] === "string" ? json : {});
+  // La réponse FedaPay REST a la clé littérale "v1/transaction" (avec slash)
+  const txRaw = (
+    json["v1/transaction"]
+    ?? (json["v1"] as Record<string, unknown> | undefined)?.["transaction"]
+    ?? json["transaction"]
+    ?? json
+  ) as Record<string, unknown>;
   const id = String(txRaw["id"] ?? "");
-  const token = String(txRaw["token"] ?? "");
-  if (!token) {
-    throw new Error(`FedaPay: token absent dans la réponse: ${JSON.stringify(json)}`);
+  const paymentUrl = String(txRaw["payment_url"] ?? "");
+  if (!paymentUrl) {
+    throw new Error(`FedaPay: payment_url absent dans la réponse: ${JSON.stringify(json)}`);
   }
-  return { id, token };
+  return { id, paymentUrl };
 }
 
 router.post("/fedapay/create-transaction", async (req, res) => {
@@ -89,16 +89,10 @@ router.post("/fedapay/create-transaction", async (req, res) => {
     });
 
     const txId = data.id;
-    const token = data.token;
-
-    const baseCheckout = getFedapayEnv() === "live"
-      ? "https://checkout.fedapay.com"
-      : "https://sandbox-checkout.fedapay.com";
-    const widgetUrl = `${baseCheckout}/${token}`;
+    const widgetUrl = data.paymentUrl;
 
     return res.json({
       transactionId: txId,
-      token,
       widgetUrl,
       environment: getFedapayEnv(),
       publicKey: FEDAPAY_PUBLIC_KEY,

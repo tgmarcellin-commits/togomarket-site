@@ -170,7 +170,7 @@ router.post("/admin/vendors/force-publish", async (req, res): Promise<void> => {
   const thirtyDays = new Date(now.getTime() + 30 * 24 * 60 * 60 * 1000);
   await db
     .update(vendorsTable)
-    .set({ isPublished: true, validationMethod: "admin", verified: true, expiryDate: thirtyDays })
+    .set({ isPublished: true, validationMethod: "admin", verified: true, expiryDate: thirtyDays, paymentStatus: "paid" })
     .where(eq(vendorsTable.id, vendorId));
   res.json({ success: true });
 });
