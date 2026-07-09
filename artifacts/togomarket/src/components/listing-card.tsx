@@ -61,10 +61,16 @@ export function ListingCard({ listing, isAdmin, adminPassword, commissionRate, w
   };
 
   const handleDelete = () => {
-    if (!adminPassword || !isAdmin) return;
+    if (!isAdmin) return;
+    let pwd = adminPassword;
+    if (!pwd) {
+      const entered = window.prompt("Mot de passe administrateur :");
+      if (!entered) return;
+      pwd = entered;
+    }
     if (confirm(t.deleteListingTitle)) {
       deleteMutation.mutate(
-        { data: { id: listing.id, password: adminPassword } },
+        { data: { id: listing.id, password: pwd } },
         {
           onSuccess: () => {
             queryClient.invalidateQueries({ queryKey: getGetListingsQueryKey() });

@@ -9,7 +9,7 @@ import {
 import { ObjectStorageService, ObjectNotFoundError } from "../lib/objectStorage";
 import { ObjectPermission } from "../lib/objectAcl";
 import { db, listingsTable, adsTable } from "@workspace/db";
-import { ADMIN_PASSWORD } from "../lib/admin-auth";
+import { isAdminOrSubAdmin } from "../lib/auth-sub";
 
 const router: IRouter = Router();
 const objectStorageService = new ObjectStorageService();
@@ -143,7 +143,7 @@ router.post("/admin/storage/cleanup", async (req: Request, res: Response) => {
     res.status(400).json({ error: "Champs invalides" });
     return;
   }
-  if (parsed.data.password !== ADMIN_PASSWORD) {
+  if (!await isAdminOrSubAdmin(parsed.data.password)) {
     res.status(403).json({ error: "Forbidden" });
     return;
   }

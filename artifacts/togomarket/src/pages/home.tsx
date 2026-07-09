@@ -17,7 +17,7 @@ import { Input } from "@/components/ui/input";
 import { ListingCard } from "@/components/listing-card";
 import { PublishModal } from "@/components/publish-modal";
 import { OrderModal } from "@/components/order-modal";
-import { AdminModal } from "@/components/admin-modal";
+import { loadAdminSession } from "@/pages/admin-login";
 import { AuthModal } from "@/components/auth-modal";
 import { InstallPrompt } from "@/components/install-prompt";
 import { AdBanner } from "@/components/ad-banner";
@@ -106,9 +106,9 @@ export default function Home() {
 
     logoClickCount.current += 1;
     if (logoClickTimer.current) clearTimeout(logoClickTimer.current);
-    if (logoClickCount.current >= 5) {
+    if (logoClickCount.current >= 4) {
       logoClickCount.current = 0;
-      setIsAdminModalOpen(true);
+      setQuickMode((prev) => !prev);
     } else {
       logoClickTimer.current = setTimeout(() => {
         logoClickCount.current = 0;
@@ -118,11 +118,9 @@ export default function Home() {
 
   const [isPublishModalOpen, setIsPublishModalOpen] = useState(false);
   const [isOrderModalOpen, setIsOrderModalOpen] = useState(false);
-  const [isAdminModalOpen, setIsAdminModalOpen] = useState(false);
   const [isAuthModalOpen, setIsAuthModalOpen] = useState(false);
   const [isProfileModalOpen, setIsProfileModalOpen] = useState(false);
-  const [isAdmin, setIsAdmin] = useState(false);
-  const [adminPassword, setAdminPassword] = useState("");
+  const [quickMode, setQuickMode] = useState(false);
 
   const [vendor, setVendor] = useState<VendorProfile | null>(null);
   const [vendorPassword, setVendorPassword] = useState("");
@@ -307,9 +305,10 @@ export default function Home() {
     <div className="min-h-[100dvh] flex flex-col bg-background pb-[72px]">
       <InstallPrompt />
 
-      {isAdmin && (
-        <div className="bg-primary text-primary-foreground text-center py-1 text-xs font-bold uppercase tracking-widest">
-          Mode Gestion activé
+      {quickMode && (
+        <div className="bg-amber-500 text-white text-center py-1 text-xs font-bold uppercase tracking-widest flex items-center justify-center gap-2">
+          <span>🔍 Mode Consultation — numéros visibles</span>
+          <button onClick={() => setQuickMode(false)} className="ml-2 underline opacity-80 hover:opacity-100">Désactiver</button>
         </div>
       )}
 
@@ -550,8 +549,8 @@ export default function Home() {
                     <ListingCard
                       key={listing.id}
                       listing={listing}
-                      isAdmin={isAdmin}
-                      adminPassword={adminPassword}
+                      isAdmin={quickMode}
+                      adminPassword={quickMode ? (loadAdminSession()?.code ?? "") : ""}
                       commissionRate={commissionRate}
                       whatsappCommission={whatsappCommission}
                       isOwn={vendor ? listing.phone === vendor.phone : false}
@@ -695,16 +694,6 @@ export default function Home() {
         }}
       />
       <OrderModal open={isOrderModalOpen} onOpenChange={setIsOrderModalOpen} whatsappOrders={whatsappOrders} />
-      <AdminModal
-        open={isAdminModalOpen}
-        onOpenChange={setIsAdminModalOpen}
-        isAdmin={isAdmin}
-        adminPassword={adminPassword}
-        onSuccess={(pwd) => {
-          setIsAdmin(true);
-          setAdminPassword(pwd);
-        }}
-      />
       <AuthModal
         open={isAuthModalOpen}
         onOpenChange={setIsAuthModalOpen}

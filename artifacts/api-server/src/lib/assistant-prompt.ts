@@ -140,6 +140,9 @@ ACCÈS ADMIN
 • Boutique expirée : le vendeur peut payer directement via FedaPay (bouton "Payer 1000 FCFA") ou contacter l'admin via WhatsApp
 • Section vendeurs (superadmin) : bouton WhatsApp génère un lien FedaPay de renouvellement et ouvre WhatsApp automatiquement ; couleur rouge=expiré, jaune=expire dans 3j, vert=actif
 • +30 jours admin : active isPublished=true + paymentStatus=paid → boutique immédiatement accessible
+• Nettoyage des fichiers orphelins : accessible au superadmin ET aux 3 sous-admins (vérification par isAdminOrSubAdmin)
+• Mode Consultation (4 clics sur le logo) : affiche les numéros de téléphone des vendeurs + bouton supprimer avec confirmation directement sur le marketplace — aucun mot de passe requis pour voir les numéros, le mot de passe admin est demandé uniquement si la session admin-login n'est pas active
+• Accès admin : uniquement via togomarket.site/admin-login — le logo ne donne plus accès à l'interface d'administration
 
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 SÉCURITÉ ET CONSEILS
