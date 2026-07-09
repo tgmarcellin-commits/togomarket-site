@@ -109,6 +109,23 @@ router.post("/vendors/register", async (req, res) => {
       })
       .returning();
 
+    if (referredBy) {
+      const referrers = await db.select().from(vendorsTable).where(eq(vendorsTable.id, referredBy)).limit(1);
+      const referrer = referrers[0];
+      if (referrer) {
+        const base = referrer.expiryDate && referrer.expiryDate.getTime() > now.getTime() ? referrer.expiryDate : now;
+        const newExpiry = new Date(base.getTime() + 3 * 24 * 60 * 60 * 1000);
+        await db
+          .update(vendorsTable)
+          .set({
+            expiryDate: newExpiry,
+            referralDaysEarned: (referrer.referralDaysEarned ?? 0) + 3,
+          })
+          .where(eq(vendorsTable.id, referrer.id));
+        req.log.info({ referrerId: referrer.id, newVendorId: vendor.id }, "Referrer credited +3 days for new signup");
+      }
+    }
+
     req.log.info({ id: vendor.id }, "Vendor registered with 30-day trial");
     return res.status(201).json({ id: vendor.id, firstName, lastName, phone, verifyCode });
   } catch (err) {

@@ -136,22 +136,8 @@ router.post("/fedapay-callback", async (req, res) => {
           verified: true,
         })
         .where(eq(vendorsTable.id, entityId));
-
-      const vendor = await db.select().from(vendorsTable).where(eq(vendorsTable.id, entityId)).limit(1);
-      if (vendor[0]?.referredBy) {
-        const referrerId = vendor[0].referredBy;
-        const referrer = await db.select().from(vendorsTable).where(eq(vendorsTable.id, referrerId)).limit(1);
-        if (referrer[0]?.expiryDate) {
-          const newExpiry = new Date(referrer[0].expiryDate.getTime() + 3 * 24 * 60 * 60 * 1000);
-          await db
-            .update(vendorsTable)
-            .set({
-              expiryDate: newExpiry,
-              referralDaysEarned: (referrer[0].referralDaysEarned ?? 0) + 3,
-            })
-            .where(eq(vendorsTable.id, referrerId));
-        }
-      }
+      // Note: le bonus de parrainage (+3 jours) est crédité à l'inscription du filleul (vendors.ts),
+      // pas au moment du paiement, conformément aux CGU.
     } else if (entityType === "ad") {
       const thirtyDays = new Date(now.getTime() + 30 * 24 * 60 * 60 * 1000);
       await db

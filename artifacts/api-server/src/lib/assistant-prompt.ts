@@ -79,9 +79,12 @@ TARIFS VENDEURS
 SYSTÈME DE PARRAINAGE
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 • Chaque vendeur peut parrainer de nouveaux vendeurs
-• Lorsqu'un nouveau vendeur s'inscrit via le lien de parrainage et paie son abonnement,
-  le parrain gagne automatiquement 3 jours supplémentaires sur son propre abonnement
-• Le lien de parrainage est disponible dans la boutique du vendeur
+• Lorsqu'un nouveau vendeur s'inscrit via le lien de parrainage (dès l'inscription,
+  sans attendre un paiement), le parrain gagne automatiquement 3 jours supplémentaires
+  sur son propre abonnement
+• Le lien de parrainage unique (ex: togomarket.site/?ref=ID_VENDEUR) est affiché dans
+  "Ma Boutique", avec bouton pour le copier
+• "Ma Boutique" affiche aussi le total de jours gagnés grâce au parrainage
 
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 CGU — CONDITIONS GÉNÉRALES D'UTILISATION
@@ -93,7 +96,8 @@ CGU — CONDITIONS GÉNÉRALES D'UTILISATION
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 EXPIRATION DE BOUTIQUE
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-• Un avertissement orange s'affiche dans la boutique quand il reste ≤ 3 jours
+• Un avertissement orange s'affiche dans "Ma Boutique" dès qu'il reste ≤ 3 jours,
+  avec un bouton de renouvellement FedaPay cliquable directement (pas besoin d'attendre l'expiration)
 • Quand la boutique expire, un écran rouge bloque l'accès jusqu'au renouvellement
 • Le paiement FedaPay réactive automatiquement la boutique sans intervention admin
 

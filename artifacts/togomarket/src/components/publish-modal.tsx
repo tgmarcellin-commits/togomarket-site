@@ -24,7 +24,7 @@ import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { resizeImageToBlob } from "@/lib/image";
 import { uploadImageFile } from "@/lib/upload";
-import { UploadCloud, X, Lock, AlertCircle, UserCircle2, Store, CreditCard, Loader2 } from "lucide-react";
+import { UploadCloud, X, Lock, AlertCircle, UserCircle2, Store, CreditCard, Loader2, Copy, Users } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { useSiteSettings } from "@/lib/site-settings";
 import { useT } from "@/lib/i18n";
@@ -150,6 +150,33 @@ export function PublishModal({ open, onOpenChange, vendor, vendorPassword, onNee
     onOpenChange(val);
   };
 
+  const handleFedapayPayment = async () => {
+    if (!vendor) return;
+    setFedapayLoading(true);
+    try {
+      const r = await fetch("/api/fedapay/create-transaction", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          entityType: "vendor",
+          entityId: vendor.id,
+          customerName: `${vendor.firstName} ${vendor.lastName}`,
+          customerPhone: vendor.phone,
+        }),
+      });
+      const data = await r.json() as { widgetUrl?: string; error?: string };
+      if (!r.ok || !data.widgetUrl) {
+        toast({ title: lang === "fr" ? "Erreur paiement" : "Payment error", description: data.error ?? "Erreur", variant: "destructive" });
+        return;
+      }
+      window.open(data.widgetUrl, "_blank");
+    } catch {
+      toast({ title: lang === "fr" ? "Erreur réseau" : "Network error", variant: "destructive" });
+    } finally {
+      setFedapayLoading(false);
+    }
+  };
+
   const Gate = () => {
     if (!vendor) {
       return (
@@ -189,32 +216,6 @@ export function PublishModal({ open, onOpenChange, vendor, vendorPassword, onNee
     }
 
     if (!vendor.isPublished) {
-      const handleFedapay = async () => {
-        setFedapayLoading(true);
-        try {
-          const r = await fetch("/api/fedapay/create-transaction", {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({
-              entityType: "vendor",
-              entityId: vendor.id,
-              customerName: `${vendor.firstName} ${vendor.lastName}`,
-              customerPhone: vendor.phone,
-            }),
-          });
-          const data = await r.json() as { widgetUrl?: string; error?: string };
-          if (!r.ok || !data.widgetUrl) {
-            toast({ title: lang === "fr" ? "Erreur paiement" : "Payment error", description: data.error ?? "Erreur", variant: "destructive" });
-            return;
-          }
-          window.open(data.widgetUrl, "_blank");
-        } catch {
-          toast({ title: lang === "fr" ? "Erreur réseau" : "Network error", variant: "destructive" });
-        } finally {
-          setFedapayLoading(false);
-        }
-      };
-
       return (
         <div className="py-6 text-center space-y-4">
           <div className="w-14 h-14 bg-red-100 rounded-full flex items-center justify-center mx-auto">
@@ -232,7 +233,7 @@ export function PublishModal({ open, onOpenChange, vendor, vendorPassword, onNee
           </div>
           <Button
             className="w-full bg-blue-600 hover:bg-blue-700 text-white"
-            onClick={handleFedapay}
+            onClick={handleFedapayPayment}
             disabled={fedapayLoading}
           >
             {fedapayLoading ? (
@@ -253,6 +254,16 @@ export function PublishModal({ open, onOpenChange, vendor, vendorPassword, onNee
       );
     }
 
+    const referralLink = `${window.location.origin}/?ref=${vendor.id}`;
+    const handleCopyReferralLink = () => {
+      navigator.clipboard.writeText(referralLink).then(
+        () => toast({ title: lang === "fr" ? "Lien copié !" : "Link copied!" }),
+        () => toast({ title: lang === "fr" ? "Impossible de copier le lien" : "Could not copy link", variant: "destructive" })
+      );
+    };
+
+    const showRenewalReminder = vendor.daysUntilExpiry !== null && vendor.daysUntilExpiry !== undefined && vendor.daysUntilExpiry <= 3;
+
     return (
       <div className="py-4 space-y-4">
         <div className="flex items-center gap-3 bg-muted/50 rounded-lg p-3">
@@ -270,6 +281,56 @@ export function PublishModal({ open, onOpenChange, vendor, vendorPassword, onNee
             </p>
           </div>
         </div>
+
+        {showRenewalReminder && (
+          <div className="rounded-lg border border-amber-200 bg-amber-50 p-3 space-y-2">
+            <p className="text-xs text-amber-800">
+              {lang === "fr"
+                ? `Votre abonnement expire dans ${vendor.daysUntilExpiry} jour${(vendor.daysUntilExpiry ?? 0) > 1 ? "s" : ""}. Renouvelez dès maintenant pour éviter toute interruption.`
+                : `Your subscription expires in ${vendor.daysUntilExpiry} day${(vendor.daysUntilExpiry ?? 0) > 1 ? "s" : ""}. Renew now to avoid interruption.`}
+            </p>
+            <Button
+              size="sm"
+              className="w-full bg-blue-600 hover:bg-blue-700 text-white"
+              onClick={handleFedapayPayment}
+              disabled={fedapayLoading}
+            >
+              {fedapayLoading ? (
+                <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+              ) : (
+                <CreditCard className="w-4 h-4 mr-2" />
+              )}
+              {lang === "fr" ? "Renouveler maintenant (1 000 FCFA)" : "Renew now (1,000 FCFA)"}
+            </Button>
+          </div>
+        )}
+
+        <div className="rounded-lg border p-3 space-y-2">
+          <div className="flex items-center gap-2">
+            <Users className="w-4 h-4 text-primary" />
+            <p className="text-sm font-semibold">
+              {lang === "fr" ? "Mon lien de parrainage" : "My referral link"}
+            </p>
+          </div>
+          <p className="text-xs text-muted-foreground">
+            {lang === "fr"
+              ? "Partagez ce lien : chaque nouveau vendeur inscrit via ce lien vous fait gagner 3 jours d'abonnement."
+              : "Share this link: every new seller who signs up through it earns you 3 days of subscription."}
+          </p>
+          <div className="flex items-center gap-2">
+            <Input readOnly value={referralLink} className="text-xs" onFocus={(e) => e.target.select()} />
+            <Button type="button" size="icon" variant="outline" onClick={handleCopyReferralLink} className="flex-shrink-0">
+              <Copy className="w-4 h-4" />
+            </Button>
+          </div>
+          <div className="flex items-center justify-between bg-muted/50 rounded-md px-3 py-2">
+            <span className="text-xs text-muted-foreground">
+              {lang === "fr" ? "Jours gagnés par parrainage" : "Days earned via referrals"}
+            </span>
+            <span className="text-sm font-bold text-primary">{vendor.referralDaysEarned ?? 0} {lang === "fr" ? "jours" : "days"}</span>
+          </div>
+        </div>
+
         <Button className="w-full" onClick={() => setScreen("form")}>
           <Lock className="w-4 h-4 mr-2" />
           {t.publishListing}

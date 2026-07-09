@@ -89,6 +89,7 @@ export default function Home() {
   const [shopNumberInput, setShopNumberInput] = useState("");
   const [shopNumber, setShopNumber] = useState<number | undefined>(undefined);
   const [shopLinkExpired, setShopLinkExpired] = useState(false);
+  const [referredBy, setReferredBy] = useState<number | undefined>(undefined);
 
   const [boutiqueInput, setBoutiqueInput] = useState("");
   const [sellerResult, setSellerResult] = useState<SellerResult>({ status: "idle" });
@@ -179,6 +180,14 @@ export default function Home() {
       if (!isNaN(id) && id > 0) {
         setShopNumber(id);
         setSearchMode("boutique");
+      }
+    }
+
+    const refParam = params.get("ref");
+    if (refParam) {
+      const id = parseInt(refParam, 10);
+      if (!isNaN(id) && id > 0) {
+        setReferredBy(id);
       }
     }
   }, []);
@@ -711,6 +720,7 @@ export default function Home() {
         open={isAuthModalOpen}
         onOpenChange={setIsAuthModalOpen}
         onLoginSuccess={handleLoginSuccess}
+        referredBy={referredBy}
       />
       {vendor && (
         <ProfileSettingsModal
