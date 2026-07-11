@@ -1078,7 +1078,7 @@ export function AdminModal({
                                   disabled={activateVendor.isPending}
                                 >
                                   <CheckCircle className="w-3 h-3 mr-1" />
-                                  Activer + Code gratuit
+                                  Activer + Offre gratuite
                                 </Button>
                               )}
                               {v.verified && (
