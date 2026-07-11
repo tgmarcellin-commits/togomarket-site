@@ -376,6 +376,8 @@ export function AdminModal({
         onSuccess: (res) => {
           setGeneratedCode({ code: res.code, phone: res.vendorPhone });
           refetchVendors();
+          const msg = "Votre compte TogoMarket est activé avec succès ! Vous venez de bénéficier d'un mois de publication gratuite. Bonne vente ! 🎉";
+          openWhatsApp(`https://wa.me/${res.vendorPhone.replace(/\D/g, "")}?text=${encodeURIComponent(msg)}`);
         },
         onError: () => toast({ title: "Erreur lors de l'activation", variant: "destructive" }),
       }
