@@ -1,12 +1,12 @@
 import { Router, type IRouter } from "express";
-import { GoogleGenerativeAI } from "@google/generative-ai";
+import OpenAI from "openai";
 import { ilike, eq, and, sql } from "drizzle-orm";
 import { db, listingsTable } from "@workspace/db";
 import { ASSISTANT_SYSTEM_PROMPT } from "../lib/assistant-prompt";
 
 const router: IRouter = Router();
 
-const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY ?? "");
+const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY ?? "" });
 
 type ChatRole = "user" | "assistant";
 interface ChatMessage { role: ChatRole; content: string; }
@@ -105,32 +105,18 @@ router.post("/assistant/chat", async (req, res) => {
     const dbContext = await buildDbContext(lastUserMessage);
     const systemPrompt = ASSISTANT_SYSTEM_PROMPT + (dbContext ? `\n${dbContext}` : "");
 
-    const model = genAI.getGenerativeModel({
-      model: "gemini-2.5-flash",
-      systemInstruction: systemPrompt,
+    const stream = await openai.chat.completions.create({
+      model: "gpt-4o-mini",
+      stream: true,
+      max_tokens: 1024,
+      messages: [
+        { role: "system", content: systemPrompt },
+        ...messages.map((m) => ({ role: m.role, content: m.content })),
+      ],
     });
 
-    // Gemini requires: history starts with 'user' and strictly alternates user/model
-    const rawHistory = messages.slice(0, -1).map((m) => ({
-      role: m.role === "assistant" ? "model" : ("user" as const),
-      parts: [{ text: m.content }],
-    }));
-
-    // Drop any leading 'model' entries — Gemini rejects history not starting with 'user'
-    const firstUserIdx = rawHistory.findIndex((m) => m.role === "user");
-    const history = firstUserIdx >= 0 ? rawHistory.slice(firstUserIdx) : [];
-
-    const lastMessage = messages[messages.length - 1];
-
-    const chat = model.startChat({
-      history,
-      generationConfig: { maxOutputTokens: 1024 },
-    });
-
-    const result = await chat.sendMessageStream(lastMessage.content);
-
-    for await (const chunk of result.stream) {
-      const text = chunk.text();
+    for await (const chunk of stream) {
+      const text = chunk.choices[0]?.delta?.content;
       if (text) {
         res.write(`data: ${JSON.stringify({ content: text })}\n\n`);
       }
