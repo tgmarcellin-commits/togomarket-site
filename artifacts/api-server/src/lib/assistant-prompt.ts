@@ -123,14 +123,6 @@ BOUTIQUE VENDEUR
 • Il n'y a plus de code à 4 chiffres : la publication est directe, gérée par FedaPay/admin
 
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-MODE GESTION (5 clics sur le logo)
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-• Cliquer 5 fois rapidement sur le logo TogoMarket active le "Mode Gestion"
-• Ce mode permet : voir les numéros de téléphone cachés des vendeurs, supprimer des annonces directement depuis la marketplace
-• Il est temporaire : perdu au rafraîchissement de la page (pas de persistance)
-• Il nécessite le mot de passe administrateur pour s'activer
-
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 ACCÈS ADMIN
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 • L'accès admin complet se fait uniquement via /admin-login
@@ -146,7 +138,7 @@ ACCÈS ADMIN
 • +30 jours admin : active isPublished=true + paymentStatus=paid → boutique immédiatement accessible
 • Nettoyage des fichiers orphelins : accessible au superadmin ET aux 3 sous-admins (vérification par isAdminOrSubAdmin)
 • Stats — section Publicités, Événements et Services affiche désormais 3 compteurs chacune : total, via FedaPay (payment_status='paid'), via Admin (validation_method='admin') — identique aux Vendeurs ; décompte "Via FedaPay" ne compte que validation_method='fedapay' confirmé par webhook
-• Mode Consultation (4 clics sur le logo) : affiche les numéros de téléphone des vendeurs + bouton supprimer avec confirmation directement sur le marketplace — aucun mot de passe requis pour voir les numéros, le mot de passe admin est demandé uniquement si la session admin-login n'est pas active
+• Mode Consultation : accessible aux administrateurs pour gérer les annonces directement depuis la marketplace
 • Accès admin : uniquement via togomarket.site/admin-login — le logo ne donne plus accès à l'interface d'administration
 • Session vendeur : au chargement de la page, le profil vendeur est automatiquement rafraîchi depuis le serveur (relogin silencieux) — après activation/renouvellement d'abonnement, un simple rafraîchissement de page suffit, plus besoin de se déconnecter/reconnecter
 
