@@ -58,31 +58,43 @@ function typeConfig(type: string, lang: string) {
 function ServiceCard({ service, lang }: { service: Service; lang: string }) {
   const [open, setOpen] = useState(false);
   const cfg = typeConfig(service.type, lang);
+  const Icon = cfg.icon;
   const expiresAt = new Date(service.expiresAt);
-  const typeLabel = service.type === "offer" ? "offer" : service.type === "seeker" ? "seeker" : "atelier";
 
   return (
     <>
-      <button
-        className="w-full text-left rounded-2xl border bg-card hover:shadow-sm active:scale-[0.99] transition-all overflow-hidden"
-        onClick={() => setOpen(true)}
-      >
-        <div className="flex items-center gap-0">
-          {service.image && (
-            <img
-              src={resolveImageUrl(service.image)}
-              alt={service.title}
-              className="w-[72px] h-[72px] object-cover flex-shrink-0 rounded-l-2xl"
-            />
+      <div className="rounded-xl border bg-card overflow-hidden hover:shadow-md transition-shadow">
+        <div className="flex gap-0">
+          {service.image ? (
+            <button
+              type="button"
+              className="w-28 h-28 flex-shrink-0 overflow-hidden focus:outline-none"
+              onClick={() => setOpen(true)}
+            >
+              <img
+                src={resolveImageUrl(service.image)}
+                alt={service.title}
+                className="w-full h-full object-cover"
+              />
+            </button>
+          ) : (
+            <div className={`w-28 h-28 flex items-center justify-center flex-shrink-0 ${cfg.bg}`}>
+              <Icon className="w-8 h-8 opacity-60" />
+            </div>
           )}
-          <div className="flex-1 min-w-0 px-4 py-3">
-            <p className="text-sm font-semibold leading-snug truncate">{service.title}</p>
-            <p className="text-xs text-muted-foreground mt-0.5">
-              {typeLabel} · {service.ville}
-            </p>
-          </div>
+          <button
+            className="flex-1 min-w-0 text-left p-3"
+            onClick={() => setOpen(true)}
+          >
+            <p className="font-semibold text-sm leading-snug line-clamp-2">{service.title}</p>
+            <p className="text-xs text-muted-foreground mt-0.5">{cfg.label} · {service.ville}</p>
+            <p className="text-xs text-muted-foreground mt-1.5 line-clamp-2">{service.description}</p>
+          </button>
         </div>
-      </button>
+        <div className="px-3 pb-2 flex justify-end">
+          <WaBtn contact={service.contact} label={cfg.waLabel} />
+        </div>
+      </div>
 
       <Dialog open={open} onOpenChange={setOpen}>
         <DialogContent className="sm:max-w-[420px] max-h-[90vh] overflow-y-auto">
