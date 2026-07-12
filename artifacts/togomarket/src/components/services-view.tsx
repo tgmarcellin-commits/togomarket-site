@@ -58,47 +58,29 @@ function typeConfig(type: string, lang: string) {
 function ServiceCard({ service, lang }: { service: Service; lang: string }) {
   const [open, setOpen] = useState(false);
   const cfg = typeConfig(service.type, lang);
-  const Icon = cfg.icon;
   const expiresAt = new Date(service.expiresAt);
-  const daysLeft = Math.max(0, Math.ceil((expiresAt.getTime() - Date.now()) / (1000 * 60 * 60 * 24)));
+  const typeLabel = service.type === "offer" ? "offer" : service.type === "seeker" ? "seeker" : "atelier";
 
   return (
     <>
       <button
-        className="w-full text-left rounded-xl border bg-card hover:shadow-md transition-shadow overflow-hidden"
+        className="w-full text-left rounded-2xl border bg-card hover:shadow-sm active:scale-[0.99] transition-all overflow-hidden"
         onClick={() => setOpen(true)}
       >
-        {/* Flyer image for ateliers */}
-        {service.type === "atelier" && service.image && (
-          <img
-            src={resolveImageUrl(service.image)}
-            alt={service.title}
-            className="w-full h-36 object-cover"
-          />
-        )}
-        <div className="p-4 space-y-2">
-          <div className="flex items-start justify-between gap-2">
-            <div className="flex items-center gap-2">
-              <div className={`w-8 h-8 rounded-full flex items-center justify-center flex-shrink-0 ${cfg.bg}`}>
-                <Icon className="w-4 h-4" />
-              </div>
-              <div className="min-w-0">
-                <span className={`text-[10px] font-bold uppercase tracking-wide ${cfg.badge.split(" ")[1]}`}>
-                  {cfg.label}
-                </span>
-                <p className="text-sm font-semibold leading-tight truncate">{service.title}</p>
-              </div>
-            </div>
-            <span className="text-[10px] text-muted-foreground flex-shrink-0 mt-1">{daysLeft}j</span>
+        <div className="flex items-center gap-0">
+          {service.image && (
+            <img
+              src={resolveImageUrl(service.image)}
+              alt={service.title}
+              className="w-[72px] h-[72px] object-cover flex-shrink-0 rounded-l-2xl"
+            />
+          )}
+          <div className="flex-1 min-w-0 px-4 py-3">
+            <p className="text-sm font-semibold leading-snug truncate">{service.title}</p>
+            <p className="text-xs text-muted-foreground mt-0.5">
+              {typeLabel} · {service.ville}
+            </p>
           </div>
-          <p className="text-xs text-muted-foreground line-clamp-2">{service.description}</p>
-          <div className="flex items-center gap-1 text-xs text-muted-foreground">
-            <MapPin className="w-3 h-3 flex-shrink-0" />
-            <span className="truncate">{service.quartier}, {service.ville}</span>
-          </div>
-        </div>
-        <div className="px-4 pb-3 flex justify-end" onClick={(e) => e.stopPropagation()}>
-          <WaBtn contact={service.contact} label={cfg.waLabel} />
         </div>
       </button>
 
@@ -108,11 +90,11 @@ function ServiceCard({ service, lang }: { service: Service; lang: string }) {
             <DialogTitle className="pr-6">{service.title}</DialogTitle>
           </DialogHeader>
           <div className="space-y-3">
-            {service.type === "atelier" && service.image && (
+            {service.image && (
               <img
                 src={resolveImageUrl(service.image)}
                 alt={service.title}
-                className="w-full rounded-lg object-contain max-h-48 bg-black/5"
+                className="w-full rounded-lg object-contain max-h-56 bg-black/5"
               />
             )}
             <span className={`inline-block text-xs font-bold px-2.5 py-1 rounded-full ${cfg.badge}`}>

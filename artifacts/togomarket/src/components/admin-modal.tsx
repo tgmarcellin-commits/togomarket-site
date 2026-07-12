@@ -1171,9 +1171,8 @@ export function AdminModal({
                       <Input placeholder="Ville *" value={serviceForm.ville} onChange={(e) => setServiceForm((f) => ({ ...f, ville: e.target.value }))} className="h-8 text-xs" />
                     </div>
                     <Input placeholder="WhatsApp contact *" value={serviceForm.contact} onChange={(e) => setServiceForm((f) => ({ ...f, contact: e.target.value }))} className="h-8 text-xs" />
-                    {serviceForm.type === "atelier" && (
-                      <div className="space-y-1.5">
-                        <p className="text-xs text-muted-foreground">Photo / Flyer (optionnel)</p>
+                    <div className="space-y-1.5">
+                        <p className="text-xs text-muted-foreground">Photo (optionnel)</p>
                         <input
                           ref={serviceImageRef}
                           type="file"
@@ -1206,7 +1205,6 @@ export function AdminModal({
                           </button>
                         )}
                       </div>
-                    )}
                     <Button
                       size="sm"
                       className="w-full"
