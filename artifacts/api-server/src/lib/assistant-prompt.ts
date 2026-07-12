@@ -145,7 +145,7 @@ ACCÈS ADMIN
 • Section vendeurs (superadmin) : bouton WhatsApp génère un lien FedaPay de renouvellement et ouvre WhatsApp automatiquement ; couleur rouge=expiré, jaune=expire dans 3j, vert=actif
 • +30 jours admin : active isPublished=true + paymentStatus=paid → boutique immédiatement accessible
 • Nettoyage des fichiers orphelins : accessible au superadmin ET aux 3 sous-admins (vérification par isAdminOrSubAdmin)
-• Stats — colonne "Hérités" supprimée ; décompte "Via FedaPay" ne compte que validation_method='fedapay' (webhook FedaPay reçu + isPublished=true actif) — jamais avant confirmation FedaPay
+• Stats — section Publicités, Événements et Services affiche désormais 3 compteurs chacune : total, via FedaPay (payment_status='paid'), via Admin (validation_method='admin') — identique aux Vendeurs ; décompte "Via FedaPay" ne compte que validation_method='fedapay' confirmé par webhook
 • Mode Consultation (4 clics sur le logo) : affiche les numéros de téléphone des vendeurs + bouton supprimer avec confirmation directement sur le marketplace — aucun mot de passe requis pour voir les numéros, le mot de passe admin est demandé uniquement si la session admin-login n'est pas active
 • Accès admin : uniquement via togomarket.site/admin-login — le logo ne donne plus accès à l'interface d'administration
 • Session vendeur : au chargement de la page, le profil vendeur est automatiquement rafraîchi depuis le serveur (relogin silencieux) — après activation/renouvellement d'abonnement, un simple rafraîchissement de page suffit, plus besoin de se déconnecter/reconnecter

@@ -829,9 +829,19 @@ export default function AdminDashboard() {
                   <StatCard label="Validés admin" value={stats.vendors.admin} sub="par l'admin" />
                 </div>
                 <div className="grid grid-cols-3 gap-3">
-                  <StatCard label="Publicités" value={stats.ads.total} />
-                  <StatCard label="Événements" value={stats.events.total} />
-                  <StatCard label="Services" value={stats.services.total} />
+                  <StatCard label="Publicités total" value={stats.ads.total} sub={`${stats.ads.paid} via FedaPay`} color="text-primary" />
+                  <StatCard label="Via FedaPay" value={stats.ads.paid} sub="paiement confirmé" />
+                  <StatCard label="Via Admin" value={stats.ads.admin} sub="ajouté par l'admin" />
+                </div>
+                <div className="grid grid-cols-3 gap-3">
+                  <StatCard label="Événements total" value={stats.events.total} sub={`${stats.events.paid} via FedaPay`} color="text-primary" />
+                  <StatCard label="Via FedaPay" value={stats.events.paid} sub="paiement confirmé" />
+                  <StatCard label="Via Admin" value={stats.events.admin} sub="ajouté par l'admin" />
+                </div>
+                <div className="grid grid-cols-3 gap-3">
+                  <StatCard label="Services total" value={stats.services.total} sub={`${stats.services.paid} via FedaPay`} color="text-primary" />
+                  <StatCard label="Via FedaPay" value={stats.services.paid} sub="paiement confirmé" />
+                  <StatCard label="Via Admin" value={stats.services.admin} sub="ajouté par l'admin" />
                 </div>
                 {stats.expiringSoon.length > 0 && (
                   <div className="bg-amber-50 border border-amber-200 rounded-xl p-4">
