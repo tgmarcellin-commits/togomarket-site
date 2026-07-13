@@ -54,6 +54,7 @@ export function PublishModal({ open, onOpenChange, vendor, vendorPassword, onNee
       .string()
       .min(2, t.locationRequired)
       .refine((val) => !PHONE_REGEX.test(val), { message: t.locationPhoneError }),
+    country: z.string().min(2, t.countryRequired),
     sector: z.enum(["AgriMarket", "Immobilier", "Automobile", "Divers"]),
   });
   type FormValues = z.infer<typeof formSchema>;
@@ -72,6 +73,7 @@ export function PublishModal({ open, onOpenChange, vendor, vendorPassword, onNee
       name: "",
       price: 0,
       location: "",
+      country: "Togo",
       sector: "Divers" as const,
     },
   });
@@ -114,7 +116,11 @@ export function PublishModal({ open, onOpenChange, vendor, vendorPassword, onNee
     createListing.mutate(
       {
         data: {
-          ...data,
+          name: data.name,
+          price: data.price,
+          location: data.location,
+          country: data.country,
+          sector: data.sector,
           images: images.map((img) => img.objectPath),
           vendorPhone: vendor.phone,
           vendorPassword,
@@ -423,6 +429,20 @@ export function PublishModal({ open, onOpenChange, vendor, vendorPassword, onNee
                     <FormLabel>{t.locationLabel}</FormLabel>
                     <FormControl>
                       <Input placeholder="Lomé, Agoè" {...field} />
+                    </FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+
+              <FormField
+                control={form.control}
+                name="country"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>{t.countryLabel}</FormLabel>
+                    <FormControl>
+                      <Input placeholder="Togo" {...field} />
                     </FormControl>
                     <FormMessage />
                   </FormItem>

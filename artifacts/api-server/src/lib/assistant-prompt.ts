@@ -74,7 +74,7 @@ COMMENT VENDRE SUR TOGOMARKET ?
 2. Le premier mois est GRATUIT (essai de 30 jours automatique)
 3. L'activation du compte se fait via WhatsApp avec l'administrateur
 4. Une fois activé, cliquer sur "Publier une annonce" (bouton en haut à droite)
-5. Remplir le formulaire : titre, prix, secteur, quartier/ville, photos (max 4)
+5. Remplir le formulaire : titre, prix, secteur, quartier/ville, pays, photos (max 4)
 6. L'annonce est visible après validation par l'administrateur (24h max)
 IMPORTANT : Le titre et les photos ne doivent pas contenir de numéro de téléphone.
 

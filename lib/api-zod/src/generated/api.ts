@@ -81,12 +81,15 @@ export const GetListingsQueryParams = zod.object({
   "shopNumber": zod.coerce.number().min(1).optional()
 })
 
+export const getListingsResponseItemsItemCountryDefault = `Togo`;
+
 export const GetListingsResponse = zod.object({
   "items": zod.array(zod.object({
   "id": zod.number(),
   "name": zod.string(),
   "price": zod.number(),
   "location": zod.string(),
+  "country": zod.string().default(getListingsResponseItemsItemCountryDefault),
   "sector": zod.string(),
   "images": zod.array(zod.string()),
   "createdAt": zod.string(),
@@ -111,6 +114,7 @@ export const CreateListingBody = zod.object({
   "name": zod.string(),
   "price": zod.number(),
   "location": zod.string(),
+  "country": zod.string(),
   "sector": zod.enum(['AgriMarket', 'Immobilier', 'Automobile', 'Divers']),
   "images": zod.array(zod.string()).max(createListingBodyImagesMax),
   "vendorPhone": zod.string(),
@@ -128,11 +132,14 @@ export const VendorUpdateListingPriceBody = zod.object({
   "newPrice": zod.number()
 })
 
+export const vendorUpdateListingPriceResponseCountryDefault = `Togo`;
+
 export const VendorUpdateListingPriceResponse = zod.object({
   "id": zod.number(),
   "name": zod.string(),
   "price": zod.number(),
   "location": zod.string(),
+  "country": zod.string().default(vendorUpdateListingPriceResponseCountryDefault),
   "sector": zod.string(),
   "images": zod.array(zod.string()),
   "createdAt": zod.string(),
@@ -225,11 +232,14 @@ export const AdminGetPendingListingsBody = zod.object({
   "password": zod.string()
 })
 
+export const adminGetPendingListingsResponseCountryDefault = `Togo`;
+
 export const AdminGetPendingListingsResponseItem = zod.object({
   "id": zod.number(),
   "name": zod.string(),
   "price": zod.number(),
   "location": zod.string(),
+  "country": zod.string().default(adminGetPendingListingsResponseCountryDefault),
   "sector": zod.string(),
   "images": zod.array(zod.string()),
   "createdAt": zod.string(),
@@ -506,11 +516,14 @@ export const VendorGetListingsBody = zod.object({
   "password": zod.string()
 })
 
+export const vendorGetListingsResponseCountryDefault = `Togo`;
+
 export const VendorGetListingsResponseItem = zod.object({
   "id": zod.number(),
   "name": zod.string(),
   "price": zod.number(),
   "location": zod.string(),
+  "country": zod.string().default(vendorGetListingsResponseCountryDefault),
   "sector": zod.string(),
   "images": zod.array(zod.string()),
   "createdAt": zod.string(),

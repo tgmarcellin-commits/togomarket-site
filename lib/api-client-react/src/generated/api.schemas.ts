@@ -10,6 +10,7 @@ export interface Listing {
   name: string;
   price: number;
   location: string;
+  country: string;
   sector: string;
   images: string[];
   createdAt: string;
@@ -97,6 +98,7 @@ export interface ListingInput {
   name: string;
   price: number;
   location: string;
+  country: string;
   sector: ListingInputSector;
   /** @maxItems 4 */
   images: string[];

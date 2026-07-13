@@ -11,6 +11,7 @@ export interface Listing {
   name: string;
   price: number;
   location: string;
+  country: string;
   sector: string;
   images: string[];
   createdAt: string;

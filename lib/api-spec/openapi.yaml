@@ -1124,7 +1124,7 @@ components:
 
     Listing:
       type: object
-      required: [id, name, price, location, sector, createdAt, images, approved]
+      required: [id, name, price, location, country, sector, createdAt, images, approved]
       properties:
         id:
           type: integer
@@ -1134,6 +1134,9 @@ components:
           type: number
         location:
           type: string
+        country:
+          type: string
+          default: "Togo"
         sector:
           type: string
         images:
@@ -1149,13 +1152,15 @@ components:
 
     ListingInput:
       type: object
-      required: [name, price, location, sector, images, vendorPhone, vendorPassword]
+      required: [name, price, location, country, sector, images, vendorPhone, vendorPassword]
       properties:
         name:
           type: string
         price:
           type: number
         location:
+          type: string
+        country:
           type: string
         sector:
           type: string

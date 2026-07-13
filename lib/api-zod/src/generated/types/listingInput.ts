@@ -11,6 +11,7 @@ export interface ListingInput {
   name: string;
   price: number;
   location: string;
+  country: string;
   sector: ListingInputSector;
   /** @maxItems 4 */
   images: string[];

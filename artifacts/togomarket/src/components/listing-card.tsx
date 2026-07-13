@@ -164,7 +164,7 @@ export function ListingCard({ listing, isAdmin, adminPassword, commissionRate, w
 
         <div className="flex items-center text-muted-foreground text-sm mb-4">
           <MapPin className="w-4 h-4 mr-1 flex-shrink-0" />
-          <span className="truncate">{listing.location}</span>
+          <span className="truncate">{listing.location} — {listing.country ?? "Togo"}</span>
         </div>
 
         <div className="mt-auto space-y-3">

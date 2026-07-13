@@ -7,6 +7,7 @@ export const listingsTable = pgTable("listings", {
   name: text("name").notNull(),
   price: numeric("price", { precision: 12, scale: 2 }).notNull(),
   location: text("location").notNull(),
+  country: text("country").notNull().default("Togo"),
   sector: text("sector").notNull(),
   phone: text("phone").notNull(),
   images: text("images").array().notNull().default([]),
