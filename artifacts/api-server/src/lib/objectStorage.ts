@@ -189,6 +189,24 @@ export class ObjectStorageService {
     return normalizedPath;
   }
 
+  async signObjectEntityReadURL(objectPath: string, ttlSec: number = 3600): Promise<string> {
+    if (!objectPath.startsWith("/objects/")) {
+      throw new ObjectNotFoundError();
+    }
+    const parts = objectPath.slice(1).split("/");
+    if (parts.length < 2) {
+      throw new ObjectNotFoundError();
+    }
+    const entityId = parts.slice(1).join("/");
+    let entityDir = this.getPrivateObjectDir();
+    if (!entityDir.endsWith("/")) {
+      entityDir = `${entityDir}/`;
+    }
+    const fullPath = `${entityDir}${entityId}`;
+    const { bucketName, objectName } = parseObjectPath(fullPath);
+    return signObjectURL({ bucketName, objectName, method: "GET", ttlSec });
+  }
+
   async deleteObjectEntity(objectPath: string): Promise<void> {
     try {
       const file = await this.getObjectEntityFile(objectPath);
