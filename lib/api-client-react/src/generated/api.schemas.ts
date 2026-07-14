@@ -58,6 +58,8 @@ export interface Event {
   description: string;
   /** @nullable */
   flyerImage?: string | null;
+  /** @nullable */
+  videoPath?: string | null;
   date: string;
   location: string;
   /** @nullable */
@@ -74,6 +76,7 @@ export interface AdminCreateEventInput {
   title: string;
   description: string;
   flyerImage?: string;
+  videoPath?: string;
   date: string;
   location: string;
   ticketLink?: string;
@@ -217,6 +220,8 @@ export interface Service {
   quartier: string;
   ville: string;
   image?: string | null;
+  /** @nullable */
+  videoPath?: string | null;
   createdAt: string;
   expiresAt: string;
   /** @nullable */
@@ -232,6 +237,7 @@ export interface AdminCreateServiceInput {
   quartier: string;
   ville: string;
   image?: string;
+  videoPath?: string;
 }
 
 export interface SubAdminVerifyInput {

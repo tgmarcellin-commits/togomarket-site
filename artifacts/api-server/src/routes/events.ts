@@ -11,6 +11,7 @@ function mapEvent(e: typeof eventsTable.$inferSelect) {
     title: e.title,
     description: e.description,
     flyerImage: e.flyerImage ?? null,
+    videoPath: e.videoPath ?? null,
     date: e.date.toISOString(),
     endDate: e.endDate?.toISOString() ?? null,
     location: e.location,
@@ -39,7 +40,7 @@ router.get("/events", async (req, res) => {
 });
 
 router.post("/admin/events", async (req, res) => {
-  const { password, title, description, flyerImage, date, endDate, location, ticketLink, ticketPrice } = req.body;
+  const { password, title, description, flyerImage, videoPath, date, endDate, location, ticketLink, ticketPrice } = req.body;
   if (!await isAdminOrSubAdmin(password)) {
     return res.status(403).json({ error: "Forbidden" });
   }
@@ -53,6 +54,7 @@ router.post("/admin/events", async (req, res) => {
         title: title.trim(),
         description: description.trim(),
         flyerImage: flyerImage ?? null,
+        videoPath: videoPath ?? null,
         date: new Date(date),
         endDate: endDate ? new Date(endDate) : null,
         location: location.trim(),

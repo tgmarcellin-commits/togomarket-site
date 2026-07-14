@@ -15,4 +15,5 @@ export interface AdminCreateServiceInput {
   quartier: string;
   ville: string;
   image?: string;
+  videoPath?: string;
 }

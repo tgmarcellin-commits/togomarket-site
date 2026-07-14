@@ -150,20 +150,23 @@ export default function AdminDashboard() {
   const [allAds, setAllAds] = useState<Ad[]>([]);
   const [adsLoading, setAdsLoading] = useState(false);
   const [showAdForm, setShowAdForm] = useState(false);
-  const [adForm, setAdForm] = useState({ advertiserName: "", advertiserPhone: "", message: "", image: "", imagePreview: "", videoPath: "" });
+  const [adForm, setAdForm] = useState({ advertiserName: "", advertiserPhone: "", message: "", image: "", imagePreview: "", videoPath: "", videoName: "" });
   const adImageRef = useRef<HTMLInputElement>(null);
+  const adVideoRef = useRef<HTMLInputElement>(null);
 
   const [allEvents, setAllEvents] = useState<ApiEvent[]>([]);
   const [eventsLoading, setEventsLoading] = useState(false);
   const [showEventForm, setShowEventForm] = useState(false);
-  const [eventForm, setEventForm] = useState({ title: "", description: "", date: "", location: "", ticketPrice: "", ticketLink: "", flyerImage: "", flyerPreview: "" });
+  const [eventForm, setEventForm] = useState({ title: "", description: "", date: "", location: "", ticketPrice: "", ticketLink: "", flyerImage: "", flyerPreview: "", videoPath: "", videoName: "" });
   const eventFlyerRef = useRef<HTMLInputElement>(null);
+  const eventVideoRef = useRef<HTMLInputElement>(null);
 
   const [allServices, setAllServices] = useState<Service[]>([]);
   const [servicesLoading, setServicesLoading] = useState(false);
   const [showServiceForm, setShowServiceForm] = useState(false);
-  const [serviceForm, setServiceForm] = useState({ type: "offer" as "offer" | "seeker" | "atelier", title: "", description: "", contact: "", quartier: "", ville: "", image: "", imagePreview: "" });
+  const [serviceForm, setServiceForm] = useState({ type: "offer" as "offer" | "seeker" | "atelier", title: "", description: "", contact: "", quartier: "", ville: "", image: "", imagePreview: "", videoPath: "", videoName: "" });
   const serviceImageRef = useRef<HTMLInputElement>(null);
+  const serviceVideoRef = useRef<HTMLInputElement>(null);
 
   const [vendorWhatsappLoading, setVendorWhatsappLoading] = useState<number | null>(null);
   const [expandedVendorId, setExpandedVendorId] = useState<number | null>(null);
@@ -521,17 +524,29 @@ export default function AdminDashboard() {
     }
   };
 
+  const handleAdVideoChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    e.target.value = "";
+    try {
+      const objectPath = await uploadVideoFile(file);
+      setAdForm((f) => ({ ...f, videoPath: objectPath, videoName: file.name }));
+    } catch {
+      toast({ title: "Erreur vidéo", variant: "destructive" });
+    }
+  };
+
   const handleCreateAd = () => {
     if (!adForm.advertiserName.trim() || !adForm.advertiserPhone.trim() || !adForm.message.trim()) {
       toast({ title: "Champs requis manquants", variant: "destructive" });
       return;
     }
     createAd.mutate(
-      { data: { password, ...adForm } },
+      { data: { password, advertiserName: adForm.advertiserName, advertiserPhone: adForm.advertiserPhone, message: adForm.message, image: adForm.image || undefined, videoPath: adForm.videoPath || undefined } },
       {
         onSuccess: () => {
           toast({ title: "Publicité créée !" });
-          setAdForm({ advertiserName: "", advertiserPhone: "", message: "", image: "", imagePreview: "", videoPath: "" });
+          setAdForm({ advertiserName: "", advertiserPhone: "", message: "", image: "", imagePreview: "", videoPath: "", videoName: "" });
           setShowAdForm(false);
           loadAds();
         },
@@ -563,6 +578,18 @@ export default function AdminDashboard() {
     }
   };
 
+  const handleEventVideoChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    e.target.value = "";
+    try {
+      const objectPath = await uploadVideoFile(file);
+      setEventForm((f) => ({ ...f, videoPath: objectPath, videoName: file.name }));
+    } catch {
+      toast({ title: "Erreur vidéo", variant: "destructive" });
+    }
+  };
+
   const handleCreateEvent = () => {
     if (!eventForm.title || !eventForm.description || !eventForm.date || !eventForm.location) {
       toast({ title: "Titre, description, date et lieu sont requis", variant: "destructive" });
@@ -579,13 +606,14 @@ export default function AdminDashboard() {
           ticketPrice: eventForm.ticketPrice || undefined,
           ticketLink: eventForm.ticketLink || undefined,
           flyerImage: eventForm.flyerImage || undefined,
+          videoPath: eventForm.videoPath || undefined,
         }
       },
       {
         onSuccess: () => {
           toast({ title: "Événement créé !" });
           setShowEventForm(false);
-          setEventForm({ title: "", description: "", date: "", location: "", ticketPrice: "", ticketLink: "", flyerImage: "", flyerPreview: "" });
+          setEventForm({ title: "", description: "", date: "", location: "", ticketPrice: "", ticketLink: "", flyerImage: "", flyerPreview: "", videoPath: "", videoName: "" });
           queryClient.invalidateQueries({ queryKey: getGetEventsQueryKey() });
           loadEvents();
         },
@@ -621,6 +649,18 @@ export default function AdminDashboard() {
     }
   };
 
+  const handleServiceVideoChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    e.target.value = "";
+    try {
+      const objectPath = await uploadVideoFile(file);
+      setServiceForm((f) => ({ ...f, videoPath: objectPath, videoName: file.name }));
+    } catch {
+      toast({ title: "Erreur vidéo", variant: "destructive" });
+    }
+  };
+
   const handleCreateService = () => {
     if (!serviceForm.title || !serviceForm.description || !serviceForm.contact) {
       toast({ title: "Titre, description et contact requis", variant: "destructive" });
@@ -637,13 +677,14 @@ export default function AdminDashboard() {
           quartier: serviceForm.quartier,
           ville: serviceForm.ville,
           image: serviceForm.image || undefined,
+          videoPath: serviceForm.videoPath || undefined,
         }
       },
       {
         onSuccess: () => {
           toast({ title: "Service créé !" });
           setShowServiceForm(false);
-          setServiceForm({ type: "offer", title: "", description: "", contact: "", quartier: "", ville: "", image: "", imagePreview: "" });
+          setServiceForm({ type: "offer", title: "", description: "", contact: "", quartier: "", ville: "", image: "", imagePreview: "", videoPath: "", videoName: "" });
           queryClient.invalidateQueries({ queryKey: getGetServicesQueryKey() });
           loadServices();
         },
@@ -1146,12 +1187,17 @@ export default function AdminDashboard() {
                   value={adForm.message}
                   onChange={(e) => setAdForm((f) => ({ ...f, message: e.target.value }))}
                 />
-                <div className="flex items-center gap-3">
+                <div className="flex items-center gap-3 flex-wrap">
                   <input type="file" accept="image/*" ref={adImageRef} className="hidden" onChange={handleAdImageChange} />
+                  <input type="file" accept="video/*" ref={adVideoRef} className="hidden" onChange={handleAdVideoChange} />
                   <Button variant="outline" size="sm" onClick={() => adImageRef.current?.click()}>
                     Image
                   </Button>
+                  <Button variant="outline" size="sm" onClick={() => adVideoRef.current?.click()}>
+                    🎬 Vidéo
+                  </Button>
                   {adForm.imagePreview && <img src={adForm.imagePreview} alt="" className="h-12 w-12 rounded-lg object-cover" />}
+                  {adForm.videoName && <span className="text-xs text-muted-foreground truncate max-w-[120px]">✅ {adForm.videoName}</span>}
                 </div>
                 <div className="flex gap-2">
                   <Button size="sm" onClick={handleCreateAd} disabled={createAd.isPending}>
@@ -1233,10 +1279,15 @@ export default function AdminDashboard() {
                   value={eventForm.description}
                   onChange={(e) => setEventForm((f) => ({ ...f, description: e.target.value }))}
                 />
-                <div className="flex items-center gap-3">
+                <div className="flex items-center gap-3 flex-wrap">
                   <input type="file" accept="image/*" ref={eventFlyerRef} className="hidden" onChange={handleEventFlyerChange} />
+                  <input type="file" accept="video/*" ref={eventVideoRef} className="hidden" onChange={handleEventVideoChange} />
                   <Button variant="outline" size="sm" onClick={() => eventFlyerRef.current?.click()}>Flyer</Button>
+                  <Button variant="outline" size="sm" onClick={() => eventVideoRef.current?.click()}>
+                    🎬 Vidéo
+                  </Button>
                   {eventForm.flyerPreview && <img src={eventForm.flyerPreview} alt="" className="h-12 w-12 rounded-lg object-cover" />}
+                  {eventForm.videoName && <span className="text-xs text-muted-foreground truncate max-w-[120px]">✅ {eventForm.videoName}</span>}
                 </div>
                 <div className="flex gap-2">
                   <Button size="sm" onClick={handleCreateEvent} disabled={createEvent.isPending}>
@@ -1322,10 +1373,15 @@ export default function AdminDashboard() {
                   value={serviceForm.description}
                   onChange={(e) => setServiceForm((f) => ({ ...f, description: e.target.value }))}
                 />
-                <div className="flex items-center gap-3">
+                <div className="flex items-center gap-3 flex-wrap">
                   <input type="file" accept="image/*" ref={serviceImageRef} className="hidden" onChange={handleServiceImageChange} />
+                  <input type="file" accept="video/*" ref={serviceVideoRef} className="hidden" onChange={handleServiceVideoChange} />
                   <Button variant="outline" size="sm" onClick={() => serviceImageRef.current?.click()}>Image</Button>
+                  <Button variant="outline" size="sm" onClick={() => serviceVideoRef.current?.click()}>
+                    🎬 Vidéo
+                  </Button>
                   {serviceForm.imagePreview && <img src={serviceForm.imagePreview} alt="" className="h-12 w-12 rounded-lg object-cover" />}
+                  {serviceForm.videoName && <span className="text-xs text-muted-foreground truncate max-w-[120px]">✅ {serviceForm.videoName}</span>}
                 </div>
                 <div className="flex gap-2">
                   <Button size="sm" onClick={handleCreateService} disabled={createService.isPending}>

@@ -644,6 +644,7 @@ export const GetEventsResponseItem = zod.object({
   "title": zod.string(),
   "description": zod.string(),
   "flyerImage": zod.string().nullish(),
+  "videoPath": zod.string().nullish(),
   "date": zod.string(),
   "location": zod.string(),
   "ticketLink": zod.string().nullish(),
@@ -662,6 +663,7 @@ export const AdminCreateEventBody = zod.object({
   "title": zod.string(),
   "description": zod.string(),
   "flyerImage": zod.string().optional(),
+  "videoPath": zod.string().optional(),
   "date": zod.string(),
   "location": zod.string(),
   "ticketLink": zod.string().optional(),
@@ -694,6 +696,7 @@ export const GetServicesResponseItem = zod.object({
   "quartier": zod.string(),
   "ville": zod.string(),
   "image": zod.string().nullish(),
+  "videoPath": zod.string().nullish(),
   "createdAt": zod.string(),
   "expiresAt": zod.string(),
   "isPublished": zod.boolean().nullish()
@@ -712,7 +715,8 @@ export const AdminCreateServiceBody = zod.object({
   "contact": zod.string(),
   "quartier": zod.string(),
   "ville": zod.string(),
-  "image": zod.string().optional()
+  "image": zod.string().optional(),
+  "videoPath": zod.string().optional()
 })
 
 
@@ -732,6 +736,7 @@ export const AdminGetAllServicesResponseItem = zod.object({
   "quartier": zod.string(),
   "ville": zod.string(),
   "image": zod.string().nullish(),
+  "videoPath": zod.string().nullish(),
   "createdAt": zod.string(),
   "expiresAt": zod.string(),
   "isPublished": zod.boolean().nullish()

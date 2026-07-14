@@ -9,6 +9,7 @@ export const servicesTable = pgTable("services", {
   quartier: text("quartier").notNull(),
   ville: text("ville").notNull(),
   image: text("image"),
+  videoPath: text("video_path"),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
   expiresAt: timestamp("expires_at", { withTimezone: true }).notNull(),
   isPublished: boolean("is_published").notNull().default(false),

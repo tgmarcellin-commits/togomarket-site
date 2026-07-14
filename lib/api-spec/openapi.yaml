@@ -1081,6 +1081,8 @@ components:
           type: string
         flyerImage:
           type: ["string", "null"]
+        videoPath:
+          type: ["string", "null"]
         date:
           type: string
         location:
@@ -1105,6 +1107,8 @@ components:
         description:
           type: string
         flyerImage:
+          type: string
+        videoPath:
           type: string
         date:
           type: string
@@ -1386,6 +1390,8 @@ components:
         image:
           type: string
           nullable: true
+        videoPath:
+          type: ["string", "null"]
         createdAt:
           type: string
         expiresAt:
@@ -1412,6 +1418,8 @@ components:
         ville:
           type: string
         image:
+          type: string
+        videoPath:
           type: string
 
     SubAdminVerifyInput:

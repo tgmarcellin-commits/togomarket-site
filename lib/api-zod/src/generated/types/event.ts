@@ -12,6 +12,8 @@ export interface Event {
   description: string;
   /** @nullable */
   flyerImage?: string | null;
+  /** @nullable */
+  videoPath?: string | null;
   date: string;
   location: string;
   /** @nullable */

@@ -5,6 +5,7 @@ export const eventsTable = pgTable("events", {
   title: text("title").notNull(),
   description: text("description").notNull(),
   flyerImage: text("flyer_image"),
+  videoPath: text("video_path"),
   date: timestamp("date", { withTimezone: true }).notNull(),
   endDate: timestamp("end_date", { withTimezone: true }),
   location: text("location").notNull(),

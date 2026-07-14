@@ -15,6 +15,8 @@ export interface Service {
   quartier: string;
   ville: string;
   image?: string | null;
+  /** @nullable */
+  videoPath?: string | null;
   createdAt: string;
   expiresAt: string;
   /** @nullable */

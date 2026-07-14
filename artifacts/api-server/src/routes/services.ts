@@ -15,6 +15,7 @@ function mapService(s: typeof servicesTable.$inferSelect) {
     quartier: s.quartier,
     ville: s.ville,
     image: s.image ?? null,
+    videoPath: s.videoPath ?? null,
     createdAt: s.createdAt.toISOString(),
     expiresAt: s.expiresAt.toISOString(),
     isPublished: s.isPublished,
@@ -40,7 +41,7 @@ router.get("/services", async (req, res) => {
 });
 
 router.post("/admin/services", async (req, res) => {
-  const { password, type, title, description, contact, quartier, ville, image } = req.body;
+  const { password, type, title, description, contact, quartier, ville, image, videoPath } = req.body;
   if (!await isAdminOrSubAdmin(password)) {
     return res.status(403).json({ error: "Forbidden" });
   }
@@ -58,6 +59,7 @@ router.post("/admin/services", async (req, res) => {
       .values({
         type, title, description, contact, quartier, ville,
         image: image ?? null,
+        videoPath: videoPath ?? null,
         createdAt: now,
         expiresAt,
         isPublished: false,

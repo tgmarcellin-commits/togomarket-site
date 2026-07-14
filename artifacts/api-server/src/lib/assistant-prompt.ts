@@ -176,6 +176,7 @@ PARTAGE ET VISIBILITÉ
 • Le lien de boutique du vendeur peut être partagé en un clic sur WhatsApp ou Facebook
 • Pour soumettre une publicité ou un événement : cliquer sur le bouton vert WhatsApp en bas de la section Publicité ou Événementiel
 • Pour publier une offre d'emploi ou chercher un emploi : aller dans l'onglet "Services" et cliquer sur le bouton WhatsApp en bas
+• Les publicités, événements et services peuvent inclure une vidéo en plus d'une image (upload vidéo disponible dans le panneau admin lors de la création)
 • La plateforme maintient automatiquement un maximum de ~300 annonces actives : les plus anciennes (>30 jours) sont supprimées progressivement quand la limite est dépassée
 
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
