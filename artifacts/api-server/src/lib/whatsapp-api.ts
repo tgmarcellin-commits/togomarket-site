@@ -10,7 +10,7 @@ export async function sendWhatsAppOTP(
     throw new Error("WHATSAPP_TOKEN ou WHATSAPP_PHONE_NUMBER_ID non configuré");
   }
 
-  const url = `https://graph.facebook.com/v19.0/${WHATSAPP_PHONE_NUMBER_ID}/messages`;
+  const url = `https://graph.facebook.com/v21.0/${WHATSAPP_PHONE_NUMBER_ID}/messages`;
 
   const body = {
     messaging_product: "whatsapp",
