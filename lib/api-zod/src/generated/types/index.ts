@@ -55,5 +55,7 @@ export * from './vendorProfileUpdateInput';
 export * from './vendorPublishCode';
 export * from './vendorRegisterInput';
 export * from './vendorRegisterResult';
+export * from './vendorResendOtpInput';
 export * from './vendorUpdateNameInput';
 export * from './vendorUpdatePriceInput';
+export * from './vendorVerifyOtpInput';

@@ -505,7 +505,7 @@ paths:
     post:
       operationId: vendorRegister
       tags: [vendors]
-      summary: Register a new vendor account
+      summary: Register a new vendor account (sends OTP via WhatsApp)
       requestBody:
         required: true
         content:
@@ -514,13 +514,59 @@ paths:
               $ref: "#/components/schemas/VendorRegisterInput"
       responses:
         "201":
-          description: Vendor registered (pending admin activation)
+          description: Vendor registered, OTP sent to WhatsApp
           content:
             application/json:
               schema:
                 $ref: "#/components/schemas/VendorRegisterResult"
         "409":
-          description: Phone number already registered
+          description: Phone number already registered and verified
+
+  /vendors/verify-otp:
+    post:
+      operationId: vendorVerifyOtp
+      tags: [vendors]
+      summary: Verify OTP received on WhatsApp to activate the account
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/VendorVerifyOtpInput"
+      responses:
+        "200":
+          description: OTP valid, returns vendor profile
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/VendorProfile"
+        "400":
+          description: Invalid or expired OTP
+        "404":
+          description: Vendor not found
+
+  /vendors/resend-otp:
+    post:
+      operationId: vendorResendOtp
+      tags: [vendors]
+      summary: Resend OTP to vendor's WhatsApp
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/VendorResendOtpInput"
+      responses:
+        "200":
+          description: OTP resent
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/SuccessResult"
+        "404":
+          description: Vendor not found
+        "429":
+          description: Too many requests, please wait before retrying
 
   /vendors/shop-status:
     get:
@@ -1526,7 +1572,7 @@ components:
 
     VendorRegisterResult:
       type: object
-      required: [id, firstName, lastName, phone, verifyCode]
+      required: [id, firstName, lastName, phone]
       properties:
         id:
           type: integer
@@ -1536,7 +1582,21 @@ components:
           type: string
         phone:
           type: string
-        verifyCode:
+
+    VendorVerifyOtpInput:
+      type: object
+      required: [phone, code]
+      properties:
+        phone:
+          type: string
+        code:
+          type: string
+
+    VendorResendOtpInput:
+      type: object
+      required: [phone]
+      properties:
+        phone:
           type: string
 
     VendorLoginInput:

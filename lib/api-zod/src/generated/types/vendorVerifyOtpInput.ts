@@ -6,9 +6,7 @@
  * OpenAPI spec version: 0.1.0
  */
 
-export interface VendorRegisterResult {
-  id: number;
-  firstName: string;
-  lastName: string;
+export interface VendorVerifyOtpInput {
   phone: string;
+  code: string;
 }

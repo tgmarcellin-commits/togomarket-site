@@ -302,7 +302,15 @@ export interface VendorRegisterResult {
   firstName: string;
   lastName: string;
   phone: string;
-  verifyCode: string;
+}
+
+export interface VendorVerifyOtpInput {
+  phone: string;
+  code: string;
+}
+
+export interface VendorResendOtpInput {
+  phone: string;
 }
 
 export interface VendorLoginInput {

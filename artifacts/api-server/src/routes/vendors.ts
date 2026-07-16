@@ -1,7 +1,8 @@
 import { Router, type IRouter } from "express";
-import { eq, desc, and, gt } from "drizzle-orm";
+import { eq, desc, and, gt, lt } from "drizzle-orm";
 import bcrypt from "bcryptjs";
-import { db, vendorsTable, publishCodesTable } from "@workspace/db";
+import { db, vendorsTable, publishCodesTable, otpCodesTable } from "@workspace/db";
+import { sendWhatsAppOTP } from "../lib/whatsapp-api";
 import { normalizePhone, phoneEq } from "../lib/phone";
 import {
   VendorRegisterBody,
@@ -26,6 +27,17 @@ function randomCode(digits: number): string {
   const min = Math.pow(10, digits - 1);
   const max = Math.pow(10, digits) - 1;
   return String(Math.floor(Math.random() * (max - min + 1)) + min);
+}
+
+async function generateAndStoreOTP(phone: string): Promise<string> {
+  const code = randomCode(6);
+  const expiresAt = new Date(Date.now() + 5 * 60 * 1000);
+  await db
+    .update(otpCodesTable)
+    .set({ used: true })
+    .where(and(eq(otpCodesTable.phone, phone), eq(otpCodesTable.used, false)));
+  await db.insert(otpCodesTable).values({ phone, code, expiresAt });
+  return code;
 }
 
 async function getActivePublishCode(vendorId: number) {
@@ -77,19 +89,31 @@ router.post("/vendors/register", async (req, res) => {
   const referredBy = parsed.data.referredBy ? Number(parsed.data.referredBy) : null;
 
   const existing = await db
-    .select({ id: vendorsTable.id })
+    .select()
     .from(vendorsTable)
     .where(phoneEq(vendorsTable.phone, phone))
     .limit(1);
 
   if (existing.length > 0) {
-    return res.status(409).json({ error: "Ce numéro est déjà inscrit." });
+    const vendor = existing[0];
+    if (vendor.verified) {
+      return res.status(409).json({ error: "Ce numéro est déjà inscrit." });
+    }
+    // Vendor exists but not yet verified — resend OTP
+    try {
+      const code = await generateAndStoreOTP(phone);
+      await sendWhatsAppOTP(phone, code, vendor.firstName);
+      req.log.info({ id: vendor.id }, "OTP resent to existing unverified vendor");
+      return res.status(201).json({ id: vendor.id, firstName: vendor.firstName, lastName: vendor.lastName, phone });
+    } catch (err) {
+      req.log.error({ err }, "Failed to resend OTP to existing vendor");
+      return res.status(500).json({ error: "Impossible d'envoyer le code WhatsApp. Réessayez." });
+    }
   }
 
+  let vendorId: number | null = null;
   try {
     const passwordHash = await bcrypt.hash(password, 10);
-    const verifyCode = randomCode(6);
-
     const now = new Date();
     const trialEnd = new Date(now.getTime() + 30 * 24 * 60 * 60 * 1000);
 
@@ -102,12 +126,16 @@ router.post("/vendors/register", async (req, res) => {
         passwordHash,
         verified: false,
         expiryDate: trialEnd,
-        isPublished: true,
+        isPublished: false,
         paymentStatus: "trial",
         validationMethod: "trial",
         referredBy: referredBy ?? undefined,
       })
       .returning();
+    vendorId = vendor.id;
+
+    const code = await generateAndStoreOTP(phone);
+    await sendWhatsAppOTP(phone, code, firstName);
 
     if (referredBy) {
       const referrers = await db.select().from(vendorsTable).where(eq(vendorsTable.id, referredBy)).limit(1);
@@ -117,20 +145,119 @@ router.post("/vendors/register", async (req, res) => {
         const newExpiry = new Date(base.getTime() + 3 * 24 * 60 * 60 * 1000);
         await db
           .update(vendorsTable)
-          .set({
-            expiryDate: newExpiry,
-            referralDaysEarned: (referrer.referralDaysEarned ?? 0) + 3,
-          })
+          .set({ expiryDate: newExpiry, referralDaysEarned: (referrer.referralDaysEarned ?? 0) + 3 })
           .where(eq(vendorsTable.id, referrer.id));
         req.log.info({ referrerId: referrer.id, newVendorId: vendor.id }, "Referrer credited +3 days for new signup");
       }
     }
 
-    req.log.info({ id: vendor.id }, "Vendor registered with 30-day trial");
-    return res.status(201).json({ id: vendor.id, firstName, lastName, phone, verifyCode });
+    req.log.info({ id: vendor.id }, "Vendor registered, OTP sent via WhatsApp");
+    return res.status(201).json({ id: vendor.id, firstName, lastName, phone });
   } catch (err) {
-    req.log.error({ err }, "Failed to register vendor");
-    return res.status(500).json({ error: "Erreur interne" });
+    req.log.error({ err }, "Failed to register vendor or send OTP");
+    if (vendorId) {
+      await db.delete(vendorsTable).where(eq(vendorsTable.id, vendorId)).catch(() => {});
+    }
+    return res.status(500).json({ error: "Impossible d'envoyer le code WhatsApp. Vérifiez votre numéro et réessayez." });
+  }
+});
+
+router.post("/vendors/verify-otp", async (req, res) => {
+  const phone = normalizePhone(String(req.body.phone ?? ""));
+  const code = String(req.body.code ?? "").trim();
+  if (!phone || !code) {
+    return res.status(400).json({ error: "Numéro et code requis" });
+  }
+
+  const vendors = await db.select().from(vendorsTable).where(phoneEq(vendorsTable.phone, phone)).limit(1);
+  if (vendors.length === 0) {
+    return res.status(404).json({ error: "Compte introuvable" });
+  }
+  const vendor = vendors[0];
+
+  if (vendor.verified) {
+    // Already verified, just log them in
+    const publishCode = await getActivePublishCode(vendor.id);
+    return res.json(VendorLoginResponse.parse(mapVendor(vendor, publishCode)));
+  }
+
+  const now = new Date();
+  const otps = await db
+    .select()
+    .from(otpCodesTable)
+    .where(
+      and(
+        eq(otpCodesTable.phone, phone),
+        eq(otpCodesTable.used, false),
+        gt(otpCodesTable.expiresAt, now),
+        lt(otpCodesTable.attempts, 3)
+      )
+    )
+    .orderBy(desc(otpCodesTable.createdAt))
+    .limit(1);
+
+  if (otps.length === 0) {
+    return res.status(400).json({ error: "Code expiré ou invalide. Demandez un nouveau code." });
+  }
+
+  const otp = otps[0];
+  if (otp.code !== code) {
+    await db
+      .update(otpCodesTable)
+      .set({ attempts: otp.attempts + 1 })
+      .where(eq(otpCodesTable.id, otp.id));
+    const remaining = 2 - otp.attempts;
+    return res.status(400).json({ error: `Code incorrect. ${remaining > 0 ? `${remaining} tentative(s) restante(s).` : "Demandez un nouveau code."}` });
+  }
+
+  await db.update(otpCodesTable).set({ used: true }).where(eq(otpCodesTable.id, otp.id));
+  const [updated] = await db
+    .update(vendorsTable)
+    .set({ verified: true, isPublished: true })
+    .where(eq(vendorsTable.id, vendor.id))
+    .returning();
+
+  req.log.info({ id: vendor.id }, "Vendor OTP verified, account activated");
+  const publishCode = await getActivePublishCode(updated.id);
+  return res.json(VendorLoginResponse.parse(mapVendor(updated, publishCode)));
+});
+
+router.post("/vendors/resend-otp", async (req, res) => {
+  const phone = normalizePhone(String(req.body.phone ?? ""));
+  if (!phone) {
+    return res.status(400).json({ error: "Numéro requis" });
+  }
+
+  const vendors = await db.select().from(vendorsTable).where(phoneEq(vendorsTable.phone, phone)).limit(1);
+  if (vendors.length === 0) {
+    return res.status(404).json({ error: "Compte introuvable" });
+  }
+  const vendor = vendors[0];
+
+  if (vendor.verified) {
+    return res.status(400).json({ error: "Ce compte est déjà vérifié." });
+  }
+
+  // Throttle: max 1 OTP per 30 seconds
+  const thirtySecondsAgo = new Date(Date.now() - 30 * 1000);
+  const recent = await db
+    .select({ id: otpCodesTable.id })
+    .from(otpCodesTable)
+    .where(and(eq(otpCodesTable.phone, phone), gt(otpCodesTable.createdAt, thirtySecondsAgo)))
+    .limit(1);
+
+  if (recent.length > 0) {
+    return res.status(429).json({ error: "Veuillez patienter 30 secondes avant de renvoyer le code." });
+  }
+
+  try {
+    const code = await generateAndStoreOTP(phone);
+    await sendWhatsAppOTP(phone, code, vendor.firstName);
+    req.log.info({ id: vendor.id }, "OTP resent");
+    return res.json({ success: true });
+  } catch (err) {
+    req.log.error({ err }, "Failed to resend OTP");
+    return res.status(500).json({ error: "Impossible d'envoyer le code WhatsApp. Réessayez." });
   }
 });
 

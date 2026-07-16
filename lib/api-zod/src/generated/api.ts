@@ -374,7 +374,7 @@ export const GetStatsResponse = zod.object({
 
 
 /**
- * @summary Register a new vendor account
+ * @summary Register a new vendor account (sends OTP via WhatsApp)
  */
 export const VendorRegisterBody = zod.object({
   "firstName": zod.string(),
@@ -382,6 +382,48 @@ export const VendorRegisterBody = zod.object({
   "phone": zod.string(),
   "password": zod.string(),
   "referredBy": zod.number().nullish()
+})
+
+
+/**
+ * @summary Verify OTP received on WhatsApp to activate the account
+ */
+export const VendorVerifyOtpBody = zod.object({
+  "phone": zod.string(),
+  "code": zod.string()
+})
+
+export const VendorVerifyOtpResponse = zod.object({
+  "id": zod.number(),
+  "firstName": zod.string(),
+  "lastName": zod.string(),
+  "phone": zod.string(),
+  "verified": zod.boolean(),
+  "profilePhoto": zod.string().nullish(),
+  "createdAt": zod.string(),
+  "publishCode": zod.union([zod.object({
+  "code": zod.string(),
+  "endDate": zod.string(),
+  "daysLeft": zod.number()
+}),zod.null()]).optional(),
+  "expiryDate": zod.string().nullish(),
+  "isPublished": zod.boolean().optional(),
+  "paymentStatus": zod.string().optional(),
+  "validationMethod": zod.string().optional(),
+  "daysUntilExpiry": zod.number().nullish(),
+  "referralDaysEarned": zod.number().optional()
+})
+
+
+/**
+ * @summary Resend OTP to vendor's WhatsApp
+ */
+export const VendorResendOtpBody = zod.object({
+  "phone": zod.string()
+})
+
+export const VendorResendOtpResponse = zod.object({
+  "success": zod.boolean()
 })
 
 

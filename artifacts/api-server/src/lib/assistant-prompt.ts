@@ -72,7 +72,7 @@ COMMENT VENDRE SUR TOGOMARKET ?
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 1. Créer un compte vendeur (bouton Connexion en haut > Se connecter > Créer un compte)
 2. Le premier mois est GRATUIT (essai de 30 jours automatique)
-3. L'activation du compte se fait via WhatsApp avec l'administrateur
+3. Un code de vérification à 6 chiffres est envoyé automatiquement par WhatsApp → le vendeur le saisit dans l'application → le compte est activé instantanément
 4. Une fois activé, cliquer sur "Publier une annonce" (bouton en haut à droite)
 5. Remplir le formulaire : titre, prix, secteur, quartier/ville, pays, photos (max 4)
 6. L'annonce est visible après validation par l'administrateur (24h max)

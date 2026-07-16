@@ -66,8 +66,10 @@ import type {
   VendorProfileUpdateInput,
   VendorRegisterInput,
   VendorRegisterResult,
+  VendorResendOtpInput,
   VendorUpdateNameInput,
-  VendorUpdatePriceInput
+  VendorUpdatePriceInput,
+  VendorVerifyOtpInput
 } from './api.schemas';
 
 import { customFetch } from '../custom-fetch';
@@ -1702,7 +1704,7 @@ export const getVendorRegisterUrl = () => {
 }
 
 /**
- * @summary Register a new vendor account
+ * @summary Register a new vendor account (sends OTP via WhatsApp)
  */
 export const vendorRegister = async (vendorRegisterInput: VendorRegisterInput, options?: RequestInit): Promise<VendorRegisterResult> => {
 
@@ -1751,7 +1753,7 @@ const {mutation: mutationOptions, request: requestOptions} = options ?
     export type VendorRegisterMutationError = ErrorType<void>
 
     /**
- * @summary Register a new vendor account
+ * @summary Register a new vendor account (sends OTP via WhatsApp)
  */
 export const useVendorRegister = <TError = ErrorType<void>,
     TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof vendorRegister>>, TError,{data: BodyType<VendorRegisterInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
@@ -1762,6 +1764,148 @@ export const useVendorRegister = <TError = ErrorType<void>,
         TContext
       > => {
       return useMutation(getVendorRegisterMutationOptions(options));
+    }
+
+export const getVendorVerifyOtpUrl = () => {
+
+
+
+
+  return `/api/vendors/verify-otp`
+}
+
+/**
+ * @summary Verify OTP received on WhatsApp to activate the account
+ */
+export const vendorVerifyOtp = async (vendorVerifyOtpInput: VendorVerifyOtpInput, options?: RequestInit): Promise<VendorProfile> => {
+
+  return customFetch<VendorProfile>(getVendorVerifyOtpUrl(),
+  {
+    ...options,
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...options?.headers },
+    body: JSON.stringify(
+      vendorVerifyOtpInput,)
+  }
+);}
+
+
+
+
+export const getVendorVerifyOtpMutationOptions = <TError = ErrorType<void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof vendorVerifyOtp>>, TError,{data: BodyType<VendorVerifyOtpInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof vendorVerifyOtp>>, TError,{data: BodyType<VendorVerifyOtpInput>}, TContext> => {
+
+const mutationKey = ['vendorVerifyOtp'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof vendorVerifyOtp>>, {data: BodyType<VendorVerifyOtpInput>}> = (props) => {
+          const {data} = props ?? {};
+
+          return  vendorVerifyOtp(data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type VendorVerifyOtpMutationResult = NonNullable<Awaited<ReturnType<typeof vendorVerifyOtp>>>
+    export type VendorVerifyOtpMutationBody = BodyType<VendorVerifyOtpInput>
+    export type VendorVerifyOtpMutationError = ErrorType<void>
+
+    /**
+ * @summary Verify OTP received on WhatsApp to activate the account
+ */
+export const useVendorVerifyOtp = <TError = ErrorType<void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof vendorVerifyOtp>>, TError,{data: BodyType<VendorVerifyOtpInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof vendorVerifyOtp>>,
+        TError,
+        {data: BodyType<VendorVerifyOtpInput>},
+        TContext
+      > => {
+      return useMutation(getVendorVerifyOtpMutationOptions(options));
+    }
+
+export const getVendorResendOtpUrl = () => {
+
+
+
+
+  return `/api/vendors/resend-otp`
+}
+
+/**
+ * @summary Resend OTP to vendor's WhatsApp
+ */
+export const vendorResendOtp = async (vendorResendOtpInput: VendorResendOtpInput, options?: RequestInit): Promise<SuccessResult> => {
+
+  return customFetch<SuccessResult>(getVendorResendOtpUrl(),
+  {
+    ...options,
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...options?.headers },
+    body: JSON.stringify(
+      vendorResendOtpInput,)
+  }
+);}
+
+
+
+
+export const getVendorResendOtpMutationOptions = <TError = ErrorType<void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof vendorResendOtp>>, TError,{data: BodyType<VendorResendOtpInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof vendorResendOtp>>, TError,{data: BodyType<VendorResendOtpInput>}, TContext> => {
+
+const mutationKey = ['vendorResendOtp'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof vendorResendOtp>>, {data: BodyType<VendorResendOtpInput>}> = (props) => {
+          const {data} = props ?? {};
+
+          return  vendorResendOtp(data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type VendorResendOtpMutationResult = NonNullable<Awaited<ReturnType<typeof vendorResendOtp>>>
+    export type VendorResendOtpMutationBody = BodyType<VendorResendOtpInput>
+    export type VendorResendOtpMutationError = ErrorType<void>
+
+    /**
+ * @summary Resend OTP to vendor's WhatsApp
+ */
+export const useVendorResendOtp = <TError = ErrorType<void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof vendorResendOtp>>, TError,{data: BodyType<VendorResendOtpInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof vendorResendOtp>>,
+        TError,
+        {data: BodyType<VendorResendOtpInput>},
+        TContext
+      > => {
+      return useMutation(getVendorResendOtpMutationOptions(options));
     }
 
 export const getGetShopStatusUrl = (params: GetShopStatusParams,) => {
