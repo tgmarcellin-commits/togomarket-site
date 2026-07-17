@@ -1,7 +1,7 @@
 import { Router, type IRouter } from "express";
 import bcrypt from "bcryptjs";
 import { db, adminAccountsTable, vendorsTable, adsTable, eventsTable, servicesTable, publishCodesTable } from "@workspace/db";
-import { eq, and, lt, gte, sql, count } from "drizzle-orm";
+import { eq, and, lt, gte, lte, sql, count } from "drizzle-orm";
 import { isSuperAdmin, verifyAdminCode, getAdminRole, initDefaultSuperAdmin } from "../lib/admin-auth";
 import { isAdminOrSubAdmin } from "../lib/auth-sub";
 
@@ -100,7 +100,7 @@ router.post("/admin/accounts/delete", async (req, res): Promise<void> => {
 });
 
 router.post("/admin/stats", async (req, res): Promise<void> => {
-  const { code } = req.body;
+  const { code, dateFrom, dateTo } = req.body;
   const codeStr = String(code ?? "");
   if (!await isAdminOrSubAdmin(codeStr)) {
     res.status(403).json({ error: "Accès refusé" });
@@ -110,13 +110,34 @@ router.post("/admin/stats", async (req, res): Promise<void> => {
   const now = new Date();
   const threeDaysFromNow = new Date(now.getTime() + 3 * 24 * 60 * 60 * 1000);
 
+  const fromDate = dateFrom ? new Date(String(dateFrom) + "T00:00:00.000Z") : undefined;
+  const toDate = dateTo ? new Date(String(dateTo) + "T23:59:59.999Z") : undefined;
+
+  const vendorDateFilter = and(
+    fromDate ? gte(vendorsTable.createdAt, fromDate) : undefined,
+    toDate ? lte(vendorsTable.createdAt, toDate) : undefined,
+  );
+  const adDateFilter = and(
+    fromDate ? gte(adsTable.startDate, fromDate) : undefined,
+    toDate ? lte(adsTable.startDate, toDate) : undefined,
+  );
+  const eventDateFilter = and(
+    fromDate ? gte(eventsTable.createdAt, fromDate) : undefined,
+    toDate ? lte(eventsTable.createdAt, toDate) : undefined,
+  );
+  const serviceDateFilter = and(
+    fromDate ? gte(servicesTable.createdAt, fromDate) : undefined,
+    toDate ? lte(servicesTable.createdAt, toDate) : undefined,
+  );
+
   const [vendorStats] = await db
     .select({
       total: sql<number>`cast(count(*) as int)`,
       paid: sql<number>`cast(sum(case when validation_method = 'fedapay' then 1 else 0 end) as int)`,
       admin: sql<number>`cast(sum(case when validation_method = 'admin' then 1 else 0 end) as int)`,
     })
-    .from(vendorsTable);
+    .from(vendorsTable)
+    .where(vendorDateFilter);
 
   const expiringSoon = await db
     .select({ id: vendorsTable.id, firstName: vendorsTable.firstName, lastName: vendorsTable.lastName, phone: vendorsTable.phone, expiryDate: vendorsTable.expiryDate })
@@ -129,7 +150,8 @@ router.post("/admin/stats", async (req, res): Promise<void> => {
       paid: sql<number>`cast(sum(case when payment_status = 'paid' then 1 else 0 end) as int)`,
       admin: sql<number>`cast(sum(case when validation_method = 'admin' then 1 else 0 end) as int)`,
     })
-    .from(adsTable);
+    .from(adsTable)
+    .where(adDateFilter);
 
   const [eventStats] = await db
     .select({
@@ -137,7 +159,8 @@ router.post("/admin/stats", async (req, res): Promise<void> => {
       paid: sql<number>`cast(sum(case when payment_status = 'paid' then 1 else 0 end) as int)`,
       admin: sql<number>`cast(sum(case when validation_method = 'admin' then 1 else 0 end) as int)`,
     })
-    .from(eventsTable);
+    .from(eventsTable)
+    .where(eventDateFilter);
 
   const [serviceStats] = await db
     .select({
@@ -145,7 +168,8 @@ router.post("/admin/stats", async (req, res): Promise<void> => {
       paid: sql<number>`cast(sum(case when payment_status = 'paid' then 1 else 0 end) as int)`,
       admin: sql<number>`cast(sum(case when validation_method = 'admin' then 1 else 0 end) as int)`,
     })
-    .from(servicesTable);
+    .from(servicesTable)
+    .where(serviceDateFilter);
 
   res.json({
     vendors: { total: vendorStats.total ?? 0, paid: vendorStats.paid ?? 0, admin: vendorStats.admin ?? 0 },
@@ -156,6 +180,8 @@ router.post("/admin/stats", async (req, res): Promise<void> => {
       id: v.id, firstName: v.firstName, lastName: v.lastName, phone: v.phone,
       expiryDate: v.expiryDate?.toISOString() ?? null,
     })),
+    dateFrom: dateFrom ?? null,
+    dateTo: dateTo ?? null,
   });
 });
 

@@ -140,6 +140,8 @@ export default function AdminDashboard() {
 
   const [stats, setStats] = useState<AdminStats | null>(null);
   const [statsLoading, setStatsLoading] = useState(false);
+  const [statsDateFrom, setStatsDateFrom] = useState("");
+  const [statsDateTo, setStatsDateTo] = useState("");
 
   const [pendingListings, setPendingListings] = useState<NonNullable<ReturnType<typeof useAdminGetPendingListings>["data"]>>([]);
   const [pendingLoading, setPendingLoading] = useState(false);
@@ -236,16 +238,39 @@ export default function AdminDashboard() {
     }
   }, [settingsData]);
 
-  const loadStats = () => {
+  const loadStats = (from?: string, to?: string) => {
     setStatsLoading(true);
+    const dateFrom = from !== undefined ? from : statsDateFrom;
+    const dateTo = to !== undefined ? to : statsDateTo;
     fetch("/api/admin/stats", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ code: password }),
+      body: JSON.stringify({ code: password, dateFrom: dateFrom || undefined, dateTo: dateTo || undefined }),
     })
       .then((r) => r.json())
       .then((d) => { setStats(d); setStatsLoading(false); })
       .catch(() => setStatsLoading(false));
+  };
+
+  const applyQuickRange = (preset: "today" | "week" | "month" | "year" | "all") => {
+    const now = new Date();
+    const pad = (n: number) => String(n).padStart(2, "0");
+    const fmt = (d: Date) => `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
+    const today = fmt(now);
+    if (preset === "today") {
+      setStatsDateFrom(today); setStatsDateTo(today); loadStats(today, today);
+    } else if (preset === "week") {
+      const start = new Date(now); start.setDate(now.getDate() - now.getDay() + 1);
+      const from = fmt(start); setStatsDateFrom(from); setStatsDateTo(today); loadStats(from, today);
+    } else if (preset === "month") {
+      const from = `${now.getFullYear()}-${pad(now.getMonth() + 1)}-01`;
+      setStatsDateFrom(from); setStatsDateTo(today); loadStats(from, today);
+    } else if (preset === "year") {
+      const from = `${now.getFullYear()}-01-01`;
+      setStatsDateFrom(from); setStatsDateTo(today); loadStats(from, today);
+    } else {
+      setStatsDateFrom(""); setStatsDateTo(""); loadStats("", "");
+    }
   };
 
   const loadPending = () => {
@@ -859,10 +884,57 @@ export default function AdminDashboard() {
           <div className="space-y-6">
             <div className="flex items-center justify-between">
               <h2 className="text-lg font-bold">Vue d'ensemble</h2>
-              <Button variant="outline" size="sm" onClick={loadStats} disabled={statsLoading}>
+              <Button variant="outline" size="sm" onClick={() => loadStats()} disabled={statsLoading}>
                 <RefreshCw className={`w-3.5 h-3.5 mr-1.5 ${statsLoading ? "animate-spin" : ""}`} />
                 Actualiser
               </Button>
+            </div>
+
+            {/* ── FILTRE PAR PÉRIODE ── */}
+            <div className="bg-card border rounded-xl p-4 space-y-3">
+              <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">Filtrer par période</p>
+              <div className="flex flex-wrap gap-2">
+                {(["today", "week", "month", "year", "all"] as const).map((preset) => {
+                  const labels = { today: "Aujourd'hui", week: "Cette semaine", month: "Ce mois", year: "Cette année", all: "Tout afficher" };
+                  return (
+                    <button
+                      key={preset}
+                      onClick={() => applyQuickRange(preset)}
+                      className="px-3 py-1.5 text-xs rounded-full border font-medium transition-colors hover:bg-primary hover:text-primary-foreground hover:border-primary"
+                    >
+                      {labels[preset]}
+                    </button>
+                  );
+                })}
+              </div>
+              <div className="flex flex-col sm:flex-row gap-2 items-end">
+                <div className="flex-1 space-y-1">
+                  <label className="text-xs text-muted-foreground">Du</label>
+                  <input
+                    type="date"
+                    value={statsDateFrom}
+                    onChange={(e) => setStatsDateFrom(e.target.value)}
+                    className="w-full border rounded-md px-3 py-2 text-sm bg-background"
+                  />
+                </div>
+                <div className="flex-1 space-y-1">
+                  <label className="text-xs text-muted-foreground">Au</label>
+                  <input
+                    type="date"
+                    value={statsDateTo}
+                    onChange={(e) => setStatsDateTo(e.target.value)}
+                    className="w-full border rounded-md px-3 py-2 text-sm bg-background"
+                  />
+                </div>
+                <Button size="sm" onClick={() => loadStats()} disabled={statsLoading} className="shrink-0">
+                  Appliquer
+                </Button>
+              </div>
+              {(statsDateFrom || statsDateTo) && (
+                <p className="text-xs text-muted-foreground">
+                  Période sélectionnée : {statsDateFrom ? new Date(statsDateFrom).toLocaleDateString("fr-FR") : "…"} → {statsDateTo ? new Date(statsDateTo).toLocaleDateString("fr-FR") : "…"}
+                </p>
+              )}
             </div>
             {stats ? (
               <>
