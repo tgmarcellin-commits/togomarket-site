@@ -1602,7 +1602,7 @@ export default function AdminDashboard() {
                       <p className="font-semibold text-sm">{acc.username}</p>
                       <p className="text-xs text-muted-foreground">{acc.role} · créé le {new Date(acc.createdAt).toLocaleDateString("fr-FR")}</p>
                     </div>
-                    {acc.role !== "superadmin" && (
+                    {acc.id !== 1 && (
                       <Button size="sm" variant="ghost" className="h-8 w-8 p-0 text-destructive flex-shrink-0"
                         onClick={() => { if (confirm(`Supprimer le compte "${acc.username}" ?`)) handleDeleteAccount(acc.id); }}
                       >
