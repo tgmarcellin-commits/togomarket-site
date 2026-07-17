@@ -52,7 +52,7 @@ router.post("/admin/accounts/create", async (req, res): Promise<void> => {
     res.status(403).json({ error: "Accès refusé — superadmin requis" });
     return;
   }
-  const validRoles = ["superadmin", "admin_pub", "admin_event", "admin_service"];
+  const validRoles = ["superadmin", "admin_pub", "admin_event", "admin_service", "admin_stats"];
   if (!validRoles.includes(role)) {
     res.status(400).json({ error: "Rôle invalide" });
     return;

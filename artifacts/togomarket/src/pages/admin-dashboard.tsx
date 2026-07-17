@@ -130,6 +130,7 @@ export default function AdminDashboard() {
     if (session.role === "admin_pub") return "ads";
     if (session.role === "admin_event") return "events";
     if (session.role === "admin_service") return "services";
+    if (session.role === "admin_stats") return "stats";
     return "stats";
   };
   const [tab, setTab] = useState<DashTab>(initialTab);
@@ -327,6 +328,7 @@ export default function AdminDashboard() {
       if (session.role === "admin_pub") loadAds();
       else if (session.role === "admin_event") loadEvents();
       else if (session.role === "admin_service") loadServices();
+      else if (session.role === "admin_stats") loadStats();
     }
   }, []);
 
@@ -786,7 +788,7 @@ export default function AdminDashboard() {
   const role = session?.role ?? "";
 
   const tabs: Array<{ key: DashTab; label: string; icon: React.ReactNode; roles?: string[] }> = [
-    { key: "stats", label: "Statistiques", icon: <LayoutDashboard className="w-4 h-4" /> },
+    { key: "stats", label: "Statistiques", icon: <LayoutDashboard className="w-4 h-4" />, roles: ["superadmin", "admin_stats"] },
     { key: "pending", label: "En attente", icon: <Clock className="w-4 h-4" />, roles: ["superadmin"] },
     { key: "vendors", label: "Vendeurs", icon: <Users className="w-4 h-4" />, roles: ["superadmin"] },
     { key: "ads", label: "Publicités", icon: <Megaphone className="w-4 h-4" />, roles: ["superadmin", "admin_pub"] },
@@ -1501,6 +1503,7 @@ export default function AdminDashboard() {
                     <option value="admin_pub">Admin Publicités</option>
                     <option value="admin_event">Admin Événements</option>
                     <option value="admin_service">Admin Services</option>
+                    <option value="admin_stats">Admin Statistiques</option>
                     <option value="superadmin">Superadmin</option>
                   </select>
                 </div>
