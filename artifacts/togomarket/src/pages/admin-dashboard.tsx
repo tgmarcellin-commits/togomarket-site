@@ -1382,7 +1382,16 @@ export default function AdminDashboard() {
               <div className="space-y-2">
                 {allEvents.map((ev) => (
                   <div key={ev.id} className="bg-card border rounded-xl p-3 flex items-center gap-3">
-                    {ev.flyerImage && <img src={resolveImageUrl(ev.flyerImage)} alt="" className="w-14 h-14 rounded-lg object-cover flex-shrink-0" />}
+                    {(ev.flyerImage || ev.videoPath) && (
+                      <div className="relative w-14 h-14 flex-shrink-0">
+                        {ev.flyerImage
+                          ? <img src={resolveImageUrl(ev.flyerImage)} alt="" className="w-14 h-14 rounded-lg object-cover" />
+                          : <video src={resolveImageUrl(ev.videoPath!)} className="w-14 h-14 rounded-lg object-cover" muted playsInline />}
+                        {ev.flyerImage && ev.videoPath && (
+                          <span className="absolute bottom-0.5 right-0.5 bg-black/70 rounded text-white text-[9px] px-1">🎬</span>
+                        )}
+                      </div>
+                    )}
                     <div className="flex-1 min-w-0">
                       <p className="font-semibold text-sm truncate">{ev.title}</p>
                       <p className="text-xs text-muted-foreground">{ev.location} · {new Date(ev.date).toLocaleDateString("fr-FR")}</p>
@@ -1476,7 +1485,16 @@ export default function AdminDashboard() {
               <div className="space-y-2">
                 {allServices.map((s) => (
                   <div key={s.id} className="bg-card border rounded-xl p-3 flex items-center gap-3">
-                    {s.image && <img src={resolveImageUrl(s.image)} alt="" className="w-14 h-14 rounded-lg object-cover flex-shrink-0" />}
+                    {(s.image || s.videoPath) && (
+                      <div className="relative w-14 h-14 flex-shrink-0">
+                        {s.image
+                          ? <img src={resolveImageUrl(s.image)} alt="" className="w-14 h-14 rounded-lg object-cover" />
+                          : <video src={resolveImageUrl(s.videoPath!)} className="w-14 h-14 rounded-lg object-cover" muted playsInline />}
+                        {s.image && s.videoPath && (
+                          <span className="absolute bottom-0.5 right-0.5 bg-black/70 rounded text-white text-[9px] px-1">🎬</span>
+                        )}
+                      </div>
+                    )}
                     <div className="flex-1 min-w-0">
                       <p className="font-semibold text-sm truncate">{s.title}</p>
                       <p className="text-xs text-muted-foreground">{s.type} · {s.ville ?? s.quartier ?? ""}</p>
