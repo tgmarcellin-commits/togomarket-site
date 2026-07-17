@@ -1504,7 +1504,6 @@ export default function AdminDashboard() {
                     <option value="admin_event">Admin Événements</option>
                     <option value="admin_service">Admin Services</option>
                     <option value="admin_stats">Admin Statistiques</option>
-                    <option value="superadmin">Superadmin</option>
                   </select>
                 </div>
                 <div className="flex gap-2">
