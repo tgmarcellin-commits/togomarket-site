@@ -109,6 +109,14 @@ function ServiceCard({ service, lang }: { service: Service; lang: string }) {
                 className="w-full rounded-lg object-contain max-h-56 bg-black/5"
               />
             )}
+            {service.videoPath && (
+              <video
+                src={resolveImageUrl(service.videoPath)}
+                controls
+                playsInline
+                className="w-full rounded-lg max-h-56 bg-black"
+              />
+            )}
             <span className={`inline-block text-xs font-bold px-2.5 py-1 rounded-full ${cfg.badge}`}>
               {cfg.label}
             </span>

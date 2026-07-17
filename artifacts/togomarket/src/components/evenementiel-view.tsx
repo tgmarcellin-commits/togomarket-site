@@ -79,6 +79,14 @@ function EventDetailModal({ event, open, onClose, locale, t }: {
               />
             </div>
           )}
+          {event.videoPath && (
+            <video
+              src={resolveImageUrl(event.videoPath)}
+              controls
+              playsInline
+              className="w-full rounded-xl max-h-56 bg-black"
+            />
+          )}
           <div className="space-y-2">
             <div className="flex items-center gap-2 text-sm">
               <Calendar className="w-4 h-4 text-primary flex-shrink-0" />

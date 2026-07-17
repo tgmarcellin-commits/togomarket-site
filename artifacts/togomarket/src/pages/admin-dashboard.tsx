@@ -1383,12 +1383,12 @@ export default function AdminDashboard() {
                 {allEvents.map((ev) => (
                   <div key={ev.id} className="bg-card border rounded-xl p-3 flex items-center gap-3">
                     {(ev.flyerImage || ev.videoPath) && (
-                      <div className="relative w-14 h-14 flex-shrink-0">
-                        {ev.flyerImage
-                          ? <img src={resolveImageUrl(ev.flyerImage)} alt="" className="w-14 h-14 rounded-lg object-cover" />
-                          : <video src={resolveImageUrl(ev.videoPath!)} className="w-14 h-14 rounded-lg object-cover" muted playsInline />}
+                      <div className="relative w-14 h-14 flex-shrink-0 rounded-lg overflow-hidden bg-black/10">
+                        {ev.videoPath
+                          ? <video src={resolveImageUrl(ev.videoPath)} className="w-full h-full object-cover" muted playsInline controls={false} />
+                          : <img src={resolveImageUrl(ev.flyerImage!)} alt="" className="w-full h-full object-cover" />}
                         {ev.flyerImage && ev.videoPath && (
-                          <span className="absolute bottom-0.5 right-0.5 bg-black/70 rounded text-white text-[9px] px-1">🎬</span>
+                          <span className="absolute top-0.5 left-0.5 bg-black/60 rounded text-white text-[9px] px-1">🎬</span>
                         )}
                       </div>
                     )}
@@ -1486,12 +1486,12 @@ export default function AdminDashboard() {
                 {allServices.map((s) => (
                   <div key={s.id} className="bg-card border rounded-xl p-3 flex items-center gap-3">
                     {(s.image || s.videoPath) && (
-                      <div className="relative w-14 h-14 flex-shrink-0">
-                        {s.image
-                          ? <img src={resolveImageUrl(s.image)} alt="" className="w-14 h-14 rounded-lg object-cover" />
-                          : <video src={resolveImageUrl(s.videoPath!)} className="w-14 h-14 rounded-lg object-cover" muted playsInline />}
+                      <div className="relative w-14 h-14 flex-shrink-0 rounded-lg overflow-hidden bg-black/10">
+                        {s.videoPath
+                          ? <video src={resolveImageUrl(s.videoPath)} className="w-full h-full object-cover" muted playsInline controls={false} />
+                          : <img src={resolveImageUrl(s.image!)} alt="" className="w-full h-full object-cover" />}
                         {s.image && s.videoPath && (
-                          <span className="absolute bottom-0.5 right-0.5 bg-black/70 rounded text-white text-[9px] px-1">🎬</span>
+                          <span className="absolute top-0.5 left-0.5 bg-black/60 rounded text-white text-[9px] px-1">🎬</span>
                         )}
                       </div>
                     )}
