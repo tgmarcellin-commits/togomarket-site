@@ -788,7 +788,7 @@ export default function AdminDashboard() {
   const role = session?.role ?? "";
 
   const tabs: Array<{ key: DashTab; label: string; icon: React.ReactNode; roles?: string[] }> = [
-    { key: "stats", label: "Statistiques", icon: <LayoutDashboard className="w-4 h-4" />, roles: ["superadmin", "admin_stats"] },
+    { key: "stats", label: "Statistiques", icon: <LayoutDashboard className="w-4 h-4" />, roles: ["superadmin", "admin_stats", "admin_pub", "admin_event", "admin_service"] },
     { key: "pending", label: "En attente", icon: <Clock className="w-4 h-4" />, roles: ["superadmin"] },
     { key: "vendors", label: "Vendeurs", icon: <Users className="w-4 h-4" />, roles: ["superadmin"] },
     { key: "ads", label: "Publicités", icon: <Megaphone className="w-4 h-4" />, roles: ["superadmin", "admin_pub"] },
