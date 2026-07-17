@@ -91,8 +91,12 @@ router.post("/admin/accounts/delete", async (req, res): Promise<void> => {
     return;
   }
   const account = await db.select().from(adminAccountsTable).where(eq(adminAccountsTable.id, accountId)).limit(1);
-  if (account[0]?.role === "superadmin") {
-    res.status(400).json({ error: "Impossible de supprimer le superadmin" });
+  if (!account[0]) {
+    res.status(404).json({ error: "Compte introuvable" });
+    return;
+  }
+  if (account[0].id === 1) {
+    res.status(400).json({ error: "Impossible de supprimer le compte superadmin principal" });
     return;
   }
   await db.delete(adminAccountsTable).where(eq(adminAccountsTable.id, accountId));
