@@ -1,5 +1,6 @@
 import app from "./app";
 import { logger } from "./lib/logger";
+import { startRenewalReminderCron } from "./lib/renewal-reminder";
 
 const rawPort = process.env["PORT"];
 
@@ -22,4 +23,9 @@ app.listen(port, (err) => {
   }
 
   logger.info({ port }, "Server listening");
+
+  // Lance le cron quotidien de rappel de renouvellement des boutiques.
+  // Première vérification dans 60s, puis toutes les 24h.
+  // Les erreurs WhatsApp sont non-fatales et n'affectent pas le serveur.
+  startRenewalReminderCron();
 });

@@ -486,6 +486,86 @@ router.post("/vendors/profile/change-password", async (req, res) => {
   }
 });
 
+// =============================================================================
+// LIEN DE RENOUVELLEMENT — Utilisé dans le bouton CTA des rappels WhatsApp
+// =============================================================================
+// GET /api/vendors/renewal-link/:vendorId
+// Crée une transaction FedaPay pour le vendeur et redirige vers la page de paiement.
+// Ce lien est envoyé dans les rappels WhatsApp 3 jours avant l'expiration.
+// Sécurité : la création de transaction FedaPay est gratuite — le vendeur doit
+// quand même payer pour que son abonnement soit renouvelé.
+// =============================================================================
+const FEDAPAY_SECRET_KEY_V = process.env.FEDAPAY_SECRET_KEY ?? "";
+const FEDAPAY_PUBLIC_KEY_V = process.env.FEDAPAY_PUBLIC_KEY ?? "";
+
+function getFedapayBaseUrlV(): string {
+  return FEDAPAY_PUBLIC_KEY_V.startsWith("pk_live")
+    ? "https://api.fedapay.com/v1"
+    : "https://sandbox-api.fedapay.com/v1";
+}
+
+router.get("/vendors/renewal-link/:vendorId", async (req, res) => {
+  const vendorId = parseInt(req.params.vendorId, 10);
+  if (isNaN(vendorId) || vendorId <= 0) {
+    return res.status(400).send("Identifiant vendeur invalide");
+  }
+
+  const vendors = await db.select().from(vendorsTable).where(eq(vendorsTable.id, vendorId)).limit(1);
+  if (vendors.length === 0) {
+    return res.status(404).send("Boutique introuvable");
+  }
+  const vendor = vendors[0];
+
+  try {
+    const callbackUrl = `https://togomarket.site/api/fedapay-callback`;
+    const txRes = await fetch(`${getFedapayBaseUrlV()}/transactions`, {
+      method: "POST",
+      headers: {
+        Authorization: `Bearer ${FEDAPAY_SECRET_KEY_V}`,
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({
+        description: `Renouvellement abonnement TogoMarket — boutique #${vendor.id}`,
+        amount: 1000,
+        currency: { iso: "XOF" },
+        callback_url: callbackUrl,
+        customer: {
+          firstname: `${vendor.firstName} ${vendor.lastName}`,
+          phone_number: { number: vendor.phone, country: "TG" },
+        },
+        custom_metadata: { entityType: "vendor", entityId: String(vendor.id) },
+        include_fees: true,
+      }),
+      signal: AbortSignal.timeout(15_000),
+    });
+
+    if (!txRes.ok) {
+      const errText = await txRes.text().catch(() => "");
+      req.log.error({ vendorId, status: txRes.status, errText }, "Renewal link: FedaPay error");
+      return res.redirect("https://togomarket.site");
+    }
+
+    const json = await txRes.json() as Record<string, unknown>;
+    const txRaw = (
+      json["v1/transaction"] ??
+      (json["v1"] as Record<string, unknown> | undefined)?.["transaction"] ??
+      json["transaction"] ?? json
+    ) as Record<string, unknown>;
+    const paymentUrl = String(txRaw["payment_url"] ?? "");
+
+    if (!paymentUrl) {
+      req.log.error({ vendorId, json }, "Renewal link: no payment_url in FedaPay response");
+      return res.redirect("https://togomarket.site");
+    }
+
+    req.log.info({ vendorId }, "Renewal link: redirecting to FedaPay payment page");
+    return res.redirect(302, paymentUrl);
+  } catch (err) {
+    req.log.error({ err, vendorId }, "Renewal link: unexpected error, fallback redirect");
+    return res.redirect("https://togomarket.site");
+  }
+});
+
 router.get("/vendors/shop-status", async (req, res) => {
   const vendorId = parseInt(String(req.query.vendorId ?? ""), 10);
 
