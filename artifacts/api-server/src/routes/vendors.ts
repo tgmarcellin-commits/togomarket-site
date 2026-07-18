@@ -2,7 +2,7 @@ import { Router, type IRouter } from "express";
 import { eq, desc, and, gt, lt } from "drizzle-orm";
 import bcrypt from "bcryptjs";
 import { db, vendorsTable, publishCodesTable, otpCodesTable } from "@workspace/db";
-import { sendWhatsAppOTP } from "../lib/whatsapp-api";
+import { sendWhatsAppOTP, sendWhatsAppText } from "../lib/whatsapp-api";
 import { normalizePhone, phoneEq } from "../lib/phone";
 import {
   VendorRegisterBody,
@@ -220,6 +220,49 @@ router.post("/vendors/verify-otp", async (req, res) => {
   req.log.info({ id: vendor.id }, "Vendor OTP verified, account activated");
   const publishCode = await getActivePublishCode(updated.id);
   return res.json(VendorLoginResponse.parse(mapVendor(updated, publishCode)));
+});
+
+// Route : demande d'activation manuelle (utilisé quand le vendeur ne reçoit pas l'OTP)
+// Marque le compte comme "manual_requested" et notifie l'admin via WhatsApp.
+router.post("/vendors/request-manual-activation", async (req, res) => {
+  const phone = normalizePhone(String(req.body.phone ?? ""));
+  if (!phone) {
+    return res.status(400).json({ error: "Numéro requis" });
+  }
+
+  const vendors = await db.select().from(vendorsTable).where(phoneEq(vendorsTable.phone, phone)).limit(1);
+  if (vendors.length === 0) {
+    return res.status(404).json({ error: "Compte introuvable" });
+  }
+  const vendor = vendors[0];
+
+  if (vendor.verified) {
+    return res.status(400).json({ error: "Ce compte est déjà vérifié." });
+  }
+
+  // Marquer comme demandant une activation manuelle
+  await db
+    .update(vendorsTable)
+    .set({ validationMethod: "manual_requested" })
+    .where(eq(vendorsTable.id, vendor.id));
+
+  // Notifier l'admin via WhatsApp (non-fatal si échec)
+  try {
+    const adminPhone = "22870703131";
+    const msg =
+      `🔔 *Demande d'activation manuelle TogoMarket*\n\n` +
+      `Vendeur : ${vendor.firstName} ${vendor.lastName}\n` +
+      `Téléphone : +${vendor.phone}\n` +
+      `ID : #${vendor.id}\n\n` +
+      `Ce vendeur n'a pas reçu son code OTP et demande une activation manuelle. ` +
+      `Allez dans le panneau admin → onglet "Manuels" pour l'activer.`;
+    await sendWhatsAppText(adminPhone, msg);
+  } catch (err) {
+    req.log.error({ err }, "request-manual-activation: échec notification WhatsApp admin");
+  }
+
+  req.log.info({ vendorId: vendor.id }, "Vendor requested manual activation");
+  return res.json({ success: true });
 });
 
 router.post("/vendors/resend-otp", async (req, res) => {

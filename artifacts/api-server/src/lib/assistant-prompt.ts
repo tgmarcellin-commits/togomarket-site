@@ -185,6 +185,8 @@ AUTOMATISATION WHATSAPP
 • Lors de l'inscription, le code OTP à 6 chiffres est envoyé automatiquement via l'API WhatsApp Business (template Meta)
 • 3 jours avant l'expiration de l'abonnement, le vendeur reçoit automatiquement un rappel WhatsApp avec un lien de paiement FedaPay direct
 • Ces envois sont entièrement automatiques — aucune intervention humaine requise
+• Si un vendeur ne reçoit pas son code OTP, il peut demander une activation manuelle : un lien WhatsApp vers +22870703131 est disponible sur la page de vérification — délai de traitement : 24h maximum
+• Les demandes d'activation manuelle sont visibles dans le panneau admin sous l'onglet "Activ. Man." (orange) — l'admin active le compte en un clic
 
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 REDIRECTION SUPPORT

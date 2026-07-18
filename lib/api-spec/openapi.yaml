@@ -568,6 +568,29 @@ paths:
         "429":
           description: Too many requests, please wait before retrying
 
+  /vendors/request-manual-activation:
+    post:
+      operationId: vendorRequestManualActivation
+      tags: [vendors]
+      summary: Request manual account activation (fallback when OTP not received)
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/VendorRequestManualActivationInput"
+      responses:
+        "200":
+          description: Request recorded, admin notified
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/SuccessResult"
+        "400":
+          description: Account already verified
+        "404":
+          description: Vendor not found
+
   /vendors/shop-status:
     get:
       operationId: getShopStatus
@@ -1593,6 +1616,13 @@ components:
           type: string
 
     VendorResendOtpInput:
+      type: object
+      required: [phone]
+      properties:
+        phone:
+          type: string
+
+    VendorRequestManualActivationInput:
       type: object
       required: [phone]
       properties:

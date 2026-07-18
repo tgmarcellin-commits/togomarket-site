@@ -46,6 +46,24 @@ async function callMetaAPI(payload: unknown): Promise<void> {
 }
 
 // =============================================================================
+// 0. ENVOI TEXTE LIBRE — Notification interne / admin
+// =============================================================================
+// Envoie un message texte libre à un numéro donné (ex. notification admin).
+// À utiliser uniquement pour des numéros ayant déjà contacté le compte WhatsApp
+// Business dans les 24h (contrainte Meta "user-initiated window").
+// Pour les notifications sortantes vers des vendeurs, utiliser les templates.
+// =============================================================================
+export async function sendWhatsAppText(phone: string, text: string): Promise<void> {
+  await callMetaAPI({
+    messaging_product: "whatsapp",
+    recipient_type: "individual",
+    to: phone,
+    type: "text",
+    text: { body: text },
+  });
+}
+
+// =============================================================================
 // 1. ENVOI OTP — Template d'Authentification
 // =============================================================================
 // Tente d'envoyer le code via le template Meta de type "Authentication".

@@ -66,6 +66,7 @@ import type {
   VendorProfileUpdateInput,
   VendorRegisterInput,
   VendorRegisterResult,
+  VendorRequestManualActivationInput,
   VendorResendOtpInput,
   VendorUpdateNameInput,
   VendorUpdatePriceInput,
@@ -1906,6 +1907,77 @@ export const useVendorResendOtp = <TError = ErrorType<void>,
         TContext
       > => {
       return useMutation(getVendorResendOtpMutationOptions(options));
+    }
+
+export const getVendorRequestManualActivationUrl = () => {
+
+
+
+
+  return `/api/vendors/request-manual-activation`
+}
+
+/**
+ * @summary Request manual account activation (fallback when OTP not received)
+ */
+export const vendorRequestManualActivation = async (vendorRequestManualActivationInput: VendorRequestManualActivationInput, options?: RequestInit): Promise<SuccessResult> => {
+
+  return customFetch<SuccessResult>(getVendorRequestManualActivationUrl(),
+  {
+    ...options,
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...options?.headers },
+    body: JSON.stringify(
+      vendorRequestManualActivationInput,)
+  }
+);}
+
+
+
+
+export const getVendorRequestManualActivationMutationOptions = <TError = ErrorType<void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof vendorRequestManualActivation>>, TError,{data: BodyType<VendorRequestManualActivationInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof vendorRequestManualActivation>>, TError,{data: BodyType<VendorRequestManualActivationInput>}, TContext> => {
+
+const mutationKey = ['vendorRequestManualActivation'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof vendorRequestManualActivation>>, {data: BodyType<VendorRequestManualActivationInput>}> = (props) => {
+          const {data} = props ?? {};
+
+          return  vendorRequestManualActivation(data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type VendorRequestManualActivationMutationResult = NonNullable<Awaited<ReturnType<typeof vendorRequestManualActivation>>>
+    export type VendorRequestManualActivationMutationBody = BodyType<VendorRequestManualActivationInput>
+    export type VendorRequestManualActivationMutationError = ErrorType<void>
+
+    /**
+ * @summary Request manual account activation (fallback when OTP not received)
+ */
+export const useVendorRequestManualActivation = <TError = ErrorType<void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof vendorRequestManualActivation>>, TError,{data: BodyType<VendorRequestManualActivationInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof vendorRequestManualActivation>>,
+        TError,
+        {data: BodyType<VendorRequestManualActivationInput>},
+        TContext
+      > => {
+      return useMutation(getVendorRequestManualActivationMutationOptions(options));
     }
 
 export const getGetShopStatusUrl = (params: GetShopStatusParams,) => {

@@ -313,6 +313,10 @@ export interface VendorResendOtpInput {
   phone: string;
 }
 
+export interface VendorRequestManualActivationInput {
+  phone: string;
+}
+
 export interface VendorLoginInput {
   phone: string;
   password: string;

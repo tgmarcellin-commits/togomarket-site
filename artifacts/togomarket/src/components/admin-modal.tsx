@@ -170,7 +170,7 @@ function ResetVendorPwdPanel({
   );
 }
 
-type DashTab = "pending" | "vendors" | "ads" | "events" | "services" | "settings";
+type DashTab = "pending" | "manual" | "vendors" | "ads" | "events" | "services" | "settings";
 
 export function AdminModal({
   open,
@@ -744,7 +744,7 @@ export function AdminModal({
         ) : (
           <div className="pt-2 space-y-4">
             {/* Tabs */}
-            <div className="grid grid-cols-6 rounded-lg border overflow-hidden">
+            <div className="grid grid-cols-7 rounded-lg border overflow-hidden">
               <button
                 onClick={() => setTab("pending")}
                 className={`py-2 text-[10px] font-medium flex items-center justify-center gap-0.5 transition-colors ${
@@ -758,6 +758,21 @@ export function AdminModal({
                     tab === "pending" ? "bg-white/20 text-white" : "bg-primary text-primary-foreground"
                   }`}>
                     {pendingListings.length}
+                  </span>
+                )}
+              </button>
+              <button
+                onClick={() => { setTab("manual"); refetchVendors(); }}
+                className={`py-2 text-[10px] font-medium flex items-center justify-center gap-0.5 transition-colors ${
+                  tab === "manual" ? "bg-orange-500 text-white" : "bg-background hover:bg-muted"
+                }`}
+              >
+                <span className="text-[9px] leading-none text-center">Activ.<br/>Man.</span>
+                {vendors.filter(v => v.validationMethod === "manual_requested" && !v.verified).length > 0 && (
+                  <span className={`px-1 py-0.5 rounded-full text-[9px] font-bold ${
+                    tab === "manual" ? "bg-white/20 text-white" : "bg-orange-500 text-white"
+                  }`}>
+                    {vendors.filter(v => v.validationMethod === "manual_requested" && !v.verified).length}
                   </span>
                 )}
               </button>
@@ -894,6 +909,74 @@ export function AdminModal({
                           </Button>
                         </div>
                       )}
+                    </div>
+                  ))
+                )}
+              </div>
+            )}
+
+            {/* Tab: Activations manuelles */}
+            {tab === "manual" && (
+              <div className="space-y-3">
+                <div className="bg-orange-50 border border-orange-200 rounded-lg p-3">
+                  <p className="text-xs text-orange-800 font-semibold">Demandes d'activation manuelle</p>
+                  <p className="text-[11px] text-orange-700 mt-0.5">
+                    Ces vendeurs n'ont pas reçu leur code OTP et ont demandé une activation manuelle via WhatsApp. Cliquez sur "Activer" pour chaque vendeur vérifié.
+                  </p>
+                </div>
+                {vendorsLoading ? (
+                  <p className="text-sm text-center text-muted-foreground py-6">Chargement...</p>
+                ) : vendors.filter(v => v.validationMethod === "manual_requested" && !v.verified).length === 0 ? (
+                  <div className="text-center py-8 text-muted-foreground">
+                    <CheckCircle className="w-10 h-10 mx-auto mb-2 text-green-500" />
+                    <p className="text-sm font-medium">Aucune demande en attente</p>
+                    <p className="text-xs mt-1">Toutes les activations manuelles sont traitées.</p>
+                  </div>
+                ) : (
+                  vendors.filter(v => v.validationMethod === "manual_requested" && !v.verified).map((vendor) => (
+                    <div key={vendor.id} className="border border-orange-200 rounded-lg p-3 space-y-2 bg-orange-50/40">
+                      <div className="flex items-start justify-between gap-2">
+                        <div className="flex-1 min-w-0">
+                          <p className="font-semibold text-sm">{vendor.firstName} {vendor.lastName}</p>
+                          <p className="text-xs text-muted-foreground">+{vendor.phone}</p>
+                          <p className="text-xs text-muted-foreground">Inscrit le {new Date(vendor.createdAt).toLocaleDateString("fr-FR")}</p>
+                          <span className="inline-block mt-1 px-2 py-0.5 bg-orange-100 text-orange-700 text-[10px] font-medium rounded-full">
+                            Activation manuelle demandée
+                          </span>
+                        </div>
+                        <div className="flex flex-col gap-1.5">
+                          <Button
+                            size="sm"
+                            className="h-7 text-xs bg-green-500 hover:bg-green-600 text-white"
+                            disabled={activateVendor.isPending}
+                            onClick={() => {
+                              activateVendor.mutate(
+                                { data: { password: storedPassword, vendorId: vendor.id } },
+                                {
+                                  onSuccess: (res) => {
+                                    toast({
+                                      title: "Compte activé !",
+                                      description: `Code de publication : ${res.code} — envoyez-le à ${res.vendorPhone}`,
+                                    });
+                                    refetchVendors();
+                                  },
+                                  onError: () => toast({ title: "Erreur d'activation", variant: "destructive" }),
+                                }
+                              );
+                            }}
+                          >
+                            Activer ✓
+                          </Button>
+                          <a
+                            href={`https://wa.me/${vendor.phone}?text=${encodeURIComponent(`Bonjour ${vendor.firstName}, votre compte TogoMarket a été activé manuellement. Vous pouvez maintenant vous connecter sur togomarket.site`)}`}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="flex items-center justify-center h-7 text-xs bg-[#25D366] hover:bg-[#1da851] text-white rounded px-2 font-medium"
+                          >
+                            WA
+                          </a>
+                        </div>
+                      </div>
                     </div>
                   ))
                 )}

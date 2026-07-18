@@ -428,6 +428,18 @@ export const VendorResendOtpResponse = zod.object({
 
 
 /**
+ * @summary Request manual account activation (fallback when OTP not received)
+ */
+export const VendorRequestManualActivationBody = zod.object({
+  "phone": zod.string()
+})
+
+export const VendorRequestManualActivationResponse = zod.object({
+  "success": zod.boolean()
+})
+
+
+/**
  * @summary Check whether a shop link (publish code) is still active
  */
 export const GetShopStatusQueryParams = zod.object({
