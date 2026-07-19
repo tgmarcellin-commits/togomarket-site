@@ -153,7 +153,7 @@ export default function AdminDashboard() {
   const [allAds, setAllAds] = useState<Ad[]>([]);
   const [adsLoading, setAdsLoading] = useState(false);
   const [showAdForm, setShowAdForm] = useState(false);
-  const [adForm, setAdForm] = useState({ advertiserName: "", advertiserPhone: "", message: "", image: "", imagePreview: "", videoPath: "", videoName: "" });
+  const [adForm, setAdForm] = useState({ advertiserName: "", advertiserPhone: "", message: "", image: "", imagePreview: "", videoPath: "", videoName: "", category: "Agence" });
   const adImageRef = useRef<HTMLInputElement>(null);
   const adVideoRef = useRef<HTMLInputElement>(null);
 
@@ -569,11 +569,11 @@ export default function AdminDashboard() {
       return;
     }
     createAd.mutate(
-      { data: { password, advertiserName: adForm.advertiserName, advertiserPhone: adForm.advertiserPhone, message: adForm.message, image: adForm.image || undefined, videoPath: adForm.videoPath || undefined } },
+      { data: { password, advertiserName: adForm.advertiserName, advertiserPhone: adForm.advertiserPhone, message: adForm.message, image: adForm.image || undefined, videoPath: adForm.videoPath || undefined, category: adForm.category } },
       {
         onSuccess: () => {
           toast({ title: "Publicité créée !" });
-          setAdForm({ advertiserName: "", advertiserPhone: "", message: "", image: "", imagePreview: "", videoPath: "", videoName: "" });
+          setAdForm({ advertiserName: "", advertiserPhone: "", message: "", image: "", imagePreview: "", videoPath: "", videoName: "", category: "Agence" });
           setShowAdForm(false);
           loadAds();
         },
@@ -1261,6 +1261,26 @@ export default function AdminDashboard() {
                   value={adForm.message}
                   onChange={(e) => setAdForm((f) => ({ ...f, message: e.target.value }))}
                 />
+                {/* Sélecteur catégorie */}
+                <div>
+                  <p className="text-xs font-medium text-muted-foreground mb-1.5">Catégorie <span className="text-destructive">*</span></p>
+                  <div className="grid grid-cols-4 gap-1.5">
+                    {(["Agence", "Ecole", "Hotels", "Restaurant"] as const).map((cat) => (
+                      <button
+                        key={cat}
+                        type="button"
+                        onClick={() => setAdForm((f) => ({ ...f, category: cat }))}
+                        className={`py-2 text-xs font-semibold rounded-lg border transition-colors ${
+                          adForm.category === cat
+                            ? "bg-amber-500 text-white border-amber-500 shadow-sm"
+                            : "bg-background border-input hover:bg-muted"
+                        }`}
+                      >
+                        {cat === "Agence" ? "🏢" : cat === "Ecole" ? "🎓" : cat === "Hotels" ? "🏨" : "🍽️"} {cat}
+                      </button>
+                    ))}
+                  </div>
+                </div>
                 <div className="flex items-center gap-3 flex-wrap">
                   <input type="file" accept="image/*" ref={adImageRef} className="hidden" onChange={handleAdImageChange} />
                   <input type="file" accept="video/*" ref={adVideoRef} className="hidden" onChange={handleAdVideoChange} />
