@@ -41,6 +41,7 @@ export interface Ad {
   endDate: string;
   /** @nullable */
   isPublished?: boolean | null;
+  category?: string;
 }
 
 export interface AdminCreateAdInput {
@@ -50,6 +51,7 @@ export interface AdminCreateAdInput {
   message: string;
   image?: string;
   videoPath?: string;
+  category?: string;
 }
 
 export interface Event {

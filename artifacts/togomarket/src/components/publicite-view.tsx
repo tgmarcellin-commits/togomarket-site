@@ -134,6 +134,17 @@ function VideoThumbnail({ src }: { src: string }) {
   );
 }
 
+const AD_CATEGORIES = ["Agence", "Ecole", "Hotels", "Restaurant"] as const;
+type AdCategory = typeof AD_CATEGORIES[number];
+
+// Icônes par catégorie
+const CATEGORY_ICONS: Record<AdCategory, string> = {
+  Agence: "🏢",
+  Ecole: "🎓",
+  Hotels: "🏨",
+  Restaurant: "🍽️",
+};
+
 export function PubliciteView() {
   const { lang } = useSiteSettings();
   const t = useT(lang);
@@ -141,6 +152,7 @@ export function PubliciteView() {
   const { data: settings } = useGetAdminSettings();
   const [selectedAd, setSelectedAd] = useState<Ad | null>(null);
   const [viewerImage, setViewerImage] = useState<string | null>(null);
+  const [activeCategory, setActiveCategory] = useState<AdCategory>("Agence");
   const whatsappAds = settings?.whatsappAds ?? "22870703131";
 
   if (isLoading) {
@@ -153,87 +165,126 @@ export function PubliciteView() {
     );
   }
 
-  if (!ads || ads.length === 0) {
-    return (
-      <div className="flex flex-col items-center justify-center py-20 px-6 text-center">
-        <div className="w-16 h-16 bg-muted rounded-full flex items-center justify-center mb-4">
-          <Megaphone className="w-8 h-8 text-muted-foreground" />
-        </div>
-        <h2 className="text-xl font-bold mb-2">{t.noAds}</h2>
-        <p className="text-muted-foreground max-w-xs text-sm mb-6">{t.noAdsDesc}</p>
-        <SubmitAdButton t={t} whatsappAds={whatsappAds} />
-      </div>
-    );
-  }
-
   const submitText = lang === "fr"
     ? "📢 Bonjour TogoMarket, je souhaite soumettre une publicité. Pouvez-vous m'indiquer la marche à suivre ?"
     : "📢 Hello TogoMarket, I would like to submit an advertisement. Can you guide me?";
 
+  // Filtrer les pubs de la catégorie active
+  const filteredAds = (ads ?? []).filter(
+    (ad) => (ad.category ?? "Agence") === activeCategory
+  );
+
+  // Compter les pubs par catégorie pour afficher les badges
+  const countByCategory = (cat: AdCategory) =>
+    (ads ?? []).filter((ad) => (ad.category ?? "Agence") === cat).length;
+
   return (
-    <div className="container mx-auto px-4 py-6 max-w-2xl">
-      <h2 className="font-bold text-lg mb-4">{t.adsTitle}</h2>
-      <div className="space-y-4">
-        {ads.map((ad) => {
-          const shareText = `📢 ${ad.advertiserName}\n${ad.message}\n\nDécouvrez sur TogoMarket : ${window.location.origin}`;
-          const shareUrl = window.location.origin;
+    <div className="container mx-auto px-4 py-4 max-w-2xl">
+      {/* Onglets catégories */}
+      <div className="flex gap-2 mb-4 overflow-x-auto pb-1 -mx-1 px-1">
+        {AD_CATEGORIES.map((cat) => {
+          const count = countByCategory(cat);
           return (
-            <div key={ad.id} className="rounded-xl border bg-card overflow-hidden hover:shadow-md transition-shadow">
-              <div className="flex gap-0">
-                {ad.videoPath ? (
-                  <button type="button" className="flex-shrink-0 focus:outline-none" onClick={() => setSelectedAd(ad)}>
-                    <VideoThumbnail src={ad.videoPath} />
-                  </button>
-                ) : ad.image ? (
-                  <button
-                    type="button"
-                    className="w-28 h-28 flex-shrink-0 overflow-hidden cursor-zoom-in focus:outline-none"
-                    onClick={() => setViewerImage(ad.image!)}
-                  >
-                    <img
-                      src={resolveImageUrl(ad.image)}
-                      alt={ad.advertiserName}
-                      className="w-full h-full object-cover"
-                    />
-                  </button>
-                ) : (
-                  <div className="w-28 h-28 bg-muted flex items-center justify-center flex-shrink-0">
-                    <Megaphone className="w-8 h-8 text-muted-foreground" />
-                  </div>
-                )}
-                <button
-                  className="flex-1 min-w-0 text-left p-3"
-                  onClick={() => setSelectedAd(ad)}
-                >
-                  <p className="font-semibold text-sm">{ad.advertiserName}</p>
-                  <p className="text-xs text-muted-foreground line-clamp-2 mt-0.5">{ad.message}</p>
-                  <p className="text-xs text-muted-foreground mt-1.5">
-                    {t.expiresOn} {new Date(ad.endDate).toLocaleDateString(t.dateLocale, { day: "numeric", month: "short", year: "numeric" })}
-                  </p>
-                </button>
-              </div>
-              <div className="px-3 pb-2 flex justify-end">
-                <ShareButtons text={shareText} url={shareUrl} />
-              </div>
-            </div>
+            <button
+              key={cat}
+              onClick={() => setActiveCategory(cat)}
+              className={`flex items-center gap-1.5 px-3 py-2 rounded-xl text-xs font-semibold whitespace-nowrap transition-all flex-shrink-0 ${
+                activeCategory === cat
+                  ? "bg-amber-500 text-white shadow-md"
+                  : "bg-muted text-muted-foreground hover:bg-muted/70"
+              }`}
+            >
+              <span>{CATEGORY_ICONS[cat]}</span>
+              <span>{cat}</span>
+              {count > 0 && (
+                <span className={`px-1.5 py-0.5 rounded-full text-[10px] font-bold ${
+                  activeCategory === cat ? "bg-white/20 text-white" : "bg-amber-100 text-amber-700"
+                }`}>
+                  {count}
+                </span>
+              )}
+            </button>
           );
         })}
       </div>
 
-      <div className="mt-6 rounded-xl border border-primary/20 bg-primary/5 p-4 text-center">
-        <Megaphone className="w-7 h-7 text-primary mx-auto mb-2" />
-        <p className="text-sm font-semibold mb-0.5">{t.submitAdCta}</p>
-        <p className="text-xs text-muted-foreground mb-3">{t.submitAdDesc}</p>
-        <a
-          href={`https://wa.me/${whatsappAds}?text=${encodeURIComponent(submitText)}`}
-          target="_blank"
-          rel="noopener noreferrer"
-          className="inline-flex items-center gap-2 bg-[#25D366] hover:bg-[#1eb355] text-white text-sm font-medium px-4 py-2 rounded-lg transition-colors"
-        >
-          <svg viewBox="0 0 24 24" className="w-4 h-4 fill-white flex-shrink-0"><path d="M17.472 14.382c-.297-.149-1.758-.867-2.03-.967-.273-.099-.471-.148-.67.15-.197.297-.767.966-.94 1.164-.173.199-.347.223-.644.075-.297-.15-1.255-.463-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.298-.347.446-.52.149-.174.198-.298.298-.497.099-.198.05-.371-.025-.52-.075-.149-.669-1.612-.916-2.207-.242-.579-.487-.5-.669-.51-.173-.008-.371-.01-.57-.01-.198 0-.52.074-.792.372-.272.297-1.04 1.016-1.04 2.479 0 1.462 1.065 2.875 1.213 3.074.149.198 2.096 3.2 5.077 4.487.709.306 1.262.489 1.694.625.712.227 1.36.195 1.871.118.571-.085 1.758-.719 2.006-1.413.248-.694.248-1.289.173-1.413-.074-.124-.272-.198-.57-.347z"/><path d="M12 0C5.373 0 0 5.373 0 12c0 2.123.554 4.114 1.526 5.843L.057 23.617a.5.5 0 0 0 .611.64l5.975-1.566A11.945 11.945 0 0 0 12 24c6.627 0 12-5.373 12-12S18.627 0 12 0zm0 22c-1.885 0-3.645-.52-5.148-1.426l-.369-.221-3.821 1.001.982-3.713-.24-.381A9.944 9.944 0 0 1 2 12C2 6.477 6.477 2 12 2s10 4.477 10 10-4.477 10-10 10z"/></svg>
-          {t.submitAdCta}
-        </a>
-      </div>
+      {/* Contenu de la catégorie */}
+      {filteredAds.length === 0 ? (
+        <div className="flex flex-col items-center justify-center py-16 px-6 text-center">
+          <div className="w-14 h-14 bg-muted rounded-full flex items-center justify-center mb-3 text-2xl">
+            {CATEGORY_ICONS[activeCategory]}
+          </div>
+          <h3 className="text-base font-bold mb-1">Aucune publicité {activeCategory}</h3>
+          <p className="text-muted-foreground text-sm mb-5">
+            Il n'y a pas encore de publicité dans cette catégorie.
+          </p>
+          <SubmitAdButton t={t} whatsappAds={whatsappAds} />
+        </div>
+      ) : (
+        <>
+          <div className="space-y-4">
+                {filteredAds.map((ad) => {
+              const shareText = `📢 ${ad.advertiserName}\n${ad.message}\n\nDécouvrez sur TogoMarket : ${window.location.origin}`;
+              const shareUrl = window.location.origin;
+              return (
+                <div key={ad.id} className="rounded-xl border bg-card overflow-hidden hover:shadow-md transition-shadow">
+                  <div className="flex gap-0">
+                    {ad.videoPath ? (
+                      <button type="button" className="flex-shrink-0 focus:outline-none" onClick={() => setSelectedAd(ad)}>
+                        <VideoThumbnail src={ad.videoPath} />
+                      </button>
+                    ) : ad.image ? (
+                      <button
+                        type="button"
+                        className="w-28 h-28 flex-shrink-0 overflow-hidden cursor-zoom-in focus:outline-none"
+                        onClick={() => setViewerImage(ad.image!)}
+                      >
+                        <img
+                          src={resolveImageUrl(ad.image)}
+                          alt={ad.advertiserName}
+                          className="w-full h-full object-cover"
+                        />
+                      </button>
+                    ) : (
+                      <div className="w-28 h-28 bg-muted flex items-center justify-center flex-shrink-0">
+                        <Megaphone className="w-8 h-8 text-muted-foreground" />
+                      </div>
+                    )}
+                    <button
+                      className="flex-1 min-w-0 text-left p-3"
+                      onClick={() => setSelectedAd(ad)}
+                    >
+                      <p className="font-semibold text-sm">{ad.advertiserName}</p>
+                      <p className="text-xs text-muted-foreground line-clamp-2 mt-0.5">{ad.message}</p>
+                      <p className="text-xs text-muted-foreground mt-1.5">
+                        {t.expiresOn} {new Date(ad.endDate).toLocaleDateString(t.dateLocale, { day: "numeric", month: "short", year: "numeric" })}
+                      </p>
+                    </button>
+                  </div>
+                  <div className="px-3 pb-2 flex justify-end">
+                    <ShareButtons text={shareText} url={shareUrl} />
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+
+          <div className="mt-6 rounded-xl border border-primary/20 bg-primary/5 p-4 text-center">
+            <Megaphone className="w-7 h-7 text-primary mx-auto mb-2" />
+            <p className="text-sm font-semibold mb-0.5">{t.submitAdCta}</p>
+            <p className="text-xs text-muted-foreground mb-3">{t.submitAdDesc}</p>
+            <a
+              href={`https://wa.me/${whatsappAds}?text=${encodeURIComponent(submitText)}`}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="inline-flex items-center gap-2 bg-[#25D366] hover:bg-[#1eb355] text-white text-sm font-medium px-4 py-2 rounded-lg transition-colors"
+            >
+              <svg viewBox="0 0 24 24" className="w-4 h-4 fill-white flex-shrink-0"><path d="M17.472 14.382c-.297-.149-1.758-.867-2.03-.967-.273-.099-.471-.148-.67.15-.197.297-.767.966-.94 1.164-.173.199-.347.223-.644.075-.297-.15-1.255-.463-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.298-.347.446-.52.149-.174.198-.298.298-.497.099-.198.05-.371-.025-.52-.075-.149-.669-1.612-.916-2.207-.242-.579-.487-.5-.669-.51-.173-.008-.371-.01-.57-.01-.198 0-.52.074-.792.372-.272.297-1.04 1.016-1.04 2.479 0 1.462 1.065 2.875 1.213 3.074.149.198 2.096 3.2 5.077 4.487.709.306 1.262.489 1.694.625.712.227 1.36.195 1.871.118.571-.085 1.758-.719 2.006-1.413.248-.694.248-1.289.173-1.413-.074-.124-.272-.198-.57-.347z"/><path d="M12 0C5.373 0 0 5.373 0 12c0 2.123.554 4.114 1.526 5.843L.057 23.617a.5.5 0 0 0 .611.64l5.975-1.566A11.945 11.945 0 0 0 12 24c6.627 0 12-5.373 12-12S18.627 0 12 0zm0 22c-1.885 0-3.645-.52-5.148-1.426l-.369-.221-3.821 1.001.982-3.713-.24-.381A9.944 9.944 0 0 1 2 12C2 6.477 6.477 2 12 2s10 4.477 10 10-4.477 10-10 10z"/></svg>
+              {t.submitAdCta}
+            </a>
+          </div>
+        </>
+      )}
 
       <AdDetailModal
         ad={selectedAd}

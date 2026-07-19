@@ -19,4 +19,5 @@ export interface Ad {
   endDate: string;
   /** @nullable */
   isPublished?: boolean | null;
+  category?: string;
 }

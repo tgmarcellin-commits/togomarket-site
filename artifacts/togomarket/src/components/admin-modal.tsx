@@ -190,7 +190,7 @@ export function AdminModal({
   const [allAds, setAllAds] = useState<Ad[]>([]);
   const [adsLoading, setAdsLoading] = useState(false);
   const [showAdForm, setShowAdForm] = useState(false);
-  const [adForm, setAdForm] = useState({ advertiserName: "", advertiserPhone: "", message: "", image: "", imagePreview: "", videoPath: "" });
+  const [adForm, setAdForm] = useState({ advertiserName: "", advertiserPhone: "", message: "", image: "", imagePreview: "", videoPath: "", category: "Agence" });
   const adImageRef = useRef<HTMLInputElement>(null);
   const adVideoRef = useRef<HTMLInputElement>(null);
   const [adVideoUploading, setAdVideoUploading] = useState(false);
@@ -525,7 +525,7 @@ export function AdminModal({
       {
         onSuccess: () => {
           toast({ title: "Publicité créée", description: "Elle est maintenant visible sur le site pendant 30 jours." });
-          setAdForm({ advertiserName: "", advertiserPhone: "", message: "", image: "", imagePreview: "", videoPath: "" });
+          setAdForm({ advertiserName: "", advertiserPhone: "", message: "", image: "", imagePreview: "", videoPath: "", category: "Agence" });
           setAdVideoName("");
           setShowAdForm(false);
           refetchAds();
@@ -1409,6 +1409,26 @@ export function AdminModal({
                       onChange={(e) => setAdForm((f) => ({ ...f, message: e.target.value }))}
                       className="h-8 text-sm"
                     />
+                    {/* Catégorie de la publicité */}
+                    <div>
+                      <p className="text-[10px] text-muted-foreground mb-1 font-medium">Catégorie *</p>
+                      <div className="grid grid-cols-4 gap-1">
+                        {(["Agence", "Ecole", "Hotels", "Restaurant"] as const).map((cat) => (
+                          <button
+                            key={cat}
+                            type="button"
+                            onClick={() => setAdForm((f) => ({ ...f, category: cat }))}
+                            className={`py-1.5 text-[10px] font-semibold rounded-md border transition-colors ${
+                              adForm.category === cat
+                                ? "bg-amber-500 text-white border-amber-500"
+                                : "bg-background border-input hover:bg-muted"
+                            }`}
+                          >
+                            {cat}
+                          </button>
+                        ))}
+                      </div>
+                    </div>
                     <div className="flex flex-col gap-2">
                       <div className="flex items-center gap-2">
                         <input

@@ -13,4 +13,5 @@ export interface AdminCreateAdInput {
   message: string;
   image?: string;
   videoPath?: string;
+  category?: string;
 }

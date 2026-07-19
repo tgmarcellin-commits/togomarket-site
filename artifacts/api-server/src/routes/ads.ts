@@ -19,6 +19,7 @@ function mapAd(a: typeof adsTable.$inferSelect) {
     paymentStatus: a.paymentStatus,
     validationMethod: a.validationMethod,
     fedapayTransactionId: a.fedapayTransactionId ?? null,
+    category: a.category ?? "Agence",
   };
 }
 
@@ -37,13 +38,15 @@ router.get("/ads", async (req, res) => {
 });
 
 router.post("/admin/ads", async (req, res) => {
-  const { password, advertiserName, advertiserPhone, message, image, videoPath } = req.body;
+  const { password, advertiserName, advertiserPhone, message, image, videoPath, category } = req.body;
   if (!await isAdminOrSubAdmin(password)) {
     return res.status(403).json({ error: "Forbidden" });
   }
   if (!advertiserName || !advertiserPhone || !message) {
     return res.status(400).json({ error: "Missing required fields" });
   }
+  const validCategories = ["Agence", "Ecole", "Hotels", "Restaurant"];
+  const adCategory: string = validCategories.includes(category) ? category : "Agence";
   try {
     const now = new Date();
     const endDate = new Date(now.getTime() + 30 * 24 * 60 * 60 * 1000);
@@ -60,6 +63,7 @@ router.post("/admin/ads", async (req, res) => {
         isPublished: false,
         paymentStatus: "unpaid",
         validationMethod: "pending",
+        category: adCategory,
       })
       .returning();
     return res.status(201).json(mapAd(ad));

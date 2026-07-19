@@ -309,7 +309,8 @@ export const GetActiveAdsResponseItem = zod.object({
   "videoPath": zod.string().nullish(),
   "startDate": zod.string(),
   "endDate": zod.string(),
-  "isPublished": zod.boolean().nullish()
+  "isPublished": zod.boolean().nullish(),
+  "category": zod.string().optional()
 })
 export const GetActiveAdsResponse = zod.array(GetActiveAdsResponseItem)
 
@@ -323,7 +324,8 @@ export const AdminCreateAdBody = zod.object({
   "advertiserPhone": zod.string(),
   "message": zod.string(),
   "image": zod.string().optional(),
-  "videoPath": zod.string().optional()
+  "videoPath": zod.string().optional(),
+  "category": zod.string().optional()
 })
 
 
@@ -343,7 +345,8 @@ export const AdminGetAllAdsResponseItem = zod.object({
   "videoPath": zod.string().nullish(),
   "startDate": zod.string(),
   "endDate": zod.string(),
-  "isPublished": zod.boolean().nullish()
+  "isPublished": zod.boolean().nullish(),
+  "category": zod.string().optional()
 })
 export const AdminGetAllAdsResponse = zod.array(AdminGetAllAdsResponseItem)
 
