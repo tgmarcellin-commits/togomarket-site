@@ -3,6 +3,7 @@ import { useGetActiveAds, type Ad } from "@workspace/api-client-react";
 import { Megaphone, X, ChevronLeft, ChevronRight, Play } from "lucide-react";
 import { resolveImageUrl } from "@/lib/image";
 import { ImageViewer } from "@/components/image-viewer";
+import { SmartVideo } from "@/components/smart-video";
 
 function AdModal({ ad, onClose }: { ad: Ad; onClose: () => void }) {
   const [viewerOpen, setViewerOpen] = useState(false);
@@ -18,15 +19,11 @@ function AdModal({ ad, onClose }: { ad: Ad; onClose: () => void }) {
           onClick={(e) => e.stopPropagation()}
         >
           {ad.videoPath && (
-            <div className="w-full aspect-video bg-black">
-              <video
-                src={resolveImageUrl(ad.videoPath)}
-                className="w-full h-full object-contain"
-                controls
-                autoPlay
-                playsInline
-              />
-            </div>
+            <SmartVideo
+              src={resolveImageUrl(ad.videoPath)}
+              mode="player"
+              className="w-full aspect-video"
+            />
           )}
           {!ad.videoPath && ad.image && (
             <button

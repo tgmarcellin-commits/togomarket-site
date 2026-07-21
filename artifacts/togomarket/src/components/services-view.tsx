@@ -10,6 +10,7 @@ import { Briefcase, MapPin, User, Building2, Wrench } from "lucide-react";
 import { resolveImageUrl } from "@/lib/image";
 import { useSiteSettings } from "@/lib/site-settings";
 import { useT } from "@/lib/i18n";
+import { SmartVideo } from "@/components/smart-video";
 
 function WaBtn({ contact, label }: { contact: string; label: string }) {
   const digits = contact.replace(/\D/g, "");
@@ -110,11 +111,11 @@ function ServiceCard({ service, lang }: { service: Service; lang: string }) {
               />
             )}
             {service.videoPath && (
-              <video
+              <SmartVideo
                 src={resolveImageUrl(service.videoPath)}
-                controls
-                playsInline
-                className="w-full rounded-lg max-h-56 bg-black"
+                mode="player"
+                className="w-full rounded-lg"
+                style={{ maxHeight: 224 }}
               />
             )}
             <span className={`inline-block text-xs font-bold px-2.5 py-1 rounded-full ${cfg.badge}`}>

@@ -37,6 +37,7 @@ import { resolveImageUrl, resizeImageToBlob } from "@/lib/image";
 import { uploadImageFile, uploadVideoFile } from "@/lib/upload";
 import { openWhatsApp } from "@/lib/whatsapp";
 import { ImageViewer } from "@/components/image-viewer";
+import { SmartVideo } from "@/components/smart-video";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import {
@@ -1405,7 +1406,7 @@ export default function AdminDashboard() {
                     {(ev.flyerImage || ev.videoPath) && (
                       <div className="relative w-14 h-14 flex-shrink-0 rounded-lg overflow-hidden bg-black/10">
                         {ev.videoPath
-                          ? <video src={resolveImageUrl(ev.videoPath)} className="w-full h-full object-cover" muted playsInline controls={false} />
+                          ? <SmartVideo src={resolveImageUrl(ev.videoPath)} mode="thumbnail" className="w-full h-full" />
                           : <img src={resolveImageUrl(ev.flyerImage!)} alt="" className="w-full h-full object-cover" />}
                         {ev.flyerImage && ev.videoPath && (
                           <span className="absolute top-0.5 left-0.5 bg-black/60 rounded text-white text-[9px] px-1">🎬</span>
@@ -1508,7 +1509,7 @@ export default function AdminDashboard() {
                     {(s.image || s.videoPath) && (
                       <div className="relative w-14 h-14 flex-shrink-0 rounded-lg overflow-hidden bg-black/10">
                         {s.videoPath
-                          ? <video src={resolveImageUrl(s.videoPath)} className="w-full h-full object-cover" muted playsInline controls={false} />
+                          ? <SmartVideo src={resolveImageUrl(s.videoPath)} mode="thumbnail" className="w-full h-full" />
                           : <img src={resolveImageUrl(s.image!)} alt="" className="w-full h-full object-cover" />}
                         {s.image && s.videoPath && (
                           <span className="absolute top-0.5 left-0.5 bg-black/60 rounded text-white text-[9px] px-1">🎬</span>

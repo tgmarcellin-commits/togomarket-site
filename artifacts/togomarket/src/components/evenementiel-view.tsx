@@ -8,6 +8,7 @@ import { useSiteSettings } from "@/lib/site-settings";
 import { useT } from "@/lib/i18n";
 import { resolveImageUrl } from "@/lib/image";
 import { ImageViewer } from "@/components/image-viewer";
+import { SmartVideo } from "@/components/smart-video";
 
 function ShareButtons({ text, url }: { text: string; url: string }) {
   const waHref = `https://wa.me/?text=${encodeURIComponent(text)}`;
@@ -80,11 +81,11 @@ function EventDetailModal({ event, open, onClose, locale, t }: {
             </div>
           )}
           {event.videoPath && (
-            <video
+            <SmartVideo
               src={resolveImageUrl(event.videoPath)}
-              controls
-              playsInline
-              className="w-full rounded-xl max-h-56 bg-black"
+              mode="player"
+              className="w-full rounded-xl"
+              style={{ maxHeight: 224 }}
             />
           )}
           <div className="space-y-2">
