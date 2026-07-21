@@ -494,17 +494,15 @@ export function AdminModal({
     }
   };
 
+  const [adVideoStatus, setAdVideoStatus] = useState<"idle" | "compressing" | "uploading">("idle");
   const handleAdVideoChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
-    if (file.size > 50 * 1024 * 1024) {
-      toast({ title: "Vidéo trop lourde", description: "Maximum 50 Mo.", variant: "destructive" });
-      return;
-    }
     setAdVideoUploading(true);
     setAdVideoName(file.name);
+    setAdVideoStatus("uploading");
     try {
-      const objectPath = await uploadVideoFile(file);
+      const objectPath = await uploadVideoFile(file, (s) => setAdVideoStatus(s));
       setAdForm((f) => ({ ...f, videoPath: objectPath }));
       toast({ title: "Vidéo envoyée ✓" });
     } catch {
@@ -512,6 +510,7 @@ export function AdminModal({
       setAdVideoName("");
     } finally {
       setAdVideoUploading(false);
+      setAdVideoStatus("idle");
     }
   };
 

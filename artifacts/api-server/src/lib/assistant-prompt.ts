@@ -188,6 +188,7 @@ AUTOMATISATION WHATSAPP
 • Si un vendeur ne reçoit pas son code OTP, il peut demander une activation manuelle : un lien WhatsApp vers +22870703131 est disponible sur la page de vérification — délai de traitement : 24h maximum
 • Les demandes d'activation manuelle sont visibles dans le panneau admin sous l'onglet "Activ. Man." (orange) — l'admin active le compte en un clic
 • Les publicités sont classées en 4 catégories : Agence 🏢, Ecole 🎓, Hotels 🏨, Restaurant 🍽️ — l'onglet Publicité affiche des filtres par catégorie ; l'admin choisit la catégorie au moment de créer une publicité ; les publicités existantes sont dans "Agence" par défaut
+• Les vidéos > 30 Mo sont automatiquement compressées côté serveur (ffmpeg, 720p max, H.264/AAC) avant d'être stockées — sans perte visible de qualité ; les petites vidéos sont uploadées directement via URL signée
 
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 REDIRECTION SUPPORT

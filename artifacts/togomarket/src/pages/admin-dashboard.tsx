@@ -552,15 +552,19 @@ export default function AdminDashboard() {
     }
   };
 
+  const [adVideoStatus, setAdVideoStatus] = useState<"idle" | "compressing" | "uploading">("idle");
   const handleAdVideoChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
     e.target.value = "";
+    setAdVideoStatus("uploading");
     try {
-      const objectPath = await uploadVideoFile(file);
+      const objectPath = await uploadVideoFile(file, (s) => setAdVideoStatus(s));
       setAdForm((f) => ({ ...f, videoPath: objectPath, videoName: file.name }));
     } catch {
       toast({ title: "Erreur vidéo", variant: "destructive" });
+    } finally {
+      setAdVideoStatus("idle");
     }
   };
 
@@ -606,15 +610,19 @@ export default function AdminDashboard() {
     }
   };
 
+  const [eventVideoStatus, setEventVideoStatus] = useState<"idle" | "compressing" | "uploading">("idle");
   const handleEventVideoChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
     e.target.value = "";
+    setEventVideoStatus("uploading");
     try {
-      const objectPath = await uploadVideoFile(file);
+      const objectPath = await uploadVideoFile(file, (s) => setEventVideoStatus(s));
       setEventForm((f) => ({ ...f, videoPath: objectPath, videoName: file.name }));
     } catch {
       toast({ title: "Erreur vidéo", variant: "destructive" });
+    } finally {
+      setEventVideoStatus("idle");
     }
   };
 
@@ -677,15 +685,19 @@ export default function AdminDashboard() {
     }
   };
 
+  const [serviceVideoStatus, setServiceVideoStatus] = useState<"idle" | "compressing" | "uploading">("idle");
   const handleServiceVideoChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
     e.target.value = "";
+    setServiceVideoStatus("uploading");
     try {
-      const objectPath = await uploadVideoFile(file);
+      const objectPath = await uploadVideoFile(file, (s) => setServiceVideoStatus(s));
       setServiceForm((f) => ({ ...f, videoPath: objectPath, videoName: file.name }));
     } catch {
       toast({ title: "Erreur vidéo", variant: "destructive" });
+    } finally {
+      setServiceVideoStatus("idle");
     }
   };
 
@@ -1284,12 +1296,12 @@ export default function AdminDashboard() {
                 </div>
                 <div className="flex items-center gap-3 flex-wrap">
                   <input type="file" accept="image/*" ref={adImageRef} className="hidden" onChange={handleAdImageChange} />
-                  <input type="file" accept="video/*" ref={adVideoRef} className="hidden" onChange={handleAdVideoChange} />
+                  <input type="file" accept="video/*" ref={adVideoRef} className="hidden" onChange={handleAdVideoChange} disabled={adVideoStatus !== "idle"} />
                   <Button variant="outline" size="sm" onClick={() => adImageRef.current?.click()}>
                     Image
                   </Button>
-                  <Button variant="outline" size="sm" onClick={() => adVideoRef.current?.click()}>
-                    🎬 Vidéo
+                  <Button variant="outline" size="sm" onClick={() => adVideoRef.current?.click()} disabled={adVideoStatus !== "idle"}>
+                    {adVideoStatus === "compressing" ? "⏳ Compression..." : adVideoStatus === "uploading" ? "⬆️ Envoi..." : adForm.videoName ? "🎬 Vidéo ✓" : "🎬 Vidéo"}
                   </Button>
                   {adForm.imagePreview && <img src={adForm.imagePreview} alt="" className="h-12 w-12 rounded-lg object-cover" />}
                   {adForm.videoName && <span className="text-xs text-muted-foreground truncate max-w-[120px]">✅ {adForm.videoName}</span>}
@@ -1376,10 +1388,10 @@ export default function AdminDashboard() {
                 />
                 <div className="flex items-center gap-3 flex-wrap">
                   <input type="file" accept="image/*" ref={eventFlyerRef} className="hidden" onChange={handleEventFlyerChange} />
-                  <input type="file" accept="video/*" ref={eventVideoRef} className="hidden" onChange={handleEventVideoChange} />
+                  <input type="file" accept="video/*" ref={eventVideoRef} className="hidden" onChange={handleEventVideoChange} disabled={eventVideoStatus !== "idle"} />
                   <Button variant="outline" size="sm" onClick={() => eventFlyerRef.current?.click()}>Flyer</Button>
-                  <Button variant="outline" size="sm" onClick={() => eventVideoRef.current?.click()}>
-                    🎬 Vidéo
+                  <Button variant="outline" size="sm" onClick={() => eventVideoRef.current?.click()} disabled={eventVideoStatus !== "idle"}>
+                    {eventVideoStatus === "compressing" ? "⏳ Compression..." : eventVideoStatus === "uploading" ? "⬆️ Envoi..." : eventForm.videoName ? "🎬 Vidéo ✓" : "🎬 Vidéo"}
                   </Button>
                   {eventForm.flyerPreview && <img src={eventForm.flyerPreview} alt="" className="h-12 w-12 rounded-lg object-cover" />}
                   {eventForm.videoName && <span className="text-xs text-muted-foreground truncate max-w-[120px]">✅ {eventForm.videoName}</span>}
@@ -1479,10 +1491,10 @@ export default function AdminDashboard() {
                 />
                 <div className="flex items-center gap-3 flex-wrap">
                   <input type="file" accept="image/*" ref={serviceImageRef} className="hidden" onChange={handleServiceImageChange} />
-                  <input type="file" accept="video/*" ref={serviceVideoRef} className="hidden" onChange={handleServiceVideoChange} />
+                  <input type="file" accept="video/*" ref={serviceVideoRef} className="hidden" onChange={handleServiceVideoChange} disabled={serviceVideoStatus !== "idle"} />
                   <Button variant="outline" size="sm" onClick={() => serviceImageRef.current?.click()}>Image</Button>
-                  <Button variant="outline" size="sm" onClick={() => serviceVideoRef.current?.click()}>
-                    🎬 Vidéo
+                  <Button variant="outline" size="sm" onClick={() => serviceVideoRef.current?.click()} disabled={serviceVideoStatus !== "idle"}>
+                    {serviceVideoStatus === "compressing" ? "⏳ Compression..." : serviceVideoStatus === "uploading" ? "⬆️ Envoi..." : serviceForm.videoName ? "🎬 Vidéo ✓" : "🎬 Vidéo"}
                   </Button>
                   {serviceForm.imagePreview && <img src={serviceForm.imagePreview} alt="" className="h-12 w-12 rounded-lg object-cover" />}
                   {serviceForm.videoName && <span className="text-xs text-muted-foreground truncate max-w-[120px]">✅ {serviceForm.videoName}</span>}

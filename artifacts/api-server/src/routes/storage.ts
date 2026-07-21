@@ -1,5 +1,9 @@
 import { Router, type IRouter, type Request, type Response } from "express";
 import { Readable } from "stream";
+import { spawn } from "child_process";
+import { createReadStream, statSync } from "fs";
+import { unlink } from "fs/promises";
+import multer from "multer";
 import {
   RequestUploadUrlBody,
   RequestUploadUrlResponse,
@@ -10,8 +14,105 @@ import { ObjectStorageService, ObjectNotFoundError } from "../lib/objectStorage"
 import { db, listingsTable, adsTable } from "@workspace/db";
 import { isAdminOrSubAdmin } from "../lib/auth-sub";
 
+const upload = multer({
+  dest: "/tmp",
+  limits: { fileSize: 500 * 1024 * 1024 }, // 500 MB max
+});
+
+/** Run ffmpeg to compress a video file. Returns path to compressed output. */
+function compressVideo(inputPath: string, outputPath: string): Promise<{ originalSize: number; compressedSize: number }> {
+  return new Promise((resolve, reject) => {
+    const originalSize = statSync(inputPath).size;
+
+    const args = [
+      "-y",
+      "-i", inputPath,
+      "-vf", "scale=-2:min(720\\,ih)",
+      "-c:v", "libx264",
+      "-crf", "26",
+      "-preset", "fast",
+      "-c:a", "aac",
+      "-b:a", "128k",
+      "-movflags", "+faststart",
+      "-threads", "2",
+      outputPath,
+    ];
+
+    const ffmpeg = spawn("ffmpeg", args, { stdio: ["ignore", "ignore", "pipe"] });
+
+    let stderr = "";
+    ffmpeg.stderr.on("data", (d: Buffer) => { stderr += d.toString(); });
+
+    ffmpeg.on("close", (code) => {
+      if (code !== 0) {
+        reject(new Error(`ffmpeg exited with code ${code}: ${stderr.slice(-300)}`));
+        return;
+      }
+      try {
+        const compressedSize = statSync(outputPath).size;
+        resolve({ originalSize, compressedSize });
+      } catch {
+        reject(new Error("Compressed file not found after ffmpeg"));
+      }
+    });
+
+    ffmpeg.on("error", reject);
+  });
+}
+
 const router: IRouter = Router();
 const objectStorageService = new ObjectStorageService();
+
+/**
+ * POST /storage/uploads/video
+ *
+ * Accept a raw video file (multipart/form-data, field "video").
+ * If the file is > 30 MB, compress with ffmpeg (720p max, CRF 26, H.264+AAC).
+ * Upload the result to object storage and return the objectPath.
+ */
+router.post(
+  "/storage/uploads/video",
+  upload.single("video"),
+  async (req: Request, res: Response) => {
+    const file = req.file;
+    if (!file) {
+      res.status(400).json({ error: "Aucun fichier vidéo reçu" });
+      return;
+    }
+
+    const inputPath = file.path;
+    const outputPath = `${file.path}_compressed.mp4`;
+
+    try {
+      const { originalSize, compressedSize } = await compressVideo(inputPath, outputPath);
+
+      // Read compressed file into a buffer and upload to object storage
+      const chunks: Buffer[] = [];
+      await new Promise<void>((resolve, reject) => {
+        const stream = createReadStream(outputPath);
+        stream.on("data", (chunk) => chunks.push(Buffer.isBuffer(chunk) ? chunk : Buffer.from(chunk)));
+        stream.on("end", resolve);
+        stream.on("error", reject);
+      });
+      const buffer = Buffer.concat(chunks);
+
+      const objectPath = await objectStorageService.uploadObjectEntity(buffer, "video/mp4");
+
+      req.log.info({ originalSize, compressedSize, objectPath }, "Video compressed and uploaded");
+
+      res.json({ objectPath, originalSize, compressedSize });
+    } catch (err) {
+      req.log.error({ err }, "Video compression failed");
+      res.status(500).json({ error: "Échec de la compression vidéo" });
+    } finally {
+      // Clean up temp files
+      await Promise.allSettled([
+        unlink(inputPath).catch(() => {}),
+        unlink(outputPath).catch(() => {}),
+      ]);
+    }
+  },
+);
 
 /**
  * POST /storage/uploads/request-url

@@ -13,16 +13,42 @@ async function requestUploadUrl(file: File | { name: string; size: number; type:
   return metaRes.json() as Promise<UploadResponse>;
 }
 
-export async function uploadVideoFile(file: File): Promise<string> {
-  const { uploadURL, objectPath } = await requestUploadUrl(file);
+const VIDEO_COMPRESS_THRESHOLD = 30 * 1024 * 1024; // 30 MB
 
+/**
+ * Upload a video file.
+ * - If the file is larger than 30 MB, it goes through the server-side
+ *   compression endpoint (ffmpeg 720p, CRF 26) before being stored.
+ * - Smaller files are uploaded directly to object storage via a presigned URL.
+ */
+export async function uploadVideoFile(
+  file: File,
+  onProgress?: (status: "compressing" | "uploading") => void,
+): Promise<string> {
+  if (file.size > VIDEO_COMPRESS_THRESHOLD) {
+    onProgress?.("compressing");
+    const form = new FormData();
+    form.append("video", file);
+    const res = await fetch("/api/storage/uploads/video", {
+      method: "POST",
+      body: form,
+    });
+    if (!res.ok) {
+      const err = await res.json().catch(() => ({})) as { error?: string };
+      throw new Error(err.error ?? "Échec de la compression vidéo");
+    }
+    const { objectPath } = await res.json() as { objectPath: string };
+    return objectPath;
+  }
+
+  onProgress?.("uploading");
+  const { uploadURL, objectPath } = await requestUploadUrl(file);
   const putRes = await fetch(uploadURL, {
     method: "PUT",
     body: file,
     headers: { "Content-Type": file.type || "video/mp4" },
   });
   if (!putRes.ok) throw new Error("Échec de l'envoi de la vidéo");
-
   return objectPath;
 }
 
