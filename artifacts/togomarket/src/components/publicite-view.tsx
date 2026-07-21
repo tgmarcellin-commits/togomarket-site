@@ -1,4 +1,4 @@
-import { useState, useRef } from "react";
+import { useState } from "react";
 import { SmartVideo } from "@/components/smart-video";
 import { useGetActiveAds, useGetAdminSettings, type Ad } from "@workspace/api-client-react";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
@@ -112,19 +112,6 @@ function AdDetailModal({ ad, open, onClose, t }: {
   );
 }
 
-function VideoThumbnail({ src }: { src: string }) {
-  return (
-    <div className="relative w-28 h-28 bg-black flex-shrink-0 flex items-center justify-center">
-      <SmartVideo src={resolveImageUrl(src)} mode="thumbnail" className="w-28 h-28" />
-      <div className="absolute inset-0 flex items-center justify-center pointer-events-none opacity-0">
-        <div className="bg-black/50 rounded-full p-2">
-          <Play className="w-6 h-6 text-white" />
-        </div>
-      </div>
-    </div>
-  );
-}
-
 const AD_CATEGORIES = ["Agence", "Ecole", "Hotels", "Restaurant"] as const;
 type AdCategory = typeof AD_CATEGORIES[number];
 
@@ -222,7 +209,24 @@ export function PubliciteView() {
                   <div className="flex gap-0">
                     {ad.videoPath ? (
                       <button type="button" className="flex-shrink-0 focus:outline-none" onClick={() => setSelectedAd(ad)}>
-                        <VideoThumbnail src={ad.videoPath} />
+                        <div className="relative w-28 h-28 flex-shrink-0 overflow-hidden">
+                          {ad.image ? (
+                            <img
+                              src={resolveImageUrl(ad.image)}
+                              alt={ad.advertiserName}
+                              className="w-full h-full object-cover"
+                            />
+                          ) : (
+                            <div className="w-full h-full bg-gradient-to-br from-amber-400 to-orange-500 flex items-center justify-center">
+                              <Megaphone className="w-10 h-10 text-white/50" />
+                            </div>
+                          )}
+                          <div className="absolute inset-0 flex items-center justify-center">
+                            <div className="bg-black/55 rounded-full p-2.5 shadow-lg">
+                              <Play className="w-5 h-5 text-white fill-white" />
+                            </div>
+                          </div>
+                        </div>
                       </button>
                     ) : ad.image ? (
                       <button
