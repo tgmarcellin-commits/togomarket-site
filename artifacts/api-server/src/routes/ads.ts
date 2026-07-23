@@ -1,5 +1,5 @@
 import { Router, type IRouter } from "express";
-import { gt, eq, and } from "drizzle-orm";
+import { gt, eq, and, count, desc } from "drizzle-orm";
 import { db, adsTable } from "@workspace/db";
 import { isAdminOrSubAdmin } from "../lib/auth-sub";
 
@@ -20,9 +20,11 @@ function mapAd(a: typeof adsTable.$inferSelect) {
     validationMethod: a.validationMethod,
     fedapayTransactionId: a.fedapayTransactionId ?? null,
     category: a.category ?? "Agence",
+    isPinned: a.isPinned ?? false,
   };
 }
 
+// GET /ads — active published ads, pinned first within each category
 router.get("/ads", async (req, res) => {
   try {
     const now = new Date();
@@ -30,7 +32,14 @@ router.get("/ads", async (req, res) => {
       .select()
       .from(adsTable)
       .where(and(gt(adsTable.endDate, now), eq(adsTable.isPublished, true)));
-    res.json(ads.map(mapAd));
+    // Sort: pinned first, then by startDate desc
+    const sorted = ads.sort((a, b) => {
+      if (a.isPinned === b.isPinned) {
+        return b.startDate.getTime() - a.startDate.getTime();
+      }
+      return a.isPinned ? -1 : 1;
+    });
+    res.json(sorted.map(mapAd));
   } catch (err) {
     req.log.error({ err }, "Failed to get ads");
     res.status(500).json({ error: "Internal server error" });
@@ -64,6 +73,7 @@ router.post("/admin/ads", async (req, res) => {
         paymentStatus: "unpaid",
         validationMethod: "pending",
         category: adCategory,
+        isPinned: false,
       })
       .returning();
     return res.status(201).json(mapAd(ad));
@@ -79,7 +89,7 @@ router.post("/admin/ads/all", async (req, res) => {
     return res.status(403).json({ error: "Forbidden" });
   }
   try {
-    const ads = await db.select().from(adsTable).orderBy(adsTable.endDate);
+    const ads = await db.select().from(adsTable).orderBy(desc(adsTable.isPinned), adsTable.endDate);
     return res.json(ads.map(mapAd));
   } catch (err) {
     req.log.error({ err }, "Failed to get all ads");
@@ -97,6 +107,49 @@ router.post("/admin/ads/delete", async (req, res) => {
     return res.json({ success: true });
   } catch (err) {
     req.log.error({ err }, "Failed to delete ad");
+    return res.status(500).json({ error: "Internal server error" });
+  }
+});
+
+// POST /admin/ads/pin — toggle pin on an ad (max 5 pinned per category)
+router.post("/admin/ads/pin", async (req, res) => {
+  const { id, password } = req.body;
+  if (!await isAdminOrSubAdmin(password)) {
+    return res.status(403).json({ error: "Forbidden" });
+  }
+  if (!id) {
+    return res.status(400).json({ error: "Missing id" });
+  }
+  try {
+    const [ad] = await db.select().from(adsTable).where(eq(adsTable.id, id));
+    if (!ad) {
+      return res.status(404).json({ error: "Ad not found" });
+    }
+    // If currently pinned → unpin directly
+    if (ad.isPinned) {
+      const [updated] = await db
+        .update(adsTable)
+        .set({ isPinned: false })
+        .where(eq(adsTable.id, id))
+        .returning();
+      return res.json(mapAd(updated));
+    }
+    // Check how many pinned ads in the same category
+    const [{ pinnedCount }] = await db
+      .select({ pinnedCount: count() })
+      .from(adsTable)
+      .where(and(eq(adsTable.category, ad.category), eq(adsTable.isPinned, true)));
+    if (pinnedCount >= 5) {
+      return res.status(400).json({ error: `Maximum 5 publicités épinglées par catégorie (${ad.category}). Désépinglez-en une d'abord.` });
+    }
+    const [updated] = await db
+      .update(adsTable)
+      .set({ isPinned: true })
+      .where(eq(adsTable.id, id))
+      .returning();
+    return res.json(mapAd(updated));
+  } catch (err) {
+    req.log.error({ err }, "Failed to pin ad");
     return res.status(500).json({ error: "Internal server error" });
   }
 });

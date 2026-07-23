@@ -31,6 +31,7 @@ import type {
   AdminCreateServiceInput,
   AdminDeleteInput,
   AdminPasswordInput,
+  AdminPinAdInput,
   AdminResetVendorPasswordInput,
   AdminVerifyInput,
   AdminVerifyResult,
@@ -1617,6 +1618,77 @@ export const useAdminDeleteAd = <TError = ErrorType<void>,
         TContext
       > => {
       return useMutation(getAdminDeleteAdMutationOptions(options));
+    }
+
+export const getAdminPinAdUrl = () => {
+
+
+
+
+  return `/api/admin/ads/pin`
+}
+
+/**
+ * @summary Toggle pin status of an ad (max 5 pinned per category, admin only)
+ */
+export const adminPinAd = async (adminPinAdInput: AdminPinAdInput, options?: RequestInit): Promise<Ad> => {
+
+  return customFetch<Ad>(getAdminPinAdUrl(),
+  {
+    ...options,
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...options?.headers },
+    body: JSON.stringify(
+      adminPinAdInput,)
+  }
+);}
+
+
+
+
+export const getAdminPinAdMutationOptions = <TError = ErrorType<ErrorEnvelope | void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof adminPinAd>>, TError,{data: BodyType<AdminPinAdInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof adminPinAd>>, TError,{data: BodyType<AdminPinAdInput>}, TContext> => {
+
+const mutationKey = ['adminPinAd'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof adminPinAd>>, {data: BodyType<AdminPinAdInput>}> = (props) => {
+          const {data} = props ?? {};
+
+          return  adminPinAd(data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type AdminPinAdMutationResult = NonNullable<Awaited<ReturnType<typeof adminPinAd>>>
+    export type AdminPinAdMutationBody = BodyType<AdminPinAdInput>
+    export type AdminPinAdMutationError = ErrorType<ErrorEnvelope | void>
+
+    /**
+ * @summary Toggle pin status of an ad (max 5 pinned per category, admin only)
+ */
+export const useAdminPinAd = <TError = ErrorType<ErrorEnvelope | void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof adminPinAd>>, TError,{data: BodyType<AdminPinAdInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof adminPinAd>>,
+        TError,
+        {data: BodyType<AdminPinAdInput>},
+        TContext
+      > => {
+      return useMutation(getAdminPinAdMutationOptions(options));
     }
 
 export const getGetStatsUrl = () => {

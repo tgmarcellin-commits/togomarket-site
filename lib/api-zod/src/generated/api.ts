@@ -310,7 +310,8 @@ export const GetActiveAdsResponseItem = zod.object({
   "startDate": zod.string(),
   "endDate": zod.string(),
   "isPublished": zod.boolean().nullish(),
-  "category": zod.string().optional()
+  "category": zod.string().optional(),
+  "isPinned": zod.boolean().nullish().describe('Épinglée en haut de sa catégorie (max 5 par catégorie)')
 })
 export const GetActiveAdsResponse = zod.array(GetActiveAdsResponseItem)
 
@@ -346,7 +347,8 @@ export const AdminGetAllAdsResponseItem = zod.object({
   "startDate": zod.string(),
   "endDate": zod.string(),
   "isPublished": zod.boolean().nullish(),
-  "category": zod.string().optional()
+  "category": zod.string().optional(),
+  "isPinned": zod.boolean().nullish().describe('Épinglée en haut de sa catégorie (max 5 par catégorie)')
 })
 export const AdminGetAllAdsResponse = zod.array(AdminGetAllAdsResponseItem)
 
@@ -361,6 +363,29 @@ export const AdminDeleteAdBody = zod.object({
 
 export const AdminDeleteAdResponse = zod.object({
   "success": zod.boolean()
+})
+
+
+/**
+ * @summary Toggle pin status of an ad (max 5 pinned per category, admin only)
+ */
+export const AdminPinAdBody = zod.object({
+  "id": zod.number(),
+  "password": zod.string()
+})
+
+export const AdminPinAdResponse = zod.object({
+  "id": zod.number(),
+  "advertiserName": zod.string(),
+  "advertiserPhone": zod.string(),
+  "message": zod.string(),
+  "image": zod.string().nullish(),
+  "videoPath": zod.string().nullish(),
+  "startDate": zod.string(),
+  "endDate": zod.string(),
+  "isPublished": zod.boolean().nullish(),
+  "category": zod.string().optional(),
+  "isPinned": zod.boolean().nullish().describe('Épinglée en haut de sa catégorie (max 5 par catégorie)')
 })
 
 

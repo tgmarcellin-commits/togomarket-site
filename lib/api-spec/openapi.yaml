@@ -488,6 +488,35 @@ paths:
         "403":
           description: Forbidden
 
+  /admin/ads/pin:
+    post:
+      operationId: adminPinAd
+      tags: [admin, ads]
+      summary: Toggle pin status of an ad (max 5 pinned per category, admin only)
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/AdminPinAdInput"
+      responses:
+        "200":
+          description: Updated ad
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Ad"
+        "400":
+          description: Max 5 pinned ads per category reached
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorEnvelope"
+        "403":
+          description: Forbidden
+        "404":
+          description: Ad not found
+
   /stats:
     get:
       operationId: getStats
@@ -1121,6 +1150,18 @@ components:
         isPublished:
           type: ["boolean", "null"]
         category:
+          type: string
+        isPinned:
+          type: ["boolean", "null"]
+          description: "Épinglée en haut de sa catégorie (max 5 par catégorie)"
+
+    AdminPinAdInput:
+      type: object
+      required: [id, password]
+      properties:
+        id:
+          type: integer
+        password:
           type: string
 
     AdminCreateAdInput:

@@ -20,6 +20,8 @@ export const adsTable = pgTable("ads", {
   // Catégorie de la publicité : Agence, Ecole, Hotels, Restaurant
   // Les pubs existantes sans catégorie sont automatiquement dans "Agence" (valeur par défaut)
   category: text("category").notNull().default("Agence"),
+  // Publicité épinglée : toujours affichée en tête de sa catégorie (max 5 par catégorie)
+  isPinned: boolean("is_pinned").notNull().default(false),
 });
 
 export type Ad = typeof adsTable.$inferSelect;

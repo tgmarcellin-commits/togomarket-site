@@ -42,6 +42,16 @@ export interface Ad {
   /** @nullable */
   isPublished?: boolean | null;
   category?: string;
+  /**
+     * Épinglée en haut de sa catégorie (max 5 par catégorie)
+     * @nullable
+     */
+  isPinned?: boolean | null;
+}
+
+export interface AdminPinAdInput {
+  id: number;
+  password: string;
 }
 
 export interface AdminCreateAdInput {

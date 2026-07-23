@@ -10,6 +10,7 @@ import {
   useAdminCreateAd,
   useAdminGetAllAds,
   useAdminDeleteAd,
+  useAdminPinAd,
   useAdminGetVendors,
   useAdminActivateVendor,
   useAdminDeleteVendor,
@@ -587,12 +588,27 @@ export default function AdminDashboard() {
     );
   };
 
+  const pinAd = useAdminPinAd();
+
   const handleDeleteAd = (id: number) => {
     deleteAd.mutate(
       { data: { id, password } },
       {
         onSuccess: () => { toast({ title: "Publicité supprimée" }); loadAds(); },
         onError: () => toast({ title: "Erreur", variant: "destructive" }),
+      }
+    );
+  };
+
+  const handlePinAd = (id: number) => {
+    pinAd.mutate(
+      { data: { id, password } },
+      {
+        onSuccess: (ad) => {
+          toast({ title: ad.isPinned ? "Publicité épinglée 📌" : "Publicité désépinglée" });
+          loadAds();
+        },
+        onError: (err: Error) => toast({ title: err?.message ?? "Erreur", variant: "destructive" }),
       }
     );
   };
@@ -1340,6 +1356,15 @@ export default function AdminDashboard() {
                             Valider
                           </Button>
                         )}
+                        <Button
+                          size="sm"
+                          variant="ghost"
+                          className={`h-8 w-8 p-0 ${ad.isPinned ? "text-amber-500" : "text-muted-foreground"}`}
+                          title={ad.isPinned ? "Désépingler" : "Épingler (max 5 par catégorie)"}
+                          onClick={() => handlePinAd(ad.id)}
+                        >
+                          📌
+                        </Button>
                         <Button size="sm" variant="ghost" className="h-8 w-8 p-0 text-green-600" title="Envoyer lien de paiement" onClick={() => setPaymentLinkDialog({ entityType: "ad", entityId: ad.id, customerName: ad.advertiserName, customerPhone: ad.advertiserPhone })}>
                           📲
                         </Button>

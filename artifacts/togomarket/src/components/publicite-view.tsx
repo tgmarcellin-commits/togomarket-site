@@ -147,10 +147,13 @@ export function PubliciteView() {
     ? "📢 Bonjour TogoMarket, je souhaite soumettre une publicité. Pouvez-vous m'indiquer la marche à suivre ?"
     : "📢 Hello TogoMarket, I would like to submit an advertisement. Can you guide me?";
 
-  // Filtrer les pubs de la catégorie active
-  const filteredAds = (ads ?? []).filter(
-    (ad) => (ad.category ?? "Agence") === activeCategory
-  );
+  // Filtrer les pubs de la catégorie active, épinglées en tête
+  const filteredAds = (ads ?? [])
+    .filter((ad) => (ad.category ?? "Agence") === activeCategory)
+    .sort((a, b) => {
+      if (a.isPinned === b.isPinned) return 0;
+      return a.isPinned ? -1 : 1;
+    });
 
   // Compter les pubs par catégorie pour afficher les badges
   const countByCategory = (cat: AdCategory) =>
@@ -205,7 +208,14 @@ export function PubliciteView() {
               const shareText = `📢 ${ad.advertiserName}\n${ad.message}\n\nDécouvrez sur TogoMarket : ${window.location.origin}`;
               const shareUrl = window.location.origin;
               return (
-                <div key={ad.id} className="rounded-xl border bg-card overflow-hidden hover:shadow-md transition-shadow">
+                <div key={ad.id} className={`rounded-xl border bg-card overflow-hidden hover:shadow-md transition-shadow ${ad.isPinned ? "border-amber-300 shadow-sm" : ""}`}>
+                  {ad.isPinned && (
+                    <div className="flex items-center gap-1 px-3 pt-2">
+                      <span className="text-[10px] font-bold text-amber-600 bg-amber-50 border border-amber-200 px-1.5 py-0.5 rounded-full flex items-center gap-0.5">
+                        📌 Épinglé
+                      </span>
+                    </div>
+                  )}
                   <div className="flex gap-0">
                     {ad.videoPath ? (
                       <button type="button" className="flex-shrink-0 focus:outline-none" onClick={() => setSelectedAd(ad)}>
