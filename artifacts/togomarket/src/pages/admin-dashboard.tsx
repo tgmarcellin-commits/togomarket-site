@@ -72,6 +72,7 @@ import {
   ChevronUp,
   Phone,
   X,
+  Pin,
 } from "lucide-react";
 
 type DashTab =
@@ -1359,11 +1360,11 @@ export default function AdminDashboard() {
                         <Button
                           size="sm"
                           variant="ghost"
-                          className={`h-8 w-8 p-0 ${ad.isPinned ? "text-amber-500" : "text-muted-foreground"}`}
+                          className={`h-8 w-8 p-0 ${ad.isPinned ? "text-red-500 hover:text-red-600" : "text-gray-300 hover:text-gray-400"}`}
                           title={ad.isPinned ? "Désépingler" : "Épingler (max 5 par catégorie)"}
                           onClick={() => handlePinAd(ad.id)}
                         >
-                          📌
+                          <Pin className="w-3.5 h-3.5" />
                         </Button>
                         <Button size="sm" variant="ghost" className="h-8 w-8 p-0 text-green-600" title="Envoyer lien de paiement" onClick={() => setPaymentLinkDialog({ entityType: "ad", entityId: ad.id, customerName: ad.advertiserName, customerPhone: ad.advertiserPhone })}>
                           📲
