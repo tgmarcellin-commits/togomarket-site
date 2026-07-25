@@ -190,6 +190,7 @@ AUTOMATISATION WHATSAPP
 • Les publicités sont classées en 4 catégories : Agence 🏢, Ecole 🎓, Hotels 🏨, Restaurant 🍽️ — l'onglet Publicité affiche des filtres par catégorie ; l'admin choisit la catégorie au moment de créer une publicité ; les publicités existantes sont dans "Agence" par défaut
 • L'admin peut épingler jusqu'à 5 publicités par catégorie (bouton 📌 dans le panneau admin) — les publicités épinglées apparaissent toujours en tête de liste dans leur catégorie avec un badge "Épinglé", et un clic sur 📌 désépingle la publicité
 • Les vidéos > 30 Mo sont automatiquement compressées côté serveur (ffmpeg, 720p max, H.264/AAC) avant d'être stockées — sans perte visible de qualité ; les petites vidéos sont uploadées directement via URL signée
+• Après un paiement FedaPay, la boutique/annonce est activée automatiquement dès que le vendeur revient sur l'application (redirection via callback FedaPay) ; si ce n'est pas le cas, l'admin peut activer manuellement via le panneau admin > onglet Vendeurs
 
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 REDIRECTION SUPPORT

@@ -1,7 +1,6 @@
 import { Router, type IRouter } from "express";
 import { db, vendorsTable, adsTable, eventsTable, servicesTable } from "@workspace/db";
 import { eq } from "drizzle-orm";
-import crypto from "crypto";
 
 const router: IRouter = Router();
 
@@ -66,6 +65,79 @@ async function createFedapayTransaction(opts: {
   return { id, paymentUrl };
 }
 
+/** Vérifie le statut d'une transaction FedaPay et retourne ses métadonnées si approuvée */
+async function verifyFedapayTransaction(transactionId: string): Promise<{
+  approved: boolean;
+  entityType: string;
+  entityId: number;
+} | null> {
+  const baseUrl = getFedapayBaseUrl();
+  try {
+    const res = await fetch(`${baseUrl}/transactions/${transactionId}`, {
+      headers: {
+        Authorization: `Bearer ${FEDAPAY_SECRET_KEY}`,
+        "Content-Type": "application/json",
+      },
+    });
+    if (!res.ok) return null;
+    const json = await res.json() as Record<string, unknown>;
+    const txRaw = (
+      json["v1/transaction"]
+      ?? (json["v1"] as Record<string, unknown> | undefined)?.["transaction"]
+      ?? json["transaction"]
+      ?? json
+    ) as Record<string, unknown>;
+    const status = String(txRaw["status"] ?? "");
+    const metadata = (txRaw["custom_metadata"] ?? {}) as Record<string, string>;
+    const entityType = String(metadata?.entityType ?? "");
+    const entityId = parseInt(String(metadata?.entityId ?? "0"), 10);
+    return {
+      approved: status === "approved",
+      entityType,
+      entityId,
+    };
+  } catch {
+    return null;
+  }
+}
+
+/** Active une entité dans la base de données suite à un paiement confirmé */
+async function activateEntity(entityType: string, entityId: number): Promise<boolean> {
+  const now = new Date();
+  const thirtyDays = new Date(now.getTime() + 30 * 24 * 60 * 60 * 1000);
+
+  if (entityType === "vendor") {
+    await db
+      .update(vendorsTable)
+      .set({
+        isPublished: true,
+        paymentStatus: "paid",
+        validationMethod: "fedapay",
+        expiryDate: thirtyDays,
+        verified: true,
+      })
+      .where(eq(vendorsTable.id, entityId));
+  } else if (entityType === "ad") {
+    await db
+      .update(adsTable)
+      .set({ isPublished: true, paymentStatus: "paid", validationMethod: "fedapay", endDate: thirtyDays })
+      .where(eq(adsTable.id, entityId));
+  } else if (entityType === "event") {
+    await db
+      .update(eventsTable)
+      .set({ isPublished: true, paymentStatus: "paid", validationMethod: "fedapay" })
+      .where(eq(eventsTable.id, entityId));
+  } else if (entityType === "service") {
+    await db
+      .update(servicesTable)
+      .set({ isPublished: true, paymentStatus: "paid", validationMethod: "fedapay", expiresAt: thirtyDays })
+      .where(eq(servicesTable.id, entityId));
+  } else {
+    return false;
+  }
+  return true;
+}
+
 router.post("/fedapay/create-transaction", async (req, res) => {
   const { entityType, entityId, customerName, customerPhone } = req.body;
   if (!entityType || !entityId || !customerName || !customerPhone) {
@@ -78,6 +150,8 @@ router.post("/fedapay/create-transaction", async (req, res) => {
   }
 
   try {
+    // callback_url = URL de retour après paiement (GET redirect par FedaPay)
+    // Le handler GET /api/fedapay-callback vérifie le paiement via l'API FedaPay
     const callbackUrl = `https://togomarket.site/api/fedapay-callback`;
     const data = await createFedapayTransaction({
       amount: 1000,
@@ -103,68 +177,133 @@ router.post("/fedapay/create-transaction", async (req, res) => {
   }
 });
 
+/**
+ * GET /api/fedapay-callback
+ * FedaPay redirige le navigateur du client ici après paiement avec ?id=TX_ID
+ * On vérifie le statut via l'API FedaPay, on active l'entité, puis on redirige vers l'app.
+ */
+router.get("/fedapay-callback", async (req, res) => {
+  const transactionId = String(req.query.id ?? "");
+
+  if (!transactionId) {
+    req.log.warn("FedaPay GET callback: missing transaction id");
+    return res.redirect("https://togomarket.site/?payment=missing_id");
+  }
+
+  try {
+    const result = await verifyFedapayTransaction(transactionId);
+
+    if (!result) {
+      req.log.warn({ transactionId }, "FedaPay GET callback: transaction verification failed");
+      return res.redirect("https://togomarket.site/?payment=verify_error");
+    }
+
+    if (!result.approved) {
+      req.log.info({ transactionId }, "FedaPay GET callback: transaction not approved");
+      return res.redirect("https://togomarket.site/?payment=not_approved");
+    }
+
+    if (!result.entityType || !result.entityId) {
+      req.log.warn({ transactionId }, "FedaPay GET callback: missing entity metadata");
+      return res.redirect("https://togomarket.site/?payment=missing_metadata");
+    }
+
+    const activated = await activateEntity(result.entityType, result.entityId);
+    req.log.info({ transactionId, entityType: result.entityType, entityId: result.entityId }, "FedaPay GET callback: entity activated");
+
+    if (activated) {
+      return res.redirect(`https://togomarket.site/?payment=success&type=${result.entityType}`);
+    } else {
+      return res.redirect("https://togomarket.site/?payment=unknown_type");
+    }
+  } catch (err) {
+    req.log.error({ err, transactionId }, "FedaPay GET callback error");
+    return res.redirect("https://togomarket.site/?payment=error");
+  }
+});
+
+/**
+ * POST /api/fedapay-callback
+ * Webhook FedaPay configuré dans le tableau de bord FedaPay (server-to-server).
+ * Supporte le format webhook officiel ET le format callback direct.
+ */
 router.post("/fedapay-callback", async (req, res) => {
   try {
     const payload = req.body;
-    const event = payload?.name ?? payload?.["event"] ?? "";
 
-    if (event !== "transaction.approved") {
+    // Format 1 : webhook dashboard FedaPay → { name: "transaction.approved", data: { object: { ... } } }
+    // Format 2 : callback direct → { status: "approved", custom_metadata: { ... } }
+    const eventName: string = payload?.name ?? payload?.event ?? "";
+    const isWebhookFormat = eventName !== "";
+    const directStatus: string = payload?.status ?? "";
+
+    const isApproved =
+      eventName === "transaction.approved" ||
+      directStatus === "approved";
+
+    if (!isApproved) {
+      req.log.info({ eventName, directStatus }, "FedaPay POST callback: not approved, skipped");
       return res.status(200).json({ received: true, skipped: true });
     }
 
-    const transaction = payload?.data?.object ?? payload?.transaction ?? {};
-    const metadata = transaction?.custom_metadata ?? {};
+    // Extraire la transaction selon le format
+    let transaction: Record<string, unknown>;
+    if (isWebhookFormat) {
+      transaction = (payload?.data?.object ?? {}) as Record<string, unknown>;
+    } else {
+      transaction = payload as Record<string, unknown>;
+    }
+
+    const metadata = (transaction?.custom_metadata ?? {}) as Record<string, string>;
     const entityType: string = String(metadata?.entityType ?? "");
     const entityId: number = parseInt(String(metadata?.entityId ?? "0"), 10);
 
     if (!entityType || !entityId) {
-      req.log.warn({ metadata }, "FedaPay callback: missing entityType or entityId");
+      // Peut-être le format simple sans metadata : on essaie de récupérer depuis l'id de transaction
+      const txId = String(transaction?.id ?? "");
+      if (txId) {
+        const verified = await verifyFedapayTransaction(txId);
+        if (verified?.approved && verified.entityType && verified.entityId) {
+          await activateEntity(verified.entityType, verified.entityId);
+          req.log.info({ txId, entityType: verified.entityType, entityId: verified.entityId }, "FedaPay POST callback (verified via API): entity activated");
+          return res.status(200).json({ received: true });
+        }
+      }
+      req.log.warn({ metadata }, "FedaPay POST callback: missing entityType or entityId");
       return res.status(200).json({ received: true });
     }
 
-    const now = new Date();
-
-    if (entityType === "vendor") {
-      const thirtyDays = new Date(now.getTime() + 30 * 24 * 60 * 60 * 1000);
-      await db
-        .update(vendorsTable)
-        .set({
-          isPublished: true,
-          paymentStatus: "paid",
-          validationMethod: "fedapay",
-          expiryDate: thirtyDays,
-          verified: true,
-        })
-        .where(eq(vendorsTable.id, entityId));
-      // Note: le bonus de parrainage (+3 jours) est crédité à l'inscription du filleul (vendors.ts),
-      // pas au moment du paiement, conformément aux CGU.
-    } else if (entityType === "ad") {
-      const thirtyDays = new Date(now.getTime() + 30 * 24 * 60 * 60 * 1000);
-      await db
-        .update(adsTable)
-        .set({ isPublished: true, paymentStatus: "paid", validationMethod: "fedapay", endDate: thirtyDays })
-        .where(eq(adsTable.id, entityId));
-    } else if (entityType === "event") {
-      const event = await db.select().from(eventsTable).where(eq(eventsTable.id, entityId)).limit(1);
-      if (event[0]) {
-        const expiry = event[0].endDate ?? event[0].date;
-        await db
-          .update(eventsTable)
-          .set({ isPublished: true, paymentStatus: "paid", validationMethod: "fedapay" })
-          .where(eq(eventsTable.id, entityId));
-      }
-    } else if (entityType === "service") {
-      const thirtyDays = new Date(now.getTime() + 30 * 24 * 60 * 60 * 1000);
-      await db
-        .update(servicesTable)
-        .set({ isPublished: true, paymentStatus: "paid", validationMethod: "fedapay", expiresAt: thirtyDays })
-        .where(eq(servicesTable.id, entityId));
-    }
-
-    req.log.info({ entityType, entityId }, "FedaPay payment approved, entity published");
+    await activateEntity(entityType, entityId);
+    req.log.info({ entityType, entityId }, "FedaPay POST callback: entity activated");
     return res.status(200).json({ received: true, entityType, entityId });
   } catch (err) {
-    req.log.error({ err }, "FedaPay callback error");
+    req.log.error({ err }, "FedaPay POST callback error");
+    return res.status(500).json({ error: "Erreur interne" });
+  }
+});
+
+/**
+ * GET /api/fedapay/verify/:transactionId
+ * Permet au frontend de vérifier manuellement le statut d'un paiement
+ * (utile si la redirection callback a échoué)
+ */
+router.get("/fedapay/verify/:transactionId", async (req, res) => {
+  const { transactionId } = req.params;
+  if (!transactionId) {
+    return res.status(400).json({ error: "ID de transaction requis" });
+  }
+  try {
+    const result = await verifyFedapayTransaction(transactionId);
+    if (!result) {
+      return res.status(404).json({ error: "Transaction introuvable ou erreur API" });
+    }
+    if (result.approved && result.entityType && result.entityId) {
+      await activateEntity(result.entityType, result.entityId);
+      return res.json({ approved: true, activated: true, entityType: result.entityType, entityId: result.entityId });
+    }
+    return res.json({ approved: result.approved, activated: false });
+  } catch (err) {
+    req.log.error({ err }, "FedaPay verify error");
     return res.status(500).json({ error: "Erreur interne" });
   }
 });

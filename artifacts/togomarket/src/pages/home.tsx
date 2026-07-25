@@ -151,6 +151,35 @@ export default function Home() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
+  // Détecter le retour depuis FedaPay (?payment=success) et afficher un toast
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    const paymentStatus = params.get("payment");
+    if (paymentStatus) {
+      if (paymentStatus === "success") {
+        toast({
+          title: "Paiement confirmé ✅",
+          description: "Votre paiement a bien été reçu. Votre boutique/annonce est maintenant active. Reconnectez-vous pour voir les changements.",
+        });
+      } else if (paymentStatus === "not_approved") {
+        toast({
+          title: "Paiement non abouti",
+          description: "Le paiement n'a pas été finalisé. Réessayez ou contactez le support.",
+          variant: "destructive",
+        });
+      } else if (paymentStatus === "error" || paymentStatus === "verify_error") {
+        toast({
+          title: "Erreur de vérification",
+          description: "Votre paiement a peut-être été effectué. Contactez le support WhatsApp pour confirmation.",
+          variant: "destructive",
+        });
+      }
+      // Nettoyer l'URL sans recharger la page
+      const cleanUrl = window.location.pathname;
+      window.history.replaceState({}, "", cleanUrl);
+    }
+  }, [toast]);
+
   useEffect(() => {
     const params = new URLSearchParams(window.location.search);
     const shopToken = params.get("shop");
