@@ -74,7 +74,7 @@ export function PublishModal({ open, onOpenChange, vendor, vendorPassword, onNee
       price: 0,
       location: "",
       country: "Togo",
-      sector: "Tourisme" as const,
+      sector: "Divers" as const,
     },
   });
 
