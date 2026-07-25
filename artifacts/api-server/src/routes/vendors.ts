@@ -1,7 +1,7 @@
 import { Router, type IRouter } from "express";
 import { eq, desc, and, gt, lt } from "drizzle-orm";
 import bcrypt from "bcryptjs";
-import { db, vendorsTable, publishCodesTable, otpCodesTable } from "@workspace/db";
+import { db, vendorsTable, publishCodesTable, otpCodesTable, listingsTable } from "@workspace/db";
 import { sendWhatsAppOTP, sendWhatsAppText } from "../lib/whatsapp-api";
 import { normalizePhone, phoneEq } from "../lib/phone";
 import {
@@ -65,6 +65,7 @@ function mapVendor(v: typeof vendorsTable.$inferSelect, publishCode: { code: str
     id: v.id,
     firstName: v.firstName,
     lastName: v.lastName,
+    shopName: v.shopName ?? null,
     phone: v.phone,
     verified: v.verified,
     profilePhoto: v.profilePhoto ?? null,
@@ -85,6 +86,7 @@ router.post("/vendors/register", async (req, res) => {
     return res.status(400).json({ error: parsed.error.message });
   }
   const { firstName, lastName, password } = parsed.data;
+  const shopName = parsed.data.shopName ? String(parsed.data.shopName).trim() || null : null;
   const phone = normalizePhone(parsed.data.phone);
   const referredBy = parsed.data.referredBy ? Number(parsed.data.referredBy) : null;
 
@@ -122,6 +124,7 @@ router.post("/vendors/register", async (req, res) => {
       .values({
         firstName,
         lastName,
+        shopName: shopName ?? undefined,
         phone,
         passwordHash,
         verified: false,
@@ -474,6 +477,7 @@ router.post("/vendors/listings", async (req, res) => {
 
 router.post("/vendors/profile/update-name", async (req, res) => {
   const { password, firstName, lastName } = req.body;
+  const shopNameRaw = req.body.shopName;
   const phone = normalizePhone(String(req.body.phone ?? ""));
   if (!phone || !password || !firstName?.trim() || !lastName?.trim()) {
     return res.status(400).json({ error: "Champs requis manquants" });
@@ -486,10 +490,14 @@ router.post("/vendors/profile/update-name", async (req, res) => {
   const match = await bcrypt.compare(password, vendor.passwordHash);
   if (!match) return res.status(401).json({ error: "Mot de passe incorrect." });
 
+  const newShopName = shopNameRaw !== undefined
+    ? (String(shopNameRaw).trim() || null)
+    : vendor.shopName;
+
   try {
     const [updated] = await db
       .update(vendorsTable)
-      .set({ firstName: firstName.trim(), lastName: lastName.trim() })
+      .set({ firstName: firstName.trim(), lastName: lastName.trim(), shopName: newShopName })
       .where(eq(vendorsTable.id, vendor.id))
       .returning();
     const publishCode = await getActivePublishCode(updated.id);
@@ -634,6 +642,37 @@ router.get("/vendors/shop-status", async (req, res) => {
     return res.json({ active: isActive, exists: true, vendorId, firstName: vendor.firstName });
   } catch (err) {
     req.log.error({ err }, "Failed to check shop status");
+    return res.status(500).json({ error: "Erreur interne" });
+  }
+});
+
+const VALID_SECTORS = ["Tourisme", "AgriMarket", "Immobilier", "Automobile", "Repas", "Divers"] as const;
+
+router.get("/vendors/sector/:sector", async (req, res) => {
+  const { sector } = req.params;
+  if (!VALID_SECTORS.includes(sector as (typeof VALID_SECTORS)[number])) {
+    return res.status(400).json({ error: "Secteur invalide" });
+  }
+  try {
+    const vendors = await db
+      .selectDistinct({
+        id: vendorsTable.id,
+        firstName: vendorsTable.firstName,
+        lastName: vendorsTable.lastName,
+        shopName: vendorsTable.shopName,
+        profilePhoto: vendorsTable.profilePhoto,
+      })
+      .from(vendorsTable)
+      .innerJoin(listingsTable, eq(listingsTable.phone, vendorsTable.phone))
+      .where(and(
+        eq(listingsTable.sector, sector),
+        eq(listingsTable.approved, true),
+        eq(vendorsTable.isPublished, true),
+      ))
+      .orderBy(vendorsTable.id);
+    return res.json(vendors);
+  } catch (err) {
+    req.log.error({ err }, "Failed to get vendors by sector");
     return res.status(500).json({ error: "Erreur interne" });
   }
 });

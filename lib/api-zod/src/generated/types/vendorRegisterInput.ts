@@ -9,6 +9,8 @@
 export interface VendorRegisterInput {
   firstName: string;
   lastName: string;
+  /** @nullable */
+  shopName?: string | null;
   phone: string;
   password: string;
   /** @nullable */

@@ -25,4 +25,6 @@ export interface VendorProfile {
   /** @nullable */
   daysUntilExpiry?: number | null;
   referralDaysEarned?: number;
+  /** @nullable */
+  shopName?: string | null;
 }

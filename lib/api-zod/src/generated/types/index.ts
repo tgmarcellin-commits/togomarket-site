@@ -50,6 +50,7 @@ export * from './uploadUrlResponse';
 export * from './vendorAuthInput';
 export * from './vendorChangePasswordInput';
 export * from './vendorDeleteListingInput';
+export * from './vendorInSector';
 export * from './vendorLoginInput';
 export * from './vendorProfile';
 export * from './vendorProfileUpdateInput';

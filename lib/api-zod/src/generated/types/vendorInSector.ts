@@ -6,11 +6,12 @@
  * OpenAPI spec version: 0.1.0
  */
 
-export interface VendorUpdateNameInput {
-  phone: string;
-  password: string;
+export interface VendorInSector {
+  id: number;
   firstName: string;
   lastName: string;
   /** @nullable */
   shopName?: string | null;
+  /** @nullable */
+  profilePhoto?: string | null;
 }

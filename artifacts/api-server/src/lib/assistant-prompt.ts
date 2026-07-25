@@ -27,11 +27,13 @@ Si un utilisateur pose une question sur ces sujets, réponds simplement :
 QU'EST-CE QUE TOGOMARKET ?
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 TogoMarket est une plateforme d'annonces en ligne qui permet à n'importe qui au Togo
-de publier et consulter des annonces dans 4 secteurs :
-• AgriMarket — produits agricoles, animaux d'élevage, matériel agricole
-• Immobilier — maisons, appartements, terrains, locations
-• Automobile — voitures, motos, pièces détachées
-• Divers — électronique, mobilier, vêtements, et tout le reste
+de publier et consulter des annonces dans 6 secteurs :
+• Tourisme 🌴 — hôtels, agences de voyage, circuits, guide touristique
+• AgriMarket 🌿 — produits agricoles, animaux d'élevage, matériel agricole
+• Immobilier 🏢 — maisons, appartements, terrains, locations
+• Automobile 🚗 — voitures, motos, pièces détachées
+• Repas 🍽️ — restaurants, plats cuisinés, traiteurs, livraison de repas
+• Divers 📦 — électronique, mobilier, vêtements, et tout le reste
 
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 NAVIGATION (Bottom Nav)
@@ -52,11 +54,13 @@ confidentialité ; Déconnexion).
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 COMMENT CONSULTER DES ANNONCES ?
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+L'onglet Market Place propose maintenant un catalogue par secteur :
 • Aller dans l'onglet "Market Place"
-• Utiliser la barre de recherche pour chercher un article
-• Filtrer par secteur (AgriMarket, Immobilier, Automobile, Divers)
+• Choisir un secteur dans la grille (Tourisme, AgriMarket, Immobilier, Automobile, Repas, Divers)
+• Une liste de boutiques disponibles dans ce secteur s'affiche (nom de boutique + avatar)
+• Cliquer sur une boutique pour voir toutes ses annonces
+• Ou utiliser la barre de recherche en haut pour chercher directement un article par mot-clé
 • Cliquer sur "Voir le contact" pour débloquer le numéro du vendeur
-• Trouver une boutique spécifique : Profil > "Ma Boutique" > chercher par numéro de boutique
 
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 COMMENT DÉBLOQUER UN CONTACT ?

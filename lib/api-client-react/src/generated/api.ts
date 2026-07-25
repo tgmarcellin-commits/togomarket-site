@@ -62,6 +62,7 @@ import type {
   VendorAuthInput,
   VendorChangePasswordInput,
   VendorDeleteListingInput,
+  VendorInSector,
   VendorLoginInput,
   VendorProfile,
   VendorProfileUpdateInput,
@@ -2419,6 +2420,83 @@ export const useVendorChangePassword = <TError = ErrorType<void>,
       > => {
       return useMutation(getVendorChangePasswordMutationOptions(options));
     }
+
+export const getGetVendorsBySectorUrl = (sector: 'Tourisme' | 'AgriMarket' | 'Immobilier' | 'Automobile' | 'Repas' | 'Divers',) => {
+
+
+
+
+  return `/api/vendors/sector/${sector}`
+}
+
+/**
+ * @summary Get vendors with published listings in a given sector
+ */
+export const getVendorsBySector = async (sector: 'Tourisme' | 'AgriMarket' | 'Immobilier' | 'Automobile' | 'Repas' | 'Divers', options?: RequestInit): Promise<VendorInSector[]> => {
+
+  return customFetch<VendorInSector[]>(getGetVendorsBySectorUrl(sector),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getGetVendorsBySectorQueryKey = (sector: 'Tourisme' | 'AgriMarket' | 'Immobilier' | 'Automobile' | 'Repas' | 'Divers',) => {
+    return [
+    `/api/vendors/sector/${sector}`
+    ] as const;
+    }
+
+
+export const getGetVendorsBySectorQueryOptions = <TData = Awaited<ReturnType<typeof getVendorsBySector>>, TError = ErrorType<void>>(sector: 'Tourisme' | 'AgriMarket' | 'Immobilier' | 'Automobile' | 'Repas' | 'Divers', options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getVendorsBySector>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getGetVendorsBySectorQueryKey(sector);
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof getVendorsBySector>>> = ({ signal }) => getVendorsBySector(sector, { signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, enabled: !!(sector), ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof getVendorsBySector>>, TError, TData> & { queryKey: QueryKey }
+}
+
+export type GetVendorsBySectorQueryResult = NonNullable<Awaited<ReturnType<typeof getVendorsBySector>>>
+export type GetVendorsBySectorQueryError = ErrorType<void>
+
+
+/**
+ * @summary Get vendors with published listings in a given sector
+ */
+
+export function useGetVendorsBySector<TData = Awaited<ReturnType<typeof getVendorsBySector>>, TError = ErrorType<void>>(
+ sector: 'Tourisme' | 'AgriMarket' | 'Immobilier' | 'Automobile' | 'Repas' | 'Divers', options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getVendorsBySector>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+
+ ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+
+  const queryOptions = getGetVendorsBySectorQueryOptions(sector,options)
+
+  const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
+
+  return { ...query, queryKey: queryOptions.queryKey };
+}
+
+
+
+
+
+
 
 export const getVendorGetListingsUrl = () => {
 

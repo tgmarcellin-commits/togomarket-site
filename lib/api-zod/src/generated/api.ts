@@ -115,7 +115,7 @@ export const CreateListingBody = zod.object({
   "price": zod.number(),
   "location": zod.string(),
   "country": zod.string(),
-  "sector": zod.enum(['AgriMarket', 'Immobilier', 'Automobile', 'Divers']),
+  "sector": zod.enum(['Tourisme', 'AgriMarket', 'Immobilier', 'Automobile', 'Repas', 'Divers']),
   "images": zod.array(zod.string()).max(createListingBodyImagesMax),
   "vendorPhone": zod.string(),
   "vendorPassword": zod.string()
@@ -407,6 +407,7 @@ export const GetStatsResponse = zod.object({
 export const VendorRegisterBody = zod.object({
   "firstName": zod.string(),
   "lastName": zod.string(),
+  "shopName": zod.string().nullish(),
   "phone": zod.string(),
   "password": zod.string(),
   "referredBy": zod.number().nullish()
@@ -439,7 +440,8 @@ export const VendorVerifyOtpResponse = zod.object({
   "paymentStatus": zod.string().optional(),
   "validationMethod": zod.string().optional(),
   "daysUntilExpiry": zod.number().nullish(),
-  "referralDaysEarned": zod.number().optional()
+  "referralDaysEarned": zod.number().optional(),
+  "shopName": zod.string().nullish()
 })
 
 
@@ -509,7 +511,8 @@ export const VendorLoginResponse = zod.object({
   "paymentStatus": zod.string().optional(),
   "validationMethod": zod.string().optional(),
   "daysUntilExpiry": zod.number().nullish(),
-  "referralDaysEarned": zod.number().optional()
+  "referralDaysEarned": zod.number().optional(),
+  "shopName": zod.string().nullish()
 })
 
 
@@ -540,7 +543,8 @@ export const VendorUpdateProfileResponse = zod.object({
   "paymentStatus": zod.string().optional(),
   "validationMethod": zod.string().optional(),
   "daysUntilExpiry": zod.number().nullish(),
-  "referralDaysEarned": zod.number().optional()
+  "referralDaysEarned": zod.number().optional(),
+  "shopName": zod.string().nullish()
 })
 
 
@@ -551,7 +555,8 @@ export const VendorUpdateNameBody = zod.object({
   "phone": zod.string(),
   "password": zod.string(),
   "firstName": zod.string(),
-  "lastName": zod.string()
+  "lastName": zod.string(),
+  "shopName": zod.string().nullish()
 })
 
 export const VendorUpdateNameResponse = zod.object({
@@ -572,7 +577,8 @@ export const VendorUpdateNameResponse = zod.object({
   "paymentStatus": zod.string().optional(),
   "validationMethod": zod.string().optional(),
   "daysUntilExpiry": zod.number().nullish(),
-  "referralDaysEarned": zod.number().optional()
+  "referralDaysEarned": zod.number().optional(),
+  "shopName": zod.string().nullish()
 })
 
 
@@ -588,6 +594,23 @@ export const VendorChangePasswordBody = zod.object({
 export const VendorChangePasswordResponse = zod.object({
   "success": zod.boolean()
 })
+
+
+/**
+ * @summary Get vendors with published listings in a given sector
+ */
+export const GetVendorsBySectorParams = zod.object({
+  "sector": zod.enum(['Tourisme', 'AgriMarket', 'Immobilier', 'Automobile', 'Repas', 'Divers'])
+})
+
+export const GetVendorsBySectorResponseItem = zod.object({
+  "id": zod.number(),
+  "firstName": zod.string(),
+  "lastName": zod.string(),
+  "shopName": zod.string().nullish(),
+  "profilePhoto": zod.string().nullish()
+})
+export const GetVendorsBySectorResponse = zod.array(GetVendorsBySectorResponseItem)
 
 
 /**
@@ -640,7 +663,8 @@ export const AdminGetVendorsResponseItem = zod.object({
   "paymentStatus": zod.string().optional(),
   "validationMethod": zod.string().optional(),
   "daysUntilExpiry": zod.number().nullish(),
-  "referralDaysEarned": zod.number().optional()
+  "referralDaysEarned": zod.number().optional(),
+  "shopName": zod.string().nullish()
 })
 export const AdminGetVendorsResponse = zod.array(AdminGetVendorsResponseItem)
 

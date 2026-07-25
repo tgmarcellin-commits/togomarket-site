@@ -730,6 +730,30 @@ paths:
         "401":
           description: Invalid credentials
 
+  /vendors/sector/{sector}:
+    get:
+      operationId: getVendorsBySector
+      tags: [vendors]
+      summary: Get vendors with published listings in a given sector
+      parameters:
+        - name: sector
+          in: path
+          required: true
+          schema:
+            type: string
+            enum: [Tourisme, AgriMarket, Immobilier, Automobile, Repas, Divers]
+      responses:
+        "200":
+          description: List of vendors in that sector
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/VendorInSector"
+        "400":
+          description: Invalid sector
+
   /vendors/listings:
     post:
       operationId: vendorGetListings
@@ -1282,7 +1306,7 @@ components:
           type: string
         sector:
           type: string
-          enum: [AgriMarket, Immobilier, Automobile, Divers]
+          enum: [Tourisme, AgriMarket, Immobilier, Automobile, Repas, Divers]
         images:
           type: array
           items:
@@ -1338,6 +1362,8 @@ components:
           type: string
         lastName:
           type: string
+        shopName:
+          type: ["string", "null"]
 
     VendorChangePasswordInput:
       type: object
@@ -1615,6 +1641,8 @@ components:
           type: ["integer", "null"]
         referralDaysEarned:
           type: integer
+        shopName:
+          type: ["string", "null"]
 
     StorageCleanupResult:
       type: object
@@ -1631,12 +1659,29 @@ components:
           type: string
         lastName:
           type: string
+        shopName:
+          type: ["string", "null"]
         phone:
           type: string
         password:
           type: string
         referredBy:
           type: ["integer", "null"]
+
+    VendorInSector:
+      type: object
+      required: [id, firstName, lastName]
+      properties:
+        id:
+          type: integer
+        firstName:
+          type: string
+        lastName:
+          type: string
+        shopName:
+          type: ["string", "null"]
+        profilePhoto:
+          type: ["string", "null"]
 
     VendorRegisterResult:
       type: object

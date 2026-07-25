@@ -54,28 +54,22 @@ function clearSession() {
   } catch {}
 }
 
-type SearchMode = "article" | "boutique";
-
-interface SellerResult {
-  status: "idle" | "loading" | "not_found" | "empty" | "found";
-  firstName?: string;
-  boutiqueNumber?: number;
-  listings?: Array<{
-    id: number;
-    name: string;
-    price: number;
-    location: string;
-    sector: string;
-    images: string[];
-    createdAt: string;
-    phone: string | null;
-    approved: boolean;
-  }>;
+interface VendorInSector {
+  id: number;
+  firstName: string;
+  lastName: string;
+  shopName?: string | null;
+  profilePhoto?: string | null;
 }
 
-function getBaseUrl(): string {
-  return import.meta.env.BASE_URL?.replace(/\/$/, "") || "";
-}
+const CATALOG_SECTORS = [
+  { label: "Tourisme", emoji: "🌴", value: "Tourisme" },
+  { label: "AgriMarket", emoji: "🌿", value: "AgriMarket" },
+  { label: "Immobilier", emoji: "🏢", value: "Immobilier" },
+  { label: "Automobile", emoji: "🚗", value: "Automobile" },
+  { label: "Repas", emoji: "🍽️", value: "Repas" },
+  { label: "Divers", emoji: "📦", value: "Divers" },
+] as const;
 
 export default function Home() {
   const { toast } = useToast();
@@ -85,14 +79,12 @@ export default function Home() {
   const [searchInput, setSearchInput] = useState("");
   const [sector, setSector] = useState<string | undefined>(undefined);
   const [activeTab, setActiveTab] = useState<NavTab>("marketplace");
-  const [searchMode, setSearchMode] = useState<"article" | "boutique">("article");
-  const [shopNumberInput, setShopNumberInput] = useState("");
   const [shopNumber, setShopNumber] = useState<number | undefined>(undefined);
   const [shopLinkExpired, setShopLinkExpired] = useState(false);
   const [referredBy, setReferredBy] = useState<number | undefined>(undefined);
-
-  const [boutiqueInput, setBoutiqueInput] = useState("");
-  const [sellerResult, setSellerResult] = useState<SellerResult>({ status: "idle" });
+  const [catalogSector, setCatalogSector] = useState<string | null>(null);
+  const [catalogVendors, setCatalogVendors] = useState<VendorInSector[]>([]);
+  const [catalogLoading, setCatalogLoading] = useState(false);
 
   const logoClickCount = useRef(0);
   const logoClickTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -102,9 +94,9 @@ export default function Home() {
     setSector(undefined);
     setSearch("");
     setSearchInput("");
-    setBoutiqueInput("");
-    setSellerResult({ status: "idle" });
-    setSearchMode("article");
+    setCatalogSector(null);
+    setCatalogVendors([]);
+    setShopNumber(undefined);
 
     logoClickCount.current += 1;
     if (logoClickTimer.current) clearTimeout(logoClickTimer.current);
@@ -192,14 +184,12 @@ export default function Home() {
           .then((status: { active: boolean; exists: boolean }) => {
             if (status.active) {
               setShopNumber(parsed.vendorId);
-              setSearchMode("boutique");
             } else {
               setShopLinkExpired(true);
             }
           })
           .catch(() => {
             setShopNumber(parsed.vendorId);
-            setSearchMode("boutique");
           });
       } else {
         setShopLinkExpired(true);
@@ -208,7 +198,6 @@ export default function Home() {
       const id = parseInt(legacyNum, 10);
       if (!isNaN(id) && id > 0) {
         setShopNumber(id);
-        setSearchMode("boutique");
       }
     }
 
@@ -259,26 +248,25 @@ export default function Home() {
     setShopNumber(undefined);
   };
 
-  const handleShopSearch = (e: React.FormEvent) => {
-    e.preventDefault();
-    const num = parseInt(shopNumberInput, 10);
-    if (!shopNumberInput.trim() || isNaN(num) || num < 1) {
-      setShopNumber(undefined);
-    } else {
-      setShopNumber(num);
-      setSearch("");
-      setSearchInput("");
-      setSector(undefined);
-    }
-  };
-
-  const handleSearchModeChange = (mode: "article" | "boutique") => {
-    setSearchMode(mode);
+  const handleCatalogClick = async (sec: string) => {
+    setCatalogSector(sec);
+    setCatalogVendors([]);
+    setCatalogLoading(true);
+    setShopNumber(undefined);
     setSearch("");
     setSearchInput("");
-    setShopNumber(undefined);
-    setShopNumberInput("");
     setSector(undefined);
+    try {
+      const res = await fetch(`/api/vendors/sector/${sec}`);
+      if (res.ok) {
+        const data = await res.json() as VendorInSector[];
+        setCatalogVendors(data);
+      }
+    } catch {
+      // Laisse la liste vide
+    } finally {
+      setCatalogLoading(false);
+    }
   };
 
   const handleLoginSuccess = (v: VendorProfile, pwd: string) => {
@@ -301,56 +289,6 @@ export default function Home() {
     setVendorPassword(pwd);
     saveSession(updated, pwd);
   };
-
-  const handleBoutiqueSearch = async (e: React.FormEvent) => {
-    e.preventDefault();
-    const num = parseInt(boutiqueInput.trim(), 10);
-    if (isNaN(num) || num < 1) return;
-
-    setSellerResult({ status: "loading" });
-
-    try {
-      const base = getBaseUrl();
-      const res = await fetch(`${base}/api/sellers/${num}`);
-      if (res.status === 404) {
-        setSellerResult({ status: "not_found", boutiqueNumber: num });
-        return;
-      }
-      if (!res.ok) {
-        setSellerResult({ status: "not_found", boutiqueNumber: num });
-        return;
-      }
-      const data = await res.json();
-      if (!data.found) {
-        setSellerResult({ status: "not_found", boutiqueNumber: num });
-        return;
-      }
-      if (data.listings.length === 0) {
-        setSellerResult({
-          status: "empty",
-          firstName: data.seller.firstName,
-          boutiqueNumber: num,
-        });
-      } else {
-        setSellerResult({
-          status: "found",
-          firstName: data.seller.firstName,
-          boutiqueNumber: num,
-          listings: data.listings,
-        });
-      }
-    } catch {
-      setSellerResult({ status: "not_found", boutiqueNumber: num });
-    }
-  };
-
-  const categories = [
-    { label: t.all, value: undefined },
-    { label: `AgriMarket 🌿`, value: "AgriMarket" },
-    { label: `Immobilier 🏢`, value: "Immobilier" },
-    { label: `Automobile 🚗`, value: "Automobile" },
-    { label: `Divers 📦`, value: "Divers" },
-  ];
 
   return (
     <div className="min-h-[100dvh] flex flex-col bg-background pb-[72px]">
@@ -435,7 +373,7 @@ export default function Home() {
       {activeTab === "marketplace" && (
         <>
           {/* Hero Section */}
-          <section className="relative h-[300px] sm:h-[400px] w-full flex items-center justify-center overflow-hidden">
+          <section className="relative h-[220px] sm:h-[280px] w-full flex items-center justify-center overflow-hidden">
             <div className="absolute inset-0 z-0">
               <img
                 src="https://images.unsplash.com/photo-1555529669-e69e7aa0ba9a?q=80&w=1200"
@@ -444,120 +382,34 @@ export default function Home() {
               />
               <div className="absolute inset-0 bg-black/60 mix-blend-multiply" />
             </div>
-
             <div className="relative z-10 w-full max-w-2xl px-4 text-center">
-              <h1 className="text-3xl sm:text-5xl font-extrabold text-white mb-6 drop-shadow-md">
+              <h1 className="text-2xl sm:text-4xl font-extrabold text-white mb-4 drop-shadow-md">
                 {t.tagline}
               </h1>
-
-              {/* Mode tabs */}
-              <div className="flex justify-center gap-1 mb-3 max-w-xs mx-auto bg-white/20 rounded-full p-1">
-                <button
-                  type="button"
-                  onClick={() => handleSearchModeChange("article")}
-                  className={`flex-1 py-1.5 text-sm font-semibold rounded-full transition-colors ${
-                    searchMode === "article"
-                      ? "bg-white text-foreground shadow"
-                      : "text-white hover:bg-white/20"
-                  }`}
-                >
-                  {t.article}
-                </button>
-                <button
-                  type="button"
-                  onClick={() => handleSearchModeChange("boutique")}
-                  className={`flex-1 py-1.5 text-sm font-semibold rounded-full transition-colors ${
-                    searchMode === "boutique"
-                      ? "bg-white text-foreground shadow"
-                      : "text-white hover:bg-white/20"
-                  }`}
-                >
-                  {t.shop}
-                </button>
-              </div>
-
-              {searchMode === "article" ? (
-                <form
-                  onSubmit={handleSearchSubmit}
-                  className="relative flex items-center max-w-xl mx-auto"
-                >
+              {/* Barre de recherche — visible uniquement sur l'écran catalogue (accueil) */}
+              {!catalogSector && !shopNumber && (
+                <form onSubmit={handleSearchSubmit} className="relative flex items-center max-w-xl mx-auto">
                   <SearchIcon className="absolute left-4 w-5 h-5 text-muted-foreground" />
                   <Input
                     type="text"
                     placeholder={t.searchArticlePlaceholder}
                     value={searchInput}
                     onChange={(e) => setSearchInput(e.target.value)}
-                    className="w-full pl-12 pr-24 h-14 rounded-full text-base bg-white border-0 shadow-lg focus-visible:ring-primary"
+                    className="w-full pl-12 pr-24 h-12 rounded-full text-base bg-white border-0 shadow-lg focus-visible:ring-primary"
                   />
-                  <Button
-                    type="submit"
-                    className="absolute right-1.5 h-11 rounded-full bg-accent hover:bg-accent/90 text-accent-foreground px-6 font-semibold"
-                  >
+                  <Button type="submit" className="absolute right-1.5 h-9 rounded-full bg-accent hover:bg-accent/90 text-accent-foreground px-5 font-semibold text-sm">
                     {t.search}
-                  </Button>
-                </form>
-              ) : (
-                <form
-                  onSubmit={handleShopSearch}
-                  className="relative flex items-center max-w-xl mx-auto"
-                >
-                  <span className="absolute left-4 text-muted-foreground font-bold text-sm select-none">N°</span>
-                  <Input
-                    type="number"
-                    min={1}
-                    placeholder={t.searchShopPlaceholder}
-                    value={shopNumberInput}
-                    onChange={(e) => setShopNumberInput(e.target.value)}
-                    className="w-full pl-10 pr-24 h-14 rounded-full text-base bg-white border-0 shadow-lg focus-visible:ring-primary"
-                  />
-                  <Button
-                    type="submit"
-                    className="absolute right-1.5 h-11 rounded-full bg-accent hover:bg-accent/90 text-accent-foreground px-6 font-semibold"
-                  >
-                    {t.see}
                   </Button>
                 </form>
               )}
             </div>
           </section>
 
-          {/* Stats Banner */}
-          {stats && (
-            <div className="bg-muted py-3 border-b">
-              <div className="container mx-auto px-4 flex justify-center text-sm font-medium text-muted-foreground">
-                <span className="bg-white px-4 py-1.5 rounded-full shadow-sm border border-border/50 font-medium">
-                  <span className="text-primary font-bold">{stats.total}</span> {lang === "fr" ? `annonce${stats.total > 1 ? "s" : ""} disponible${stats.total > 1 ? "s" : ""}` : `listing${stats.total > 1 ? "s" : ""} available`}
-                </span>
-              </div>
-            </div>
-          )}
-
           <AdBanner />
 
-          {/* Category Filter Bar */}
-          <div className="border-b bg-background sticky top-16 z-40">
-            <div className="container mx-auto px-4">
-              <div className="flex overflow-x-auto py-4 gap-2 scrollbar-hide snap-x">
-                {categories.map((cat) => (
-                  <button
-                    key={cat.label}
-                    onClick={() => setSector(cat.value)}
-                    className={`snap-start whitespace-nowrap px-5 py-2 rounded-full text-sm font-semibold transition-colors border ${
-                      sector === cat.value
-                        ? "bg-foreground text-background border-foreground shadow-sm"
-                        : "bg-background text-foreground border-border hover:bg-muted"
-                    }`}
-                  >
-                    {cat.label}
-                  </button>
-                ))}
-              </div>
-            </div>
-          </div>
-
-          {/* Main Content */}
-          <main className="container mx-auto px-4 py-8 flex-grow">
-            {shopLinkExpired ? (
+          {/* ── CONTENU DYNAMIQUE : catalogue / liste boutiques / articles ── */}
+          {shopLinkExpired ? (
+            <main className="container mx-auto px-4 py-8 flex-grow">
               <div className="flex flex-col items-center justify-center py-24 text-center gap-6">
                 <div className="inline-flex items-center justify-center w-16 h-16 rounded-full bg-destructive/10">
                   <Link2Off className="w-8 h-8 text-destructive" />
@@ -566,109 +418,194 @@ export default function Home() {
                   <h3 className="text-xl font-semibold mb-2">{t.shopExpiredTitle}</h3>
                   <p className="text-muted-foreground max-w-sm mx-auto text-sm">{t.shopExpiredMsg}</p>
                 </div>
-                <Button
-                  onClick={() => {
-                    setShopLinkExpired(false);
-                    setSearchMode("article");
-                  }}
-                  className="rounded-full px-8 bg-violet-600 hover:bg-violet-700 text-white border-0"
-                >
+                <Button onClick={() => setShopLinkExpired(false)} className="rounded-full px-8 bg-violet-600 hover:bg-violet-700 text-white border-0">
                   {t.goToMarketplace}
                 </Button>
               </div>
-            ) : isLoading ? (
-              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
-                {[1, 2, 3, 4, 5, 6].map((n) => (
-                  <div
-                    key={n}
-                    className="rounded-xl border bg-card overflow-hidden h-[400px] flex flex-col"
-                  >
-                    <div className="h-[200px] bg-muted animate-pulse" />
-                    <div className="p-4 flex flex-col gap-3 flex-grow">
-                      <div className="h-6 bg-muted rounded w-3/4 animate-pulse" />
-                      <div className="h-5 bg-muted rounded w-1/3 animate-pulse" />
-                      <div className="h-4 bg-muted rounded w-1/2 mt-2 animate-pulse" />
-                      <div className="mt-auto h-10 bg-muted rounded w-full animate-pulse" />
-                    </div>
+            </main>
+
+          ) : !catalogSector && !shopNumber ? (
+            /* ── GRILLE DES CATALOGUES (vue par défaut) ── */
+            <main className="container mx-auto px-4 py-6 flex-grow">
+              {search ? (
+                /* Résultats de recherche */
+                <>
+                  <div className="flex items-center gap-2 mb-4">
+                    <button
+                      onClick={() => { setSearch(""); setSearchInput(""); }}
+                      className="text-sm text-muted-foreground hover:text-foreground flex items-center gap-1 transition-colors"
+                    >
+                      ← {lang === "fr" ? "Retour au catalogue" : "Back to catalogue"}
+                    </button>
+                    <span className="text-sm text-muted-foreground">· "{search}"</span>
                   </div>
-                ))}
-              </div>
-            ) : sortedListings.length > 0 ? (
-              <>
-                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
-                  {sortedListings.map((listing) => (
-                    <ListingCard
-                      key={listing.id}
-                      listing={listing}
-                      isAdmin={quickMode}
-                      adminPassword={quickMode ? (loadAdminSession()?.code ?? "") : ""}
-                      commissionRate={commissionRate}
-                      whatsappCommission={whatsappCommission}
-                      isOwn={vendor ? listing.phone === vendor.phone : false}
-                    />
+                  {isLoading ? (
+                    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
+                      {[1, 2, 3].map(n => (
+                        <div key={n} className="rounded-xl border bg-card overflow-hidden h-[400px] flex flex-col">
+                          <div className="h-[200px] bg-muted animate-pulse" />
+                          <div className="p-4 flex flex-col gap-3 flex-grow">
+                            <div className="h-6 bg-muted rounded w-3/4 animate-pulse" />
+                            <div className="h-5 bg-muted rounded w-1/3 animate-pulse" />
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  ) : sortedListings.length > 0 ? (
+                    <>
+                      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
+                        {sortedListings.map(listing => (
+                          <ListingCard key={listing.id} listing={listing} isAdmin={quickMode} adminPassword={quickMode ? (loadAdminSession()?.code ?? "") : ""} commissionRate={commissionRate} whatsappCommission={whatsappCommission} isOwn={vendor ? listing.phone === vendor.phone : false} />
+                        ))}
+                      </div>
+                      {pageData?.hasMore && (
+                        <div className="flex justify-center mt-10">
+                          <Button variant="outline" onClick={handleLoadMore} disabled={isFetching} className="rounded-full px-8 font-semibold">
+                            {isFetching ? t.loading : t.loadMore}
+                          </Button>
+                        </div>
+                      )}
+                    </>
+                  ) : (
+                    <div className="text-center py-20">
+                      <Search className="w-10 h-10 text-muted-foreground mx-auto mb-3" />
+                      <p className="text-muted-foreground">{lang === "fr" ? "Aucun résultat pour cette recherche." : "No results for this search."}</p>
+                    </div>
+                  )}
+                </>
+              ) : (
+                /* Grille de catalogues sectoriels */
+                <>
+                  <p className="text-center text-sm text-muted-foreground mb-5 font-medium">
+                    {lang === "fr" ? "Choisissez un secteur pour trouver des boutiques" : "Choose a sector to find shops"}
+                  </p>
+                  <div className="grid grid-cols-2 sm:grid-cols-3 gap-4">
+                    {CATALOG_SECTORS.map((sec) => (
+                      <button
+                        key={sec.value}
+                        onClick={() => handleCatalogClick(sec.value)}
+                        className="group aspect-square rounded-2xl border-2 border-border hover:border-primary/60 bg-card hover:bg-primary/5 flex flex-col items-center justify-center gap-2 transition-all shadow-sm hover:shadow-md active:scale-95"
+                      >
+                        <span className="text-4xl group-hover:scale-110 transition-transform">{sec.emoji}</span>
+                        <p className="font-bold text-sm text-foreground leading-tight px-2 text-center">{sec.label}</p>
+                      </button>
+                    ))}
+                  </div>
+                </>
+              )}
+            </main>
+
+          ) : catalogSector && !shopNumber ? (
+            /* ── LISTE DES BOUTIQUES DU SECTEUR ── */
+            <main className="container mx-auto px-4 py-6 flex-grow">
+              <button
+                onClick={() => { setCatalogSector(null); setCatalogVendors([]); }}
+                className="flex items-center gap-1.5 text-sm text-muted-foreground hover:text-foreground transition-colors mb-4 -ml-1"
+              >
+                <span className="text-base">←</span>
+                <span>{lang === "fr" ? "Retour aux secteurs" : "Back to sectors"}</span>
+              </button>
+              <h2 className="text-lg font-bold mb-4 flex items-center gap-2">
+                <span>{CATALOG_SECTORS.find(s => s.value === catalogSector)?.emoji}</span>
+                <span>{catalogSector}</span>
+              </h2>
+              {catalogLoading ? (
+                <div className="space-y-3">
+                  {[1, 2, 3, 4].map(n => <div key={n} className="h-16 bg-muted rounded-xl animate-pulse" />)}
+                </div>
+              ) : catalogVendors.length > 0 ? (
+                <div className="space-y-2.5">
+                  {catalogVendors.map((v) => (
+                    <button
+                      key={v.id}
+                      className="w-full text-left"
+                      onClick={() => { setSector(undefined); setShopNumber(v.id); }}
+                    >
+                      <div className="flex items-center gap-3 px-4 py-3.5 bg-card rounded-xl border border-border hover:border-primary/50 hover:shadow-sm transition-all">
+                        {v.profilePhoto ? (
+                          <img src={v.profilePhoto} alt={v.firstName} className="w-10 h-10 rounded-full object-cover flex-shrink-0 border border-border" />
+                        ) : (
+                          <div className="w-10 h-10 rounded-full bg-muted flex items-center justify-center flex-shrink-0">
+                            <UserCircle2 className="w-6 h-6 text-muted-foreground" />
+                          </div>
+                        )}
+                        <span className="font-semibold flex-1 text-sm leading-tight">{v.shopName || v.firstName}</span>
+                        <span className="text-xs text-muted-foreground font-medium bg-muted/80 px-2.5 py-1 rounded-full flex-shrink-0">N°{v.id}</span>
+                      </div>
+                    </button>
                   ))}
                 </div>
-                {pageData?.hasMore && (
-                  <div className="flex justify-center mt-10">
-                    <Button
-                      variant="outline"
-                      onClick={handleLoadMore}
-                      disabled={isFetching}
-                      className="rounded-full px-8 font-semibold"
-                    >
-                      {isFetching ? t.loading : t.loadMore}
-                    </Button>
+              ) : (
+                <div className="text-center py-20">
+                  <div className="inline-flex items-center justify-center w-16 h-16 rounded-full bg-muted mb-4">
+                    <Search className="w-8 h-8 text-muted-foreground" />
                   </div>
-                )}
-                {shopNumber && (
-                  <div className="flex justify-center mt-8">
-                    <Button
-                      className="rounded-full px-8 bg-violet-600 hover:bg-violet-700 text-white border-0"
-                      onClick={() => {
-                        setShopNumber(undefined);
-                        setSearchMode("article");
-                      }}
-                    >
-                      {t.goToMarketplace}
-                    </Button>
-                  </div>
-                )}
-              </>
-            ) : (
-              <div className="text-center py-20">
-                <div className="inline-flex items-center justify-center w-16 h-16 rounded-full bg-muted mb-4">
-                  <Search className="w-8 h-8 text-muted-foreground" />
+                  <p className="text-muted-foreground text-sm max-w-xs mx-auto">
+                    {lang === "fr" ? "Aucune boutique disponible dans ce secteur pour le moment." : "No shops available in this sector yet."}
+                  </p>
                 </div>
-                <h3 className="text-xl font-semibold mb-2">
-                  {shopNumber
-                    ? (pageData?.vendorName
-                        ? (lang === "fr" ? `Boutique N°${shopNumber}` : `Shop #${shopNumber}`)
-                        : t.noShop)
-                    : t.noListings}
-                </h3>
-                <p className="text-muted-foreground max-w-sm mx-auto">
-                  {shopNumber
-                    ? (pageData?.vendorName
-                        ? (lang === "fr"
-                            ? `La boutique de ${pageData.vendorName} n'a pas encore d'annonces publiées.`
-                            : `${pageData.vendorName}'s shop has no published listings yet.`)
-                        : (lang === "fr" ? `Aucune boutique avec le numéro N°${shopNumber}.` : `No shop found with number #${shopNumber}.`))
-                    : (lang === "fr" ? "Essayez d'autres mots-clés ou commandez-le !" : "Try different keywords or place a custom order!")}
-                </p>
-                {shopNumber && (
-                  <Button
-                    className="mt-6 rounded-full px-8 bg-violet-600 hover:bg-violet-700 text-white border-0"
-                    onClick={() => {
-                      setShopNumber(undefined);
-                      setSearchMode("article");
-                    }}
-                  >
-                    {t.goToMarketplace}
-                  </Button>
-                )}
-              </div>
-            )}
-          </main>
+              )}
+            </main>
+
+          ) : shopNumber ? (
+            /* ── ARTICLES DE LA BOUTIQUE SÉLECTIONNÉE ── */
+            <main className="container mx-auto px-4 py-6 flex-grow">
+              <button
+                onClick={() => setShopNumber(undefined)}
+                className="flex items-center gap-1.5 text-sm text-muted-foreground hover:text-foreground transition-colors mb-4 -ml-1"
+              >
+                <span className="text-base">←</span>
+                <span>{lang === "fr" ? "Retour aux boutiques" : "Back to shops"}</span>
+              </button>
+              {isLoading ? (
+                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
+                  {[1, 2, 3].map(n => (
+                    <div key={n} className="rounded-xl border bg-card overflow-hidden h-[400px] flex flex-col">
+                      <div className="h-[200px] bg-muted animate-pulse" />
+                      <div className="p-4 flex flex-col gap-3 flex-grow">
+                        <div className="h-6 bg-muted rounded w-3/4 animate-pulse" />
+                        <div className="h-5 bg-muted rounded w-1/3 animate-pulse" />
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              ) : sortedListings.length > 0 ? (
+                <>
+                  {pageData?.vendorName && (
+                    <h2 className="text-base font-bold mb-4 text-foreground">{pageData.vendorName}</h2>
+                  )}
+                  <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
+                    {sortedListings.map(listing => (
+                      <ListingCard key={listing.id} listing={listing} isAdmin={quickMode} adminPassword={quickMode ? (loadAdminSession()?.code ?? "") : ""} commissionRate={commissionRate} whatsappCommission={whatsappCommission} isOwn={vendor ? listing.phone === vendor.phone : false} />
+                    ))}
+                  </div>
+                  {pageData?.hasMore && (
+                    <div className="flex justify-center mt-10">
+                      <Button variant="outline" onClick={handleLoadMore} disabled={isFetching} className="rounded-full px-8 font-semibold">
+                        {isFetching ? t.loading : t.loadMore}
+                      </Button>
+                    </div>
+                  )}
+                </>
+              ) : (
+                <div className="text-center py-20">
+                  <div className="inline-flex items-center justify-center w-16 h-16 rounded-full bg-muted mb-4">
+                    <Search className="w-8 h-8 text-muted-foreground" />
+                  </div>
+                  <h3 className="text-xl font-semibold mb-2">
+                    {pageData?.vendorName
+                      ? (lang === "fr" ? `Boutique N°${shopNumber}` : `Shop #${shopNumber}`)
+                      : t.noShop}
+                  </h3>
+                  <p className="text-muted-foreground max-w-sm mx-auto text-sm">
+                    {pageData?.vendorName
+                      ? (lang === "fr" ? "Cette boutique n'a pas encore d'annonces publiées." : "This shop has no published listings yet.")
+                      : (lang === "fr" ? `Aucune boutique N°${shopNumber}.` : `No shop #${shopNumber}.`)}
+                  </p>
+                </div>
+              )}
+            </main>
+          ) : null}
 
           {/* Footer */}
           <footer className="mt-auto border-t bg-card py-8">

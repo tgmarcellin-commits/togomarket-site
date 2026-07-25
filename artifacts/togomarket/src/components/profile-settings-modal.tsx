@@ -72,6 +72,7 @@ export function ProfileSettingsModal({
 
   const [firstName, setFirstName] = useState(vendor.firstName);
   const [lastName, setLastName] = useState(vendor.lastName);
+  const [shopName, setShopName] = useState(vendor.shopName ?? "");
   const [isUploadingPhoto, setIsUploadingPhoto] = useState(false);
   const [showPrivacy, setShowPrivacy] = useState(false);
   const [showCGU, setShowCGU] = useState(false);
@@ -119,7 +120,7 @@ export function ProfileSettingsModal({
       return;
     }
     updateName.mutate(
-      { data: { phone: vendor.phone, password: vendorPassword, firstName: firstName.trim(), lastName: lastName.trim() } },
+      { data: { phone: vendor.phone, password: vendorPassword, firstName: firstName.trim(), lastName: lastName.trim(), shopName: shopName.trim() || null } },
       {
         onSuccess: (updated) => {
           setConfirmNameOpen(false);
@@ -386,6 +387,15 @@ export function ProfileSettingsModal({
                   </div>
                 </div>
                 <div>
+                  <label className="text-xs font-medium mb-1 block">Nom de la boutique</label>
+                  <Input
+                    value={shopName}
+                    onChange={(e) => setShopName(e.target.value)}
+                    placeholder="Ex: Chez Kofi, Boutique Mode..."
+                  />
+                  <p className="text-xs text-muted-foreground mt-1">Affiché dans le catalogue MarketPlace. Si vide, votre prénom sera utilisé.</p>
+                </div>
+                <div>
                   <label className="text-xs font-medium mb-1 block text-muted-foreground">{t.phoneReadonly}</label>
                   <Input value={vendor.phone} readOnly className="bg-muted text-muted-foreground" />
                 </div>
@@ -398,7 +408,11 @@ export function ProfileSettingsModal({
                       toast({ title: t.nameRequired, variant: "destructive" });
                       return;
                     }
-                    if (firstName.trim() === vendor.firstName && lastName.trim() === vendor.lastName) {
+                    if (
+                      firstName.trim() === vendor.firstName &&
+                      lastName.trim() === vendor.lastName &&
+                      (shopName.trim() || null) === (vendor.shopName ?? null)
+                    ) {
                       toast({ title: t.noChangesDetected });
                       return;
                     }

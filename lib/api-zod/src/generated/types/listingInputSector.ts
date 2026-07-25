@@ -10,8 +10,10 @@ export type ListingInputSector = typeof ListingInputSector[keyof typeof ListingI
 
 
 export const ListingInputSector = {
+  Tourisme: 'Tourisme',
   AgriMarket: 'AgriMarket',
   Immobilier: 'Immobilier',
   Automobile: 'Automobile',
+  Repas: 'Repas',
   Divers: 'Divers',
 } as const;

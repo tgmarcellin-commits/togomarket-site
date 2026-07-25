@@ -31,6 +31,7 @@ interface VerifyInfo {
 interface PendingRegister {
   firstName: string;
   lastName: string;
+  shopName?: string | null;
   phone: string;
   password: string;
   referredBy?: number;
@@ -64,6 +65,7 @@ export function AuthModal({ open, onOpenChange, onLoginSuccess, referredBy }: Au
 
   const [regFirstName, setRegFirstName] = useState("");
   const [regLastName, setRegLastName] = useState("");
+  const [regShopName, setRegShopName] = useState("");
   const [regPhone, setRegPhone] = useState("");
   const [regPassword, setRegPassword] = useState("");
   const [regPassword2, setRegPassword2] = useState("");
@@ -86,6 +88,7 @@ export function AuthModal({ open, onOpenChange, onLoginSuccess, referredBy }: Au
     setLoginPassword("");
     setRegFirstName("");
     setRegLastName("");
+    setRegShopName("");
     setRegPhone("");
     setRegPassword("");
     setRegPassword2("");
@@ -145,6 +148,7 @@ export function AuthModal({ open, onOpenChange, onLoginSuccess, referredBy }: Au
     setPendingRegister({
       firstName: regFirstName.trim(),
       lastName: regLastName.trim(),
+      shopName: regShopName.trim() || null,
       phone: regPhone.trim(),
       password: regPassword,
       referredBy,
@@ -309,6 +313,15 @@ export function AuthModal({ open, onOpenChange, onLoginSuccess, referredBy }: Au
                 <label className="text-sm font-medium">{t.lastName}</label>
                 <Input placeholder="Mensah" value={regLastName} onChange={(e) => setRegLastName(e.target.value)} />
               </div>
+            </div>
+            <div className="space-y-1.5">
+              <label className="text-sm font-medium">Nom de la boutique</label>
+              <Input
+                placeholder="Ex: Chez Kofi, Boutique Mode..."
+                value={regShopName}
+                onChange={(e) => setRegShopName(e.target.value)}
+              />
+              <p className="text-xs text-muted-foreground">Facultatif — si vide, votre prénom sera utilisé.</p>
             </div>
             <div className="space-y-1.5">
               <label className="text-sm font-medium">{t.whatsappNumber}</label>

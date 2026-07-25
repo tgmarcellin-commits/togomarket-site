@@ -103,9 +103,11 @@ export type ListingInputSector = typeof ListingInputSector[keyof typeof ListingI
 
 
 export const ListingInputSector = {
+  Tourisme: 'Tourisme',
   AgriMarket: 'AgriMarket',
   Immobilier: 'Immobilier',
   Automobile: 'Automobile',
+  Repas: 'Repas',
   Divers: 'Divers',
 } as const;
 
@@ -144,6 +146,8 @@ export interface VendorUpdateNameInput {
   password: string;
   firstName: string;
   lastName: string;
+  /** @nullable */
+  shopName?: string | null;
 }
 
 export interface VendorChangePasswordInput {
@@ -294,6 +298,8 @@ export interface VendorProfile {
   /** @nullable */
   daysUntilExpiry?: number | null;
   referralDaysEarned?: number;
+  /** @nullable */
+  shopName?: string | null;
 }
 
 export interface StorageCleanupResult {
@@ -303,10 +309,22 @@ export interface StorageCleanupResult {
 export interface VendorRegisterInput {
   firstName: string;
   lastName: string;
+  /** @nullable */
+  shopName?: string | null;
   phone: string;
   password: string;
   /** @nullable */
   referredBy?: number | null;
+}
+
+export interface VendorInSector {
+  id: number;
+  firstName: string;
+  lastName: string;
+  /** @nullable */
+  shopName?: string | null;
+  /** @nullable */
+  profilePhoto?: string | null;
 }
 
 export interface VendorRegisterResult {

@@ -55,7 +55,7 @@ export function PublishModal({ open, onOpenChange, vendor, vendorPassword, onNee
       .min(2, t.locationRequired)
       .refine((val) => !PHONE_REGEX.test(val), { message: t.locationPhoneError }),
     country: z.string().min(2, t.countryRequired),
-    sector: z.enum(["AgriMarket", "Immobilier", "Automobile", "Divers"]),
+    sector: z.enum(["Tourisme", "AgriMarket", "Immobilier", "Automobile", "Repas", "Divers"]),
   });
   type FormValues = z.infer<typeof formSchema>;
 
@@ -74,7 +74,7 @@ export function PublishModal({ open, onOpenChange, vendor, vendorPassword, onNee
       price: 0,
       location: "",
       country: "Togo",
-      sector: "Divers" as const,
+      sector: "Tourisme" as const,
     },
   });
 
@@ -409,10 +409,12 @@ export function PublishModal({ open, onOpenChange, vendor, vendorPassword, onNee
                           </SelectTrigger>
                         </FormControl>
                         <SelectContent>
-                          <SelectItem value="AgriMarket">AgriMarket</SelectItem>
-                          <SelectItem value="Immobilier">Immobilier</SelectItem>
-                          <SelectItem value="Automobile">Automobile</SelectItem>
-                          <SelectItem value="Divers">Divers</SelectItem>
+                          <SelectItem value="Tourisme">Tourisme 🌴</SelectItem>
+                          <SelectItem value="AgriMarket">AgriMarket 🌿</SelectItem>
+                          <SelectItem value="Immobilier">Immobilier 🏢</SelectItem>
+                          <SelectItem value="Automobile">Automobile 🚗</SelectItem>
+                          <SelectItem value="Repas">Repas 🍽️</SelectItem>
+                          <SelectItem value="Divers">Divers 📦</SelectItem>
                         </SelectContent>
                       </Select>
                       <FormMessage />
