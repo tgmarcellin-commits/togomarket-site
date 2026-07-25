@@ -540,28 +540,34 @@ export default function Home() {
                 <span>{catalogSector}</span>
               </h2>
               {catalogLoading ? (
-                <div className="space-y-3">
-                  {[1, 2, 3, 4].map(n => <div key={n} className="h-16 bg-muted rounded-xl animate-pulse" />)}
+                <div className="grid grid-cols-3 gap-3">
+                  {[1, 2, 3, 4, 5, 6].map(n => <div key={n} className="aspect-square bg-muted rounded-2xl animate-pulse" />)}
                 </div>
               ) : catalogVendors.length > 0 ? (
-                <div className="space-y-2.5">
+                <div className="grid grid-cols-3 gap-3">
                   {catalogVendors.map((v) => (
                     <button
                       key={v.id}
-                      className="w-full text-left"
                       onClick={() => { setSector(undefined); setShopNumber(v.id); }}
+                      className="group flex flex-col items-center gap-1.5 p-3 bg-card rounded-2xl border border-border hover:border-primary/50 hover:shadow-md active:scale-95 transition-all"
                     >
-                      <div className="flex items-center gap-3 px-4 py-3.5 bg-card rounded-xl border border-border hover:border-primary/50 hover:shadow-sm transition-all">
-                        {v.profilePhoto ? (
-                          <img src={v.profilePhoto} alt={v.firstName} className="w-10 h-10 rounded-full object-cover flex-shrink-0 border border-border" />
-                        ) : (
-                          <div className="w-10 h-10 rounded-full bg-muted flex items-center justify-center flex-shrink-0">
-                            <UserCircle2 className="w-6 h-6 text-muted-foreground" />
-                          </div>
-                        )}
-                        <span className="font-semibold flex-1 text-sm leading-tight">{v.shopName || "Boutique"}</span>
-                        <span className="text-xs text-muted-foreground font-medium bg-muted/80 px-2.5 py-1 rounded-full flex-shrink-0">N°{v.id}</span>
-                      </div>
+                      {v.profilePhoto ? (
+                        <img
+                          src={v.profilePhoto}
+                          alt={v.firstName}
+                          className="w-14 h-14 rounded-full object-cover border-2 border-border group-hover:border-primary/40 transition-colors"
+                        />
+                      ) : (
+                        <div className="w-14 h-14 rounded-full bg-muted flex items-center justify-center border-2 border-border">
+                          <UserCircle2 className="w-8 h-8 text-muted-foreground" />
+                        </div>
+                      )}
+                      <span className="text-xs font-semibold text-foreground leading-tight text-center line-clamp-2 w-full">
+                        {v.shopName || "Boutique"}
+                      </span>
+                      <span className="text-[10px] text-muted-foreground font-medium bg-muted/80 px-2 py-0.5 rounded-full">
+                        N°{v.id}
+                      </span>
                     </button>
                   ))}
                 </div>
