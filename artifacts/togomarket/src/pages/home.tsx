@@ -64,11 +64,11 @@ interface VendorInSector {
 
 const CATALOG_SECTORS = [
   { label: "Tourisme", emoji: "🌴", value: "Tourisme" },
-  { label: "AgriMarket", emoji: "🌿", value: "AgriMarket" },
+  { label: "Divers", emoji: "📦", value: "Divers" },
   { label: "Immobilier", emoji: "🏢", value: "Immobilier" },
   { label: "Automobile", emoji: "🚗", value: "Automobile" },
   { label: "Repas", emoji: "🍽️", value: "Repas" },
-  { label: "Divers", emoji: "📦", value: "Divers" },
+  { label: "AgriMarket", emoji: "🌿", value: "AgriMarket" },
 ] as const;
 
 export default function Home() {
