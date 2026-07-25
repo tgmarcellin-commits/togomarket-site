@@ -85,6 +85,7 @@ export default function Home() {
   const [catalogSector, setCatalogSector] = useState<string | null>(null);
   const [catalogVendors, setCatalogVendors] = useState<VendorInSector[]>([]);
   const [catalogLoading, setCatalogLoading] = useState(false);
+  const [shopSearchInput, setShopSearchInput] = useState("");
 
   const logoClickCount = useRef(0);
   const logoClickTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -386,21 +387,50 @@ export default function Home() {
               <h1 className="text-2xl sm:text-4xl font-extrabold text-white mb-4 drop-shadow-md">
                 {t.tagline}
               </h1>
-              {/* Barre de recherche — visible uniquement sur l'écran catalogue (accueil) */}
+              {/* Barres de recherche — visibles uniquement sur l'écran catalogue (accueil) */}
               {!catalogSector && !shopNumber && (
-                <form onSubmit={handleSearchSubmit} className="relative flex items-center max-w-xl mx-auto">
-                  <SearchIcon className="absolute left-4 w-5 h-5 text-muted-foreground" />
-                  <Input
-                    type="text"
-                    placeholder={t.searchArticlePlaceholder}
-                    value={searchInput}
-                    onChange={(e) => setSearchInput(e.target.value)}
-                    className="w-full pl-12 pr-24 h-12 rounded-full text-base bg-white border-0 shadow-lg focus-visible:ring-primary"
-                  />
-                  <Button type="submit" className="absolute right-1.5 h-9 rounded-full bg-accent hover:bg-accent/90 text-accent-foreground px-5 font-semibold text-sm">
-                    {t.search}
-                  </Button>
-                </form>
+                <div className="flex flex-col gap-2 max-w-xl mx-auto">
+                  <form onSubmit={handleSearchSubmit} className="relative flex items-center">
+                    <SearchIcon className="absolute left-4 w-5 h-5 text-muted-foreground" />
+                    <Input
+                      type="text"
+                      placeholder={t.searchArticlePlaceholder}
+                      value={searchInput}
+                      onChange={(e) => setSearchInput(e.target.value)}
+                      className="w-full pl-12 pr-24 h-12 rounded-full text-base bg-white border-0 shadow-lg focus-visible:ring-primary"
+                    />
+                    <Button type="submit" className="absolute right-1.5 h-9 rounded-full bg-accent hover:bg-accent/90 text-accent-foreground px-5 font-semibold text-sm">
+                      {t.search}
+                    </Button>
+                  </form>
+                  <form
+                    onSubmit={(e) => {
+                      e.preventDefault();
+                      const num = parseInt(shopSearchInput.trim(), 10);
+                      if (!isNaN(num) && num > 0) {
+                        setShopNumber(num);
+                        setCatalogSector(null);
+                        setCatalogVendors([]);
+                        setSearch("");
+                        setSearchInput("");
+                      }
+                    }}
+                    className="relative flex items-center"
+                  >
+                    <span className="absolute left-4 text-muted-foreground font-bold text-sm select-none">N°</span>
+                    <Input
+                      type="number"
+                      min={1}
+                      placeholder={lang === "fr" ? "Numéro de boutique..." : "Shop number..."}
+                      value={shopSearchInput}
+                      onChange={(e) => setShopSearchInput(e.target.value)}
+                      className="w-full pl-10 pr-28 h-12 rounded-full text-base bg-white/90 border-0 shadow-md focus-visible:ring-primary"
+                    />
+                    <Button type="submit" className="absolute right-1.5 h-9 rounded-full bg-white/80 hover:bg-white text-foreground px-5 font-semibold text-sm border border-border/40 shadow-sm">
+                      {lang === "fr" ? "Voir" : "View"}
+                    </Button>
+                  </form>
+                </div>
               )}
             </div>
           </section>
@@ -529,7 +559,7 @@ export default function Home() {
                             <UserCircle2 className="w-6 h-6 text-muted-foreground" />
                           </div>
                         )}
-                        <span className="font-semibold flex-1 text-sm leading-tight">{v.shopName || v.firstName}</span>
+                        <span className="font-semibold flex-1 text-sm leading-tight">{v.shopName || "Boutique"}</span>
                         <span className="text-xs text-muted-foreground font-medium bg-muted/80 px-2.5 py-1 rounded-full flex-shrink-0">N°{v.id}</span>
                       </div>
                     </button>
