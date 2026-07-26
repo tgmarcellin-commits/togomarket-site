@@ -1,8 +1,8 @@
-import { Megaphone, ShoppingBag, Calendar, PackageSearch, Briefcase } from "lucide-react";
+import { Store, ShoppingBag, Calendar, PackageSearch, Briefcase } from "lucide-react";
 import { useSiteSettings } from "@/lib/site-settings";
 import { useT } from "@/lib/i18n";
 
-export type NavTab = "publicite" | "marketplace" | "evenementiel" | "introuvable" | "services";
+export type NavTab = "stand" | "marketplace" | "evenementiel" | "introuvable" | "services";
 
 interface BottomNavProps {
   activeTab: NavTab;
@@ -14,9 +14,9 @@ export function BottomNav({ activeTab, onTabChange }: BottomNavProps) {
   const t = useT(lang);
 
   const tabs: { id: NavTab; label: string; Icon: React.ComponentType<{ className?: string }> }[] = [
-    { id: "publicite", label: t.navAds, Icon: Megaphone },
+    { id: "stand", label: t.navMarket, Icon: Store },
     { id: "services", label: t.navServices, Icon: Briefcase },
-    { id: "marketplace", label: t.navMarket, Icon: ShoppingBag },
+    { id: "marketplace", label: "Market Place", Icon: ShoppingBag },
     { id: "evenementiel", label: t.navEvents, Icon: Calendar },
     { id: "introuvable", label: t.navLost, Icon: PackageSearch },
   ];

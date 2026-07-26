@@ -162,8 +162,7 @@ export default function AdminDashboard() {
   const [allAds, setAllAds] = useState<Ad[]>([]);
   const [adsLoading, setAdsLoading] = useState(false);
   const [showAdForm, setShowAdForm] = useState(false);
-  const [adForm, setAdForm] = useState({ advertiserName: "", advertiserPhone: "", message: "", image: "", imagePreview: "", videoPath: "", videoName: "", category: "Agence" });
-  const adImageRef = useRef<HTMLInputElement>(null);
+  const [adForm, setAdForm] = useState({ advertiserName: "", advertiserPhone: "", videoPath: "", videoName: "" });
   const adVideoRef = useRef<HTMLInputElement>(null);
 
   const [allEvents, setAllEvents] = useState<ApiEvent[]>([]);
@@ -547,18 +546,6 @@ export default function AdminDashboard() {
     }
   };
 
-  const handleAdImageChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (!file) return;
-    e.target.value = "";
-    try {
-      const { blob, dataUrl } = await resizeImageToBlob(file);
-      const objectPath = await uploadImageFile(blob, file.name);
-      setAdForm((f) => ({ ...f, image: objectPath, imagePreview: dataUrl }));
-    } catch {
-      toast({ title: "Erreur image", variant: "destructive" });
-    }
-  };
 
   const [adVideoStatus, setAdVideoStatus] = useState<"idle" | "compressing" | "uploading">("idle");
   const handleAdVideoChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -577,16 +564,16 @@ export default function AdminDashboard() {
   };
 
   const handleCreateAd = () => {
-    if (!adForm.advertiserName.trim() || !adForm.advertiserPhone.trim() || !adForm.message.trim()) {
-      toast({ title: "Champs requis manquants", variant: "destructive" });
+    if (!adForm.advertiserPhone.trim() || !adForm.videoPath) {
+      toast({ title: "Vidéo et numéro WhatsApp requis", variant: "destructive" });
       return;
     }
     createAd.mutate(
-      { data: { password, advertiserName: adForm.advertiserName, advertiserPhone: adForm.advertiserPhone, message: adForm.message, image: adForm.image || undefined, videoPath: adForm.videoPath || undefined, category: adForm.category } },
+      { data: { password, advertiserName: adForm.advertiserName || adForm.advertiserPhone, advertiserPhone: adForm.advertiserPhone, message: "", videoPath: adForm.videoPath } },
       {
         onSuccess: () => {
           toast({ title: "Publicité créée !" });
-          setAdForm({ advertiserName: "", advertiserPhone: "", message: "", image: "", imagePreview: "", videoPath: "", videoName: "", category: "Agence" });
+          setAdForm({ advertiserName: "", advertiserPhone: "", videoPath: "", videoName: "" });
           setShowAdForm(false);
           loadAds();
         },
@@ -1399,50 +1386,25 @@ export default function AdminDashboard() {
             {showAdForm && (
               <div className="bg-card border rounded-xl p-4 space-y-3">
                 <h3 className="font-semibold text-sm">Nouvelle publicité</h3>
-                <div className="grid grid-cols-2 gap-3">
-                  <Input placeholder="Nom annonceur *" value={adForm.advertiserName} onChange={(e) => setAdForm((f) => ({ ...f, advertiserName: e.target.value }))} />
-                  <Input placeholder="Téléphone *" value={adForm.advertiserPhone} onChange={(e) => setAdForm((f) => ({ ...f, advertiserPhone: e.target.value }))} />
-                </div>
-                <textarea
-                  className="w-full border rounded-md px-3 py-2 text-sm min-h-[80px] resize-none"
-                  placeholder="Message / description *"
-                  value={adForm.message}
-                  onChange={(e) => setAdForm((f) => ({ ...f, message: e.target.value }))}
+                <Input
+                  placeholder="Nom de l'entreprise (optionnel)"
+                  value={adForm.advertiserName}
+                  onChange={(e) => setAdForm((f) => ({ ...f, advertiserName: e.target.value }))}
                 />
-                {/* Sélecteur catégorie */}
-                <div>
-                  <p className="text-xs font-medium text-muted-foreground mb-1.5">Catégorie <span className="text-destructive">*</span></p>
-                  <div className="grid grid-cols-4 gap-1.5">
-                    {(["Agence", "Ecole", "Hotels", "Restaurant"] as const).map((cat) => (
-                      <button
-                        key={cat}
-                        type="button"
-                        onClick={() => setAdForm((f) => ({ ...f, category: cat }))}
-                        className={`py-2 text-xs font-semibold rounded-lg border transition-colors ${
-                          adForm.category === cat
-                            ? "bg-amber-500 text-white border-amber-500 shadow-sm"
-                            : "bg-background border-input hover:bg-muted"
-                        }`}
-                      >
-                        {cat === "Agence" ? "🏢" : cat === "Ecole" ? "🎓" : cat === "Hotels" ? "🏨" : "🍽️"} {cat}
-                      </button>
-                    ))}
-                  </div>
-                </div>
+                <Input
+                  placeholder="Numéro WhatsApp *"
+                  value={adForm.advertiserPhone}
+                  onChange={(e) => setAdForm((f) => ({ ...f, advertiserPhone: e.target.value }))}
+                />
                 <div className="flex items-center gap-3 flex-wrap">
-                  <input type="file" accept="image/*" ref={adImageRef} className="hidden" onChange={handleAdImageChange} />
                   <input type="file" accept="video/*" ref={adVideoRef} className="hidden" onChange={handleAdVideoChange} disabled={adVideoStatus !== "idle"} />
-                  <Button variant="outline" size="sm" onClick={() => adImageRef.current?.click()}>
-                    Image
-                  </Button>
                   <Button variant="outline" size="sm" onClick={() => adVideoRef.current?.click()} disabled={adVideoStatus !== "idle"}>
-                    {adVideoStatus === "compressing" ? "⏳ Compression..." : adVideoStatus === "uploading" ? "⬆️ Envoi..." : adForm.videoName ? "🎬 Vidéo ✓" : "🎬 Vidéo"}
+                    {adVideoStatus === "compressing" ? "⏳ Compression..." : adVideoStatus === "uploading" ? "⬆️ Envoi..." : adForm.videoName ? "🎬 Vidéo ✓" : "🎬 Ajouter la vidéo *"}
                   </Button>
-                  {adForm.imagePreview && <img src={adForm.imagePreview} alt="" className="h-12 w-12 rounded-lg object-cover" />}
-                  {adForm.videoName && <span className="text-xs text-muted-foreground truncate max-w-[120px]">✅ {adForm.videoName}</span>}
+                  {adForm.videoName && <span className="text-xs text-muted-foreground truncate max-w-[160px]">✅ {adForm.videoName}</span>}
                 </div>
                 <div className="flex gap-2">
-                  <Button size="sm" onClick={handleCreateAd} disabled={createAd.isPending}>
+                  <Button size="sm" onClick={handleCreateAd} disabled={createAd.isPending || adVideoStatus !== "idle"}>
                     {createAd.isPending ? "Création…" : "Créer"}
                   </Button>
                   <Button size="sm" variant="ghost" onClick={() => setShowAdForm(false)}>Annuler</Button>
@@ -1462,7 +1424,7 @@ export default function AdminDashboard() {
                   const active = new Date(ad.endDate) > new Date();
                   return (
                     <div key={ad.id} className={`bg-card border rounded-xl p-3 flex items-center gap-3 ${!active ? "opacity-60" : ""}`}>
-                      {ad.image && <img src={resolveImageUrl(ad.image)} alt="" className="w-14 h-14 rounded-lg object-cover flex-shrink-0" />}
+                      {ad.videoPath && <div className="w-14 h-14 rounded-lg bg-black flex items-center justify-center flex-shrink-0 overflow-hidden"><span className="text-2xl">🎬</span></div>}
                       <div className="flex-1 min-w-0">
                         <p className="font-semibold text-sm truncate">{ad.advertiserName}</p>
                         <p className="text-xs text-muted-foreground truncate">{ad.message}</p>

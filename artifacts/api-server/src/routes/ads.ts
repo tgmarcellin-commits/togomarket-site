@@ -1,5 +1,5 @@
 import { Router, type IRouter } from "express";
-import { gt, eq, and, count, desc } from "drizzle-orm";
+import { gt, eq, and, count, desc, isNotNull } from "drizzle-orm";
 import { db, adsTable } from "@workspace/db";
 import { isAdminOrSubAdmin } from "../lib/auth-sub";
 
@@ -24,14 +24,18 @@ function mapAd(a: typeof adsTable.$inferSelect) {
   };
 }
 
-// GET /ads — active published ads, pinned first within each category
+// GET /ads — active published video ads only, pinned first
 router.get("/ads", async (req, res) => {
   try {
     const now = new Date();
     const ads = await db
       .select()
       .from(adsTable)
-      .where(and(gt(adsTable.endDate, now), eq(adsTable.isPublished, true)));
+      .where(and(
+        gt(adsTable.endDate, now),
+        eq(adsTable.isPublished, true),
+        isNotNull(adsTable.videoPath),
+      ));
     // Sort: pinned first, then by startDate desc
     const sorted = ads.sort((a, b) => {
       if (a.isPinned === b.isPinned) {
@@ -47,32 +51,30 @@ router.get("/ads", async (req, res) => {
 });
 
 router.post("/admin/ads", async (req, res) => {
-  const { password, advertiserName, advertiserPhone, message, image, videoPath, category } = req.body;
+  const { password, advertiserName, advertiserPhone, videoPath } = req.body;
   if (!await isAdminOrSubAdmin(password)) {
     return res.status(403).json({ error: "Forbidden" });
   }
-  if (!advertiserName || !advertiserPhone || !message) {
-    return res.status(400).json({ error: "Missing required fields" });
+  if (!advertiserPhone || !videoPath) {
+    return res.status(400).json({ error: "Numéro WhatsApp et vidéo requis" });
   }
-  const validCategories = ["Agence", "Ecole", "Hotels", "Restaurant"];
-  const adCategory: string = validCategories.includes(category) ? category : "Agence";
   try {
     const now = new Date();
     const endDate = new Date(now.getTime() + 30 * 24 * 60 * 60 * 1000);
     const [ad] = await db
       .insert(adsTable)
       .values({
-        advertiserName,
+        advertiserName: advertiserName || advertiserPhone,
         advertiserPhone,
-        message,
-        image: image ?? null,
-        videoPath: videoPath ?? null,
+        message: "",
+        image: null,
+        videoPath,
         startDate: now,
         endDate,
         isPublished: false,
         paymentStatus: "unpaid",
         validationMethod: "pending",
-        category: adCategory,
+        category: "Agence",
         isPinned: false,
       })
       .returning();

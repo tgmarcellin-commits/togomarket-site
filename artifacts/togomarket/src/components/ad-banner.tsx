@@ -1,189 +1,179 @@
-import { useEffect, useState } from "react";
+import { useEffect, useState, useRef, useCallback, useMemo } from "react";
 import { useGetActiveAds, type Ad } from "@workspace/api-client-react";
-import { Megaphone, X, ChevronLeft, ChevronRight, Play } from "lucide-react";
+import { Volume2, VolumeX, Play, Pause } from "lucide-react";
 import { resolveImageUrl } from "@/lib/image";
-import { ImageViewer } from "@/components/image-viewer";
-import { SmartVideo } from "@/components/smart-video";
-
-function AdModal({ ad, onClose }: { ad: Ad; onClose: () => void }) {
-  const [viewerOpen, setViewerOpen] = useState(false);
-
-  return (
-    <>
-      <div
-        className="fixed inset-0 z-[100] flex items-center justify-center bg-black/70 backdrop-blur-sm p-4"
-        onClick={onClose}
-      >
-        <div
-          className="bg-white rounded-2xl w-full max-w-sm overflow-hidden shadow-2xl"
-          onClick={(e) => e.stopPropagation()}
-        >
-          {ad.videoPath && (
-            <SmartVideo
-              src={resolveImageUrl(ad.videoPath)}
-              mode="player"
-              className="w-full aspect-video"
-            />
-          )}
-          {!ad.videoPath && ad.image && (
-            <button
-              type="button"
-              className="w-full aspect-video bg-black focus:outline-none cursor-zoom-in"
-              onClick={() => setViewerOpen(true)}
-            >
-              <img
-                src={resolveImageUrl(ad.image)}
-                alt={ad.advertiserName}
-                className="w-full h-full object-contain"
-              />
-            </button>
-          )}
-          <div className="p-5 space-y-3">
-            <div className="flex items-start justify-between gap-2">
-              <div>
-                <div className="flex items-center gap-2 mb-1">
-                  <div className="bg-amber-400 rounded-full p-1">
-                    <Megaphone className="w-3 h-3 text-white" />
-                  </div>
-                  <span className="text-[10px] font-bold uppercase tracking-widest text-amber-600">
-                    Publicité
-                  </span>
-                </div>
-                <h2 className="text-lg font-bold text-foreground">{ad.advertiserName}</h2>
-              </div>
-              <button
-                onClick={onClose}
-                className="flex-shrink-0 rounded-full p-1.5 bg-muted hover:bg-muted/80 transition-colors"
-              >
-                <X className="w-4 h-4 text-muted-foreground" />
-              </button>
-            </div>
-            <p className="text-sm text-foreground leading-relaxed">{ad.message}</p>
-            <div className="pt-2 border-t text-xs text-muted-foreground">
-              Expire le {new Date(ad.endDate).toLocaleDateString("fr-FR", { day: "2-digit", month: "long", year: "numeric" })}
-            </div>
-          </div>
-        </div>
-      </div>
-
-      {viewerOpen && ad.image && (
-        <ImageViewer
-          images={[ad.image]}
-          startIndex={0}
-          onClose={() => setViewerOpen(false)}
-        />
-      )}
-    </>
-  );
-}
 
 export function AdBanner() {
   const { data: ads } = useGetActiveAds();
+
+  // Uniquement les publicités avec vidéo
+  const videoAds = useMemo<Ad[]>(
+    () => (ads ?? []).filter((ad) => !!ad.videoPath),
+    [ads]
+  );
+
   const [current, setCurrent] = useState(0);
-  const [selectedAd, setSelectedAd] = useState<Ad | null>(null);
+  const [muted, setMuted] = useState(true);
+  const [paused, setPaused] = useState(false);
+  const [showIcon, setShowIcon] = useState(false);
+  const videoRef = useRef<HTMLVideoElement>(null);
+  const touchStartX = useRef(0);
+  const touchStartY = useRef(0);
+  const iconTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
+  const ad = videoAds[current] as Ad | undefined;
+
+  // Changer de vidéo → reset + lecture automatique
   useEffect(() => {
-    if (!ads || ads.length <= 1) return;
-    const interval = setInterval(() => {
-      setCurrent((prev) => (prev + 1) % ads.length);
-    }, 6000);
-    return () => clearInterval(interval);
-  }, [ads]);
+    const v = videoRef.current;
+    if (!v) return;
+    v.currentTime = 0;
+    setPaused(false);
+    v.play().catch(() => {});
+  }, [current]);
 
-  if (!ads || ads.length === 0) return null;
+  // Sync muted
+  useEffect(() => {
+    if (videoRef.current) videoRef.current.muted = muted;
+  }, [muted]);
 
-  const ad = ads[current];
-  const hasMedia = !!(ad.image || ad.videoPath);
-  const thumbnailUrl = ad.image ? resolveImageUrl(ad.image) : null;
+  const flashIcon = useCallback(() => {
+    setShowIcon(true);
+    if (iconTimer.current) clearTimeout(iconTimer.current);
+    iconTimer.current = setTimeout(() => setShowIcon(false), 800);
+  }, []);
+
+  const handleNext = useCallback(() => {
+    setCurrent((c) => (c + 1) % videoAds.length);
+    setPaused(false);
+  }, [videoAds.length]);
+
+  const handlePrev = useCallback(() => {
+    setCurrent((c) => (c - 1 + videoAds.length) % videoAds.length);
+    setPaused(false);
+  }, [videoAds.length]);
+
+  const handleTap = useCallback(() => {
+    const v = videoRef.current;
+    if (!v) return;
+    if (paused) {
+      v.play().catch(() => {});
+      setPaused(false);
+    } else {
+      v.pause();
+      setPaused(true);
+    }
+    flashIcon();
+  }, [paused, flashIcon]);
+
+  const handleTouchStart = (e: React.TouchEvent) => {
+    touchStartX.current = e.touches[0].clientX;
+    touchStartY.current = e.touches[0].clientY;
+  };
+
+  const handleTouchEnd = useCallback(
+    (e: React.TouchEvent) => {
+      const dx = touchStartX.current - e.changedTouches[0].clientX;
+      const dy = Math.abs(touchStartY.current - e.changedTouches[0].clientY);
+      // Swipe horizontal (ignore si mouvement vertical dominant)
+      if (Math.abs(dx) > 50 && Math.abs(dx) > dy) {
+        if (dx > 0) handleNext();
+        else handlePrev();
+      } else if (Math.abs(dx) <= 10 && dy <= 10) {
+        // Tap pur
+        handleTap();
+      }
+    },
+    [handleNext, handlePrev, handleTap]
+  );
+
+  if (!videoAds.length || !ad) return null;
 
   return (
-    <>
-      <div className="w-full bg-gradient-to-r from-amber-500 to-orange-500 shadow-md">
-        <div className="container mx-auto px-3 py-2.5">
-          {/* Label */}
-          <div className="flex items-center gap-1.5 mb-2">
-            <div className="bg-white/20 rounded-full p-1">
-              <Megaphone className="w-3 h-3 text-white" />
-            </div>
-            <span className="text-[10px] font-black uppercase tracking-widest text-white/90">
-              Publicité
-            </span>
-            {ads.length > 1 && (
-              <div className="flex gap-1 ml-auto">
-                {ads.map((_, i) => (
-                  <button
-                    key={i}
-                    onClick={() => setCurrent(i)}
-                    className={`w-1.5 h-1.5 rounded-full transition-all ${
-                      i === current ? "bg-white scale-125" : "bg-white/40"
-                    }`}
-                  />
-                ))}
-              </div>
+    <div
+      className="w-full relative bg-black overflow-hidden select-none cursor-pointer"
+      style={{ aspectRatio: "16/9", maxHeight: "256px" }}
+      onTouchStart={handleTouchStart}
+      onTouchEnd={handleTouchEnd}
+      onClick={handleTap}
+    >
+      {/* Vidéo */}
+      <video
+        ref={videoRef}
+        key={ad.id}
+        src={resolveImageUrl(ad.videoPath!)}
+        muted={muted}
+        autoPlay
+        playsInline
+        loop={videoAds.length === 1}
+        onEnded={videoAds.length > 1 ? handleNext : undefined}
+        className="w-full h-full object-cover"
+      />
+
+      {/* Icône play/pause flashée au tap */}
+      {showIcon && (
+        <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
+          <div className="bg-black/50 rounded-full p-4">
+            {paused ? (
+              <Play className="w-10 h-10 text-white fill-white" />
+            ) : (
+              <Pause className="w-10 h-10 text-white fill-white" />
             )}
           </div>
+        </div>
+      )}
 
-          {/* Ad content */}
-          <button
-            className="w-full flex items-center gap-3 text-left active:opacity-80 transition-opacity"
-            onClick={() => setSelectedAd(ad)}
-          >
-            {/* Media thumbnail */}
-            {hasMedia && (
-              <div className="relative flex-shrink-0 w-16 h-16 rounded-xl overflow-hidden border-2 border-white/30 shadow-md bg-black/20">
-                {thumbnailUrl && (
-                  <img
-                    src={thumbnailUrl}
-                    alt={ad.advertiserName}
-                    className="w-full h-full object-cover"
-                    onError={(e) => {
-                      (e.currentTarget as HTMLImageElement).style.display = "none";
-                    }}
-                  />
-                )}
-                {ad.videoPath && (
-                  <div className="absolute inset-0 flex items-center justify-center">
-                    <div className="bg-black/50 rounded-full p-1.5">
-                      <Play className="w-4 h-4 text-white fill-white" />
-                    </div>
-                  </div>
-                )}
-              </div>
-            )}
+      {/* Overlay pause persistante (icône play centré) */}
+      {paused && !showIcon && (
+        <div className="absolute inset-0 flex items-center justify-center pointer-events-none bg-black/20">
+          <div className="bg-black/50 rounded-full p-4">
+            <Play className="w-10 h-10 text-white fill-white" />
+          </div>
+        </div>
+      )}
 
-            {/* Text */}
-            <div className="flex-1 min-w-0">
-              <p className="text-sm font-bold text-white truncate leading-tight">{ad.advertiserName}</p>
-              <p className="text-xs text-white/80 line-clamp-2 leading-snug mt-0.5">{ad.message}</p>
-            </div>
-
-            {/* CTA */}
-            <div className="flex-shrink-0 bg-white text-amber-600 font-bold text-[11px] px-3 py-1.5 rounded-full shadow-sm whitespace-nowrap">
-              Voir plus
-            </div>
-          </button>
-
-          {/* Navigation arrows for multiple ads */}
-          {ads.length > 1 && (
-            <div className="flex justify-end gap-2 mt-2">
-              <button
-                onClick={() => setCurrent((c) => (c - 1 + ads.length) % ads.length)}
-                className="bg-white/20 hover:bg-white/30 rounded-full p-0.5 transition-colors"
-              >
-                <ChevronLeft className="w-3.5 h-3.5 text-white" />
-              </button>
-              <button
-                onClick={() => setCurrent((c) => (c + 1) % ads.length)}
-                className="bg-white/20 hover:bg-white/30 rounded-full p-0.5 transition-colors"
-              >
-                <ChevronRight className="w-3.5 h-3.5 text-white" />
-              </button>
+      {/* Barre supérieure : label + points + son */}
+      <div className="absolute top-0 left-0 right-0 flex items-center justify-between px-3 pt-2.5 pb-4 bg-gradient-to-b from-black/60 to-transparent pointer-events-none">
+        <span className="text-[10px] font-black uppercase tracking-widest text-white/90 bg-black/30 px-2 py-0.5 rounded-full">
+          PUBLICITÉ
+        </span>
+        <div className="flex items-center gap-2 pointer-events-auto">
+          {videoAds.length > 1 && (
+            <div className="flex gap-1 items-center">
+              {videoAds.map((_, i) => (
+                <button
+                  key={i}
+                  onClick={(e) => { e.stopPropagation(); setCurrent(i); setPaused(false); }}
+                  className={`rounded-full transition-all ${
+                    i === current
+                      ? "bg-white w-3 h-1.5"
+                      : "bg-white/40 w-1.5 h-1.5"
+                  }`}
+                />
+              ))}
             </div>
           )}
+          {/* Bouton son */}
+          <button
+            onClick={(e) => { e.stopPropagation(); setMuted((m) => !m); }}
+            className="bg-black/50 rounded-full p-1.5 active:scale-90 transition-transform"
+          >
+            {muted ? (
+              <VolumeX className="w-4 h-4 text-white" />
+            ) : (
+              <Volume2 className="w-4 h-4 text-white" />
+            )}
+          </button>
         </div>
       </div>
 
-      {selectedAd && <AdModal ad={selectedAd} onClose={() => setSelectedAd(null)} />}
-    </>
+      {/* Barre inférieure : nom de l'annonceur */}
+      <div className="absolute bottom-0 left-0 right-0 px-3 pb-2.5 pt-6 bg-gradient-to-t from-black/70 to-transparent pointer-events-none">
+        <p className="text-sm font-bold text-white drop-shadow truncate">{ad.advertiserName}</p>
+        {ad.message && (
+          <p className="text-xs text-white/70 line-clamp-1 mt-0.5">{ad.message}</p>
+        )}
+      </div>
+    </div>
   );
 }

@@ -23,7 +23,6 @@ import { AuthModal } from "@/components/auth-modal";
 import { InstallPrompt } from "@/components/install-prompt";
 import { AdBanner } from "@/components/ad-banner";
 import { BottomNav, type NavTab } from "@/components/bottom-nav";
-import { PubliciteView } from "@/components/publicite-view";
 import { EvenementielView } from "@/components/evenementiel-view";
 import { ServicesView } from "@/components/services-view";
 import { ProfileSettingsModal } from "@/components/profile-settings-modal";
@@ -78,7 +77,7 @@ export default function Home() {
   const [search, setSearch] = useState("");
   const [searchInput, setSearchInput] = useState("");
   const [sector, setSector] = useState<string | undefined>(undefined);
-  const [activeTab, setActiveTab] = useState<NavTab>("marketplace");
+  const [activeTab, setActiveTab] = useState<NavTab>("stand");
   const [shopNumber, setShopNumber] = useState<number | undefined>(undefined);
   const [shopLinkExpired, setShopLinkExpired] = useState(false);
   const [referredBy, setReferredBy] = useState<number | undefined>(undefined);
@@ -92,7 +91,7 @@ export default function Home() {
   const logoClickTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const handleLogoClick = () => {
-    setActiveTab("marketplace");
+    setActiveTab("stand");
     setSector(undefined);
     setSearch("");
     setSearchInput("");
@@ -216,6 +215,16 @@ export default function Home() {
     { search, sector, page, shopNumber },
     { query: { queryKey: getGetListingsQueryKey({ search, sector, page, shopNumber }) } }
   );
+
+  // ── Market Place tab : liste paginée de tous les articles ──
+  const [mpPage, setMpPage] = useState(1);
+  const [mpListings, setMpListings] = useState<Listing[]>([]);
+  const [mpHasMore, setMpHasMore] = useState(false);
+  const mpSeenRef = useRef<unknown>(undefined);
+  const { data: mpPageData, isLoading: mpLoading, isFetching: mpFetching } = useGetListings(
+    { page: mpPage, limit: 20 },
+    { query: { queryKey: getGetListingsQueryKey({ page: mpPage, limit: 20 }) } }
+  );
   const { data: stats } = useGetStats();
   const { data: settings } = useGetAdminSettings();
   const commissionRate = settings?.commissionRate ?? 2;
@@ -227,6 +236,25 @@ export default function Home() {
     setLoadedListings([]);
     seenDataRef.current = undefined;
   }, [search, sector, shopNumber]);
+
+  useEffect(() => {
+    if (!mpPageData || mpPageData === mpSeenRef.current) return;
+    mpSeenRef.current = mpPageData;
+    setMpHasMore(mpPageData.hasMore ?? false);
+    if (mpPageData.page === 1) {
+      setMpListings(mpPageData.items);
+    } else {
+      setMpListings((prev) => [...prev, ...mpPageData.items]);
+    }
+  }, [mpPageData]);
+
+  useEffect(() => {
+    if (activeTab === "marketplace") {
+      setMpPage(1);
+      setMpListings([]);
+      mpSeenRef.current = undefined;
+    }
+  }, [activeTab]);
 
   useEffect(() => {
     if (!pageData || pageData === seenDataRef.current) return;
@@ -282,7 +310,7 @@ export default function Home() {
     setVendorPassword("");
     clearSession();
     toast({ title: "Déconnecté", description: "À bientôt !" });
-    setActiveTab("marketplace");
+    setActiveTab("stand");
   };
 
   const handleVendorUpdate = (updated: VendorProfile, newPassword?: string) => {
@@ -371,8 +399,8 @@ export default function Home() {
         </div>
       </header>
 
-      {/* ── MARKETPLACE TAB (default) ─────────────────────────────────── */}
-      {activeTab === "marketplace" && (
+      {/* ── STAND TAB ─────────────────────────────────────────────────── */}
+      {activeTab === "stand" && (
         <>
           {/* Hero Section */}
           <section className="relative h-[220px] sm:h-[280px] w-full flex items-center justify-center overflow-hidden">
@@ -706,8 +734,57 @@ export default function Home() {
         </>
       )}
 
-      {/* ── PUBLICITÉ TAB ─────────────────────────────────────────────── */}
-      {activeTab === "publicite" && <PubliciteView />}
+      {/* ── MARKET PLACE TAB ──────────────────────────────────────────── */}
+      {activeTab === "marketplace" && (
+        <main className="container mx-auto px-4 py-6 flex-grow">
+          <h2 className="text-lg font-bold mb-5">{lang === "fr" ? "Tous les articles" : "All listings"}</h2>
+          {mpLoading && mpPage === 1 ? (
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
+              {[1, 2, 3].map((n) => (
+                <div key={n} className="rounded-xl border bg-card overflow-hidden h-[400px] flex flex-col">
+                  <div className="h-[200px] bg-muted animate-pulse" />
+                  <div className="p-4 flex flex-col gap-3 flex-grow">
+                    <div className="h-6 bg-muted rounded w-3/4 animate-pulse" />
+                    <div className="h-5 bg-muted rounded w-1/3 animate-pulse" />
+                  </div>
+                </div>
+              ))}
+            </div>
+          ) : mpListings.length > 0 ? (
+            <>
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
+                {mpListings.map((listing) => (
+                  <ListingCard
+                    key={listing.id}
+                    listing={listing}
+                    isAdmin={quickMode}
+                    adminPassword={quickMode ? (loadAdminSession()?.code ?? "") : ""}
+                    commissionRate={commissionRate}
+                    whatsappCommission={whatsappCommission}
+                    isOwn={vendor ? listing.phone === vendor.phone : false}
+                  />
+                ))}
+              </div>
+              {mpHasMore && (
+                <div className="flex justify-center mt-10">
+                  <Button
+                    variant="outline"
+                    onClick={() => setMpPage((p) => p + 1)}
+                    disabled={mpFetching}
+                    className="rounded-full px-8 font-semibold"
+                  >
+                    {mpFetching ? t.loading : t.loadMore}
+                  </Button>
+                </div>
+              )}
+            </>
+          ) : (
+            <div className="text-center py-20">
+              <p className="text-muted-foreground text-sm">{t.noListings}</p>
+            </div>
+          )}
+        </main>
+      )}
 
       {/* ── ÉVÉNEMENTIEL TAB ─────────────────────────────────────────── */}
       {activeTab === "evenementiel" && <EvenementielView />}

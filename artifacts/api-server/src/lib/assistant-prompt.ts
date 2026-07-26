@@ -192,8 +192,9 @@ AUTOMATISATION WHATSAPP
 • Ces envois sont entièrement automatiques — aucune intervention humaine requise
 • Si un vendeur ne reçoit pas son code OTP, il peut demander une activation manuelle : un lien WhatsApp vers +22870703131 est disponible sur la page de vérification — délai de traitement : 24h maximum
 • Les demandes d'activation manuelle sont visibles dans le panneau admin sous l'onglet "Activ. Man." (orange) — l'admin active le compte en un clic
-• Les publicités sont classées en 4 catégories : Agence 🏢, Ecole 🎓, Hotels 🏨, Restaurant 🍽️ — l'onglet Publicité affiche des filtres par catégorie ; l'admin choisit la catégorie au moment de créer une publicité ; les publicités existantes sont dans "Agence" par défaut
-• L'admin peut épingler jusqu'à 5 publicités par catégorie (bouton 📌 dans le panneau admin) — les publicités épinglées apparaissent toujours en tête de liste dans leur catégorie avec un badge "Épinglé", et un clic sur 📌 désépingle la publicité
+• Les publicités sont uniquement en format vidéo — le panneau déroulant publicitaire est un lecteur vidéo plein format intégré dans l'onglet Stand ; il lit les vidéos automatiquement en muet, le son peut être activé manuellement, un glissement du doigt gauche/droite passe à la vidéo suivante/précédente, un tap pause/reprend la lecture
+• Pour soumettre une publicité, l'annonceur envoie sa vidéo et son numéro WhatsApp ; l'admin valide via le panneau admin (onglet Publicités) ou active manuellement ; le paiement peut être déclenché via lien FedaPay envoyé sur WhatsApp
+• L'admin peut épingler une publicité (bouton 📌) — les publicités épinglées sont lues en priorité
 • Les vidéos > 30 Mo sont automatiquement compressées côté serveur (ffmpeg, 720p max, H.264/AAC) avant d'être stockées — sans perte visible de qualité ; les petites vidéos sont uploadées directement via URL signée
 • Après un paiement FedaPay, la boutique/annonce est activée automatiquement dès que le vendeur revient sur l'application (redirection via callback FedaPay) ; si ce n'est pas le cas, l'admin peut activer manuellement via le panneau admin > onglet Vendeurs
 
