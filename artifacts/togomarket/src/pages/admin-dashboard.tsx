@@ -73,6 +73,10 @@ import {
   Phone,
   X,
   Pin,
+  MapPin,
+  Tag,
+  Clock3,
+  ExternalLink,
 } from "lucide-react";
 
 type DashTab =
@@ -148,6 +152,8 @@ export default function AdminDashboard() {
 
   const [pendingListings, setPendingListings] = useState<NonNullable<ReturnType<typeof useAdminGetPendingListings>["data"]>>([]);
   const [pendingLoading, setPendingLoading] = useState(false);
+  type PendingListing = NonNullable<ReturnType<typeof useAdminGetPendingListings>["data"]>[number];
+  const [selectedPendingListing, setSelectedPendingListing] = useState<PendingListing | null>(null);
 
   const [vendors, setVendors] = useState<VendorProfile[]>([]);
   const [vendorsLoading, setVendorsLoading] = useState(false);
@@ -1063,19 +1069,27 @@ export default function AdminDashboard() {
                 <p className="font-medium">Aucune annonce en attente</p>
               </div>
             ) : (
+              <>
               <div className="space-y-3">
                 {pendingListings.map((listing) => (
-                  <div key={listing.id} className="bg-card border rounded-xl p-4 space-y-3">
+                  <div
+                    key={listing.id}
+                    className="bg-card border rounded-xl p-4 space-y-3 cursor-pointer hover:border-primary/50 hover:shadow-md transition-all"
+                    onClick={() => setSelectedPendingListing(listing)}
+                  >
                     <div className="flex items-start justify-between gap-3">
                       <div className="flex-1 min-w-0">
-                        <p className="font-semibold truncate">{listing.name}</p>
+                        <div className="flex items-center gap-2 mb-0.5">
+                          <p className="font-semibold truncate">{listing.name}</p>
+                          <ExternalLink className="w-3.5 h-3.5 text-muted-foreground flex-shrink-0" />
+                        </div>
                         <p className="text-sm text-muted-foreground">{listing.price.toLocaleString("fr-FR")} FCFA · {listing.sector} · {listing.location}</p>
                         <p className="text-xs text-muted-foreground mt-1">
                           <Phone className="w-3 h-3 inline mr-1" />
                           {listing.phone}
                         </p>
                       </div>
-                      <div className="flex gap-2 flex-shrink-0">
+                      <div className="flex gap-2 flex-shrink-0" onClick={(e) => e.stopPropagation()}>
                         <Button size="sm" className="h-8 bg-green-600 hover:bg-green-700" onClick={() => handleApprove(listing.id)}>
                           <CheckCircle className="w-3.5 h-3.5 mr-1" />
                           Approuver
@@ -1086,7 +1100,7 @@ export default function AdminDashboard() {
                       </div>
                     </div>
                     {listing.images && listing.images.length > 0 && (
-                      <div className="flex gap-2 overflow-x-auto">
+                      <div className="flex gap-2 overflow-x-auto" onClick={(e) => e.stopPropagation()}>
                         {listing.images.map((img, i) => (
                           <img
                             key={i}
@@ -1101,6 +1115,110 @@ export default function AdminDashboard() {
                   </div>
                 ))}
               </div>
+
+              {/* ── MODAL DÉTAIL ANNONCE EN ATTENTE ── */}
+              <Dialog open={!!selectedPendingListing} onOpenChange={(o) => { if (!o) setSelectedPendingListing(null); }}>
+                <DialogContent className="max-w-lg max-h-[90vh] overflow-y-auto p-0">
+                  {/* Images */}
+                  {selectedPendingListing?.images && selectedPendingListing.images.length > 0 && (
+                    <div className="relative">
+                      <div className="flex overflow-x-auto snap-x snap-mandatory">
+                        {selectedPendingListing.images.map((img, i) => (
+                          <img
+                            key={i}
+                            src={resolveImageUrl(img)}
+                            alt=""
+                            className="w-full flex-shrink-0 snap-center object-cover max-h-72 cursor-pointer"
+                            onClick={() => { setViewerImages(selectedPendingListing.images.map(resolveImageUrl)); setViewerIndex(i); }}
+                          />
+                        ))}
+                      </div>
+                      {selectedPendingListing.images.length > 1 && (
+                        <div className="absolute bottom-2 left-0 right-0 flex justify-center gap-1">
+                          {selectedPendingListing.images.map((_, i) => (
+                            <span key={i} className="w-1.5 h-1.5 rounded-full bg-white/70" />
+                          ))}
+                        </div>
+                      )}
+                      <div className="absolute top-2 right-2 bg-black/50 text-white text-xs px-2 py-1 rounded-full">
+                        {selectedPendingListing.images.length} photo{selectedPendingListing.images.length > 1 ? "s" : ""}
+                      </div>
+                    </div>
+                  )}
+
+                  <div className="p-5 space-y-4">
+                    <DialogHeader>
+                      <DialogTitle className="text-xl leading-tight">{selectedPendingListing?.name}</DialogTitle>
+                    </DialogHeader>
+
+                    {/* Prix */}
+                    <p className="text-2xl font-bold text-primary">
+                      {selectedPendingListing?.price.toLocaleString("fr-FR")} FCFA
+                    </p>
+
+                    {/* Détails en grille */}
+                    <div className="grid grid-cols-2 gap-3 text-sm">
+                      <div className="flex items-start gap-2">
+                        <Tag className="w-4 h-4 flex-shrink-0 mt-0.5 text-muted-foreground" />
+                        <div>
+                          <p className="text-[11px] uppercase tracking-wide font-medium text-muted-foreground/70">Secteur</p>
+                          <p className="font-semibold">{selectedPendingListing?.sector}</p>
+                        </div>
+                      </div>
+                      <div className="flex items-start gap-2">
+                        <MapPin className="w-4 h-4 flex-shrink-0 mt-0.5 text-muted-foreground" />
+                        <div>
+                          <p className="text-[11px] uppercase tracking-wide font-medium text-muted-foreground/70">Localisation</p>
+                          <p className="font-semibold">
+                            {selectedPendingListing?.location}
+                            {selectedPendingListing?.country && selectedPendingListing.country !== "Togo" ? ` — ${selectedPendingListing.country}` : ""}
+                          </p>
+                        </div>
+                      </div>
+                      <div className="flex items-start gap-2">
+                        <Phone className="w-4 h-4 flex-shrink-0 mt-0.5 text-muted-foreground" />
+                        <div>
+                          <p className="text-[11px] uppercase tracking-wide font-medium text-muted-foreground/70">Téléphone vendeur</p>
+                          <p className="font-semibold">{selectedPendingListing?.phone}</p>
+                        </div>
+                      </div>
+                      <div className="flex items-start gap-2">
+                        <Clock3 className="w-4 h-4 flex-shrink-0 mt-0.5 text-muted-foreground" />
+                        <div>
+                          <p className="text-[11px] uppercase tracking-wide font-medium text-muted-foreground/70">Soumise le</p>
+                          <p className="font-semibold">
+                            {selectedPendingListing && new Date(selectedPendingListing.createdAt).toLocaleString("fr-FR", { day: "2-digit", month: "long", year: "numeric", hour: "2-digit", minute: "2-digit" })}
+                          </p>
+                        </div>
+                      </div>
+                    </div>
+
+                    <div className="text-xs text-muted-foreground">
+                      <span className="bg-muted px-2 py-0.5 rounded-full">ID #{selectedPendingListing?.id}</span>
+                    </div>
+
+                    {/* Actions */}
+                    <DialogFooter className="flex gap-2 pt-2 sm:flex-row flex-col">
+                      <Button
+                        variant="destructive"
+                        className="flex-1"
+                        onClick={() => { if (selectedPendingListing) { handleDeleteListing(selectedPendingListing.id); setSelectedPendingListing(null); } }}
+                      >
+                        <Trash2 className="w-4 h-4 mr-2" />
+                        Supprimer
+                      </Button>
+                      <Button
+                        className="flex-1 bg-green-600 hover:bg-green-700"
+                        onClick={() => { if (selectedPendingListing) { handleApprove(selectedPendingListing.id); setSelectedPendingListing(null); } }}
+                      >
+                        <CheckCircle className="w-4 h-4 mr-2" />
+                        Approuver
+                      </Button>
+                    </DialogFooter>
+                  </div>
+                </DialogContent>
+              </Dialog>
+              </>
             )}
           </div>
         )}
