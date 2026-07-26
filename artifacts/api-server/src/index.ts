@@ -1,6 +1,7 @@
 import app from "./app";
 import { logger } from "./lib/logger";
 import { startRenewalReminderCron } from "./lib/renewal-reminder";
+import { startListingsCleanupCron } from "./lib/listings-cleanup";
 
 const rawPort = process.env["PORT"];
 
@@ -28,4 +29,7 @@ app.listen(port, (err) => {
   // Première vérification dans 60s, puis toutes les 24h.
   // Les erreurs WhatsApp sont non-fatales et n'affectent pas le serveur.
   startRenewalReminderCron();
+
+  // Lance le cron quotidien de suppression des annonces de plus de 60 jours.
+  startListingsCleanupCron();
 });
