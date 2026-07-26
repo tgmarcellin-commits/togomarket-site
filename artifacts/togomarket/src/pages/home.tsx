@@ -222,8 +222,8 @@ export default function Home() {
   const [mpHasMore, setMpHasMore] = useState(false);
   const mpSeenRef = useRef<unknown>(undefined);
   const { data: mpPageData, isLoading: mpLoading, isFetching: mpFetching } = useGetListings(
-    { page: mpPage, limit: 20 },
-    { query: { queryKey: getGetListingsQueryKey({ page: mpPage, limit: 20 }) } }
+    { page: mpPage, limit: 20, search },
+    { query: { queryKey: getGetListingsQueryKey({ page: mpPage, limit: 20, search }) } }
   );
   const { data: stats } = useGetStats();
   const { data: settings } = useGetAdminSettings();
@@ -254,7 +254,7 @@ export default function Home() {
       setMpListings([]);
       mpSeenRef.current = undefined;
     }
-  }, [activeTab]);
+  }, [activeTab, search]);
 
   useEffect(() => {
     if (!pageData || pageData === seenDataRef.current) return;
@@ -402,98 +402,6 @@ export default function Home() {
       {/* ── STAND TAB ─────────────────────────────────────────────────── */}
       {activeTab === "stand" && (
         <>
-          {/* Hero Section */}
-          <section className="relative h-[220px] sm:h-[280px] w-full flex items-center justify-center overflow-hidden">
-            <div className="absolute inset-0 z-0">
-              <img
-                src="https://images.unsplash.com/photo-1555529669-e69e7aa0ba9a?q=80&w=1200"
-                alt="Lomé Market"
-                className="w-full h-full object-cover"
-              />
-              <div className="absolute inset-0 bg-black/60 mix-blend-multiply" />
-            </div>
-            <div className="relative z-10 w-full max-w-2xl px-4 text-center">
-              <h1 className="text-2xl sm:text-4xl font-extrabold text-white mb-4 drop-shadow-md">
-                {t.tagline}
-              </h1>
-              {/* Toggle Article / Boutique — visible uniquement sur l'écran catalogue */}
-              {!catalogSector && !shopNumber && (
-                <div className="flex flex-col items-center gap-3 max-w-xl mx-auto w-full">
-                  {/* Toggle pill */}
-                  <div className="flex bg-white/20 backdrop-blur-sm rounded-full p-1 gap-1">
-                    <button
-                      type="button"
-                      onClick={() => setHeroMode("article")}
-                      className={`px-6 py-2 rounded-full text-sm font-semibold transition-all ${
-                        heroMode === "article"
-                          ? "bg-white text-foreground shadow"
-                          : "text-white hover:bg-white/10"
-                      }`}
-                    >
-                      {lang === "fr" ? "Article" : "Article"}
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => setHeroMode("boutique")}
-                      className={`px-6 py-2 rounded-full text-sm font-semibold transition-all ${
-                        heroMode === "boutique"
-                          ? "bg-white text-foreground shadow"
-                          : "text-white hover:bg-white/10"
-                      }`}
-                    >
-                      {lang === "fr" ? "Boutique" : "Shop"}
-                    </button>
-                  </div>
-
-                  {/* Barre active */}
-                  {heroMode === "article" ? (
-                    <form onSubmit={handleSearchSubmit} className="relative flex items-center w-full">
-                      <SearchIcon className="absolute left-4 w-5 h-5 text-muted-foreground" />
-                      <Input
-                        type="text"
-                        placeholder={t.searchArticlePlaceholder}
-                        value={searchInput}
-                        onChange={(e) => setSearchInput(e.target.value)}
-                        className="w-full pl-12 pr-24 h-12 rounded-full text-base bg-white border-0 shadow-lg focus-visible:ring-primary"
-                      />
-                      <Button type="submit" className="absolute right-1.5 h-9 rounded-full bg-accent hover:bg-accent/90 text-accent-foreground px-5 font-semibold text-sm">
-                        {t.search}
-                      </Button>
-                    </form>
-                  ) : (
-                    <form
-                      onSubmit={(e) => {
-                        e.preventDefault();
-                        const num = parseInt(shopSearchInput.trim(), 10);
-                        if (!isNaN(num) && num > 0) {
-                          setShopNumber(num);
-                          setCatalogSector(null);
-                          setCatalogVendors([]);
-                          setSearch("");
-                          setSearchInput("");
-                        }
-                      }}
-                      className="relative flex items-center w-full"
-                    >
-                      <span className="absolute left-4 text-muted-foreground font-bold text-sm select-none">N°</span>
-                      <Input
-                        type="number"
-                        min={1}
-                        placeholder={lang === "fr" ? "Numéro de boutique..." : "Shop number..."}
-                        value={shopSearchInput}
-                        onChange={(e) => setShopSearchInput(e.target.value)}
-                        className="w-full pl-10 pr-24 h-12 rounded-full text-base bg-white border-0 shadow-lg focus-visible:ring-primary"
-                      />
-                      <Button type="submit" className="absolute right-1.5 h-9 rounded-full bg-accent hover:bg-accent/90 text-accent-foreground px-5 font-semibold text-sm">
-                        {lang === "fr" ? "Voir" : "View"}
-                      </Button>
-                    </form>
-                  )}
-                </div>
-              )}
-            </div>
-          </section>
-
           {/* ── CONTENU DYNAMIQUE : catalogue / liste boutiques / articles ── */}
           {shopLinkExpired ? (
             <main className="container mx-auto px-4 py-8 flex-grow">
@@ -735,9 +643,111 @@ export default function Home() {
       {/* ── MARKET PLACE TAB ──────────────────────────────────────────── */}
       {activeTab === "marketplace" && (
         <>
-        <AdBanner />
-        <main className="container mx-auto px-4 py-6 flex-grow">
-          <h2 className="text-lg font-bold mb-5">{lang === "fr" ? "Tous les articles" : "All listings"}</h2>
+          {/* Hero Section */}
+          <section className="relative h-[220px] sm:h-[280px] w-full flex items-center justify-center overflow-hidden">
+            <div className="absolute inset-0 z-0">
+              <img
+                src="https://images.unsplash.com/photo-1555529669-e69e7aa0ba9a?q=80&w=1200"
+                alt="Lomé Market"
+                className="w-full h-full object-cover"
+              />
+              <div className="absolute inset-0 bg-black/60 mix-blend-multiply" />
+            </div>
+            <div className="relative z-10 w-full max-w-2xl px-4 text-center">
+              <h1 className="text-2xl sm:text-4xl font-extrabold text-white mb-4 drop-shadow-md">
+                {t.tagline}
+              </h1>
+              <div className="flex flex-col items-center gap-3 max-w-xl mx-auto w-full">
+                {/* Toggle pill */}
+                <div className="flex bg-white/20 backdrop-blur-sm rounded-full p-1 gap-1">
+                  <button
+                    type="button"
+                    onClick={() => setHeroMode("article")}
+                    className={`px-6 py-2 rounded-full text-sm font-semibold transition-all ${
+                      heroMode === "article"
+                        ? "bg-white text-foreground shadow"
+                        : "text-white hover:bg-white/10"
+                    }`}
+                  >
+                    {lang === "fr" ? "Article" : "Article"}
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setHeroMode("boutique")}
+                    className={`px-6 py-2 rounded-full text-sm font-semibold transition-all ${
+                      heroMode === "boutique"
+                        ? "bg-white text-foreground shadow"
+                        : "text-white hover:bg-white/10"
+                    }`}
+                  >
+                    {lang === "fr" ? "Boutique" : "Shop"}
+                  </button>
+                </div>
+
+                {/* Barre active */}
+                {heroMode === "article" ? (
+                  <form onSubmit={handleSearchSubmit} className="relative flex items-center w-full">
+                    <SearchIcon className="absolute left-4 w-5 h-5 text-muted-foreground" />
+                    <Input
+                      type="text"
+                      placeholder={t.searchArticlePlaceholder}
+                      value={searchInput}
+                      onChange={(e) => setSearchInput(e.target.value)}
+                      className="w-full pl-12 pr-24 h-12 rounded-full text-base bg-white border-0 shadow-lg focus-visible:ring-primary"
+                    />
+                    <Button type="submit" className="absolute right-1.5 h-9 rounded-full bg-accent hover:bg-accent/90 text-accent-foreground px-5 font-semibold text-sm">
+                      {t.search}
+                    </Button>
+                  </form>
+                ) : (
+                  <form
+                    onSubmit={(e) => {
+                      e.preventDefault();
+                      const num = parseInt(shopSearchInput.trim(), 10);
+                      if (!isNaN(num) && num > 0) {
+                        setShopNumber(num);
+                        setCatalogSector(null);
+                        setCatalogVendors([]);
+                        setSearch("");
+                        setSearchInput("");
+                        setActiveTab("stand");
+                      }
+                    }}
+                    className="relative flex items-center w-full"
+                  >
+                    <span className="absolute left-4 text-muted-foreground font-bold text-sm select-none">N°</span>
+                    <Input
+                      type="number"
+                      min={1}
+                      placeholder={lang === "fr" ? "Numéro de boutique..." : "Shop number..."}
+                      value={shopSearchInput}
+                      onChange={(e) => setShopSearchInput(e.target.value)}
+                      className="w-full pl-10 pr-24 h-12 rounded-full text-base bg-white border-0 shadow-lg focus-visible:ring-primary"
+                    />
+                    <Button type="submit" className="absolute right-1.5 h-9 rounded-full bg-accent hover:bg-accent/90 text-accent-foreground px-5 font-semibold text-sm">
+                      {lang === "fr" ? "Voir" : "View"}
+                    </Button>
+                  </form>
+                )}
+              </div>
+            </div>
+          </section>
+
+          <AdBanner />
+          <main className="container mx-auto px-4 py-6 flex-grow">
+          {search ? (
+            <div className="flex items-center gap-2 mb-4">
+              <button
+                onClick={() => { setSearch(""); setSearchInput(""); }}
+                className="text-sm text-muted-foreground hover:text-foreground flex items-center gap-1 transition-colors"
+              >
+                ← {lang === "fr" ? "Retour aux articles" : "Back to listings"}
+              </button>
+              <span className="text-sm font-medium">« {search} »</span>
+            </div>
+          ) : (
+            <h2 className="text-lg font-bold mb-5">{lang === "fr" ? "Tous les articles" : "All listings"}</h2>
+          )}
           {mpLoading && mpPage === 1 ? (
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
               {[1, 2, 3].map((n) => (
