@@ -19,6 +19,7 @@ export function AdBanner() {
   const videoRef = useRef<HTMLVideoElement>(null);
   const touchStartX = useRef(0);
   const touchStartY = useRef(0);
+  const lastTapTime = useRef(0);
   const iconTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const ad = videoAds[current] as Ad | undefined;
@@ -73,18 +74,29 @@ export function AdBanner() {
 
   const handleTouchEnd = useCallback(
     (e: React.TouchEvent) => {
-      // Si le doigt s'est levé sur un bouton, ne pas traiter comme tap/swipe
+      // Ignorer si le doigt s'est levé sur un bouton
       if ((e.target as HTMLElement).closest("button")) return;
 
       const dx = touchStartX.current - e.changedTouches[0].clientX;
       const dy = Math.abs(touchStartY.current - e.changedTouches[0].clientY);
+
       // Swipe horizontal (ignore si mouvement vertical dominant)
       if (Math.abs(dx) > 50 && Math.abs(dx) > dy) {
+        lastTapTime.current = 0;
         if (dx > 0) handleNext();
         else handlePrev();
-      } else if (Math.abs(dx) <= 10 && dy <= 10) {
-        // Tap pur
-        handleTap();
+        return;
+      }
+
+      // Double tap pour pause / lecture
+      if (Math.abs(dx) <= 15 && dy <= 15) {
+        const now = Date.now();
+        if (now - lastTapTime.current < 300) {
+          lastTapTime.current = 0;
+          handleTap();
+        } else {
+          lastTapTime.current = now;
+        }
       }
     },
     [handleNext, handlePrev, handleTap]
@@ -94,11 +106,10 @@ export function AdBanner() {
 
   return (
     <div
-      className="w-full relative bg-black overflow-hidden select-none cursor-pointer"
+      className="w-full relative bg-black overflow-hidden select-none"
       style={{ aspectRatio: "16/9", maxHeight: "256px" }}
       onTouchStart={handleTouchStart}
       onTouchEnd={handleTouchEnd}
-      onClick={handleTap}
     >
       {/* Vidéo */}
       <video
