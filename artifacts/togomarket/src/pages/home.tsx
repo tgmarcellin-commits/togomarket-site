@@ -558,18 +558,22 @@ export default function Home() {
 
           ) : catalogSector && !shopNumber ? (
             /* ── LISTE DES BOUTIQUES DU SECTEUR ── */
+            <>
+              <div className="sticky top-0 z-20 bg-background/95 backdrop-blur-sm border-b border-border/60 px-4 py-2.5 flex items-center gap-3">
+                <button
+                  onClick={() => { setCatalogSector(null); setCatalogVendors([]); setSector(undefined); setShopNumber(undefined); }}
+                  className="flex items-center gap-1.5 text-sm font-medium text-muted-foreground hover:text-foreground active:scale-95 transition-all"
+                >
+                  <span className="text-base">←</span>
+                  <span>{lang === "fr" ? "Retour aux secteurs" : "Back to sectors"}</span>
+                </button>
+                <span className="text-muted-foreground/40">|</span>
+                <h2 className="text-sm font-bold flex items-center gap-1.5 truncate">
+                  <span>{CATALOG_SECTORS.find(s => s.value === catalogSector)?.emoji}</span>
+                  <span>{catalogSector}</span>
+                </h2>
+              </div>
             <main className="container mx-auto px-4 py-6 flex-grow">
-              <button
-                onClick={() => { setCatalogSector(null); setCatalogVendors([]); setSector(undefined); setShopNumber(undefined); }}
-                className="flex items-center gap-1.5 text-sm text-muted-foreground hover:text-foreground transition-colors mb-4 -ml-1"
-              >
-                <span className="text-base">←</span>
-                <span>{lang === "fr" ? "Retour aux secteurs" : "Back to sectors"}</span>
-              </button>
-              <h2 className="text-lg font-bold mb-4 flex items-center gap-2">
-                <span>{CATALOG_SECTORS.find(s => s.value === catalogSector)?.emoji}</span>
-                <span>{catalogSector}</span>
-              </h2>
               {catalogLoading ? (
                 <div className="grid grid-cols-3 gap-3">
                   {[1, 2, 3, 4, 5, 6].map(n => <div key={n} className="aspect-square bg-muted rounded-2xl animate-pulse" />)}
@@ -613,17 +617,27 @@ export default function Home() {
                 </div>
               )}
             </main>
+            </>
 
           ) : shopNumber ? (
             /* ── ARTICLES DE LA BOUTIQUE SÉLECTIONNÉE ── */
+            <>
+              <div className="sticky top-0 z-20 bg-background/95 backdrop-blur-sm border-b border-border/60 px-4 py-2.5 flex items-center gap-3">
+                <button
+                  onClick={() => setShopNumber(undefined)}
+                  className="flex items-center gap-1.5 text-sm font-medium text-muted-foreground hover:text-foreground active:scale-95 transition-all"
+                >
+                  <span className="text-base">←</span>
+                  <span>{lang === "fr" ? "Retour aux boutiques" : "Back to shops"}</span>
+                </button>
+                {pageData?.vendorName && (
+                  <>
+                    <span className="text-muted-foreground/40">|</span>
+                    <span className="text-sm font-bold truncate">{pageData.vendorName}</span>
+                  </>
+                )}
+              </div>
             <main className="container mx-auto px-4 py-6 flex-grow">
-              <button
-                onClick={() => setShopNumber(undefined)}
-                className="flex items-center gap-1.5 text-sm text-muted-foreground hover:text-foreground transition-colors mb-4 -ml-1"
-              >
-                <span className="text-base">←</span>
-                <span>{lang === "fr" ? "Retour aux boutiques" : "Back to shops"}</span>
-              </button>
               {isLoading ? (
                 <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
                   {[1, 2, 3].map(n => (
@@ -638,9 +652,6 @@ export default function Home() {
                 </div>
               ) : sortedListings.length > 0 ? (
                 <>
-                  {pageData?.vendorName && (
-                    <h2 className="text-base font-bold mb-4 text-foreground">{pageData.vendorName}</h2>
-                  )}
                   <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
                     {sortedListings.map(listing => (
                       <ListingCard key={listing.id} listing={listing} isAdmin={quickMode} adminPassword={quickMode ? (loadAdminSession()?.code ?? "") : ""} commissionRate={commissionRate} whatsappCommission={whatsappCommission} isOwn={vendor ? listing.phone === vendor.phone : false} />
@@ -672,6 +683,7 @@ export default function Home() {
                 </div>
               )}
             </main>
+            </>
           ) : null}
 
           {/* Footer */}
