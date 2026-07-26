@@ -494,8 +494,6 @@ export default function Home() {
             </div>
           </section>
 
-          <AdBanner />
-
           {/* ── CONTENU DYNAMIQUE : catalogue / liste boutiques / articles ── */}
           {shopLinkExpired ? (
             <main className="container mx-auto px-4 py-8 flex-grow">
@@ -736,6 +734,8 @@ export default function Home() {
 
       {/* ── MARKET PLACE TAB ──────────────────────────────────────────── */}
       {activeTab === "marketplace" && (
+        <>
+        <AdBanner />
         <main className="container mx-auto px-4 py-6 flex-grow">
           <h2 className="text-lg font-bold mb-5">{lang === "fr" ? "Tous les articles" : "All listings"}</h2>
           {mpLoading && mpPage === 1 ? (
@@ -784,6 +784,7 @@ export default function Home() {
             </div>
           )}
         </main>
+        </>
       )}
 
       {/* ── ÉVÉNEMENTIEL TAB ─────────────────────────────────────────── */}
