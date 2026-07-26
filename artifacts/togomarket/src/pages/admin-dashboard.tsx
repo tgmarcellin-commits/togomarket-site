@@ -1107,7 +1107,7 @@ export default function AdminDashboard() {
                             src={resolveImageUrl(img)}
                             alt=""
                             className="h-20 w-20 object-cover rounded-lg flex-shrink-0 cursor-pointer"
-                            onClick={() => { setViewerImages(listing.images.map(resolveImageUrl)); setViewerIndex(i); }}
+                            onClick={() => { setViewerImages(listing.images); setViewerIndex(i); }}
                           />
                         ))}
                       </div>
@@ -1129,7 +1129,7 @@ export default function AdminDashboard() {
                             src={resolveImageUrl(img)}
                             alt=""
                             className="w-full flex-shrink-0 snap-center object-cover max-h-72 cursor-pointer"
-                            onClick={() => { setViewerImages(selectedPendingListing.images.map(resolveImageUrl)); setViewerIndex(i); }}
+                            onClick={() => { setViewerImages(selectedPendingListing.images); setViewerIndex(i); }}
                           />
                         ))}
                       </div>
