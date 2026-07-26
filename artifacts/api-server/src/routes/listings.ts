@@ -1,5 +1,5 @@
 import { Router, type IRouter } from "express";
-import { eq, ilike, and, desc, sql, type SQL } from "drizzle-orm";
+import { eq, ilike, and, desc, sql, gt, inArray, type SQL } from "drizzle-orm";
 import { normalizePhone, phoneEq } from "../lib/phone";
 import bcrypt from "bcryptjs";
 import { db, listingsTable, vendorsTable } from "@workspace/db";
@@ -47,7 +47,19 @@ router.get("/listings", async (req, res): Promise<void> => {
   const { sector, search, page, limit, shopNumber } = parsed.data;
   const offset = (page - 1) * limit;
 
-  const conditions: SQL[] = [eq(listingsTable.approved, true)];
+  // Sous-requête : téléphones des vendeurs avec abonnement actif
+  const activeVendorPhones = db
+    .select({ phone: vendorsTable.phone })
+    .from(vendorsTable)
+    .where(and(
+      eq(vendorsTable.isPublished, true),
+      gt(vendorsTable.expiryDate, sql`now()`),
+    ));
+
+  const conditions: SQL[] = [
+    eq(listingsTable.approved, true),
+    inArray(listingsTable.phone, activeVendorPhones),
+  ];
   if (sector) conditions.push(eq(listingsTable.sector, sector));
   if (search) conditions.push(ilike(listingsTable.name, `%${search}%`));
   let shopVendorName: string | undefined;

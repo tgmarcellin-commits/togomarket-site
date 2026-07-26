@@ -1,7 +1,7 @@
 import { Router, type IRouter } from "express";
 import { GoogleGenerativeAI, HarmCategory, HarmBlockThreshold } from "@google/generative-ai";
-import { ilike, eq, and, sql } from "drizzle-orm";
-import { db, listingsTable } from "@workspace/db";
+import { ilike, eq, and, sql, gt, inArray } from "drizzle-orm";
+import { db, listingsTable, vendorsTable } from "@workspace/db";
 import { ASSISTANT_SYSTEM_PROMPT } from "../lib/assistant-prompt";
 
 const router: IRouter = Router();
@@ -26,6 +26,17 @@ function validateBody(body: unknown): { messages: ChatMessage[] } | null {
   return { messages };
 }
 
+// Sous-requête réutilisable : téléphones des vendeurs actifs
+function activeVendorPhonesSubquery() {
+  return db
+    .select({ phone: vendorsTable.phone })
+    .from(vendorsTable)
+    .where(and(
+      eq(vendorsTable.isPublished, true),
+      gt(vendorsTable.expiryDate, sql`now()`),
+    ));
+}
+
 async function buildDbContext(userMessage: string): Promise<string> {
   try {
     const countsBySector = await db
@@ -34,7 +45,10 @@ async function buildDbContext(userMessage: string): Promise<string> {
         count: sql<number>`cast(count(*) as int)`,
       })
       .from(listingsTable)
-      .where(eq(listingsTable.approved, true))
+      .where(and(
+        eq(listingsTable.approved, true),
+        inArray(listingsTable.phone, activeVendorPhonesSubquery()),
+      ))
       .groupBy(listingsTable.sector);
 
     const totalApproved = countsBySector.reduce((s, r) => s + r.count, 0);
@@ -56,7 +70,11 @@ async function buildDbContext(userMessage: string): Promise<string> {
           sector: listingsTable.sector,
         })
         .from(listingsTable)
-        .where(and(eq(listingsTable.approved, true), ...conditions))
+        .where(and(
+          eq(listingsTable.approved, true),
+          inArray(listingsTable.phone, activeVendorPhonesSubquery()),
+          ...conditions,
+        ))
         .limit(8);
       searchResults = rows.map(r => ({
         name: r.name,
