@@ -560,7 +560,7 @@ export default function Home() {
             /* ── LISTE DES BOUTIQUES DU SECTEUR ── */
             <main className="container mx-auto px-4 py-6 flex-grow">
               <button
-                onClick={() => { setCatalogSector(null); setCatalogVendors([]); }}
+                onClick={() => { setCatalogSector(null); setCatalogVendors([]); setSector(undefined); setShopNumber(undefined); }}
                 className="flex items-center gap-1.5 text-sm text-muted-foreground hover:text-foreground transition-colors mb-4 -ml-1"
               >
                 <span className="text-base">←</span>
@@ -579,7 +579,7 @@ export default function Home() {
                   {catalogVendors.map((v) => (
                     <button
                       key={v.id}
-                      onClick={() => { setSector(undefined); setShopNumber(v.id); }}
+                      onClick={() => { setSector(catalogSector ?? undefined); setShopNumber(v.id); }}
                       className="group flex flex-col items-center gap-1.5 p-3 bg-card rounded-2xl border border-border hover:border-primary/50 hover:shadow-md active:scale-95 transition-all"
                     >
                       {v.profilePhoto ? (
