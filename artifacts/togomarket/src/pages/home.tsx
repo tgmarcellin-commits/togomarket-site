@@ -77,7 +77,7 @@ export default function Home() {
   const [search, setSearch] = useState("");
   const [searchInput, setSearchInput] = useState("");
   const [sector, setSector] = useState<string | undefined>(undefined);
-  const [activeTab, setActiveTab] = useState<NavTab>("stand");
+  const [activeTab, setActiveTab] = useState<NavTab>("marketplace");
   const [shopNumber, setShopNumber] = useState<number | undefined>(undefined);
   const [shopLinkExpired, setShopLinkExpired] = useState(false);
   const [referredBy, setReferredBy] = useState<number | undefined>(undefined);
