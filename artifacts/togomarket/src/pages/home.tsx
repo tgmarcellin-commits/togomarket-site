@@ -86,6 +86,7 @@ export default function Home() {
   const [catalogVendors, setCatalogVendors] = useState<VendorInSector[]>([]);
   const [catalogLoading, setCatalogLoading] = useState(false);
   const [shopSearchInput, setShopSearchInput] = useState("");
+  const [heroMode, setHeroMode] = useState<"article" | "boutique">("article");
 
   const logoClickCount = useRef(0);
   const logoClickTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -387,49 +388,79 @@ export default function Home() {
               <h1 className="text-2xl sm:text-4xl font-extrabold text-white mb-4 drop-shadow-md">
                 {t.tagline}
               </h1>
-              {/* Barres de recherche — visibles uniquement sur l'écran catalogue (accueil) */}
+              {/* Toggle Article / Boutique — visible uniquement sur l'écran catalogue */}
               {!catalogSector && !shopNumber && (
-                <div className="flex flex-col gap-2 max-w-xl mx-auto">
-                  <form onSubmit={handleSearchSubmit} className="relative flex items-center">
-                    <SearchIcon className="absolute left-4 w-5 h-5 text-muted-foreground" />
-                    <Input
-                      type="text"
-                      placeholder={t.searchArticlePlaceholder}
-                      value={searchInput}
-                      onChange={(e) => setSearchInput(e.target.value)}
-                      className="w-full pl-12 pr-24 h-12 rounded-full text-base bg-white border-0 shadow-lg focus-visible:ring-primary"
-                    />
-                    <Button type="submit" className="absolute right-1.5 h-9 rounded-full bg-accent hover:bg-accent/90 text-accent-foreground px-5 font-semibold text-sm">
-                      {t.search}
-                    </Button>
-                  </form>
-                  <form
-                    onSubmit={(e) => {
-                      e.preventDefault();
-                      const num = parseInt(shopSearchInput.trim(), 10);
-                      if (!isNaN(num) && num > 0) {
-                        setShopNumber(num);
-                        setCatalogSector(null);
-                        setCatalogVendors([]);
-                        setSearch("");
-                        setSearchInput("");
-                      }
-                    }}
-                    className="relative flex items-center"
-                  >
-                    <span className="absolute left-4 text-muted-foreground font-bold text-sm select-none">N°</span>
-                    <Input
-                      type="number"
-                      min={1}
-                      placeholder={lang === "fr" ? "Numéro de boutique..." : "Shop number..."}
-                      value={shopSearchInput}
-                      onChange={(e) => setShopSearchInput(e.target.value)}
-                      className="w-full pl-10 pr-28 h-12 rounded-full text-base bg-white/90 border-0 shadow-md focus-visible:ring-primary"
-                    />
-                    <Button type="submit" className="absolute right-1.5 h-9 rounded-full bg-white/80 hover:bg-white text-foreground px-5 font-semibold text-sm border border-border/40 shadow-sm">
-                      {lang === "fr" ? "Voir" : "View"}
-                    </Button>
-                  </form>
+                <div className="flex flex-col items-center gap-3 max-w-xl mx-auto w-full">
+                  {/* Toggle pill */}
+                  <div className="flex bg-white/20 backdrop-blur-sm rounded-full p-1 gap-1">
+                    <button
+                      type="button"
+                      onClick={() => setHeroMode("article")}
+                      className={`px-6 py-2 rounded-full text-sm font-semibold transition-all ${
+                        heroMode === "article"
+                          ? "bg-white text-foreground shadow"
+                          : "text-white hover:bg-white/10"
+                      }`}
+                    >
+                      {lang === "fr" ? "Article" : "Article"}
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setHeroMode("boutique")}
+                      className={`px-6 py-2 rounded-full text-sm font-semibold transition-all ${
+                        heroMode === "boutique"
+                          ? "bg-white text-foreground shadow"
+                          : "text-white hover:bg-white/10"
+                      }`}
+                    >
+                      {lang === "fr" ? "Boutique" : "Shop"}
+                    </button>
+                  </div>
+
+                  {/* Barre active */}
+                  {heroMode === "article" ? (
+                    <form onSubmit={handleSearchSubmit} className="relative flex items-center w-full">
+                      <SearchIcon className="absolute left-4 w-5 h-5 text-muted-foreground" />
+                      <Input
+                        type="text"
+                        placeholder={t.searchArticlePlaceholder}
+                        value={searchInput}
+                        onChange={(e) => setSearchInput(e.target.value)}
+                        className="w-full pl-12 pr-24 h-12 rounded-full text-base bg-white border-0 shadow-lg focus-visible:ring-primary"
+                      />
+                      <Button type="submit" className="absolute right-1.5 h-9 rounded-full bg-accent hover:bg-accent/90 text-accent-foreground px-5 font-semibold text-sm">
+                        {t.search}
+                      </Button>
+                    </form>
+                  ) : (
+                    <form
+                      onSubmit={(e) => {
+                        e.preventDefault();
+                        const num = parseInt(shopSearchInput.trim(), 10);
+                        if (!isNaN(num) && num > 0) {
+                          setShopNumber(num);
+                          setCatalogSector(null);
+                          setCatalogVendors([]);
+                          setSearch("");
+                          setSearchInput("");
+                        }
+                      }}
+                      className="relative flex items-center w-full"
+                    >
+                      <span className="absolute left-4 text-muted-foreground font-bold text-sm select-none">N°</span>
+                      <Input
+                        type="number"
+                        min={1}
+                        placeholder={lang === "fr" ? "Numéro de boutique..." : "Shop number..."}
+                        value={shopSearchInput}
+                        onChange={(e) => setShopSearchInput(e.target.value)}
+                        className="w-full pl-10 pr-24 h-12 rounded-full text-base bg-white border-0 shadow-lg focus-visible:ring-primary"
+                      />
+                      <Button type="submit" className="absolute right-1.5 h-9 rounded-full bg-accent hover:bg-accent/90 text-accent-foreground px-5 font-semibold text-sm">
+                        {lang === "fr" ? "Voir" : "View"}
+                      </Button>
+                    </form>
+                  )}
                 </div>
               )}
             </div>
