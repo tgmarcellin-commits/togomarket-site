@@ -73,6 +73,9 @@ export function AdBanner() {
 
   const handleTouchEnd = useCallback(
     (e: React.TouchEvent) => {
+      // Si le doigt s'est levé sur un bouton, ne pas traiter comme tap/swipe
+      if ((e.target as HTMLElement).closest("button")) return;
+
       const dx = touchStartX.current - e.changedTouches[0].clientX;
       const dy = Math.abs(touchStartY.current - e.changedTouches[0].clientY);
       // Swipe horizontal (ignore si mouvement vertical dominant)
