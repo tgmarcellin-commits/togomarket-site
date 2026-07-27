@@ -248,13 +248,22 @@ export default function Home() {
     }
   }, [mpPageData]);
 
+  // Reset uniquement au changement de recherche (pas au changement d'onglet)
   useEffect(() => {
-    if (activeTab === "marketplace") {
-      setMpPage(1);
-      setMpListings([]);
-      mpSeenRef.current = undefined;
+    setMpPage(1);
+    setMpListings([]);
+    mpSeenRef.current = undefined;
+  }, [search]);
+
+  // Au retour sur l'onglet marketplace : repeupler depuis le cache si données déjà disponibles
+  useEffect(() => {
+    if (activeTab !== "marketplace") return;
+    if (mpPageData && mpSeenRef.current !== mpPageData) {
+      mpSeenRef.current = mpPageData;
+      setMpHasMore(mpPageData.hasMore ?? false);
+      setMpListings(mpPageData.items);
     }
-  }, [activeTab, search]);
+  }, [activeTab]); // eslint-disable-line react-hooks/exhaustive-deps
 
   useEffect(() => {
     if (!pageData || pageData === seenDataRef.current) return;
