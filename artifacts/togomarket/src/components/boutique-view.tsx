@@ -219,15 +219,6 @@ export function BoutiqueView({ vendor, vendorPassword, onNeedLogin }: BoutiqueVi
         <p className="text-xs text-muted-foreground mt-4 max-w-xs">
           Votre boutique sera réactivée automatiquement après confirmation du paiement.
         </p>
-        <button
-          className="mt-4 text-xs text-muted-foreground underline"
-          onClick={() => {
-            const msg = `Bonjour, mon abonnement TogoMarket est expiré. Numéro : ${vendor.phone}`;
-            window.open(`https://wa.me/22870703131?text=${encodeURIComponent(msg)}`, "_blank");
-          }}
-        >
-          Contacter l'administrateur via WhatsApp
-        </button>
       </div>
     );
   }
