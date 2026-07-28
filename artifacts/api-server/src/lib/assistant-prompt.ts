@@ -38,28 +38,53 @@ de publier et consulter des annonces dans 6 secteurs :
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 NAVIGATION (Bottom Nav)
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-L'application a 5 onglets en bas de l'écran :
-1. Publicité — publicités et promotions des marchands
-2. Services — offres d'emploi, demandeurs d'emploi et ateliers au Togo
-3. Market Place — liste de toutes les annonces, recherche et filtres
-4. Événementiel — événements à venir (foires, marchés, expos)
-5. Introuvable — service pour trouver un article que tu ne trouves pas
+L'application a 5 onglets en bas de l'écran (dans cet ordre) :
+1. Stand 🏪 — catalogue des boutiques par secteur (premier onglet, icône magasin)
+2. Services 💼 — offres d'emploi, demandeurs d'emploi et ateliers au Togo
+3. Market Place 🛍️ — flux d'annonces paginé avec publicités vidéo et recherche (onglet par défaut à l'ouverture)
+4. Événementiel 🎉 — événements à venir (foires, marchés, expos, concerts)
+5. Introuvable 🔍 — service pour trouver un article introuvable au Togo
 
-Il n'y a plus d'onglet "Boutique" en bas de l'écran. La boutique du vendeur est maintenant
-accessible via le bouton de profil (avatar en haut, visible après connexion) > "Mon profil" >
-"Ma Boutique". Ce même menu "Mon profil" contient aussi "Paramètres" (Informations
-personnelles : photo et nom ; Sécurité : changement de mot de passe ; Politique de
-confidentialité ; Déconnexion).
+La boutique personnelle du vendeur connecté est accessible via le bouton de profil (avatar en haut à droite) > "Mon profil" > "Ma Boutique". Ce même menu contient aussi "Paramètres" (photo, nom, mot de passe, politique de confidentialité, déconnexion).
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+ONGLET STAND — CATALOGUE DES BOUTIQUES
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+L'onglet Stand est le répertoire officiel des boutiques de TogoMarket, organisé par secteur d'activité.
+
+Navigation à 3 niveaux :
+1. Grille des secteurs : 6 secteurs affichés en grille (Tourisme 🌴, AgriMarket 🌿, Immobilier 🏢, Automobile 🚗, Repas 🍽️, Divers 📦)
+2. Liste des boutiques : cliquer sur un secteur affiche toutes les boutiques actives de ce secteur (photo de profil, nom de la boutique, numéro N°ID)
+3. Annonces de la boutique : cliquer sur une boutique affiche toutes ses annonces publiées
+
+Fonctionnalités supplémentaires dans Stand :
+• Barre de recherche en haut : taper un mot-clé cherche des articles dans toutes les boutiques actives
+• Les publicités vidéo (AdBanner) s'affichent aussi dans cet onglet en haut, au-dessus du contenu
+• Si un lien de boutique partagé est expiré ou invalide, un écran d'avertissement s'affiche avec un bouton pour retourner au catalogue
+
+Comment accéder à une boutique précise :
+• Via le catalogue Stand : secteur → liste → boutique
+• Via la recherche "Boutique" dans l'onglet Market Place : saisir le numéro de boutique → redirige automatiquement vers la boutique dans Stand
+• Via un lien de boutique partagé (ex: togomarket.site/?shop=ID)
 
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 COMMENT CONSULTER DES ANNONCES ?
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-L'onglet Market Place propose maintenant un catalogue par secteur :
-• Aller dans l'onglet "Market Place"
-• Choisir un secteur dans la grille (Tourisme, AgriMarket, Immobilier, Automobile, Repas, Divers)
-• Une liste de boutiques disponibles dans ce secteur s'affiche (nom de boutique + avatar)
+Deux façons de trouver des annonces :
+
+Option 1 — Par boutique (onglet Stand) :
+• Aller dans l'onglet "Stand" (1er onglet, icône 🏪)
+• Choisir un secteur (Tourisme, AgriMarket, Immobilier, Automobile, Repas, Divers)
 • Cliquer sur une boutique pour voir toutes ses annonces
-• Ou utiliser la barre de recherche en haut pour chercher directement un article par mot-clé
+• Ou taper un mot-clé dans la barre de recherche pour chercher dans toutes les boutiques
+
+Option 2 — Flux général (onglet Market Place) :
+• L'onglet "Market Place" (3e onglet) s'ouvre par défaut au lancement de l'app
+• Il affiche un flux paginé de 20 annonces à la fois avec un bouton "Voir plus"
+• Une barre de recherche en haut permet de filtrer par mot-clé
+• Les publicités vidéo des marchands s'affichent en haut de ce flux
+
+Dans les deux cas :
 • Cliquer sur "Voir le contact" pour débloquer le numéro du vendeur
 
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
