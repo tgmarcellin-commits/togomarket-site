@@ -162,6 +162,7 @@ export default function AdminDashboard() {
   const [allAds, setAllAds] = useState<Ad[]>([]);
   const [adsLoading, setAdsLoading] = useState(false);
   const [showAdForm, setShowAdForm] = useState(false);
+  const [previewVideoUrl, setPreviewVideoUrl] = useState<string | null>(null);
   const [adForm, setAdForm] = useState({ advertiserName: "", advertiserPhone: "", videoPath: "", videoName: "" });
   const adVideoRef = useRef<HTMLInputElement>(null);
 
@@ -1424,7 +1425,19 @@ export default function AdminDashboard() {
                   const active = new Date(ad.endDate) > new Date();
                   return (
                     <div key={ad.id} className={`bg-card border rounded-xl p-3 flex items-center gap-3 ${!active ? "opacity-60" : ""}`}>
-                      {ad.videoPath && <div className="w-14 h-14 rounded-lg bg-black flex items-center justify-center flex-shrink-0 overflow-hidden"><span className="text-2xl">🎬</span></div>}
+                      {ad.videoPath && (
+                        <button
+                          type="button"
+                          className="w-14 h-14 rounded-lg bg-black flex items-center justify-center flex-shrink-0 overflow-hidden relative group"
+                          onClick={() => setPreviewVideoUrl(resolveImageUrl(ad.videoPath!))}
+                          title="Voir la vidéo"
+                        >
+                          <span className="text-2xl">🎬</span>
+                          <div className="absolute inset-0 bg-white/10 opacity-0 group-hover:opacity-100 transition-opacity rounded-lg flex items-center justify-center">
+                            <span className="text-white text-xs font-bold">▶</span>
+                          </div>
+                        </button>
+                      )}
                       <div className="flex-1 min-w-0">
                         <p className="font-semibold text-sm truncate">{ad.advertiserName}</p>
                         <p className="text-xs text-muted-foreground truncate">{ad.message}</p>
@@ -1782,6 +1795,24 @@ export default function AdminDashboard() {
           onClose={() => setViewerImages([])}
         />
       )}
+
+      {/* ── PRÉVISUALISATION VIDÉO PUB ────────────────────────── */}
+      <Dialog open={!!previewVideoUrl} onOpenChange={(v) => { if (!v) setPreviewVideoUrl(null); }}>
+        <DialogContent className="sm:max-w-[480px] p-0 overflow-hidden bg-black border-0">
+          <DialogHeader className="sr-only">
+            <DialogTitle>Prévisualisation vidéo</DialogTitle>
+          </DialogHeader>
+          {previewVideoUrl && (
+            <video
+              src={previewVideoUrl}
+              controls
+              autoPlay
+              playsInline
+              className="w-full max-h-[70vh] object-contain"
+            />
+          )}
+        </DialogContent>
+      </Dialog>
 
       {/* ── CONFIRMATION +30 JOURS ────────────────────────────── */}
       <Dialog open={!!confirm30Vendor} onOpenChange={(v) => { if (!v) setConfirm30Vendor(null); }}>
