@@ -162,7 +162,7 @@ export default function AdminDashboard() {
   const [allAds, setAllAds] = useState<Ad[]>([]);
   const [adsLoading, setAdsLoading] = useState(false);
   const [showAdForm, setShowAdForm] = useState(false);
-  const [previewVideoUrl, setPreviewVideoUrl] = useState<string | null>(null);
+  const [playingAdId, setPlayingAdId] = useState<number | null>(null);
   const [adForm, setAdForm] = useState({ advertiserName: "", advertiserPhone: "", videoPath: "", videoName: "" });
   const adVideoRef = useRef<HTMLInputElement>(null);
 
@@ -1424,17 +1424,18 @@ export default function AdminDashboard() {
                 {allAds.map((ad) => {
                   const active = new Date(ad.endDate) > new Date();
                   return (
-                    <div key={ad.id} className={`bg-card border rounded-xl p-3 flex items-center gap-3 ${!active ? "opacity-60" : ""}`}>
+                    <div key={ad.id} className={`bg-card border rounded-xl p-3 flex flex-col gap-2 ${!active ? "opacity-60" : ""}`}>
+                      <div className="flex items-center gap-3">
                       {ad.videoPath && (
                         <button
                           type="button"
                           className="w-14 h-14 rounded-lg bg-black flex items-center justify-center flex-shrink-0 overflow-hidden relative group"
-                          onClick={() => setPreviewVideoUrl(resolveImageUrl(ad.videoPath!))}
-                          title="Voir la vidéo"
+                          onClick={() => setPlayingAdId(playingAdId === ad.id ? null : ad.id)}
+                          title={playingAdId === ad.id ? "Fermer" : "Lire la vidéo"}
                         >
                           <span className="text-2xl">🎬</span>
                           <div className="absolute inset-0 bg-white/10 opacity-0 group-hover:opacity-100 transition-opacity rounded-lg flex items-center justify-center">
-                            <span className="text-white text-xs font-bold">▶</span>
+                            <span className="text-white text-xs font-bold">{playingAdId === ad.id ? "✕" : "▶"}</span>
                           </div>
                         </button>
                       )}
@@ -1466,6 +1467,16 @@ export default function AdminDashboard() {
                           <Trash2 className="w-3.5 h-3.5" />
                         </Button>
                       </div>
+                      </div>{/* fin ligne */}
+                      {playingAdId === ad.id && ad.videoPath && (
+                        <video
+                          src={resolveImageUrl(ad.videoPath)}
+                          controls
+                          autoPlay
+                          playsInline
+                          className="w-full rounded-lg bg-black max-h-52 object-contain"
+                        />
+                      )}
                     </div>
                   );
                 })}
@@ -1795,24 +1806,6 @@ export default function AdminDashboard() {
           onClose={() => setViewerImages([])}
         />
       )}
-
-      {/* ── PRÉVISUALISATION VIDÉO PUB ────────────────────────── */}
-      <Dialog open={!!previewVideoUrl} onOpenChange={(v) => { if (!v) setPreviewVideoUrl(null); }}>
-        <DialogContent className="sm:max-w-[480px] p-0 overflow-hidden bg-black border-0">
-          <DialogHeader className="sr-only">
-            <DialogTitle>Prévisualisation vidéo</DialogTitle>
-          </DialogHeader>
-          {previewVideoUrl && (
-            <video
-              src={previewVideoUrl}
-              controls
-              autoPlay
-              playsInline
-              className="w-full max-h-[70vh] object-contain"
-            />
-          )}
-        </DialogContent>
-      </Dialog>
 
       {/* ── CONFIRMATION +30 JOURS ────────────────────────────── */}
       <Dialog open={!!confirm30Vendor} onOpenChange={(v) => { if (!v) setConfirm30Vendor(null); }}>
