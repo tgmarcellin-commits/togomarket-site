@@ -13,7 +13,7 @@ export function AdBanner() {
   );
 
   const [current, setCurrent] = useState(0);
-  const [muted, setMuted] = useState(true);
+  const [muted, setMuted] = useState(false);
   const [paused, setPaused] = useState(false);
   const [showIcon, setShowIcon] = useState(false);
   const videoRef = useRef<HTMLVideoElement>(null);
