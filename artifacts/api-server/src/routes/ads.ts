@@ -36,14 +36,24 @@ router.get("/ads", async (req, res) => {
         eq(adsTable.isPublished, true),
         isNotNull(adsTable.videoPath),
       ));
-    // Sort: pinned first, then by startDate desc
-    const sorted = ads.sort((a, b) => {
-      if (a.isPinned === b.isPinned) {
-        return b.startDate.getTime() - a.startDate.getTime();
-      }
-      return a.isPinned ? -1 : 1;
-    });
-    res.json(sorted.map(mapAd));
+    // Séparer épinglées / non-épinglées
+    const pinned = ads
+      .filter((a) => a.isPinned)
+      .sort((a, b) => a.id - b.id); // ordre stable par id
+
+    const unpinned = ads
+      .filter((a) => !a.isPinned)
+      .sort((a, b) => b.startDate.getTime() - a.startDate.getTime());
+
+    // Rotation quotidienne des épinglées : chaque jour une vidéo différente commence en tête
+    let rotatedPinned = pinned;
+    if (pinned.length > 1) {
+      const dayIndex = Math.floor(Date.now() / (24 * 60 * 60 * 1000));
+      const offset = dayIndex % pinned.length;
+      rotatedPinned = [...pinned.slice(offset), ...pinned.slice(0, offset)];
+    }
+
+    res.json([...rotatedPinned, ...unpinned].map(mapAd));
   } catch (err) {
     req.log.error({ err }, "Failed to get ads");
     res.status(500).json({ error: "Internal server error" });
