@@ -3,6 +3,13 @@ import { gt, eq, and } from "drizzle-orm";
 import { db, servicesTable } from "@workspace/db";
 import { isAdminOrSubAdmin } from "../lib/auth-sub";
 
+const FEDAPAY_SECRET_KEY_SV = process.env.FEDAPAY_SECRET_KEY ?? "";
+function getFedapayBaseUrlSv(): string {
+  return FEDAPAY_SECRET_KEY_SV.startsWith("sk_live")
+    ? "https://api.fedapay.com/v1"
+    : "https://sandbox-api.fedapay.com/v1";
+}
+
 const router: IRouter = Router();
 
 function mapService(s: typeof servicesTable.$inferSelect) {
@@ -99,6 +106,54 @@ router.post("/admin/services/delete", async (req, res) => {
   } catch (err) {
     req.log.error({ err }, "Failed to delete service");
     return res.status(500).json({ error: "Internal server error" });
+  }
+});
+
+// GET /api/services/renewal-link/:serviceId
+router.get("/services/renewal-link/:serviceId", async (req, res) => {
+  const serviceId = parseInt(req.params.serviceId, 10);
+  if (isNaN(serviceId) || serviceId <= 0) {
+    return res.status(400).send("Identifiant service invalide");
+  }
+  const services = await db.select().from(servicesTable).where(eq(servicesTable.id, serviceId)).limit(1);
+  if (services.length === 0) {
+    return res.status(404).send("Service introuvable");
+  }
+  const svc = services[0];
+  try {
+    const callbackUrl = `https://togomarket.site/api/fedapay-callback`;
+    const txRes = await fetch(`${getFedapayBaseUrlSv()}/transactions`, {
+      method: "POST",
+      headers: { Authorization: `Bearer ${FEDAPAY_SECRET_KEY_SV}`, "Content-Type": "application/json" },
+      body: JSON.stringify({
+        description: `Renouvellement service TogoMarket — #${svc.id}`,
+        amount: 1000,
+        currency: { iso: "XOF" },
+        callback_url: callbackUrl,
+        customer: {
+          firstname: svc.title,
+          phone_number: { number: svc.contact.replace(/\D/g, "") || "00228", country: "TG" },
+        },
+        custom_metadata: { entityType: "service", entityId: String(svc.id) },
+        include_fees: true,
+      }),
+      signal: AbortSignal.timeout(15_000),
+    });
+    if (!txRes.ok) {
+      req.log.error({ serviceId, status: txRes.status }, "Services renewal-link: FedaPay error");
+      return res.redirect("https://togomarket.site");
+    }
+    const json = await txRes.json() as Record<string, unknown>;
+    const txRaw = (json["v1/transaction"] ?? (json["v1"] as Record<string, unknown> | undefined)?.["transaction"] ?? json["transaction"] ?? json) as Record<string, unknown>;
+    const paymentUrl = String(txRaw["payment_url"] ?? "");
+    if (!paymentUrl) {
+      req.log.error({ serviceId, json }, "Services renewal-link: no payment_url");
+      return res.redirect("https://togomarket.site");
+    }
+    return res.redirect(302, paymentUrl);
+  } catch (err) {
+    req.log.error({ err, serviceId }, "Services renewal-link: unexpected error");
+    return res.redirect("https://togomarket.site");
   }
 });
 

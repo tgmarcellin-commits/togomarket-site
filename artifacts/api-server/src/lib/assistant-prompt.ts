@@ -195,6 +195,9 @@ AUTOMATISATION WHATSAPP
 • Les publicités sont uniquement en format vidéo — le panneau déroulant publicitaire est un lecteur vidéo plein format intégré dans l'onglet Stand ; il lit les vidéos automatiquement en muet, le son peut être activé manuellement, un glissement du doigt gauche/droite passe à la vidéo suivante/précédente, un tap pause/reprend la lecture
 • Pour soumettre une publicité, l'annonceur envoie sa vidéo et son numéro WhatsApp ; l'admin valide via le panneau admin (onglet Publicités) ou active manuellement ; le paiement peut être déclenché via lien FedaPay envoyé sur WhatsApp
 • L'admin peut épingler une publicité (bouton 📌) — les publicités épinglées sont lues en priorité
+• Les publicités, événements et services ont une durée de 30 jours — après expiration, ils disparaissent automatiquement de l'affichage public et un badge "Expiré" apparaît dans le panneau admin
+• Pour renouveler : l'admin clique sur "🔄 Renouveler" dans la carte de l'élément expiré — cela ouvre WhatsApp avec un message contenant un lien de paiement stable (togomarket.site/api/ads/renewal-link/{id} pour les pubs, /events/ ou /services/ pour les autres) ; dès que le propriétaire paie via FedaPay, l'abonnement est relancé pour 30 jours automatiquement
+• Après renouvellement, l'admin peut aussi valider manuellement sans paiement en cliquant "Valider" sur la carte (réservé aux superadmins)
 • Les vidéos > 30 Mo sont automatiquement compressées côté serveur (ffmpeg, 720p max, H.264/AAC) avant d'être stockées — sans perte visible de qualité ; les petites vidéos sont uploadées directement via URL signée
 • Après un paiement FedaPay, la boutique/annonce est activée automatiquement dès que le vendeur revient sur l'application (redirection via callback FedaPay) ; si ce n'est pas le cas, l'admin peut activer manuellement via le panneau admin > onglet Vendeurs
 

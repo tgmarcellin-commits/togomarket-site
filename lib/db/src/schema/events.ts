@@ -16,6 +16,7 @@ export const eventsTable = pgTable("events", {
   paymentStatus: text("payment_status").notNull().default("unpaid"),
   validationMethod: text("validation_method").notNull().default("pending"),
   fedapayTransactionId: text("fedapay_transaction_id"),
+  subscriptionExpiresAt: timestamp("subscription_expires_at", { withTimezone: true }),
 });
 
 export type Event = typeof eventsTable.$inferSelect;

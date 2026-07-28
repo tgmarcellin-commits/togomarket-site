@@ -3,6 +3,13 @@ import { gt, eq, and, count, desc, isNotNull } from "drizzle-orm";
 import { db, adsTable } from "@workspace/db";
 import { isAdminOrSubAdmin } from "../lib/auth-sub";
 
+const FEDAPAY_SECRET_KEY_ADS = process.env.FEDAPAY_SECRET_KEY ?? "";
+function getFedapayBaseUrlAds(): string {
+  return FEDAPAY_SECRET_KEY_ADS.startsWith("sk_live")
+    ? "https://api.fedapay.com/v1"
+    : "https://sandbox-api.fedapay.com/v1";
+}
+
 const router: IRouter = Router();
 
 function mapAd(a: typeof adsTable.$inferSelect) {
@@ -163,6 +170,55 @@ router.post("/admin/ads/pin", async (req, res) => {
   } catch (err) {
     req.log.error({ err }, "Failed to pin ad");
     return res.status(500).json({ error: "Internal server error" });
+  }
+});
+
+// GET /api/ads/renewal-link/:adId
+// Crée une transaction FedaPay de renouvellement et redirige vers la page de paiement
+router.get("/ads/renewal-link/:adId", async (req, res) => {
+  const adId = parseInt(req.params.adId, 10);
+  if (isNaN(adId) || adId <= 0) {
+    return res.status(400).send("Identifiant publicité invalide");
+  }
+  const ads = await db.select().from(adsTable).where(eq(adsTable.id, adId)).limit(1);
+  if (ads.length === 0) {
+    return res.status(404).send("Publicité introuvable");
+  }
+  const ad = ads[0];
+  try {
+    const callbackUrl = `https://togomarket.site/api/fedapay-callback`;
+    const txRes = await fetch(`${getFedapayBaseUrlAds()}/transactions`, {
+      method: "POST",
+      headers: { Authorization: `Bearer ${FEDAPAY_SECRET_KEY_ADS}`, "Content-Type": "application/json" },
+      body: JSON.stringify({
+        description: `Renouvellement publicité TogoMarket — annonce #${ad.id}`,
+        amount: 1000,
+        currency: { iso: "XOF" },
+        callback_url: callbackUrl,
+        customer: {
+          firstname: ad.advertiserName ?? ad.advertiserPhone,
+          phone_number: { number: ad.advertiserPhone, country: "TG" },
+        },
+        custom_metadata: { entityType: "ad", entityId: String(ad.id) },
+        include_fees: true,
+      }),
+      signal: AbortSignal.timeout(15_000),
+    });
+    if (!txRes.ok) {
+      req.log.error({ adId, status: txRes.status }, "Ads renewal-link: FedaPay error");
+      return res.redirect("https://togomarket.site");
+    }
+    const json = await txRes.json() as Record<string, unknown>;
+    const txRaw = (json["v1/transaction"] ?? (json["v1"] as Record<string, unknown> | undefined)?.["transaction"] ?? json["transaction"] ?? json) as Record<string, unknown>;
+    const paymentUrl = String(txRaw["payment_url"] ?? "");
+    if (!paymentUrl) {
+      req.log.error({ adId, json }, "Ads renewal-link: no payment_url");
+      return res.redirect("https://togomarket.site");
+    }
+    return res.redirect(302, paymentUrl);
+  } catch (err) {
+    req.log.error({ err, adId }, "Ads renewal-link: unexpected error");
+    return res.redirect("https://togomarket.site");
   }
 });
 

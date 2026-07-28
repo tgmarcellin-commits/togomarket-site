@@ -22,6 +22,7 @@ function mapEvent(e: typeof eventsTable.$inferSelect) {
     paymentStatus: e.paymentStatus,
     validationMethod: e.validationMethod,
     fedapayTransactionId: e.fedapayTransactionId ?? null,
+    subscriptionExpiresAt: e.subscriptionExpiresAt?.toISOString() ?? null,
   };
 }
 

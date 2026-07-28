@@ -512,6 +512,26 @@ export default function AdminDashboard() {
     }
   };
 
+  // Envoie un lien de renouvellement WhatsApp (URL stable qui crée la transaction FedaPay au clic)
+  const handleSendRenewalWhatsApp = (
+    entityType: "ad" | "event" | "service",
+    entityId: number,
+    name: string,
+    phone: string,
+  ) => {
+    const renewalUrl = `https://togomarket.site/api/${entityType}s/renewal-link/${entityId}`;
+    const entityLabel = entityType === "ad" ? "publicité" : entityType === "event" ? "événement" : "service";
+    const msg = `Bonjour ${name} ! 👋\n\nVotre ${entityLabel} TogoMarket a expiré.\n\nRenouvelez facilement pour 1 000 FCFA/mois en cliquant sur ce lien :\n${renewalUrl}\n\nMerci de votre confiance ! 🙏`;
+    const waPhone = phone.replace(/\D/g, "");
+    if (waPhone.length >= 8) {
+      openWhatsApp(`https://wa.me/${waPhone}?text=${encodeURIComponent(msg)}`);
+    } else {
+      // Pas de numéro valide : copie le lien dans le presse-papier et notifie
+      navigator.clipboard.writeText(renewalUrl).catch(() => {});
+      toast({ title: "Lien copié", description: "Partagez ce lien au propriétaire : " + renewalUrl });
+    }
+  };
+
   const handleSendPaymentLink = async () => {
     if (!paymentLinkDialog) return;
     setPaymentLinkLoading(true);
@@ -1424,7 +1444,7 @@ export default function AdminDashboard() {
                 {allAds.map((ad) => {
                   const active = new Date(ad.endDate) > new Date();
                   return (
-                    <div key={ad.id} className={`bg-card border rounded-xl p-3 flex flex-col gap-2 ${!active ? "opacity-60" : ""}`}>
+                    <div key={ad.id} className={`bg-card border rounded-xl p-3 flex flex-col gap-2 ${!active ? "border-red-200 bg-red-50/30" : ""}`}>
                       <div className="flex items-center gap-3">
                       {ad.videoPath && (
                         <button
@@ -1440,12 +1460,24 @@ export default function AdminDashboard() {
                         </button>
                       )}
                       <div className="flex-1 min-w-0">
-                        <p className="font-semibold text-sm truncate">{ad.advertiserName}</p>
-                        <p className="text-xs text-muted-foreground truncate">{ad.message}</p>
-                        <p className="text-xs text-muted-foreground">{ad.advertiserPhone} · {active ? <span className="text-green-600">Active</span> : <span className="text-red-500">Expirée</span>}</p>
+                        <div className="flex items-center gap-1.5 flex-wrap">
+                          <p className="font-semibold text-sm truncate">{ad.advertiserName}</p>
+                          {!active && <span className="text-[10px] bg-red-100 text-red-700 rounded-full px-2 py-0.5 font-semibold shrink-0">⏰ Expiré</span>}
+                          {active && ad.isPublished && <span className="text-[10px] bg-green-100 text-green-700 rounded-full px-2 py-0.5 font-semibold shrink-0">Actif</span>}
+                          {!ad.isPublished && active && <span className="text-[10px] bg-yellow-100 text-yellow-700 rounded-full px-2 py-0.5 font-semibold shrink-0">En attente</span>}
+                        </div>
+                        <p className="text-xs text-muted-foreground">{ad.advertiserPhone}</p>
+                        <p className="text-xs text-muted-foreground">
+                          Exp. : {new Date(ad.endDate).toLocaleDateString("fr-FR")}
+                        </p>
                       </div>
                       <div className="flex gap-2 flex-shrink-0 flex-wrap justify-end">
-                        {!ad.isPublished && (
+                        {!active && (
+                          <Button size="sm" variant="outline" className="h-7 text-xs border-orange-400 text-orange-700 hover:bg-orange-50" onClick={() => handleSendRenewalWhatsApp("ad", ad.id, ad.advertiserName, ad.advertiserPhone)}>
+                            🔄 Renouveler
+                          </Button>
+                        )}
+                        {!ad.isPublished && active && (
                           <Button size="sm" variant="outline" className="h-7 text-xs border-green-400 text-green-700 hover:bg-green-50" onClick={() => setConfirmPublishItem({ type: "ad", id: ad.id, title: ad.advertiserName })}>
                             <CheckCircle className="w-3 h-3 mr-1" />
                             Valider
@@ -1460,7 +1492,7 @@ export default function AdminDashboard() {
                         >
                           <Pin className="w-3.5 h-3.5" />
                         </Button>
-                        <Button size="sm" variant="ghost" className="h-8 w-8 p-0 text-green-600" title="Envoyer lien de paiement" onClick={() => setPaymentLinkDialog({ entityType: "ad", entityId: ad.id, customerName: ad.advertiserName, customerPhone: ad.advertiserPhone })}>
+                        <Button size="sm" variant="ghost" className="h-8 w-8 p-0 text-green-600" title="Envoyer lien de paiement initial" onClick={() => setPaymentLinkDialog({ entityType: "ad", entityId: ad.id, customerName: ad.advertiserName, customerPhone: ad.advertiserPhone })}>
                           📲
                         </Button>
                         <Button size="sm" variant="ghost" className="h-8 w-8 p-0 text-destructive" onClick={() => { if (confirm("Supprimer cette publicité ?")) handleDeleteAd(ad.id); }}>
@@ -1556,7 +1588,12 @@ export default function AdminDashboard() {
                       </div>
                     )}
                     <div className="flex-1 min-w-0">
-                      <p className="font-semibold text-sm truncate">{ev.title}</p>
+                      <div className="flex items-center gap-1.5 flex-wrap">
+                        <p className="font-semibold text-sm truncate">{ev.title}</p>
+                        {ev.isPublished
+                          ? <span className="text-[10px] bg-green-100 text-green-700 rounded-full px-2 py-0.5 font-semibold shrink-0">Publié</span>
+                          : <span className="text-[10px] bg-yellow-100 text-yellow-700 rounded-full px-2 py-0.5 font-semibold shrink-0">En attente</span>}
+                      </div>
                       <p className="text-xs text-muted-foreground">{ev.location} · {new Date(ev.date).toLocaleDateString("fr-FR")}</p>
                     </div>
                     <div className="flex gap-2 flex-shrink-0">
@@ -1646,8 +1683,11 @@ export default function AdminDashboard() {
               </div>
             ) : (
               <div className="space-y-2">
-                {allServices.map((s) => (
-                  <div key={s.id} className="bg-card border rounded-xl p-3 flex items-center gap-3">
+                {allServices.map((s) => {
+                  const svcExpired = new Date(s.expiresAt) < new Date();
+                  const svcActive = s.isPublished && !svcExpired;
+                  return (
+                  <div key={s.id} className={`bg-card border rounded-xl p-3 flex items-center gap-3 ${svcExpired ? "border-red-200 bg-red-50/30" : ""}`}>
                     {(s.image || s.videoPath) && (
                       <div className="relative w-14 h-14 flex-shrink-0 rounded-lg overflow-hidden bg-black/10">
                         {s.videoPath
@@ -1659,17 +1699,28 @@ export default function AdminDashboard() {
                       </div>
                     )}
                     <div className="flex-1 min-w-0">
-                      <p className="font-semibold text-sm truncate">{s.title}</p>
+                      <div className="flex items-center gap-1.5 flex-wrap">
+                        <p className="font-semibold text-sm truncate">{s.title}</p>
+                        {svcExpired && <span className="text-[10px] bg-red-100 text-red-700 rounded-full px-2 py-0.5 font-semibold shrink-0">⏰ Expiré</span>}
+                        {svcActive && <span className="text-[10px] bg-green-100 text-green-700 rounded-full px-2 py-0.5 font-semibold shrink-0">Actif</span>}
+                        {!s.isPublished && !svcExpired && <span className="text-[10px] bg-yellow-100 text-yellow-700 rounded-full px-2 py-0.5 font-semibold shrink-0">En attente</span>}
+                      </div>
                       <p className="text-xs text-muted-foreground">{s.type} · {s.ville ?? s.quartier ?? ""}</p>
+                      <p className="text-xs text-muted-foreground">Exp. : {new Date(s.expiresAt).toLocaleDateString("fr-FR")}</p>
                     </div>
-                    <div className="flex gap-2 flex-shrink-0">
-                      {!s.isPublished && (
+                    <div className="flex gap-2 flex-shrink-0 flex-wrap justify-end">
+                      {svcExpired && (
+                        <Button size="sm" variant="outline" className="h-7 text-xs border-orange-400 text-orange-700 hover:bg-orange-50" onClick={() => handleSendRenewalWhatsApp("service", s.id, s.title, s.contact ?? "")}>
+                          🔄 Renouveler
+                        </Button>
+                      )}
+                      {!s.isPublished && !svcExpired && (
                         <Button size="sm" variant="outline" className="h-7 text-xs border-green-400 text-green-700 hover:bg-green-50" onClick={() => setConfirmPublishItem({ type: "service", id: s.id, title: s.title })}>
                           <CheckCircle className="w-3 h-3 mr-1" />
                           Valider
                         </Button>
                       )}
-                      <Button size="sm" variant="ghost" className="h-8 w-8 p-0 text-green-600" title="Envoyer lien de paiement" onClick={() => setPaymentLinkDialog({ entityType: "service", entityId: s.id, customerName: s.title, customerPhone: s.contact ?? "" })}>
+                      <Button size="sm" variant="ghost" className="h-8 w-8 p-0 text-green-600" title="Envoyer lien de paiement initial" onClick={() => setPaymentLinkDialog({ entityType: "service", entityId: s.id, customerName: s.title, customerPhone: s.contact ?? "" })}>
                         📲
                       </Button>
                       <Button size="sm" variant="ghost" className="h-8 w-8 p-0 text-destructive" onClick={() => { if (confirm("Supprimer ce service ?")) handleDeleteService(s.id); }}>
@@ -1677,7 +1728,8 @@ export default function AdminDashboard() {
                       </Button>
                     </div>
                   </div>
-                ))}
+                  );
+                })}
               </div>
             )}
           </div>

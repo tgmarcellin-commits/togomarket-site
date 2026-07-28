@@ -81,6 +81,8 @@ export interface Event {
   createdAt: string;
   /** @nullable */
   isPublished?: boolean | null;
+  /** @nullable */
+  subscriptionExpiresAt?: string | null;
 }
 
 export interface AdminCreateEventInput {
