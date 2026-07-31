@@ -23,6 +23,14 @@ interface AuthModalProps {
 
 type Screen = "choice" | "login" | "register" | "privacy" | "verify";
 
+const FEDAPAY_COUNTRIES = [
+  { code: "TG", name: "Togo",          dialCode: "228", flag: "🇹🇬" },
+  { code: "BJ", name: "Bénin",         dialCode: "229", flag: "🇧🇯" },
+  { code: "CI", name: "Côte d'Ivoire", dialCode: "225", flag: "🇨🇮" },
+  { code: "SN", name: "Sénégal",       dialCode: "221", flag: "🇸🇳" },
+  { code: "NE", name: "Niger",         dialCode: "227", flag: "🇳🇪" },
+] as const;
+
 interface VerifyInfo {
   phone: string;
   firstName: string;
@@ -66,7 +74,8 @@ export function AuthModal({ open, onOpenChange, onLoginSuccess, referredBy }: Au
   const [regFirstName, setRegFirstName] = useState("");
   const [regLastName, setRegLastName] = useState("");
   const [regShopName, setRegShopName] = useState("");
-  const [regPhone, setRegPhone] = useState("");
+  const [regDialCode, setRegDialCode] = useState("228");
+  const [regLocalPhone, setRegLocalPhone] = useState("");
   const [regPassword, setRegPassword] = useState("");
   const [regPassword2, setRegPassword2] = useState("");
   const [cguAccepted, setCguAccepted] = useState(false);
@@ -89,7 +98,8 @@ export function AuthModal({ open, onOpenChange, onLoginSuccess, referredBy }: Au
     setRegFirstName("");
     setRegLastName("");
     setRegShopName("");
-    setRegPhone("");
+    setRegDialCode("228");
+    setRegLocalPhone("");
     setRegPassword("");
     setRegPassword2("");
     setCguAccepted(false);
@@ -129,7 +139,9 @@ export function AuthModal({ open, onOpenChange, onLoginSuccess, referredBy }: Au
   };
 
   const handleRegisterValidate = () => {
-    if (!regFirstName.trim() || !regLastName.trim() || !regPhone.trim() || !regPassword.trim()) {
+    const localDigits = regLocalPhone.replace(/\D/g, "").replace(/^0+/, "");
+    const fullPhone = regDialCode + localDigits;
+    if (!regFirstName.trim() || !regLastName.trim() || !localDigits || !regPassword.trim()) {
       toast({ title: t.allFieldsRequired, variant: "destructive" });
       return;
     }
@@ -149,7 +161,7 @@ export function AuthModal({ open, onOpenChange, onLoginSuccess, referredBy }: Au
       firstName: regFirstName.trim(),
       lastName: regLastName.trim(),
       shopName: regShopName.trim() || null,
-      phone: regPhone.trim(),
+      phone: fullPhone,
       password: regPassword,
       referredBy,
     });
@@ -325,7 +337,32 @@ export function AuthModal({ open, onOpenChange, onLoginSuccess, referredBy }: Au
             </div>
             <div className="space-y-1.5">
               <label className="text-sm font-medium">{t.whatsappNumber}</label>
-              <Input placeholder="+228 XX XX XX XX" value={regPhone} onChange={(e) => setRegPhone(e.target.value)} />
+              <div className="flex gap-2">
+                {/* Sélecteur de pays */}
+                <select
+                  value={regDialCode}
+                  onChange={(e) => setRegDialCode(e.target.value)}
+                  className="h-10 rounded-md border border-input bg-background px-2 text-sm focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-1 flex-shrink-0"
+                  style={{ width: "auto", minWidth: "7rem" }}
+                >
+                  {FEDAPAY_COUNTRIES.map((c) => (
+                    <option key={c.code} value={c.dialCode}>
+                      {c.flag} +{c.dialCode}
+                    </option>
+                  ))}
+                </select>
+                {/* Numéro local */}
+                <Input
+                  type="tel"
+                  placeholder="XX XX XX XX"
+                  value={regLocalPhone}
+                  onChange={(e) => setRegLocalPhone(e.target.value)}
+                  className="flex-1"
+                />
+              </div>
+              <p className="text-xs text-muted-foreground">
+                {FEDAPAY_COUNTRIES.find(c => c.dialCode === regDialCode)?.name} (+{regDialCode}) — saisissez le numéro sans l'indicatif
+              </p>
             </div>
             <div className="space-y-1.5">
               <label className="text-sm font-medium">{t.password}</label>

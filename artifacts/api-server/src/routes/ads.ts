@@ -10,6 +10,16 @@ function getFedapayBaseUrlAds(): string {
     : "https://sandbox-api.fedapay.com/v1";
 }
 
+function getPhoneCountryAds(phone: string): string {
+  const d = phone.replace(/\D/g, "");
+  if (d.startsWith("228")) return "TG";
+  if (d.startsWith("229")) return "BJ";
+  if (d.startsWith("225")) return "CI";
+  if (d.startsWith("221")) return "SN";
+  if (d.startsWith("227")) return "NE";
+  return "TG";
+}
+
 const router: IRouter = Router();
 
 function mapAd(a: typeof adsTable.$inferSelect) {
@@ -197,7 +207,7 @@ router.get("/ads/renewal-link/:adId", async (req, res) => {
         callback_url: callbackUrl,
         customer: {
           firstname: ad.advertiserName ?? ad.advertiserPhone,
-          phone_number: { number: ad.advertiserPhone, country: "TG" },
+          phone_number: { number: ad.advertiserPhone, country: getPhoneCountryAds(ad.advertiserPhone) },
         },
         custom_metadata: { entityType: "ad", entityId: String(ad.id) },
         include_fees: true,

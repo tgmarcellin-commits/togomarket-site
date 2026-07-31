@@ -10,6 +10,16 @@ function getFedapayBaseUrlSv(): string {
     : "https://sandbox-api.fedapay.com/v1";
 }
 
+function getPhoneCountrySv(phone: string): string {
+  const d = phone.replace(/\D/g, "");
+  if (d.startsWith("228")) return "TG";
+  if (d.startsWith("229")) return "BJ";
+  if (d.startsWith("225")) return "CI";
+  if (d.startsWith("221")) return "SN";
+  if (d.startsWith("227")) return "NE";
+  return "TG";
+}
+
 const router: IRouter = Router();
 
 function mapService(s: typeof servicesTable.$inferSelect) {
@@ -132,7 +142,7 @@ router.get("/services/renewal-link/:serviceId", async (req, res) => {
         callback_url: callbackUrl,
         customer: {
           firstname: svc.title,
-          phone_number: { number: svc.contact.replace(/\D/g, "") || "00228", country: "TG" },
+          phone_number: { number: svc.contact.replace(/\D/g, "") || "00228", country: getPhoneCountrySv(svc.contact) },
         },
         custom_metadata: { entityType: "service", entityId: String(svc.id) },
         include_fees: true,

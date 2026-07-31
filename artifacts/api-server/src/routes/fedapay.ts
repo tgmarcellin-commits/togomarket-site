@@ -17,6 +17,17 @@ function getFedapayBaseUrl(): string {
     : "https://sandbox-api.fedapay.com/v1";
 }
 
+/** Détecte le code pays FedaPay depuis un numéro de téléphone international */
+function getPhoneCountry(phone: string): string {
+  const digits = phone.replace(/\D/g, "");
+  if (digits.startsWith("228")) return "TG"; // Togo
+  if (digits.startsWith("229")) return "BJ"; // Bénin
+  if (digits.startsWith("225")) return "CI"; // Côte d'Ivoire
+  if (digits.startsWith("221")) return "SN"; // Sénégal
+  if (digits.startsWith("227")) return "NE"; // Niger
+  return "TG"; // fallback
+}
+
 async function createFedapayTransaction(opts: {
   amount: number;
   description: string;
@@ -39,7 +50,7 @@ async function createFedapayTransaction(opts: {
       callback_url: opts.callbackUrl,
       customer: {
         firstname: opts.customerName,
-        phone_number: { number: opts.customerPhone, country: "TG" },
+        phone_number: { number: opts.customerPhone, country: getPhoneCountry(opts.customerPhone) },
       },
       custom_metadata: opts.metadata,
       include_fees: true,
