@@ -84,6 +84,7 @@ export default function Home() {
   const [catalogSector, setCatalogSector] = useState<string | null>(null);
   const [catalogVendors, setCatalogVendors] = useState<VendorInSector[]>([]);
   const [catalogLoading, setCatalogLoading] = useState(false);
+  const [catalogShopSearch, setCatalogShopSearch] = useState("");
   const [shopSearchInput, setShopSearchInput] = useState("");
   const [heroMode, setHeroMode] = useState<"article" | "boutique">("article");
 
@@ -291,6 +292,7 @@ export default function Home() {
     setCatalogSector(sec);
     setCatalogVendors([]);
     setCatalogLoading(true);
+    setCatalogShopSearch("");
     setShopNumber(undefined);
     setSearch("");
     setSearchInput("");
@@ -504,7 +506,7 @@ export default function Home() {
             <>
               <div className="sticky top-0 z-20 bg-background/95 backdrop-blur-sm border-b border-border/60 px-4 py-2.5 flex items-center gap-3">
                 <button
-                  onClick={() => { setCatalogSector(null); setCatalogVendors([]); setSector(undefined); setShopNumber(undefined); }}
+                  onClick={() => { setCatalogSector(null); setCatalogVendors([]); setSector(undefined); setShopNumber(undefined); setCatalogShopSearch(""); }}
                   className="flex items-center gap-1.5 text-sm font-medium text-muted-foreground hover:text-foreground active:scale-95 transition-all"
                 >
                   <span className="text-base">←</span>
@@ -517,13 +519,41 @@ export default function Home() {
                 </h2>
               </div>
             <main className="container mx-auto px-4 py-6 flex-grow">
+              {/* Barre de recherche boutique */}
+              {!catalogLoading && (
+                <div className="relative mb-5">
+                  <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground pointer-events-none" />
+                  <input
+                    type="text"
+                    placeholder={lang === "fr" ? "Rechercher une boutique…" : "Search a shop…"}
+                    value={catalogShopSearch}
+                    onChange={(e) => setCatalogShopSearch(e.target.value)}
+                    className="w-full pl-9 pr-4 h-10 rounded-full border border-border bg-card text-sm focus:outline-none focus:ring-2 focus:ring-primary/40 placeholder:text-muted-foreground"
+                  />
+                  {catalogShopSearch && (
+                    <button
+                      onClick={() => setCatalogShopSearch("")}
+                      className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground text-base leading-none"
+                    >
+                      ✕
+                    </button>
+                  )}
+                </div>
+              )}
               {catalogLoading ? (
                 <div className="grid grid-cols-3 gap-3">
                   {[1, 2, 3, 4, 5, 6].map(n => <div key={n} className="aspect-square bg-muted rounded-2xl animate-pulse" />)}
                 </div>
-              ) : catalogVendors.length > 0 ? (
+              ) : (() => {
+                const filtered = catalogShopSearch.trim()
+                  ? catalogVendors.filter(v =>
+                      (v.shopName ?? "Boutique").toLowerCase().includes(catalogShopSearch.toLowerCase()) ||
+                      String(v.id).includes(catalogShopSearch.trim())
+                    )
+                  : catalogVendors;
+                return filtered.length > 0 ? (
                 <div className="grid grid-cols-3 gap-3">
-                  {catalogVendors.map((v) => (
+                  {filtered.map((v) => (
                     <button
                       key={v.id}
                       onClick={() => { setSector(catalogSector ?? undefined); setShopNumber(v.id); }}
@@ -555,10 +585,13 @@ export default function Home() {
                     <Search className="w-8 h-8 text-muted-foreground" />
                   </div>
                   <p className="text-muted-foreground text-sm max-w-xs mx-auto">
-                    {lang === "fr" ? "Aucune boutique disponible dans ce secteur pour le moment." : "No shops available in this sector yet."}
+                    {catalogShopSearch.trim()
+                      ? (lang === "fr" ? "Aucune boutique correspond à cette recherche." : "No shop matches this search.")
+                      : (lang === "fr" ? "Aucune boutique disponible dans ce secteur pour le moment." : "No shops available in this sector yet.")}
                   </p>
                 </div>
-              )}
+              );
+              })()}
             </main>
             </>
 
