@@ -12,12 +12,12 @@ import { useSiteSettings } from "@/lib/site-settings";
 import { useT } from "@/lib/i18n";
 import { SmartVideo } from "@/components/smart-video";
 
+/* ── WhatsApp button ──────────────────────────────────────────────────────── */
 function WaBtn({ contact, label }: { contact: string; label: string }) {
   const digits = contact.replace(/\D/g, "");
-  const href = `https://wa.me/${digits}`;
   return (
     <a
-      href={href}
+      href={`https://wa.me/${digits}`}
       target="_blank"
       rel="noopener noreferrer"
       className="inline-flex items-center gap-1.5 bg-[#25D366] hover:bg-[#1eb355] text-white text-xs font-semibold px-3 py-1.5 rounded-lg transition-colors"
@@ -31,6 +31,9 @@ function WaBtn({ contact, label }: { contact: string; label: string }) {
     </a>
   );
 }
+
+/* ── Type config ──────────────────────────────────────────────────────────── */
+type ServiceType = "offer" | "seeker" | "atelier";
 
 function typeConfig(type: string, lang: string) {
   if (type === "offer") return {
@@ -56,6 +59,50 @@ function typeConfig(type: string, lang: string) {
   };
 }
 
+/* ── Catalog categories ───────────────────────────────────────────────────── */
+const SERVICE_CATEGORIES: {
+  type: ServiceType;
+  labelFr: string;
+  labelEn: string;
+  emoji: string;
+  descFr: string;
+  descEn: string;
+  colorBg: string;
+  colorText: string;
+}[] = [
+  {
+    type: "offer",
+    labelFr: "Offres",
+    labelEn: "Jobs",
+    emoji: "💼",
+    descFr: "Postes à pourvoir",
+    descEn: "Job openings",
+    colorBg: "bg-blue-50 hover:bg-blue-100 border-blue-200 hover:border-blue-400",
+    colorText: "text-blue-700",
+  },
+  {
+    type: "atelier",
+    labelFr: "Atelier",
+    labelEn: "Workshop",
+    emoji: "🔧",
+    descFr: "Ateliers & formations",
+    descEn: "Workshops & training",
+    colorBg: "bg-purple-50 hover:bg-purple-100 border-purple-200 hover:border-purple-400",
+    colorText: "text-purple-700",
+  },
+  {
+    type: "seeker",
+    labelFr: "Chercheur",
+    labelEn: "Seeker",
+    emoji: "👤",
+    descFr: "Demandeurs d'emploi",
+    descEn: "Job seekers",
+    colorBg: "bg-orange-50 hover:bg-orange-100 border-orange-200 hover:border-orange-400",
+    colorText: "text-orange-700",
+  },
+];
+
+/* ── Service card ─────────────────────────────────────────────────────────── */
 function ServiceCard({ service, lang }: { service: Service; lang: string }) {
   const [open, setOpen] = useState(false);
   const cfg = typeConfig(service.type, lang);
@@ -127,7 +174,10 @@ function ServiceCard({ service, lang }: { service: Service; lang: string }) {
               <span>{service.quartier}, {service.ville}</span>
             </div>
             <div className="text-xs text-muted-foreground">
-              {lang === "fr" ? "Expire le" : "Expires"} {expiresAt.toLocaleDateString(lang === "fr" ? "fr-FR" : "en-US", { day: "numeric", month: "long", year: "numeric" })}
+              {lang === "fr" ? "Expire le" : "Expires"}{" "}
+              {expiresAt.toLocaleDateString(lang === "fr" ? "fr-FR" : "en-US", {
+                day: "numeric", month: "long", year: "numeric",
+              })}
             </div>
             <WaBtn contact={service.contact} label={cfg.waLabel} />
           </div>
@@ -137,18 +187,44 @@ function ServiceCard({ service, lang }: { service: Service; lang: string }) {
   );
 }
 
+/* ── Main component ───────────────────────────────────────────────────────── */
 export function ServicesView() {
   const { lang } = useSiteSettings();
   const t = useT(lang);
   const { data: services, isLoading } = useGetServices();
   const { data: settings } = useGetAdminSettings();
-  const [filter, setFilter] = useState<"all" | "offer" | "seeker" | "atelier">("all");
+  const [activeType, setActiveType] = useState<ServiceType | null>(null);
   const whatsappServices = settings?.whatsappServices ?? "22870703131";
 
   const submitText = lang === "fr"
     ? "🔍 Bonjour TogoMarket, je souhaite soumettre une annonce de service. Pouvez-vous m'indiquer la marche à suivre ?"
     : "🔍 Hello TogoMarket, I'd like to submit a service listing. Can you guide me?";
 
+  const filtered = activeType ? (services ?? []).filter((s) => s.type === activeType) : [];
+
+  const activeCat = SERVICE_CATEGORIES.find((c) => c.type === activeType);
+
+  const SubmitCta = () => (
+    <div className="mt-6 rounded-xl border border-primary/20 bg-primary/5 p-4 text-center">
+      <Briefcase className="w-7 h-7 text-primary mx-auto mb-2" />
+      <p className="text-sm font-semibold mb-0.5">{t.submitServiceCta}</p>
+      <p className="text-xs text-muted-foreground mb-3">{t.submitServiceDesc}</p>
+      <a
+        href={`https://wa.me/${whatsappServices}?text=${encodeURIComponent(submitText)}`}
+        target="_blank"
+        rel="noopener noreferrer"
+        className="inline-flex items-center gap-2 bg-[#25D366] hover:bg-[#1eb355] text-white text-sm font-medium px-4 py-2 rounded-lg transition-colors"
+      >
+        <svg viewBox="0 0 24 24" className="w-4 h-4 fill-white flex-shrink-0">
+          <path d="M17.472 14.382c-.297-.149-1.758-.867-2.03-.967-.273-.099-.471-.148-.67.15-.197.297-.767.966-.94 1.164-.173.199-.347.223-.644.075-.297-.15-1.255-.463-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.298-.347.446-.52.149-.174.198-.298.298-.497.099-.198.05-.371-.025-.52-.075-.149-.669-1.612-.916-2.207-.242-.579-.487-.5-.669-.51-.173-.008-.371-.01-.57-.01-.198 0-.52.074-.792.372-.272.297-1.04 1.016-1.04 2.479 0 1.462 1.065 2.875 1.213 3.074.149.198 2.096 3.2 5.077 4.487.709.306 1.262.489 1.694.625.712.227 1.36.195 1.871.118.571-.085 1.758-.719 2.006-1.413.248-.694.248-1.289.173-1.413-.074-.124-.272-.198-.57-.347z" />
+          <path d="M12 0C5.373 0 0 5.373 0 12c0 2.123.554 4.114 1.526 5.843L.057 23.617a.5.5 0 0 0 .611.64l5.975-1.566A11.945 11.945 0 0 0 12 24c6.627 0 12-5.373 12-12S18.627 0 12 0zm0 22c-1.885 0-3.645-.52-5.148-1.426l-.369-.221-3.821 1.001.982-3.713-.24-.381A9.944 9.944 0 0 1 2 12C2 6.477 6.477 2 12 2s10 4.477 10 10-4.477 10-10 10z" />
+        </svg>
+        {t.submitServiceCta}
+      </a>
+    </div>
+  );
+
+  /* ── Loading skeleton ───────────────────────────────────────────────────── */
   if (isLoading) {
     return (
       <div className="container mx-auto px-4 py-6 max-w-2xl space-y-4">
@@ -159,79 +235,76 @@ export function ServicesView() {
     );
   }
 
-  const offers = services?.filter((s) => s.type === "offer") ?? [];
-  const seekers = services?.filter((s) => s.type === "seeker") ?? [];
-  const ateliers = services?.filter((s) => s.type === "atelier") ?? [];
-  const all = services ?? [];
+  /* ── Category list view ─────────────────────────────────────────────────── */
+  if (activeType && activeCat) {
+    return (
+      <>
+        {/* Sticky header */}
+        <div className="sticky top-0 z-20 bg-background/95 backdrop-blur-sm border-b border-border/60 px-4 py-2.5 flex items-center gap-3">
+          <button
+            onClick={() => setActiveType(null)}
+            className="flex items-center gap-1.5 text-sm font-medium text-muted-foreground hover:text-foreground active:scale-95 transition-all"
+          >
+            <span className="text-base">←</span>
+            <span>{lang === "fr" ? "Retour aux catégories" : "Back to categories"}</span>
+          </button>
+          <span className="text-muted-foreground/40">|</span>
+          <h2 className="text-sm font-bold flex items-center gap-1.5 truncate">
+            <span>{activeCat.emoji}</span>
+            <span>{lang === "fr" ? activeCat.labelFr : activeCat.labelEn}</span>
+          </h2>
+        </div>
 
-  const filtered =
-    filter === "offer" ? offers :
-    filter === "seeker" ? seekers :
-    filter === "atelier" ? ateliers :
-    all;
+        <div className="container mx-auto px-4 py-6 max-w-2xl">
+          {filtered.length === 0 ? (
+            <div className="flex flex-col items-center justify-center py-20 text-center">
+              <div className="w-16 h-16 bg-muted rounded-full flex items-center justify-center mb-4">
+                <Briefcase className="w-8 h-8 text-muted-foreground" />
+              </div>
+              <p className="text-sm text-muted-foreground mb-4">{t.noServices}</p>
+            </div>
+          ) : (
+            <div className="space-y-3">
+              {filtered.map((s) => (
+                <ServiceCard key={s.id} service={s} lang={lang} />
+              ))}
+            </div>
+          )}
+          <SubmitCta />
+        </div>
+      </>
+    );
+  }
 
-  const tabs: { id: "all" | "offer" | "seeker" | "atelier"; label: string }[] = [
-    { id: "all", label: lang === "fr" ? `Tout (${all.length})` : `All (${all.length})` },
-    { id: "offer", label: lang === "fr" ? `Offres (${offers.length})` : `Jobs (${offers.length})` },
-    { id: "atelier", label: lang === "fr" ? `Ateliers (${ateliers.length})` : `Workshops (${ateliers.length})` },
-    { id: "seeker", label: lang === "fr" ? `Chercheurs (${seekers.length})` : `Seekers (${seekers.length})` },
-  ];
-
+  /* ── Catalog grid (default view) ────────────────────────────────────────── */
   return (
     <div className="container mx-auto px-4 py-6 max-w-2xl">
-      <h2 className="font-bold text-lg mb-1">{t.navServices}</h2>
-      <p className="text-xs text-muted-foreground mb-4">{t.servicesDesc}</p>
+      <p className="text-center text-sm text-muted-foreground mb-5 font-medium">
+        {lang === "fr" ? "Choisissez une catégorie" : "Choose a category"}
+      </p>
 
-      {/* Filter tabs */}
-      <div className="flex gap-1.5 mb-4 overflow-x-auto pb-1">
-        {tabs.map(({ id, label }) => (
-          <button
-            key={id}
-            onClick={() => setFilter(id)}
-            className={`flex-shrink-0 px-3 py-1.5 text-xs font-semibold rounded-lg border transition-colors ${
-              filter === id
-                ? "bg-primary text-primary-foreground border-primary"
-                : "bg-background border-border hover:bg-muted"
-            }`}
-          >
-            {label}
-          </button>
-        ))}
+      <div className="grid grid-cols-3 gap-4 mb-6">
+        {SERVICE_CATEGORIES.map((cat) => {
+          const count = (services ?? []).filter((s) => s.type === cat.type).length;
+          return (
+            <button
+              key={cat.type}
+              onClick={() => setActiveType(cat.type)}
+              className={`group aspect-square rounded-2xl border-2 flex flex-col items-center justify-center gap-2 transition-all shadow-sm hover:shadow-md active:scale-95 ${cat.colorBg}`}
+            >
+              <span className="text-4xl group-hover:scale-110 transition-transform">{cat.emoji}</span>
+              <p className={`font-bold text-sm leading-tight px-1 text-center ${cat.colorText}`}>
+                {lang === "fr" ? cat.labelFr : cat.labelEn}
+              </p>
+              <span className="text-[11px] text-muted-foreground font-medium bg-white/70 px-2 py-0.5 rounded-full">
+                {count} {lang === "fr" ? "annonce" + (count !== 1 ? "s" : "") : count !== 1 ? "listings" : "listing"}
+              </span>
+            </button>
+          );
+        })}
       </div>
 
-      {filtered.length === 0 ? (
-        <div className="flex flex-col items-center justify-center py-16 text-center">
-          <div className="w-16 h-16 bg-muted rounded-full flex items-center justify-center mb-4">
-            <Briefcase className="w-8 h-8 text-muted-foreground" />
-          </div>
-          <p className="text-sm text-muted-foreground mb-4">{t.noServices}</p>
-        </div>
-      ) : (
-        <div className="space-y-3">
-          {filtered.map((s) => (
-            <ServiceCard key={s.id} service={s} lang={lang} />
-          ))}
-        </div>
-      )}
-
-      {/* Submit CTA */}
-      <div className="mt-6 rounded-xl border border-primary/20 bg-primary/5 p-4 text-center">
-        <Briefcase className="w-7 h-7 text-primary mx-auto mb-2" />
-        <p className="text-sm font-semibold mb-0.5">{t.submitServiceCta}</p>
-        <p className="text-xs text-muted-foreground mb-3">{t.submitServiceDesc}</p>
-        <a
-          href={`https://wa.me/${whatsappServices}?text=${encodeURIComponent(submitText)}`}
-          target="_blank"
-          rel="noopener noreferrer"
-          className="inline-flex items-center gap-2 bg-[#25D366] hover:bg-[#1eb355] text-white text-sm font-medium px-4 py-2 rounded-lg transition-colors"
-        >
-          <svg viewBox="0 0 24 24" className="w-4 h-4 fill-white flex-shrink-0">
-            <path d="M17.472 14.382c-.297-.149-1.758-.867-2.03-.967-.273-.099-.471-.148-.67.15-.197.297-.767.966-.94 1.164-.173.199-.347.223-.644.075-.297-.15-1.255-.463-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.298-.347.446-.52.149-.174.198-.298.298-.497.099-.198.05-.371-.025-.52-.075-.149-.669-1.612-.916-2.207-.242-.579-.487-.5-.669-.51-.173-.008-.371-.01-.57-.01-.198 0-.52.074-.792.372-.272.297-1.04 1.016-1.04 2.479 0 1.462 1.065 2.875 1.213 3.074.149.198 2.096 3.2 5.077 4.487.709.306 1.262.489 1.694.625.712.227 1.36.195 1.871.118.571-.085 1.758-.719 2.006-1.413.248-.694.248-1.289.173-1.413-.074-.124-.272-.198-.57-.347z" />
-            <path d="M12 0C5.373 0 0 5.373 0 12c0 2.123.554 4.114 1.526 5.843L.057 23.617a.5.5 0 0 0 .611.64l5.975-1.566A11.945 11.945 0 0 0 12 24c6.627 0 12-5.373 12-12S18.627 0 12 0zm0 22c-1.885 0-3.645-.52-5.148-1.426l-.369-.221-3.821 1.001.982-3.713-.24-.381A9.944 9.944 0 0 1 2 12C2 6.477 6.477 2 12 2s10 4.477 10 10-4.477 10-10 10z" />
-          </svg>
-          {t.submitServiceCta}
-        </a>
-      </div>
+      <SubmitCta />
     </div>
   );
 }
