@@ -24,11 +24,11 @@ interface AuthModalProps {
 type Screen = "choice" | "login" | "register" | "privacy" | "verify";
 
 const FEDAPAY_COUNTRIES = [
-  { code: "TG", name: "Togo",          dialCode: "228", flag: "🇹🇬" },
-  { code: "BJ", name: "Bénin",         dialCode: "229", flag: "🇧🇯" },
-  { code: "CI", name: "Côte d'Ivoire", dialCode: "225", flag: "🇨🇮" },
-  { code: "SN", name: "Sénégal",       dialCode: "221", flag: "🇸🇳" },
-  { code: "NE", name: "Niger",         dialCode: "227", flag: "🇳🇪" },
+  { code: "TG", name: "Togo",          dialCode: "228", flag: "🇹🇬", hint: null },
+  { code: "BJ", name: "Bénin",         dialCode: "229", flag: "🇧🇯", hint: "Ancien (229 XXXXXXXX) et nouveau format (229 01 XXXXXXXX) acceptés" },
+  { code: "CI", name: "Côte d'Ivoire", dialCode: "225", flag: "🇨🇮", hint: null },
+  { code: "SN", name: "Sénégal",       dialCode: "221", flag: "🇸🇳", hint: null },
+  { code: "NE", name: "Niger",         dialCode: "227", flag: "🇳🇪", hint: null },
 ] as const;
 
 interface VerifyInfo {
@@ -360,9 +360,21 @@ export function AuthModal({ open, onOpenChange, onLoginSuccess, referredBy }: Au
                   className="flex-1"
                 />
               </div>
-              <p className="text-xs text-muted-foreground">
-                {FEDAPAY_COUNTRIES.find(c => c.dialCode === regDialCode)?.name} (+{regDialCode}) — saisissez le numéro sans l'indicatif
-              </p>
+              {(() => {
+                const country = FEDAPAY_COUNTRIES.find(c => c.dialCode === regDialCode);
+                return (
+                  <>
+                    <p className="text-xs text-muted-foreground">
+                      {country?.name} (+{regDialCode}) — saisissez le numéro sans l'indicatif
+                    </p>
+                    {country?.hint && (
+                      <p className="text-xs text-amber-600 bg-amber-50 border border-amber-200 rounded-md px-2 py-1">
+                        ℹ️ {country.hint}
+                      </p>
+                    )}
+                  </>
+                );
+              })()}
             </div>
             <div className="space-y-1.5">
               <label className="text-sm font-medium">{t.password}</label>

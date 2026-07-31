@@ -4,6 +4,16 @@ import bcrypt from "bcryptjs";
 import { db, vendorsTable, publishCodesTable, otpCodesTable, listingsTable } from "@workspace/db";
 import { sendWhatsAppOTP, sendWhatsAppText } from "../lib/whatsapp-api";
 import { normalizePhone, phoneEq } from "../lib/phone";
+
+function getPhoneCountry(phone: string): string {
+  const d = phone.replace(/\D/g, "");
+  if (d.startsWith("228")) return "TG";
+  if (d.startsWith("229")) return "BJ";
+  if (d.startsWith("225")) return "CI";
+  if (d.startsWith("221")) return "SN";
+  if (d.startsWith("227")) return "NE";
+  return "TG";
+}
 import {
   VendorRegisterBody,
   VendorLoginBody,
@@ -582,7 +592,7 @@ router.get("/vendors/renewal-link/:vendorId", async (req, res) => {
         callback_url: callbackUrl,
         customer: {
           firstname: `${vendor.firstName} ${vendor.lastName}`,
-          phone_number: { number: vendor.phone, country: "TG" },
+          phone_number: { number: vendor.phone, country: getPhoneCountry(vendor.phone) },
         },
         custom_metadata: { entityType: "vendor", entityId: String(vendor.id) },
         include_fees: true,
