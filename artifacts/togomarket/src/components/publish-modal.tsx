@@ -22,7 +22,7 @@ import {
 } from "@/components/ui/form";
 import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { resizeImageToBlob } from "@/lib/image";
+import { resizeImageToBlob, resolveImageUrl } from "@/lib/image";
 import { uploadImageFile } from "@/lib/upload";
 import { UploadCloud, X, Lock, AlertCircle, UserCircle2, Store, CreditCard, Loader2, Copy, Users } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
@@ -274,7 +274,7 @@ export function PublishModal({ open, onOpenChange, vendor, vendorPassword, onNee
       <div className="py-4 space-y-4">
         <div className="flex items-center gap-3 bg-muted/50 rounded-lg p-3">
           {vendor.profilePhoto ? (
-            <img src={vendor.profilePhoto} alt={vendor.firstName} className="w-10 h-10 rounded-full object-cover flex-shrink-0" />
+            <img src={resolveImageUrl(vendor.profilePhoto)} alt={vendor.firstName} className="w-10 h-10 rounded-full object-cover flex-shrink-0" />
           ) : (
             <div className="w-10 h-10 bg-primary/10 rounded-full flex items-center justify-center flex-shrink-0">
               <span className="text-primary font-bold text-sm">{vendor.firstName[0]}{vendor.lastName[0]}</span>

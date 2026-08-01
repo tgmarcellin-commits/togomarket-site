@@ -14,7 +14,7 @@ import {
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { useToast } from "@/hooks/use-toast";
-import { resizeImage } from "@/lib/image";
+import { resizeImage, resolveImageUrl } from "@/lib/image";
 import {
   UserCircle2,
   Camera,
@@ -207,7 +207,7 @@ export function ProfileSettingsModal({
               <div className="flex flex-col items-center gap-2 pb-2">
                 <div className="rounded-full border-2 border-primary/30 overflow-hidden w-16 h-16">
                   {vendor.profilePhoto ? (
-                    <img src={vendor.profilePhoto} alt={vendor.firstName} className="w-full h-full object-cover" />
+                    <img src={resolveImageUrl(vendor.profilePhoto)} alt={vendor.firstName} className="w-full h-full object-cover" />
                   ) : (
                     <div className="w-full h-full bg-muted flex items-center justify-center">
                       <UserCircle2 className="w-8 h-8 text-muted-foreground" />
@@ -358,7 +358,7 @@ export function ProfileSettingsModal({
                   className="relative group rounded-full border-2 border-primary/30 overflow-hidden w-20 h-20 hover:border-primary transition-colors disabled:opacity-60"
                 >
                   {vendor.profilePhoto ? (
-                    <img src={vendor.profilePhoto} alt={vendor.firstName} className="w-full h-full object-cover" />
+                    <img src={resolveImageUrl(vendor.profilePhoto)} alt={vendor.firstName} className="w-full h-full object-cover" />
                   ) : (
                     <div className="w-full h-full bg-muted flex items-center justify-center">
                       <UserCircle2 className="w-10 h-10 text-muted-foreground" />

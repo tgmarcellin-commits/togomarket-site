@@ -389,7 +389,7 @@ export default function Home() {
                 >
                   {vendor.profilePhoto ? (
                     <img
-                      src={vendor.profilePhoto}
+                      src={resolveImageUrl(vendor.profilePhoto)}
                       alt={vendor.firstName}
                       className="w-full h-full object-cover"
                     />

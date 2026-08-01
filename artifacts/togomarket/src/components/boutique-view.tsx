@@ -288,7 +288,7 @@ export function BoutiqueView({ vendor, vendorPassword, onNeedLogin }: BoutiqueVi
       <div className="flex items-center gap-4 mb-6">
         <div className="w-14 h-14 rounded-full border-2 border-primary/30 overflow-hidden flex-shrink-0 bg-muted flex items-center justify-center">
           {vendor.profilePhoto ? (
-            <img src={vendor.profilePhoto} alt={vendor.firstName} className="w-full h-full object-cover" />
+            <img src={resolveImageUrl(vendor.profilePhoto)} alt={vendor.firstName} className="w-full h-full object-cover" />
           ) : (
             <UserCircle2 className="w-8 h-8 text-muted-foreground" />
           )}

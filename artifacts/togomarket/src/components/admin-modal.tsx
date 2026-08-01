@@ -1040,7 +1040,7 @@ export function AdminModal({
                         <div key={v.id} className={`border rounded-lg p-3 space-y-2 ${!v.verified ? "bg-amber-50/50 border-amber-200" : ""}`}>
                           <div className="flex items-start gap-2">
                             {v.profilePhoto ? (
-                              <img src={v.profilePhoto} alt={v.firstName} className="w-9 h-9 rounded-full object-cover border flex-shrink-0" />
+                              <img src={resolveImageUrl(v.profilePhoto)} alt={v.firstName} className="w-9 h-9 rounded-full object-cover border flex-shrink-0" />
                             ) : (
                               <div className="w-9 h-9 bg-muted rounded-full flex items-center justify-center flex-shrink-0 text-xs font-bold text-muted-foreground">
                                 {v.firstName[0]}{v.lastName[0]}
