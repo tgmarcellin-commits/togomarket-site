@@ -81,7 +81,10 @@ export default function Home() {
   const [search, setSearch] = useState("");
   const [searchInput, setSearchInput] = useState("");
   const [sector, setSector] = useState<string | undefined>(undefined);
-  const [activeTab, setActiveTab] = useState<NavTab>("marketplace");
+  const [activeTab, setActiveTab] = useState<NavTab>(
+    () => (sessionStorage.getItem("tm_active_tab") as NavTab | null) ?? "marketplace"
+  );
+  const [tabRefreshKey, setTabRefreshKey] = useState(0);
   const [shopNumber, setShopNumber] = useState<number | undefined>(undefined);
   const [shopLinkExpired, setShopLinkExpired] = useState(false);
   const [referredBy, setReferredBy] = useState<number | undefined>(undefined);
@@ -882,11 +885,13 @@ export default function Home() {
             <>
               <PushActivationBanner vendor={vendor} vendorPassword={vendorPassword} />
               <VendorSystemNotifications
+                key={tabRefreshKey}
                 vendor={vendor}
                 vendorPassword={vendorPassword}
                 onUnreadChange={setSystemNotifsUnread}
               />
               <VendorConversations
+                key={tabRefreshKey}
                 vendor={vendor}
                 vendorPassword={vendorPassword}
                 onUnreadChange={setConvsUnread}
@@ -920,7 +925,15 @@ export default function Home() {
       {/* ── BOTTOM NAVIGATION ─────────────────────────────────────────── */}
       <BottomNav
         activeTab={activeTab}
-        onTabChange={setActiveTab}
+        onTabChange={(tab) => {
+          sessionStorage.setItem("tm_active_tab", tab);
+          if (tab === activeTab) {
+            // Retaper l'onglet actif → rafraîchir son contenu
+            setTabRefreshKey((k) => k + 1);
+          } else {
+            setActiveTab(tab);
+          }
+        }}
         messagesUnread={messagesUnread}
       />
 

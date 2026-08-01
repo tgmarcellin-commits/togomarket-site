@@ -72,4 +72,22 @@ router.post("/vendor/notifications/read-all", async (req, res) => {
   res.json({ ok: true });
 });
 
+/* DELETE /api/vendor/notifications/:id */
+router.delete("/vendor/notifications/:id", async (req, res) => {
+  const phone = req.headers["x-vendor-phone"] as string;
+  const password = req.headers["x-vendor-password"] as string;
+  if (!phone || !password) { res.status(401).json({ error: "auth required" }); return; }
+  const vendor = await authenticateVendor(phone, password);
+  if (!vendor) { res.status(401).json({ error: "invalid credentials" }); return; }
+
+  const id = parseInt(req.params["id"] ?? "", 10);
+  if (isNaN(id)) { res.status(400).json({ error: "invalid id" }); return; }
+
+  await db
+    .delete(vendorNotificationsTable)
+    .where(and(eq(vendorNotificationsTable.id, id), eq(vendorNotificationsTable.vendorId, vendor.id)));
+
+  res.json({ ok: true });
+});
+
 export default router;
