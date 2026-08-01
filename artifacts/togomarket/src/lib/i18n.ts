@@ -24,6 +24,7 @@ const translations = {
     navEvents: "Événementiel",
     navLost: "Introuvable",
     navServices: "Services",
+    navMessages: "Messages",
     // Load more
     loadMore: "Voir plus",
     loading: "Chargement...",
@@ -298,6 +299,7 @@ const translations = {
     navEvents: "Events",
     navLost: "Can't find it",
     navServices: "Services",
+    navMessages: "Messages",
     // Load more
     loadMore: "Load more",
     loading: "Loading...",

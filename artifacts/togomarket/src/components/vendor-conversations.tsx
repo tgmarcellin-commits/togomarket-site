@@ -22,9 +22,10 @@ interface Conversation {
 interface VendorConversationsProps {
   vendor: VendorProfile;
   vendorPassword: string;
+  onUnreadChange?: (total: number) => void;
 }
 
-export function VendorConversations({ vendor, vendorPassword }: VendorConversationsProps) {
+export function VendorConversations({ vendor, vendorPassword, onUnreadChange }: VendorConversationsProps) {
   const { lang } = useSiteSettings();
   const [conversations, setConversations] = useState<Conversation[]>([]);
   const [loading, setLoading] = useState(false);
@@ -42,6 +43,8 @@ export function VendorConversations({ vendor, vendorPassword }: VendorConversati
       if (res.ok) {
         const data = await res.json() as Conversation[];
         setConversations(data);
+        const total = data.reduce((sum, c) => sum + c.vendorUnreadCount, 0);
+        onUnreadChange?.(total);
       }
     } finally {
       setLoading(false);

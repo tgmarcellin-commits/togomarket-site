@@ -10,7 +10,7 @@ import {
   type VendorProfile,
   type Listing,
 } from "@workspace/api-client-react";
-import { Search, SearchIcon, LogIn, UserCircle2, Settings, Link2Off } from "lucide-react";
+import { Search, SearchIcon, LogIn, UserCircle2, Settings, Link2Off, MessageCircle } from "lucide-react";
 import { useSiteSettings } from "@/lib/site-settings";
 import { useT } from "@/lib/i18n";
 import { Button } from "@/components/ui/button";
@@ -122,6 +122,7 @@ export default function Home() {
 
   const [vendor, setVendor] = useState<VendorProfile | null>(null);
   const [vendorPassword, setVendorPassword] = useState("");
+  const [messagesUnread, setMessagesUnread] = useState(0);
 
   const [page, setPage] = useState(1);
   const [loadedListings, setLoadedListings] = useState<Listing[]>([]);
@@ -435,16 +436,6 @@ export default function Home() {
           ) : !catalogSector && !shopNumber ? (
             /* ── GRILLE DES CATALOGUES (vue par défaut) ── */
             <main className="container mx-auto px-4 py-6 flex-grow">
-              {/* Push notification banner — shown only when vendor is logged in */}
-              {vendor && vendorPassword && (
-                <PushActivationBanner vendor={vendor} vendorPassword={vendorPassword} />
-              )}
-              {/* Vendor conversations — shown only when vendor is logged in */}
-              {vendor && vendorPassword && (
-                <div className="mb-6 mt-4">
-                  <VendorConversations vendor={vendor} vendorPassword={vendorPassword} />
-                </div>
-              )}
               {search ? (
                 /* Résultats de recherche */
                 <>
@@ -881,6 +872,40 @@ export default function Home() {
         </div>
       )}
 
+      {/* ── MESSAGES TAB ──────────────────────────────────────────────── */}
+      {activeTab === "messages" && (
+        <main className="container mx-auto px-4 py-6 flex-grow">
+          {vendor && vendorPassword ? (
+            <>
+              <PushActivationBanner vendor={vendor} vendorPassword={vendorPassword} />
+              <VendorConversations
+                vendor={vendor}
+                vendorPassword={vendorPassword}
+                onUnreadChange={setMessagesUnread}
+              />
+            </>
+          ) : (
+            <div className="flex flex-col items-center justify-center py-24 text-center gap-4">
+              <MessageCircle className="w-14 h-14 text-muted-foreground/40" />
+              <h3 className="text-lg font-semibold">
+                {lang === "fr" ? "Vos messages" : "Your messages"}
+              </h3>
+              <p className="text-sm text-muted-foreground max-w-xs">
+                {lang === "fr"
+                  ? "Connectez-vous à votre compte vendeur pour accéder à vos conversations."
+                  : "Log in to your vendor account to access your conversations."}
+              </p>
+              <Button
+                className="rounded-full px-8 mt-2"
+                onClick={() => setIsAuthModalOpen(true)}
+              >
+                {t.login}
+              </Button>
+            </div>
+          )}
+        </main>
+      )}
+
       {/* ── AI ASSISTANT ──────────────────────────────────────────────── */}
       <AiAssistant lang={lang} />
 
@@ -888,6 +913,7 @@ export default function Home() {
       <BottomNav
         activeTab={activeTab}
         onTabChange={setActiveTab}
+        messagesUnread={messagesUnread}
       />
 
       {/* ── MODALS ────────────────────────────────────────────────────── */}
