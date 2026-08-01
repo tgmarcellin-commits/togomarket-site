@@ -12,6 +12,22 @@ import {
   TEMPLATE_OTP_AUTH,
   TEMPLATE_RENEWAL_REMINDER,
 } from "./whatsapp-config";
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Rate-limit en mémoire : 1 relance WhatsApp max par vendeur par heure
+// Clé = vendorId, Valeur = timestamp du dernier envoi (ms)
+// ─────────────────────────────────────────────────────────────────────────────
+const notifNudgeLastSent = new Map<number, number>();
+const NUDGE_COOLDOWN_MS = 60 * 60 * 1000; // 1 heure
+
+export function canSendNudge(vendorId: number): boolean {
+  const last = notifNudgeLastSent.get(vendorId);
+  return !last || Date.now() - last > NUDGE_COOLDOWN_MS;
+}
+
+export function markNudgeSent(vendorId: number): void {
+  notifNudgeLastSent.set(vendorId, Date.now());
+}
 import { logger } from "./logger";
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -156,6 +172,36 @@ export async function sendWhatsAppOTP(
 // Si le template n'est pas approuvé, cette fonction lève une exception
 // que le cron capture pour logger et continuer sans bloquer les autres envois.
 // =============================================================================
+// =============================================================================
+// 3. RELANCE ACTIVATION NOTIFICATIONS — Texte libre
+// =============================================================================
+// Envoyé quand un acheteur écrit à un vendeur qui n'a pas activé les notifs push.
+// Rate-limit : 1 message max par heure par vendeur (voir canSendNudge / markNudgeSent).
+// Utilise un message texte libre (fonctionne dans la fenêtre 24h Meta).
+// =============================================================================
+export async function sendWhatsAppNotifNudge(
+  phone: string,
+  firstName: string,
+  buyerName: string,
+): Promise<void> {
+  await callMetaAPI({
+    messaging_product: "whatsapp",
+    recipient_type: "individual",
+    to: phone,
+    type: "text",
+    text: {
+      body:
+        `🔔 *${firstName}*, vous avez reçu un nouveau message de *${buyerName}* sur TogoMarket !\n\n` +
+        `Pour ne manquer aucun message client, activez les notifications dans l'application :\n` +
+        `1️⃣ Ouvrez TogoMarket\n` +
+        `2️⃣ Allez dans l'onglet *Messages*\n` +
+        `3️⃣ Cliquez sur *Activer les notifications*\n\n` +
+        `💡 Vous recevrez ainsi les alertes directement sur votre téléphone, même sans ouvrir l'app.\n\n` +
+        `— L'équipe TogoMarket`,
+    },
+  });
+}
+
 export async function sendRenewalReminderTemplate(
   phone: string,
   firstName: string,

@@ -12,6 +12,9 @@ import { randomUUID } from "node:crypto";
 import { getIo } from "../lib/socket-io";
 import { webpush, vapidReady } from "../lib/webpush";
 import { normalizePhone, phoneEq } from "../lib/phone";
+import { sendWhatsAppNotifNudge, canSendNudge, markNudgeSent } from "../lib/whatsapp-api";
+import { vendorNotificationsTable } from "@workspace/db";
+import { logger } from "../lib/logger";
 
 const router: IRouter = Router();
 
@@ -198,21 +201,19 @@ router.post("/conversations/:id/messages", async (req, res) => {
     // socket.io not yet ready – non-fatal
   }
 
-  // Web Push to vendor when buyer sends
+  // Notifications au vendeur quand c'est l'acheteur qui envoie
   if (senderType === "buyer") {
     try {
-      const subs = await db
-        .select()
-        .from(pushSubscriptionsTable)
-        .where(eq(pushSubscriptionsTable.vendorId, conv.vendorId));
+      const [subs, vendorRows] = await Promise.all([
+        db.select().from(pushSubscriptionsTable).where(eq(pushSubscriptionsTable.vendorId, conv.vendorId)),
+        db.select({ firstName: vendorsTable.firstName, phone: vendorsTable.phone, wantsNotifications: vendorsTable.wantsNotifications })
+          .from(vendorsTable).where(eq(vendorsTable.id, conv.vendorId)).limit(1),
+      ]);
 
-      const vendorRows = await db
-        .select({ wantsNotifications: vendorsTable.wantsNotifications })
-        .from(vendorsTable)
-        .where(eq(vendorsTable.id, conv.vendorId))
-        .limit(1);
+      const vendor = vendorRows[0];
 
-      if (subs.length > 0 && vendorRows[0]?.wantsNotifications && vapidReady) {
+      if (subs.length > 0 && vendor?.wantsNotifications && vapidReady) {
+        // ── A) Push Web si notifs activées ─────────────────────────────────
         const payload = JSON.stringify({
           title: `💬 ${conv.buyerName}`,
           body: content.length > 80 ? content.slice(0, 80) + "…" : content,
@@ -221,25 +222,35 @@ router.post("/conversations/:id/messages", async (req, res) => {
         await Promise.allSettled(
           subs.map((sub) =>
             webpush.sendNotification(
-              {
-                endpoint: sub.endpoint,
-                keys: sub.keys as { auth: string; p256dh: string },
-              },
+              { endpoint: sub.endpoint, keys: sub.keys as { auth: string; p256dh: string } },
               payload,
             ).catch((err: { statusCode?: number }) => {
-              // Remove stale subscription (410 = gone)
               if (err?.statusCode === 410) {
-                return db
-                  .delete(pushSubscriptionsTable)
-                  .where(eq(pushSubscriptionsTable.endpoint, sub.endpoint));
+                return db.delete(pushSubscriptionsTable).where(eq(pushSubscriptionsTable.endpoint, sub.endpoint));
               }
-              return undefined; // explicit return for all code paths
+              return undefined;
             }),
           ),
         );
+      } else if (subs.length === 0 && vendor) {
+        // ── B) Pas de push activé → relance WhatsApp + notification in-app ─
+        // Notification in-app (toujours enregistrée)
+        await db.insert(vendorNotificationsTable).values({
+          vendorId: conv.vendorId,
+          title: `💬 Nouveau message de ${conv.buyerName}`,
+          body: `Vous avez reçu un message mais vos notifications sont désactivées. Activez-les dans l'onglet Messages pour ne plus rien manquer.`,
+          url: null,
+        });
+
+        // WhatsApp rate-limité : 1 message max par heure par vendeur
+        if (canSendNudge(conv.vendorId)) {
+          markNudgeSent(conv.vendorId);
+          sendWhatsAppNotifNudge(vendor.phone, vendor.firstName, conv.buyerName)
+            .catch((err) => logger.warn({ err, vendorId: conv.vendorId }, "WhatsApp notif nudge failed"));
+        }
       }
-    } catch {
-      // Non-fatal
+    } catch (err) {
+      logger.warn({ err }, "Notification vendeur : erreur non fatale");
     }
   }
 
