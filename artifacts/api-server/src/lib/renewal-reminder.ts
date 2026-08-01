@@ -83,6 +83,7 @@ export async function checkAndSendRenewalReminders(): Promise<void> {
         title: notifTitle,
         body: notifBody,
         url: notifUrl,
+        notifType: "renewal",
       });
 
       const payload = JSON.stringify({

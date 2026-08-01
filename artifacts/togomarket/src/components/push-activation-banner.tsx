@@ -87,6 +87,15 @@ export function PushActivationBanner({ vendor, vendorPassword }: PushActivationB
       });
       if (!saveRes.ok) throw new Error("subscribe-save-failed");
 
+      // Marquer les nudges push comme lus côté serveur (ils seront masqués visuellement)
+      fetch("/api/vendor/notifications/read-all", {
+        method: "POST",
+        headers: {
+          "x-vendor-phone": vendor.phone,
+          "x-vendor-password": vendorPassword,
+        },
+      }).catch(() => {/* non-fatal */});
+
       setShow(false);
     } catch (err) {
       const msg = err instanceof Error ? err.message : String(err);

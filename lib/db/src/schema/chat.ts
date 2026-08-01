@@ -69,6 +69,8 @@ export const vendorNotificationsTable = pgTable("vendor_notifications", {
   title: text("title").notNull(),
   body: text("body").notNull(),
   url: text("url"),
+  /** 'push_nudge' = alerte push non activé ; 'renewal' = rappel renouvellement ; 'general' = autre */
+  notifType: text("notif_type").notNull().default("general"),
   isRead: boolean("is_read").notNull().default(false),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
 });

@@ -11,6 +11,7 @@ interface SystemNotification {
   title: string;
   body: string;
   url: string | null;
+  notifType: string;
   isRead: boolean;
   createdAt: string;
 }
@@ -69,10 +70,17 @@ export function VendorSystemNotifications({ vendor, vendorPassword, onUnreadChan
     onUnreadChange?.(0);
   };
 
-  const unreadCount = notifs.filter((n) => !n.isRead).length;
+  // Masquer les nudges push si push est déjà activé sur cet appareil
+  const pushGranted =
+    typeof Notification !== "undefined" && Notification.permission === "granted";
+  const visibleNotifs = pushGranted
+    ? notifs.filter((n) => n.notifType !== "push_nudge")
+    : notifs;
+
+  const unreadCount = visibleNotifs.filter((n) => !n.isRead).length;
 
   if (loading) return null;
-  if (notifs.length === 0) return null;
+  if (visibleNotifs.length === 0) return null;
 
   return (
     <div className="mb-6">
@@ -104,7 +112,7 @@ export function VendorSystemNotifications({ vendor, vendorPassword, onUnreadChan
 
       {/* Liste */}
       <div className="space-y-2">
-        {notifs.map((notif) => (
+        {visibleNotifs.map((notif) => (
           <div
             key={notif.id}
             onClick={() => { if (!notif.isRead) markRead(notif.id); }}

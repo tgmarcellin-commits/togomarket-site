@@ -245,6 +245,7 @@ router.post("/conversations/:id/messages", async (req, res) => {
           title: `💬 Nouveau message de ${conv.buyerName}`,
           body: `Vous avez reçu un message mais vos notifications sont désactivées. Activez-les dans l'onglet Messages pour ne plus rien manquer.`,
           url: null,
+          notifType: "push_nudge",
         });
 
         // WhatsApp rate-limité : 1 message max par heure par vendeur
