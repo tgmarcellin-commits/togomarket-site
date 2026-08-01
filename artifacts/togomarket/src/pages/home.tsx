@@ -566,19 +566,16 @@ export default function Home() {
                       onClick={() => { setSector(catalogSector ?? undefined); setShopNumber(v.id); }}
                       className="group flex flex-col items-center gap-1.5 p-3 bg-card rounded-2xl border border-border hover:border-primary/50 hover:shadow-md active:scale-95 transition-all"
                     >
-                      {v.profilePhoto ? (
-                        <div className="w-14 h-14 rounded-full border-2 border-border group-hover:border-primary/40 transition-colors overflow-hidden flex-shrink-0">
-                          <img
-                            src={resolveImageUrl(v.profilePhoto)}
-                            alt={v.shopName ?? v.firstName}
-                            className="w-full h-full object-cover"
-                          />
-                        </div>
-                      ) : (
-                        <div className="w-14 h-14 rounded-full bg-muted flex items-center justify-center border-2 border-border flex-shrink-0">
-                          <UserCircle2 className="w-8 h-8 text-muted-foreground" />
-                        </div>
-                      )}
+                      <div
+                        className="w-14 h-14 rounded-full border-2 border-border group-hover:border-primary/40 transition-colors flex-shrink-0 bg-muted flex items-center justify-center"
+                        style={v.profilePhoto ? {
+                          backgroundImage: `url(${resolveImageUrl(v.profilePhoto)})`,
+                          backgroundSize: "cover",
+                          backgroundPosition: "center",
+                        } : undefined}
+                      >
+                        {!v.profilePhoto && <UserCircle2 className="w-8 h-8 text-muted-foreground" />}
+                      </div>
                       <span className="text-xs font-semibold text-foreground leading-tight text-center line-clamp-2 w-full">
                         {v.shopName || "Boutique"}
                       </span>
