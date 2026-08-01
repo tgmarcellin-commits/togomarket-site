@@ -58,6 +58,7 @@ export function ChatWindow({
   const [editingId, setEditingId] = useState<number | null>(null);
   const [editContent, setEditContent] = useState("");
   const [menuMsgId, setMenuMsgId] = useState<number | null>(null);
+  const [menuPos, setMenuPos] = useState<{ top: number; right: number } | null>(null);
   const endRef = useRef<HTMLDivElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const longPressTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -165,7 +166,7 @@ export function ChatWindow({
 
   // ── Delete message ─────────────────────────────────────────────────────────
   const deleteMessage = async (id: number) => {
-    setMenuMsgId(null);
+    closeMenu();
     const res = await fetch(`/api/messages/${id}`, {
       method: "DELETE",
       headers: authHeaders(auth),
@@ -179,7 +180,7 @@ export function ChatWindow({
 
   // ── Edit message ───────────────────────────────────────────────────────────
   const startEdit = (msg: ChatMessage) => {
-    setMenuMsgId(null);
+    closeMenu();
     setEditingId(msg.id);
     setEditContent(msg.content ?? "");
   };
@@ -202,64 +203,42 @@ export function ChatWindow({
   };
 
   // ── Long press handlers ────────────────────────────────────────────────────
-  const onPressStart = (id: number) => {
-    longPressTimer.current = setTimeout(() => setMenuMsgId(id), 500);
+  const onPressStart = (id: number, e: React.PointerEvent) => {
+    const el = e.currentTarget as HTMLElement;
+    longPressTimer.current = setTimeout(() => {
+      const rect = el.getBoundingClientRect();
+      const menuHeight = 44;
+      const spaceAbove = rect.top - 60; // 60px for the sheet header
+      const top = spaceAbove >= menuHeight
+        ? rect.top - menuHeight - 6
+        : rect.bottom + 6;
+      const right = window.innerWidth - rect.right;
+      setMenuPos({ top, right });
+      setMenuMsgId(id);
+    }, 500);
   };
   const onPressEnd = () => {
     if (longPressTimer.current) clearTimeout(longPressTimer.current);
   };
+  const closeMenu = () => { setMenuMsgId(null); setMenuPos(null); };
 
   const handleKeyDown = (e: React.KeyboardEvent) => {
     if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); sendMessage(); }
   };
 
   // ── Render message bubble ──────────────────────────────────────────────────
-  const renderBubble = (msg: ChatMessage, idx: number) => {
+  const renderBubble = (msg: ChatMessage) => {
     const isSelf = msg.senderType === selfType;
 
     if (msg.deletedAt) return null;
 
-    const showMenu = menuMsgId === msg.id && isSelf;
-    const withinEdit = canEditOrDelete(msg);
-    const isFirst = idx === 0;
-
     return (
-      <div key={msg.id} className={`flex ${isSelf ? "justify-end" : "justify-start"} relative`}>
-        {/* Context menu */}
-        {showMenu && (
-          <div
-            className={`absolute ${isFirst ? "top-full mt-1" : "bottom-full mb-1"} z-20 bg-popover border border-border rounded-xl shadow-lg flex gap-1 p-1 ${isSelf ? "right-0" : "left-0"}`}
-          >
-            {withinEdit && !msg.fileUrl && (
-              <button
-                onClick={() => startEdit(msg)}
-                className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium hover:bg-muted transition-colors"
-              >
-                <Pencil className="w-3.5 h-3.5" />
-                {lang === "fr" ? "Modifier" : "Edit"}
-              </button>
-            )}
-            <button
-              onClick={() => deleteMessage(msg.id)}
-              className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium text-destructive hover:bg-destructive/10 transition-colors"
-            >
-              <Trash2 className="w-3.5 h-3.5" />
-              {lang === "fr" ? "Supprimer" : "Delete"}
-            </button>
-            <button
-              onClick={() => setMenuMsgId(null)}
-              className="flex items-center px-2 py-1.5 rounded-lg text-xs hover:bg-muted transition-colors"
-            >
-              <X className="w-3.5 h-3.5" />
-            </button>
-          </div>
-        )}
-
+      <div key={msg.id} className={`flex ${isSelf ? "justify-end" : "justify-start"}`}>
         <div
-          onPointerDown={isSelf ? () => onPressStart(msg.id) : undefined}
+          onPointerDown={isSelf ? (e) => onPressStart(msg.id, e) : undefined}
           onPointerUp={isSelf ? onPressEnd : undefined}
           onPointerLeave={isSelf ? onPressEnd : undefined}
-          onClick={isSelf && menuMsgId === msg.id ? () => setMenuMsgId(null) : undefined}
+          onClick={isSelf && menuMsgId === msg.id ? closeMenu : undefined}
           className={`max-w-[75%] rounded-2xl text-sm leading-relaxed overflow-hidden select-none ${
             isSelf
               ? "bg-primary text-primary-foreground rounded-br-sm"
@@ -309,7 +288,7 @@ export function ChatWindow({
   };
 
   return (
-    <Sheet open={open} onOpenChange={(v) => { setMenuMsgId(null); onOpenChange(v); }}>
+    <Sheet open={open} onOpenChange={(v) => { closeMenu(); onOpenChange(v); }}>
       <SheetContent side="bottom" className="h-[90dvh] flex flex-col p-0">
         {/* Header */}
         <SheetHeader className="px-4 py-3 border-b bg-card flex-shrink-0">
@@ -332,10 +311,46 @@ export function ChatWindow({
           )}
         </SheetHeader>
 
+        {/* Fixed context menu — rendered outside scroll container to avoid overflow clipping */}
+        {menuMsgId !== null && menuPos && (() => {
+          const msg = messages.find((m) => m.id === menuMsgId);
+          if (!msg) return null;
+          const withinEdit = canEditOrDelete(msg);
+          return (
+            <div
+              style={{ position: "fixed", top: menuPos.top, right: menuPos.right, zIndex: 9999 }}
+              className="bg-popover border border-border rounded-xl shadow-lg flex gap-1 p-1"
+            >
+              {withinEdit && !msg.fileUrl && (
+                <button
+                  onClick={() => startEdit(msg)}
+                  className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium hover:bg-muted transition-colors"
+                >
+                  <Pencil className="w-3.5 h-3.5" />
+                  {lang === "fr" ? "Modifier" : "Edit"}
+                </button>
+              )}
+              <button
+                onClick={() => deleteMessage(msg.id)}
+                className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium text-destructive hover:bg-destructive/10 transition-colors"
+              >
+                <Trash2 className="w-3.5 h-3.5" />
+                {lang === "fr" ? "Supprimer" : "Delete"}
+              </button>
+              <button
+                onClick={closeMenu}
+                className="flex items-center px-2 py-1.5 rounded-lg text-xs hover:bg-muted transition-colors"
+              >
+                <X className="w-3.5 h-3.5" />
+              </button>
+            </div>
+          );
+        })()}
+
         {/* Messages */}
         <div
           className="flex-1 overflow-y-auto px-4 py-3 space-y-2 min-h-0"
-          onClick={() => setMenuMsgId(null)}
+          onClick={closeMenu}
         >
           {loading ? (
             <div className="flex justify-center py-10">
@@ -348,7 +363,7 @@ export function ChatWindow({
                 : "Start the conversation! The seller will reply as soon as possible."}
             </div>
           ) : (
-            messages.map((m, i) => renderBubble(m, i))
+            messages.map((m) => renderBubble(m))
           )}
           <div ref={endRef} />
         </div>
