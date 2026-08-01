@@ -21,7 +21,7 @@ export function PushActivationBanner({ vendor, vendorPassword }: PushActivationB
   const [show, setShow] = useState(false);
   const [loading, setLoading] = useState(false);
   const [dismissed, setDismissed] = useState(() => {
-    return localStorage.getItem("tm_push_dismissed") === "1";
+    return sessionStorage.getItem("tm_push_dismissed") === "1";
   });
 
   useEffect(() => {
@@ -84,7 +84,7 @@ export function PushActivationBanner({ vendor, vendorPassword }: PushActivationB
 
   const handleDismiss = () => {
     setDismissed(true);
-    localStorage.setItem("tm_push_dismissed", "1");
+    sessionStorage.setItem("tm_push_dismissed", "1");
     setShow(false);
   };
 

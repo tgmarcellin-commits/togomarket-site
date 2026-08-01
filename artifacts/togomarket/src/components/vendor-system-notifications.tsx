@@ -48,6 +48,13 @@ export function VendorSystemNotifications({ vendor, vendorPassword, onUnreadChan
 
   useEffect(() => { fetchNotifs(); }, [fetchNotifs]);
 
+  // Si des notifications non lues existent, on réinitialise le flag de dismiss
+  // de la bannière push pour qu'elle réapparaisse.
+  useEffect(() => {
+    const unread = notifs.filter((n) => !n.isRead).length;
+    if (unread > 0) sessionStorage.removeItem("tm_push_dismissed");
+  }, [notifs]);
+
   const markRead = async (id: number) => {
     await fetch(`/api/vendor/notifications/${id}/read`, { method: "POST", headers: authHeaders });
     setNotifs((prev) =>
