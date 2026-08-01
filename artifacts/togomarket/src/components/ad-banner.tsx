@@ -4,7 +4,9 @@ import { Volume2, VolumeX, Play, Pause } from "lucide-react";
 import { resolveImageUrl } from "@/lib/image";
 
 export function AdBanner() {
-  const { data: ads } = useGetActiveAds();
+  const { data: ads } = useGetActiveAds({
+    query: { refetchInterval: 15 * 60 * 1000 }, // re-fetch toutes les 15 min pour suivre la rotation serveur
+  });
 
   // Uniquement les publicités avec vidéo
   const videoAds = useMemo<Ad[]>(
