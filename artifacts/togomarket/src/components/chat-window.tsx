@@ -217,15 +217,7 @@ export function ChatWindow({
   const renderBubble = (msg: ChatMessage) => {
     const isSelf = msg.senderType === selfType;
 
-    if (msg.deletedAt) {
-      return (
-        <div className={`flex ${isSelf ? "justify-end" : "justify-start"}`} key={msg.id}>
-          <span className="text-xs text-muted-foreground italic px-3 py-1.5">
-            {lang === "fr" ? "Message supprimé" : "Message deleted"}
-          </span>
-        </div>
-      );
-    }
+    if (msg.deletedAt) return null;
 
     const showMenu = menuMsgId === msg.id && isSelf;
     const withinEdit = canEditOrDelete(msg);
