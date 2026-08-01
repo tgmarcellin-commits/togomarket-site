@@ -56,6 +56,20 @@ export const pushSubscriptionsTable = pgTable("push_subscriptions", {
     .defaultNow(),
 });
 
+// Notifications système en boîte de réception du vendeur (rappels plateforme, etc.)
+export const vendorNotificationsTable = pgTable("vendor_notifications", {
+  id: serial("id").primaryKey(),
+  vendorId: integer("vendor_id")
+    .notNull()
+    .references(() => vendorsTable.id, { onDelete: "cascade" }),
+  title: text("title").notNull(),
+  body: text("body").notNull(),
+  url: text("url"),
+  isRead: boolean("is_read").notNull().default(false),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+});
+
 export type Conversation = typeof conversationsTable.$inferSelect;
 export type Message = typeof messagesTable.$inferSelect;
 export type PushSubscription = typeof pushSubscriptionsTable.$inferSelect;
+export type VendorNotification = typeof vendorNotificationsTable.$inferSelect;

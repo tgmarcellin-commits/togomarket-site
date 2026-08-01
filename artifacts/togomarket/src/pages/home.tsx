@@ -29,6 +29,7 @@ import { ProfileSettingsModal } from "@/components/profile-settings-modal";
 import { AiAssistant } from "@/components/ai-assistant";
 import { VendorConversations } from "@/components/vendor-conversations";
 import { PushActivationBanner } from "@/components/push-activation-banner";
+import { VendorSystemNotifications } from "@/components/vendor-system-notifications";
 import { useToast } from "@/hooks/use-toast";
 
 const STORAGE_KEY = "togomarket_vendor_session";
@@ -122,7 +123,9 @@ export default function Home() {
 
   const [vendor, setVendor] = useState<VendorProfile | null>(null);
   const [vendorPassword, setVendorPassword] = useState("");
-  const [messagesUnread, setMessagesUnread] = useState(0);
+  const [convsUnread, setConvsUnread] = useState(0);
+  const [systemNotifsUnread, setSystemNotifsUnread] = useState(0);
+  const messagesUnread = convsUnread + systemNotifsUnread;
 
   const [page, setPage] = useState(1);
   const [loadedListings, setLoadedListings] = useState<Listing[]>([]);
@@ -878,10 +881,15 @@ export default function Home() {
           {vendor && vendorPassword ? (
             <>
               <PushActivationBanner vendor={vendor} vendorPassword={vendorPassword} />
+              <VendorSystemNotifications
+                vendor={vendor}
+                vendorPassword={vendorPassword}
+                onUnreadChange={setSystemNotifsUnread}
+              />
               <VendorConversations
                 vendor={vendor}
                 vendorPassword={vendorPassword}
-                onUnreadChange={setMessagesUnread}
+                onUnreadChange={setConvsUnread}
               />
             </>
           ) : (

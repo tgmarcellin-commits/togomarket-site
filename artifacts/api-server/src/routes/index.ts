@@ -16,6 +16,7 @@ import servicesRouter from "./services";
 import fedapayRouter from "./fedapay";
 import chatRouter from "./chat";
 import pushRouter from "./push";
+import vendorNotificationsRouter from "./vendor-notifications";
 
 const router: IRouter = Router();
 
@@ -35,5 +36,6 @@ router.use(servicesRouter);
 router.use(fedapayRouter);
 router.use(chatRouter);
 router.use(pushRouter);
+router.use(vendorNotificationsRouter);
 
 export default router;

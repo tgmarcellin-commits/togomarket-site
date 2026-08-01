@@ -10,7 +10,7 @@
 // Condition  : le vendeur doit avoir activé les notifications push (pushSubscriptionsTable)
 // =============================================================================
 
-import { db, vendorsTable, pushSubscriptionsTable } from "@workspace/db";
+import { db, vendorsTable, pushSubscriptionsTable, vendorNotificationsTable } from "@workspace/db";
 import { and, gt, lte, eq } from "drizzle-orm";
 import { webpush, vapidReady } from "./webpush";
 import { logger } from "./logger";
@@ -73,10 +73,22 @@ export async function checkAndSendRenewalReminders(): Promise<void> {
         continue;
       }
 
+      const notifTitle = "⏰ Votre boutique expire dans 3 jours";
+      const notifBody = `Bonjour ${vendor.firstName}, renouvelez votre abonnement pour éviter toute interruption.`;
+      const notifUrl = `/api/vendors/renewal-link/${vendor.id}`;
+
+      // Enregistrer dans la boîte de réception in-app (visible dans l'onglet Messages)
+      await db.insert(vendorNotificationsTable).values({
+        vendorId: vendor.id,
+        title: notifTitle,
+        body: notifBody,
+        url: notifUrl,
+      });
+
       const payload = JSON.stringify({
-        title: "⏰ Votre boutique expire dans 3 jours",
-        body: `Bonjour ${vendor.firstName}, renouvelez votre abonnement pour éviter toute interruption.`,
-        url: `/api/vendors/renewal-link/${vendor.id}`,
+        title: notifTitle,
+        body: notifBody,
+        url: notifUrl,
       });
 
       // Envoyer à tous les appareils enregistrés du vendeur
