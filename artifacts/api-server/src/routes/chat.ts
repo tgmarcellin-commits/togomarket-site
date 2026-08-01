@@ -6,15 +6,20 @@ import {
   messagesTable,
   vendorsTable,
   pushSubscriptionsTable,
+  vendorNotificationsTable,
 } from "@workspace/db";
 import bcrypt from "bcryptjs";
 import { randomUUID } from "node:crypto";
+import multer from "multer";
 import { getIo } from "../lib/socket-io";
 import { webpush, vapidReady } from "../lib/webpush";
 import { normalizePhone, phoneEq } from "../lib/phone";
 import { sendWhatsAppNotifNudge, canSendNudge, markNudgeSent } from "../lib/whatsapp-api";
-import { vendorNotificationsTable } from "@workspace/db";
 import { logger } from "../lib/logger";
+import { ObjectStorageService } from "../lib/objectStorage";
+
+const upload = multer({ dest: "/tmp", limits: { fileSize: 20 * 1024 * 1024 } }); // 20 MB max
+const objectStorage = new ObjectStorageService();
 
 const router: IRouter = Router();
 
@@ -255,6 +260,153 @@ router.post("/conversations/:id/messages", async (req, res) => {
   }
 
   res.status(201).json(msg);
+});
+
+/* ──────────────────────────────────────────────────────────────
+   POST /api/conversations/:id/upload
+   Multipart: field "file" (JPEG/PNG/PDF, max 20 MB)
+   ────────────────────────────────────────────────────────────── */
+router.post(
+  "/conversations/:id/upload",
+  upload.single("file"),
+  async (req, res) => {
+    const convId = parseInt(req.params["id"] ?? "", 10);
+    if (isNaN(convId)) { res.status(400).json({ error: "invalid id" }); return; }
+
+    const identity = await resolveIdentity(req as Parameters<typeof resolveIdentity>[0], convId);
+    if (!identity) { res.status(401).json({ error: "unauthorized" }); return; }
+
+    const file = req.file;
+    if (!file) { res.status(400).json({ error: "file required" }); return; }
+
+    const allowed = ["image/jpeg", "image/jpg", "image/png", "application/pdf"];
+    if (!allowed.includes(file.mimetype)) {
+      res.status(400).json({ error: "only JPEG, PNG, PDF allowed" });
+      return;
+    }
+
+    const fileType = file.mimetype === "application/pdf" ? "pdf" : "image";
+    const mimeType = file.mimetype as "image/jpeg" | "image/png" | "application/pdf";
+
+    // Upload to Object Storage
+    const fs = await import("node:fs/promises");
+    const buffer = await fs.readFile(file.path);
+    await fs.unlink(file.path).catch(() => {});
+
+    const objectPath = await objectStorage.uploadObjectEntity(buffer, mimeType);
+
+    const senderType: "buyer" | "vendor" = identity.role === "vendor" ? "vendor" : "buyer";
+    const convRows = await db
+      .select()
+      .from(conversationsTable)
+      .where(eq(conversationsTable.id, convId))
+      .limit(1);
+    if (!convRows.length) { res.status(404).json({ error: "conversation not found" }); return; }
+    const conv = convRows[0];
+
+    const [msg] = await db
+      .insert(messagesTable)
+      .values({ conversationId: convId, senderType, fileUrl: objectPath, fileType, content: null })
+      .returning();
+
+    await db
+      .update(conversationsTable)
+      .set({ updatedAt: new Date(), vendorUnreadCount: senderType === "buyer" ? conv.vendorUnreadCount + 1 : conv.vendorUnreadCount })
+      .where(eq(conversationsTable.id, convId));
+
+    try {
+      const io = getIo();
+      io.to(`vendor:${conv.vendorId}`).emit("new_message", { conversationId: convId, message: msg });
+      io.to(`conv:${convId}`).emit("new_message", { conversationId: convId, message: msg });
+    } catch { /* non-fatal */ }
+
+    res.status(201).json(msg);
+  },
+);
+
+/* ──────────────────────────────────────────────────────────────
+   DELETE /api/messages/:id  — soft delete (own message only)
+   ────────────────────────────────────────────────────────────── */
+router.delete("/messages/:id", async (req, res) => {
+  const msgId = parseInt(req.params["id"] ?? "", 10);
+  if (isNaN(msgId)) { res.status(400).json({ error: "invalid id" }); return; }
+
+  const msgRows = await db.select().from(messagesTable).where(eq(messagesTable.id, msgId)).limit(1);
+  if (!msgRows.length) { res.status(404).json({ error: "not found" }); return; }
+  const msg = msgRows[0];
+
+  if (msg.deletedAt) { res.status(410).json({ error: "already deleted" }); return; }
+
+  const identity = await resolveIdentity(req as Parameters<typeof resolveIdentity>[0], msg.conversationId);
+  if (!identity) { res.status(401).json({ error: "unauthorized" }); return; }
+
+  const senderType: "buyer" | "vendor" = identity.role === "vendor" ? "vendor" : "buyer";
+  if (msg.senderType !== senderType) { res.status(403).json({ error: "can only delete own messages" }); return; }
+
+  const [updated] = await db
+    .update(messagesTable)
+    .set({ deletedAt: new Date() })
+    .where(eq(messagesTable.id, msgId))
+    .returning();
+
+  const convRows = await db.select({ vendorId: conversationsTable.vendorId }).from(conversationsTable).where(eq(conversationsTable.id, msg.conversationId)).limit(1);
+  const vendorId = convRows[0]?.vendorId;
+  try {
+    const io = getIo();
+    if (vendorId) io.to(`vendor:${vendorId}`).emit("message_deleted", { messageId: msgId, conversationId: msg.conversationId });
+    io.to(`conv:${msg.conversationId}`).emit("message_deleted", { messageId: msgId, conversationId: msg.conversationId });
+  } catch { /* non-fatal */ }
+
+  res.json(updated);
+});
+
+/* ──────────────────────────────────────────────────────────────
+   PATCH /api/messages/:id  — edit content (own message, < 5 min)
+   Body: { content }
+   ────────────────────────────────────────────────────────────── */
+router.patch("/messages/:id", async (req, res) => {
+  const msgId = parseInt(req.params["id"] ?? "", 10);
+  if (isNaN(msgId)) { res.status(400).json({ error: "invalid id" }); return; }
+
+  const { content } = req.body as { content?: string };
+  if (!content?.trim()) { res.status(400).json({ error: "content required" }); return; }
+
+  const msgRows = await db.select().from(messagesTable).where(eq(messagesTable.id, msgId)).limit(1);
+  if (!msgRows.length) { res.status(404).json({ error: "not found" }); return; }
+  const msg = msgRows[0];
+
+  if (msg.deletedAt) { res.status(410).json({ error: "message deleted" }); return; }
+
+  // Only text messages can be edited (not file messages)
+  if (msg.fileUrl) { res.status(400).json({ error: "cannot edit file messages" }); return; }
+
+  // Must be within 5 minutes of creation
+  const ageMs = Date.now() - new Date(msg.createdAt).getTime();
+  if (ageMs > 5 * 60 * 1000) { res.status(403).json({ error: "too late to edit (5 min limit)" }); return; }
+
+  const identity = await resolveIdentity(req as Parameters<typeof resolveIdentity>[0], msg.conversationId);
+  if (!identity) { res.status(401).json({ error: "unauthorized" }); return; }
+
+  const senderType: "buyer" | "vendor" = identity.role === "vendor" ? "vendor" : "buyer";
+  if (msg.senderType !== senderType) { res.status(403).json({ error: "can only edit own messages" }); return; }
+
+  const editedAt = new Date();
+  const [updated] = await db
+    .update(messagesTable)
+    .set({ content: content.trim(), editedAt })
+    .where(eq(messagesTable.id, msgId))
+    .returning();
+
+  const convRows = await db.select({ vendorId: conversationsTable.vendorId }).from(conversationsTable).where(eq(conversationsTable.id, msg.conversationId)).limit(1);
+  const vendorId = convRows[0]?.vendorId;
+  try {
+    const io = getIo();
+    const payload = { messageId: msgId, content: content.trim(), editedAt: editedAt.toISOString(), conversationId: msg.conversationId };
+    if (vendorId) io.to(`vendor:${vendorId}`).emit("message_edited", payload);
+    io.to(`conv:${msg.conversationId}`).emit("message_edited", payload);
+  } catch { /* non-fatal */ }
+
+  res.json({ content: updated.content, editedAt: updated.editedAt });
 });
 
 /* ──────────────────────────────────────────────────────────────

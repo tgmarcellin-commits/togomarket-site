@@ -37,7 +37,11 @@ export const messagesTable = pgTable("messages", {
     .notNull()
     .references(() => conversationsTable.id, { onDelete: "cascade" }),
   senderType: text("sender_type").notNull(), // "buyer" | "vendor"
-  content: text("content").notNull(),
+  content: text("content"),               // nullable when a file-only message
+  fileUrl: text("file_url"),              // Object Storage path e.g. /objects/uploads/...
+  fileType: text("file_type"),            // "image" | "pdf"
+  editedAt: timestamp("edited_at", { withTimezone: true }),
+  deletedAt: timestamp("deleted_at", { withTimezone: true }),
   createdAt: timestamp("created_at", { withTimezone: true })
     .notNull()
     .defaultNow(),
