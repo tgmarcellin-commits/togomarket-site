@@ -54,6 +54,20 @@ export const TEMPLATE_OTP_AUTH: string =
 export const TEMPLATE_RENEWAL_REMINDER: string =
   process.env.WHATSAPP_TEMPLATE_RENEWAL ?? "togomarket_renewal_reminder";
 
+/**
+ * Template TYPE : Utility
+ * Langue        : fr
+ * Corps prévu   : "Bonjour {{1}}, vous avez un nouveau message de {{2}} sur
+ *                  TogoMarket. Activez les notifications pour ne rien manquer :
+ *                  Ouvrez l'app → onglet Messages → Activer les notifications."
+ * Bouton CTA    : "Ouvrir TogoMarket" → https://togomarket.site
+ *
+ * ⚠️  Remplacez "togomarket_notif_nudge" par le nom exact approuvé par Meta.
+ *     Ou définissez la variable d'env WHATSAPP_TEMPLATE_NOTIF_NUDGE.
+ */
+export const TEMPLATE_NOTIF_NUDGE: string =
+  process.env.WHATSAPP_TEMPLATE_NOTIF_NUDGE ?? "togomarket_notif_nudge";
+
 // URL de base de l'application (utilisée dans les liens CTA)
 export const APP_BASE_URL: string =
   process.env.APP_BASE_URL ?? "https://togomarket.site";

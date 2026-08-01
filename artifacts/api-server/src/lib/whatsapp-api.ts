@@ -11,6 +11,7 @@ import {
   META_API_VERSION,
   TEMPLATE_OTP_AUTH,
   TEMPLATE_RENEWAL_REMINDER,
+  TEMPLATE_NOTIF_NUDGE,
 } from "./whatsapp-config";
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -173,11 +174,23 @@ export async function sendWhatsAppOTP(
 // que le cron capture pour logger et continuer sans bloquer les autres envois.
 // =============================================================================
 // =============================================================================
-// 3. RELANCE ACTIVATION NOTIFICATIONS — Texte libre
+// 3. RELANCE ACTIVATION NOTIFICATIONS — Template Utilitaire Meta
 // =============================================================================
 // Envoyé quand un acheteur écrit à un vendeur qui n'a pas activé les notifs push.
 // Rate-limit : 1 message max par heure par vendeur (voir canSendNudge / markNudgeSent).
-// Utilise un message texte libre (fonctionne dans la fenêtre 24h Meta).
+//
+// ⚠️  Configuration du template dans Meta Business Suite :
+//     Nom      : togomarket_notif_nudge  (ou valeur de WHATSAPP_TEMPLATE_NOTIF_NUDGE)
+//     Type     : Utility (Utilitaire)
+//     Langue   : Français (fr)
+//     En-tête  : (aucun)
+//     Corps    : "Bonjour {{1}}, vous avez un nouveau message de {{2}} sur TogoMarket.
+//                 Activez les notifications pour ne rien manquer :
+//                 Ouvrez l'app → onglet Messages → Activer les notifications."
+//     Pied     : (aucun)
+//     Bouton   : Type = URL statique
+//                Texte = "Ouvrir TogoMarket"
+//                URL   = https://togomarket.site
 // =============================================================================
 export async function sendWhatsAppNotifNudge(
   phone: string,
@@ -186,18 +199,20 @@ export async function sendWhatsAppNotifNudge(
 ): Promise<void> {
   await callMetaAPI({
     messaging_product: "whatsapp",
-    recipient_type: "individual",
     to: phone,
-    type: "text",
-    text: {
-      body:
-        `🔔 *${firstName}*, vous avez reçu un nouveau message de *${buyerName}* sur TogoMarket !\n\n` +
-        `Pour ne manquer aucun message client, activez les notifications dans l'application :\n` +
-        `1️⃣ Ouvrez TogoMarket\n` +
-        `2️⃣ Allez dans l'onglet *Messages*\n` +
-        `3️⃣ Cliquez sur *Activer les notifications*\n\n` +
-        `💡 Vous recevrez ainsi les alertes directement sur votre téléphone, même sans ouvrir l'app.\n\n` +
-        `— L'équipe TogoMarket`,
+    type: "template",
+    template: {
+      name: TEMPLATE_NOTIF_NUDGE,
+      language: { code: "fr" },
+      components: [
+        {
+          type: "body",
+          parameters: [
+            { type: "text", text: firstName },   // {{1}} = prénom du vendeur
+            { type: "text", text: buyerName },   // {{2}} = nom de l'acheteur
+          ],
+        },
+      ],
     },
   });
 }
