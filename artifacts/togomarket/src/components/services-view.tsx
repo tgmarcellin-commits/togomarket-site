@@ -12,22 +12,34 @@ import { useSiteSettings } from "@/lib/site-settings";
 import { useT } from "@/lib/i18n";
 import { SmartVideo } from "@/components/smart-video";
 
+const WA_ICON = (
+  <svg viewBox="0 0 24 24" className="w-3.5 h-3.5 fill-white flex-shrink-0">
+    <path d="M17.472 14.382c-.297-.149-1.758-.867-2.03-.967-.273-.099-.471-.148-.67.15-.197.297-.767.966-.94 1.164-.173.199-.347.223-.644.075-.297-.15-1.255-.463-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.298-.347.446-.52.149-.174.198-.298.298-.497.099-.198.05-.371-.025-.52-.075-.149-.669-1.612-.916-2.207-.242-.579-.487-.5-.669-.51-.173-.008-.371-.01-.57-.01-.198 0-.52.074-.792.372-.272.297-1.04 1.016-1.04 2.479 0 1.462 1.065 2.875 1.213 3.074.149.198 2.096 3.2 5.077 4.487.709.306 1.262.489 1.694.625.712.227 1.36.195 1.871.118.571-.085 1.758-.719 2.006-1.413.248-.694.248-1.289.173-1.413-.074-.124-.272-.198-.57-.347z" />
+    <path d="M12 0C5.373 0 0 5.373 0 12c0 2.123.554 4.114 1.526 5.843L.057 23.617a.5.5 0 0 0 .611.64l5.975-1.566A11.945 11.945 0 0 0 12 24c6.627 0 12-5.373 12-12S18.627 0 12 0zm0 22c-1.885 0-3.645-.52-5.148-1.426l-.369-.221-3.821 1.001.982-3.713-.24-.381A9.944 9.944 0 0 1 2 12C2 6.477 6.477 2 12 2s10 4.477 10 10-4.477 10-10 10z" />
+  </svg>
+);
+
 /* ── WhatsApp button ──────────────────────────────────────────────────────── */
-function WaBtn({ contact, label }: { contact: string; label: string }) {
+function WaBtn({
+  contact,
+  label,
+  fullWidth = false,
+}: {
+  contact: string;
+  label: string;
+  fullWidth?: boolean;
+}) {
   const digits = contact.replace(/\D/g, "");
   return (
     <a
       href={`https://wa.me/${digits}`}
       target="_blank"
       rel="noopener noreferrer"
-      className="inline-flex items-center gap-1.5 bg-[#25D366] hover:bg-[#1eb355] text-white text-xs font-semibold px-3 py-1.5 rounded-lg transition-colors"
+      className={`${fullWidth ? "flex w-full" : "inline-flex"} items-center justify-center gap-1.5 bg-[#25D366] hover:bg-[#1eb355] active:bg-[#17a048] text-white text-xs font-semibold px-3 py-2 rounded-lg transition-colors`}
       onClick={(e) => e.stopPropagation()}
     >
-      <svg viewBox="0 0 24 24" className="w-3.5 h-3.5 fill-white flex-shrink-0">
-        <path d="M17.472 14.382c-.297-.149-1.758-.867-2.03-.967-.273-.099-.471-.148-.67.15-.197.297-.767.966-.94 1.164-.173.199-.347.223-.644.075-.297-.15-1.255-.463-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.298-.347.446-.52.149-.174.198-.298.298-.497.099-.198.05-.371-.025-.52-.075-.149-.669-1.612-.916-2.207-.242-.579-.487-.5-.669-.51-.173-.008-.371-.01-.57-.01-.198 0-.52.074-.792.372-.272.297-1.04 1.016-1.04 2.479 0 1.462 1.065 2.875 1.213 3.074.149.198 2.096 3.2 5.077 4.487.709.306 1.262.489 1.694.625.712.227 1.36.195 1.871.118.571-.085 1.758-.719 2.006-1.413.248-.694.248-1.289.173-1.413-.074-.124-.272-.198-.57-.347z" />
-        <path d="M12 0C5.373 0 0 5.373 0 12c0 2.123.554 4.114 1.526 5.843L.057 23.617a.5.5 0 0 0 .611.64l5.975-1.566A11.945 11.945 0 0 0 12 24c6.627 0 12-5.373 12-12S18.627 0 12 0zm0 22c-1.885 0-3.645-.52-5.148-1.426l-.369-.221-3.821 1.001.982-3.713-.24-.381A9.944 9.944 0 0 1 2 12C2 6.477 6.477 2 12 2s10 4.477 10 10-4.477 10-10 10z" />
-      </svg>
-      {label}
+      {WA_ICON}
+      <span className="truncate">{label}</span>
     </a>
   );
 }
@@ -111,39 +123,58 @@ function ServiceCard({ service, lang }: { service: Service; lang: string }) {
 
   return (
     <>
-      <div className="rounded-xl border bg-card overflow-hidden hover:shadow-md transition-shadow">
-        <div className="flex gap-0">
-          {service.image ? (
-            <button
-              type="button"
-              className="w-28 h-28 flex-shrink-0 overflow-hidden focus:outline-none"
-              onClick={() => setOpen(true)}
-            >
+      {/* Card: deux colonnes strictes — photo | infos+bouton */}
+      <div className="rounded-xl border bg-card shadow-sm overflow-hidden hover:shadow-md transition-shadow">
+        <div className="flex min-h-[130px]">
+
+          {/* Colonne gauche : photo (largeur fixe, hauteur full) */}
+          <button
+            type="button"
+            onClick={() => setOpen(true)}
+            className="w-[130px] flex-shrink-0 self-stretch focus:outline-none overflow-hidden"
+            aria-label={service.title}
+          >
+            {service.image ? (
               <img
                 src={resolveImageUrl(service.image)}
                 alt={service.title}
                 className="w-full h-full object-cover"
               />
-            </button>
-          ) : (
-            <div className={`w-28 h-28 flex items-center justify-center flex-shrink-0 ${cfg.bg}`}>
-              <Icon className="w-8 h-8 opacity-60" />
-            </div>
-          )}
-          <button
-            className="flex-1 min-w-0 text-left p-3"
-            onClick={() => setOpen(true)}
-          >
-            <p className="font-semibold text-sm leading-snug line-clamp-2">{service.title}</p>
-            <p className="text-xs text-muted-foreground mt-0.5">{cfg.label} · {service.ville}</p>
-            <p className="text-xs text-muted-foreground mt-1.5 line-clamp-2">{service.description}</p>
+            ) : (
+              <div className={`w-full h-full flex items-center justify-center ${cfg.bg}`}>
+                <Icon className="w-10 h-10 opacity-50" />
+              </div>
+            )}
           </button>
-        </div>
-        <div className="px-3 pb-2 flex justify-end">
-          <WaBtn contact={service.contact} label={cfg.waLabel} />
+
+          {/* Colonne droite : titre + méta + description + bouton WhatsApp */}
+          <div className="flex-1 min-w-0 flex flex-col p-3 gap-1">
+            {/* Zone cliquable pour le détail */}
+            <button
+              type="button"
+              className="flex-1 text-left min-w-0"
+              onClick={() => setOpen(true)}
+            >
+              <p className="font-semibold text-sm leading-snug line-clamp-2 pr-1">
+                {service.title}
+              </p>
+              <p className="text-xs text-muted-foreground mt-0.5">
+                {cfg.label} · {service.ville}
+              </p>
+              <p className="text-xs text-muted-foreground mt-1.5 line-clamp-2 leading-relaxed">
+                {service.description}
+              </p>
+            </button>
+
+            {/* Bouton WhatsApp — reste dans la colonne droite */}
+            <div className="pt-2">
+              <WaBtn contact={service.contact} label={cfg.waLabel} fullWidth />
+            </div>
+          </div>
         </div>
       </div>
 
+      {/* Dialog détail */}
       <Dialog open={open} onOpenChange={setOpen}>
         <DialogContent className="sm:max-w-[420px] max-h-[90vh] overflow-y-auto">
           <DialogHeader>
@@ -179,7 +210,7 @@ function ServiceCard({ service, lang }: { service: Service; lang: string }) {
                 day: "numeric", month: "long", year: "numeric",
               })}
             </div>
-            <WaBtn contact={service.contact} label={cfg.waLabel} />
+            <WaBtn contact={service.contact} label={cfg.waLabel} fullWidth />
           </div>
         </DialogContent>
       </Dialog>
