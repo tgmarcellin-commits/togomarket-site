@@ -62,11 +62,11 @@ router.get("/ads", async (req, res) => {
       .filter((a) => !a.isPinned)
       .sort((a, b) => b.startDate.getTime() - a.startDate.getTime());
 
-    // Rotation quotidienne des épinglées : chaque jour une vidéo différente commence en tête
+    // Rotation toutes les 15 minutes des épinglées : une vidéo différente commence en tête
     let rotatedPinned = pinned;
     if (pinned.length > 1) {
-      const dayIndex = Math.floor(Date.now() / (24 * 60 * 60 * 1000));
-      const offset = dayIndex % pinned.length;
+      const slotIndex = Math.floor(Date.now() / (15 * 60 * 1000));
+      const offset = slotIndex % pinned.length;
       rotatedPinned = [...pinned.slice(offset), ...pinned.slice(0, offset)];
     }
 
