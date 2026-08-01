@@ -5,7 +5,7 @@ import { resolveImageUrl } from "@/lib/image";
 
 export function AdBanner() {
   const { data: ads } = useGetActiveAds({
-    query: { refetchInterval: 15 * 60 * 1000 }, // re-fetch toutes les 15 min pour suivre la rotation serveur
+    query: { refetchInterval: 5 * 60 * 1000 }, // re-fetch toutes les 5 min pour suivre la rotation serveur
   });
 
   // Uniquement les publicités avec vidéo
@@ -15,6 +15,18 @@ export function AdBanner() {
   );
 
   const [current, setCurrent] = useState(0);
+
+  // Resynchroniser sur l'index 0 quand le serveur retourne une nouvelle liste
+  // (le serveur place toujours la vidéo courante en tête)
+  const prevAdsKeyRef = useRef<string>("");
+  useEffect(() => {
+    if (!videoAds.length) return;
+    const key = videoAds.map((a) => a.id).join(",");
+    if (key !== prevAdsKeyRef.current) {
+      prevAdsKeyRef.current = key;
+      setCurrent(0);
+    }
+  }, [videoAds]);
   const [muted, setMuted] = useState(false);
   const [paused, setPaused] = useState(false);
   const [showIcon, setShowIcon] = useState(false);

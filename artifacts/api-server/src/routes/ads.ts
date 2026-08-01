@@ -41,7 +41,12 @@ function mapAd(a: typeof adsTable.$inferSelect) {
   };
 }
 
-// GET /ads — active published video ads only, pinned first
+// GET /ads — active published video ads only
+// Rotation toutes les 5 minutes pour toutes les vidéos.
+// Les épinglées apparaissent dans la rotation régulière ET reçoivent
+// un slot bonus toutes les 10 min (toutes les 2 tranches de 5 min).
+// Pattern de la séquence virtuelle : R, R, P(bonus), R, R, P(bonus), ...
+// où R = prochaine vidéo du cycle complet, P = prochaine épinglée du cycle épinglées.
 router.get("/ads", async (req, res) => {
   try {
     const now = new Date();
@@ -53,7 +58,7 @@ router.get("/ads", async (req, res) => {
         eq(adsTable.isPublished, true),
         isNotNull(adsTable.videoPath),
       ));
-    // Séparer épinglées / non-épinglées
+
     const pinned = ads
       .filter((a) => a.isPinned)
       .sort((a, b) => a.id - b.id); // ordre stable par id
@@ -62,18 +67,50 @@ router.get("/ads", async (req, res) => {
       .filter((a) => !a.isPinned)
       .sort((a, b) => b.startDate.getTime() - a.startDate.getTime());
 
-    // Rotation toutes les 15 minutes des épinglées : une vidéo différente commence en tête
-    let rotatedPinned = pinned;
-    if (pinned.length > 1) {
-      const slotIndex = Math.floor(Date.now() / (15 * 60 * 1000));
-      const offset = slotIndex % pinned.length;
-      rotatedPinned = [...pinned.slice(offset), ...pinned.slice(0, offset)];
+    // Cycle régulier : épinglées en tête (visibilité maximale), puis non-épinglées
+    const allVideos = [...pinned, ...unpinned];
+
+    if (allVideos.length === 0) {
+      return res.json([]);
     }
 
-    res.json([...rotatedPinned, ...unpinned].map(mapAd));
+    // Tranche courante de 5 minutes
+    const SLOT_MS = 5 * 60 * 1000;
+    const slot = Math.floor(Date.now() / SLOT_MS);
+
+    let orderedPlaylist: typeof allVideos;
+
+    if (pinned.length === 0) {
+      // Pas d'épinglée : rotation simple toutes les 5 min
+      const offset = slot % allVideos.length;
+      orderedPlaylist = [...allVideos.slice(offset), ...allVideos.slice(0, offset)];
+    } else {
+      // Construire la séquence de la période complète :
+      // Pour chaque paire de vidéos régulières, insérer une épinglée bonus
+      // Résultat : [R0, R1, P0(bonus), R2, R3, P1(bonus), R4, R5, P2(bonus), ...]
+      const period: typeof allVideos = [];
+      let regInserted = 0;
+      let pinBonusIdx = 0;
+
+      for (let i = 0; i < allVideos.length; i++) {
+        period.push(allVideos[i]);
+        regInserted++;
+        // Après chaque paire de régulières, bonus épinglée
+        if (regInserted % 2 === 0) {
+          period.push(pinned[pinBonusIdx % pinned.length]);
+          pinBonusIdx++;
+        }
+      }
+
+      // Décaler la séquence selon la tranche courante
+      const offset = slot % period.length;
+      orderedPlaylist = [...period.slice(offset), ...period.slice(0, offset)];
+    }
+
+    return res.json(orderedPlaylist.map(mapAd));
   } catch (err) {
     req.log.error({ err }, "Failed to get ads");
-    res.status(500).json({ error: "Internal server error" });
+    return res.status(500).json({ error: "Internal server error" });
   }
 });
 
