@@ -2,22 +2,28 @@
 // CRON QUOTIDIEN — Rappel de renouvellement des boutiques
 // =============================================================================
 // Vérifie chaque jour les boutiques dont l'abonnement expire dans 3 jours
-// et envoie un rappel WhatsApp avec un lien de paiement FedaPay.
+// et envoie une notification push navigateur au vendeur.
 //
 // Fréquence  : toutes les 24 heures (+ 1 vérification au démarrage du serveur)
 // Fenêtre    : expiryDate entre J+2.5 et J+3.5 (évite les doublons naturellement)
 // Robustesse : chaque échec d'envoi est loggué mais ne bloque pas les suivants
+// Condition  : le vendeur doit avoir activé les notifications push (pushSubscriptionsTable)
 // =============================================================================
 
-import { db, vendorsTable } from "@workspace/db";
+import { db, vendorsTable, pushSubscriptionsTable } from "@workspace/db";
 import { and, gt, lte, eq } from "drizzle-orm";
-import { sendRenewalReminderTemplate } from "./whatsapp-api";
+import { webpush, vapidReady } from "./webpush";
 import { logger } from "./logger";
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Vérification et envoi des rappels
 // ─────────────────────────────────────────────────────────────────────────────
 export async function checkAndSendRenewalReminders(): Promise<void> {
+  if (!vapidReady) {
+    logger.warn("Renewal reminder: VAPID non configuré — rappels push désactivés");
+    return;
+  }
+
   const now = new Date();
 
   // Fenêtre de 24h centrée sur J+3 : entre J+2.5 jours et J+3.5 jours
@@ -25,7 +31,7 @@ export async function checkAndSendRenewalReminders(): Promise<void> {
   const windowStart = new Date(now.getTime() + 2.5 * 24 * 60 * 60 * 1000);
   const windowEnd   = new Date(now.getTime() + 3.5 * 24 * 60 * 60 * 1000);
 
-  // ── Requête DB ────────────────────────────────────────────────────────────
+  // ── Requête DB : vendeurs publiés expirant dans ~3 jours ─────────────────
   let vendors: (typeof vendorsTable.$inferSelect)[];
   try {
     vendors = await db
@@ -39,7 +45,6 @@ export async function checkAndSendRenewalReminders(): Promise<void> {
         )
       );
   } catch (err) {
-    // Erreur DB non fatale — on logue et on reviendra demain
     logger.error({ err }, "Renewal reminder: échec de la requête DB");
     return;
   }
@@ -49,26 +54,63 @@ export async function checkAndSendRenewalReminders(): Promise<void> {
     return;
   }
 
-  logger.info({ count: vendors.length }, "Renewal reminder: envoi des rappels");
+  logger.info({ count: vendors.length }, "Renewal reminder: envoi des rappels push");
 
-  // ── Envoi WhatsApp pour chaque vendeur ────────────────────────────────────
+  // ── Envoi Web Push pour chaque vendeur ───────────────────────────────────
   for (const vendor of vendors) {
     try {
-      // sendRenewalReminderTemplate envoie le template Meta avec :
-      //   - {{1}} dans le corps = prénom du vendeur
-      //   - Bouton CTA → https://togomarket.site/api/vendors/renewal-link/<id>
-      await sendRenewalReminderTemplate(vendor.phone, vendor.firstName, vendor.id);
+      // Récupérer les abonnements push du vendeur
+      const subs = await db
+        .select()
+        .from(pushSubscriptionsTable)
+        .where(eq(pushSubscriptionsTable.vendorId, vendor.id));
+
+      if (subs.length === 0) {
+        logger.info(
+          { vendorId: vendor.id },
+          "Renewal reminder: aucun abonnement push pour ce vendeur — ignoré"
+        );
+        continue;
+      }
+
+      const payload = JSON.stringify({
+        title: "⏰ Votre boutique expire dans 3 jours",
+        body: `Bonjour ${vendor.firstName}, renouvelez votre abonnement pour éviter toute interruption.`,
+        url: `/api/vendors/renewal-link/${vendor.id}`,
+      });
+
+      // Envoyer à tous les appareils enregistrés du vendeur
+      const results = await Promise.allSettled(
+        subs.map((sub) =>
+          webpush.sendNotification(
+            {
+              endpoint: sub.endpoint,
+              keys: sub.keys as { auth: string; p256dh: string },
+            },
+            payload,
+          ).catch(async (err: { statusCode?: number }) => {
+            // Abonnement expiré → le supprimer proprement
+            if (err?.statusCode === 410) {
+              await db
+                .delete(pushSubscriptionsTable)
+                .where(eq(pushSubscriptionsTable.endpoint, sub.endpoint));
+            }
+            throw err;
+          })
+        )
+      );
+
+      const sent = results.filter((r) => r.status === "fulfilled").length;
+      const failed = results.filter((r) => r.status === "rejected").length;
 
       logger.info(
-        { vendorId: vendor.id, phone: vendor.phone, expiryDate: vendor.expiryDate },
-        "Renewal reminder: rappel envoyé avec succès"
+        { vendorId: vendor.id, sent, failed, expiryDate: vendor.expiryDate },
+        "Renewal reminder: rappel push traité"
       );
     } catch (err) {
-      // Erreur WhatsApp non fatale : on continue avec les autres vendeurs
-      // Causes possibles : template pas encore approuvé, numéro invalide, timeout API
       logger.error(
-        { err, vendorId: vendor.id, phone: vendor.phone },
-        "Renewal reminder: échec d'envoi WhatsApp (non fatal, le suivant sera traité)"
+        { err, vendorId: vendor.id },
+        "Renewal reminder: échec inattendu pour ce vendeur"
       );
     }
   }
@@ -78,30 +120,23 @@ export async function checkAndSendRenewalReminders(): Promise<void> {
 // Démarrage du cron quotidien
 // ─────────────────────────────────────────────────────────────────────────────
 export function startRenewalReminderCron(): void {
-  const INTERVAL_MS = 24 * 60 * 60 * 1000; // 24 heures en millisecondes
-  const STARTUP_DELAY_MS = 60_000;           // 60 secondes après le démarrage du serveur
+  const INTERVAL_MS = 24 * 60 * 60 * 1000; // 24 heures
+  const STARTUP_DELAY_MS = 60_000;           // 60 secondes après démarrage
 
   logger.info(
     { intervalHours: 24, startupDelaySeconds: 60 },
     "Renewal reminder cron: démarrage programmé"
   );
 
-  // Première vérification 60 secondes après le démarrage
-  // (laisse le temps à Express et à la DB de s'initialiser)
   const startupTimer = setTimeout(() => {
     logger.info("Renewal reminder: première vérification au démarrage");
     void checkAndSendRenewalReminders();
   }, STARTUP_DELAY_MS);
-
-  // .unref() : ce timer ne maintient pas le processus Node.js en vie
-  // si toutes les autres connexions sont fermées (arrêt propre)
   startupTimer.unref();
 
-  // Vérification toutes les 24 heures
   const dailyTimer = setInterval(() => {
     logger.info("Renewal reminder: vérification quotidienne déclenchée");
     void checkAndSendRenewalReminders();
   }, INTERVAL_MS);
-
   dailyTimer.unref();
 }
