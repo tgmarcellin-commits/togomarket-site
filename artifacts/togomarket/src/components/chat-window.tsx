@@ -2,7 +2,7 @@ import { useState, useEffect, useRef, useCallback } from "react";
 import { Sheet, SheetContent, SheetHeader, SheetTitle } from "@/components/ui/sheet";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Send, MessageCircle } from "lucide-react";
+import { Send, MessageCircle, ShoppingBag } from "lucide-react";
 import { useSiteSettings } from "@/lib/site-settings";
 import { getSocket } from "@/lib/socket";
 import type { BuyerIdentity } from "./buyer-identity-prompt";
@@ -140,9 +140,17 @@ export function ChatWindow({
             </span>
           </SheetTitle>
           {listingTitle && (
-            <p className="text-xs text-muted-foreground truncate mt-0.5">
-              {lang === "fr" ? "Article :" : "Item:"} {listingTitle}
-            </p>
+            <div className="flex items-center gap-2 mt-1.5 bg-primary/10 border border-primary/20 rounded-lg px-3 py-2">
+              <ShoppingBag className="w-4 h-4 text-primary flex-shrink-0" />
+              <div className="min-w-0">
+                <p className="text-[10px] font-medium text-primary/70 uppercase tracking-wide leading-none mb-0.5">
+                  {lang === "fr" ? "Article concerné" : "Item"}
+                </p>
+                <p className="text-sm font-semibold text-foreground leading-tight line-clamp-2">
+                  {listingTitle}
+                </p>
+              </div>
+            </div>
           )}
         </SheetHeader>
 
