@@ -94,7 +94,8 @@ export const GetListingsResponse = zod.object({
   "images": zod.array(zod.string()),
   "createdAt": zod.string(),
   "phone": zod.string().nullish(),
-  "approved": zod.boolean()
+  "approved": zod.boolean(),
+  "vendorId": zod.number().nullish()
 })),
   "total": zod.number(),
   "page": zod.number(),
@@ -411,7 +412,8 @@ export const VendorRegisterBody = zod.object({
   "phone": zod.string(),
   "password": zod.string(),
   "referredBy": zod.number().nullish(),
-  "profilePhoto": zod.string().nullish()
+  "profilePhoto": zod.string().nullish(),
+  "wantsNotifications": zod.boolean().nullish()
 })
 
 

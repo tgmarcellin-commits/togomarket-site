@@ -27,6 +27,8 @@ import { EvenementielView } from "@/components/evenementiel-view";
 import { ServicesView } from "@/components/services-view";
 import { ProfileSettingsModal } from "@/components/profile-settings-modal";
 import { AiAssistant } from "@/components/ai-assistant";
+import { VendorConversations } from "@/components/vendor-conversations";
+import { PushActivationBanner } from "@/components/push-activation-banner";
 import { useToast } from "@/hooks/use-toast";
 
 const STORAGE_KEY = "togomarket_vendor_session";
@@ -433,6 +435,16 @@ export default function Home() {
           ) : !catalogSector && !shopNumber ? (
             /* ── GRILLE DES CATALOGUES (vue par défaut) ── */
             <main className="container mx-auto px-4 py-6 flex-grow">
+              {/* Push notification banner — shown only when vendor is logged in */}
+              {vendor && vendorPassword && (
+                <PushActivationBanner vendor={vendor} vendorPassword={vendorPassword} />
+              )}
+              {/* Vendor conversations — shown only when vendor is logged in */}
+              {vendor && vendorPassword && (
+                <div className="mb-6 mt-4">
+                  <VendorConversations vendor={vendor} vendorPassword={vendorPassword} />
+                </div>
+              )}
               {search ? (
                 /* Résultats de recherche */
                 <>

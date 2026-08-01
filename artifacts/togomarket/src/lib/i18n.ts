@@ -40,6 +40,7 @@ const translations = {
     warningNoPay: "Attention : Ne payez jamais un article sans l'avoir inspecté physiquement.",
     notSpecified: "Non spécifié",
     delete: "Supprimer",
+    contactVendor: "Contacter — Vendeur",
     unlockFree: "Débloquer le Contact — Gratuit",
     unlockPaid: (n: number) => `Débloquer le Contact — ${new Intl.NumberFormat("fr-FR").format(n)} FCFA`,
     // Boutique view
@@ -265,6 +266,8 @@ const translations = {
     introuvableDesc: "Vous ne trouvez pas ce que vous cherchez ? Notre équipe le déniche pour vous dans tout le Togo !",
     orderNow: "Commander maintenant",
     introuvableNote: "Décrivez l'article et notre équipe vous contacte sous 24h via WhatsApp.",
+    // Conversations
+    myConversations: "Mes conversations",
     // Services tab
     servicesDesc: "Offres d'emploi et demandeurs d'emploi au Togo.",
     noServices: "Aucune annonce de service disponible pour le moment.",
@@ -311,6 +314,7 @@ const translations = {
     warningNoPay: "Warning: Never pay for an item without physically inspecting it.",
     notSpecified: "Not specified",
     delete: "Delete",
+    contactVendor: "Contact — Seller",
     unlockFree: "Unlock Contact — Free",
     unlockPaid: (n: number) => `Unlock Contact — ${new Intl.NumberFormat("fr-FR").format(n)} FCFA`,
     // Boutique view
@@ -541,6 +545,8 @@ const translations = {
     noServices: "No service listings available at the moment.",
     submitServiceCta: "Submit a listing",
     submitServiceDesc: "Looking for a job or hiring? Contact us via WhatsApp to post your listing.",
+    // Conversations
+    myConversations: "My conversations",
     dateLocale: "en-US",
   },
 } as const;

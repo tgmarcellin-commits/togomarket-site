@@ -17,6 +17,8 @@ export interface Listing {
   /** @nullable */
   phone?: string | null;
   approved: boolean;
+  /** @nullable */
+  vendorId?: number | null;
 }
 
 export interface ListingsPage {
@@ -319,6 +321,8 @@ export interface VendorRegisterInput {
   referredBy?: number | null;
   /** @nullable */
   profilePhoto?: string | null;
+  /** @nullable */
+  wantsNotifications?: boolean | null;
 }
 
 export interface VendorInSector {

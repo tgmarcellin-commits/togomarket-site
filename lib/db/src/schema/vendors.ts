@@ -16,6 +16,7 @@ export const vendorsTable = pgTable("vendors", {
   referralDaysEarned: integer("referral_days_earned").notNull().default(0),
   referredBy: integer("referred_by"),
   shopName: text("shop_name"),
+  wantsNotifications: boolean("wants_notifications").notNull().default(true),
 });
 
 export const publishCodesTable = pgTable("publish_codes", {

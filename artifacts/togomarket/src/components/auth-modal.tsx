@@ -45,6 +45,7 @@ interface PendingRegister {
   password: string;
   referredBy?: number;
   profilePhoto?: string | null;
+  wantsNotifications?: boolean;
 }
 
 const PRIVACY_POLICY_FR = `En créant votre compte vendeur sur TogoMarket, vous autorisez TogoMarket à collecter et utiliser vos informations personnelles (nom, prénom, numéro de téléphone et photo de profil) dans le seul but de gérer votre compte, afficher vos annonces et faciliter la mise en relation avec les acheteurs sur la plateforme.
@@ -84,6 +85,7 @@ export function AuthModal({ open, onOpenChange, onLoginSuccess, referredBy }: Au
   const [regPassword, setRegPassword] = useState("");
   const [regPassword2, setRegPassword2] = useState("");
   const [cguAccepted, setCguAccepted] = useState(false);
+  const [wantsNotifications, setWantsNotifications] = useState(true);
 
   const photoInputRef = useRef<HTMLInputElement>(null);
 
@@ -113,6 +115,7 @@ export function AuthModal({ open, onOpenChange, onLoginSuccess, referredBy }: Au
     setRegPassword("");
     setRegPassword2("");
     setCguAccepted(false);
+    setWantsNotifications(true);
     setVerifyInfo(null);
     setPendingRegister(null);
     setOtpCode("");
@@ -196,6 +199,7 @@ export function AuthModal({ open, onOpenChange, onLoginSuccess, referredBy }: Au
       password: regPassword,
       referredBy,
       profilePhoto: regProfilePhotoPath ?? null,
+      wantsNotifications,
     });
     setScreen("privacy");
   };
@@ -550,6 +554,20 @@ export function AuthModal({ open, onOpenChange, onLoginSuccess, referredBy }: Au
                   Politique de Confidentialité
                 </a>
                 , et je reconnais que les frais de transaction liés aux paiements FedaPay sont à ma charge.
+              </span>
+            </label>
+
+            <label className="flex items-start gap-2.5 cursor-pointer group">
+              <input
+                type="checkbox"
+                checked={wantsNotifications}
+                onChange={(e) => setWantsNotifications(e.target.checked)}
+                className="mt-0.5 flex-shrink-0 w-4 h-4 rounded border-border accent-primary cursor-pointer"
+              />
+              <span className="text-xs text-muted-foreground leading-relaxed">
+                🔔 {lang === "fr"
+                  ? "Recevoir des notifications push quand un acheteur m'envoie un message (recommandé)"
+                  : "Receive push notifications when a buyer sends me a message (recommended)"}
               </span>
             </label>
 

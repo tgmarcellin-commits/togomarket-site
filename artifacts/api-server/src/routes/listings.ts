@@ -22,7 +22,7 @@ const objectStorage = new ObjectStorageService();
 
 const router: IRouter = Router();
 
-function mapListing(l: typeof listingsTable.$inferSelect) {
+function mapListing(l: typeof listingsTable.$inferSelect, vendorId?: number | null) {
   return {
     id: l.id,
     name: l.name,
@@ -34,6 +34,7 @@ function mapListing(l: typeof listingsTable.$inferSelect) {
     createdAt: l.createdAt.toISOString(),
     phone: l.phone,
     approved: l.approved,
+    vendorId: vendorId ?? null,
   };
 }
 
@@ -83,8 +84,9 @@ router.get("/listings", async (req, res): Promise<void> => {
       .from(listingsTable)
       .where(and(...conditions)),
     db
-      .select()
+      .select({ listing: listingsTable, vendorId: vendorsTable.id })
       .from(listingsTable)
+      .leftJoin(vendorsTable, eq(vendorsTable.phone, listingsTable.phone))
       .where(and(...conditions))
       .orderBy(desc(listingsTable.createdAt))
       .limit(limit)
@@ -94,7 +96,7 @@ router.get("/listings", async (req, res): Promise<void> => {
   const total = Number(countResult[0]?.count ?? 0);
 
   res.json(GetListingsResponse.parse({
-    items: listings.map(mapListing),
+    items: listings.map((row) => mapListing(row.listing, row.vendorId)),
     total,
     page,
     hasMore: offset + listings.length < total,

@@ -4,13 +4,32 @@ import { resolveImageUrl } from "@/lib/image";
 import type { Listing } from "@workspace/api-client-react";
 import { useAdminDeleteListing, getGetListingsQueryKey } from "@workspace/api-client-react";
 import { useQueryClient } from "@tanstack/react-query";
-import { MapPin, Phone, Trash2, Clock, ZoomIn } from "lucide-react";
-import { ContactUnlockModal } from "@/components/contact-unlock-modal";
+import { MapPin, Phone, Trash2, Clock, ZoomIn, MessageCircle } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { ImageViewer } from "@/components/image-viewer";
 import { useSiteSettings } from "@/lib/site-settings";
 import { useT } from "@/lib/i18n";
+import { BuyerIdentityPrompt, loadBuyerIdentity } from "@/components/buyer-identity-prompt";
+import { ChatWindow } from "@/components/chat-window";
+import type { BuyerIdentity } from "@/components/buyer-identity-prompt";
+
+/** Per-listing chat session key in localStorage — keyed by vendorId+listingId, not by phone */
+function chatSessionKey(vendorId: number, listingId: number) {
+  return `tm_chat_${vendorId}_${listingId}`;
+}
+interface StoredChatSession { convId: number; buyerToken: string }
+function storeChatSession(vendorId: number, listingId: number, convId: number, buyerToken: string) {
+  try {
+    localStorage.setItem(chatSessionKey(vendorId, listingId), JSON.stringify({ convId, buyerToken }));
+  } catch {}
+}
+function loadChatSession(vendorId: number, listingId: number): StoredChatSession | null {
+  try {
+    const raw = localStorage.getItem(chatSessionKey(vendorId, listingId));
+    return raw ? (JSON.parse(raw) as StoredChatSession) : null;
+  } catch { return null; }
+}
 
 interface ListingCardProps {
   listing: Listing;
@@ -28,11 +47,6 @@ const sectorColors: Record<string, string> = {
   Divers: "bg-secondary text-secondary-foreground",
 };
 
-function calcCommission(price: number, rate: number): number {
-  if (rate === 0) return 0;
-  return Math.round(Math.min(price, 100000) * rate / 100);
-}
-
 export function ListingCard({ listing, isAdmin, adminPassword, commissionRate, whatsappCommission, isOwn }: ListingCardProps) {
   const { lang } = useSiteSettings();
   const t = useT(lang);
@@ -41,7 +55,12 @@ export function ListingCard({ listing, isAdmin, adminPassword, commissionRate, w
   const [viewerOpen, setViewerOpen] = useState(false);
   const [viewerIndex, setViewerIndex] = useState(0);
   const [titleExpanded, setTitleExpanded] = useState(false);
-  const [contactModalOpen, setContactModalOpen] = useState(false);
+  const [identityPromptOpen, setIdentityPromptOpen] = useState(false);
+  const [chatOpen, setChatOpen] = useState(false);
+  const [conversationId, setConversationId] = useState<number | null>(null);
+  const [buyerIdentity, setBuyerIdentity] = useState<BuyerIdentity | null>(null);
+  const [buyerToken, setBuyerToken] = useState<string | null>(null);
+  const [chatLoading, setChatLoading] = useState(false);
 
   const dateLocale = lang === "fr" ? "fr-FR" : "en-US";
 
@@ -80,8 +99,6 @@ export function ListingCard({ listing, isAdmin, adminPassword, commissionRate, w
     }
   };
 
-  const commission = calcCommission(listing.price, commissionRate);
-
   const handleReport = () => {
     const message = lang === "fr"
       ? `🚨 Signalement d'article sur TogoMarket\n\nTitre: ${listing.name}\nPrix: ${new Intl.NumberFormat("fr-FR").format(listing.price)} FCFA\nLocalisation: ${listing.location}\nSecteur: ${listing.sector}\nID: #${listing.id}\n\nMerci de vérifier cet article.`
@@ -89,7 +106,61 @@ export function ListingCard({ listing, isAdmin, adminPassword, commissionRate, w
     openWhatsApp(`https://wa.me/${whatsappCommission}?text=${encodeURIComponent(message)}`);
   };
 
-  const unlockLabel = commissionRate === 0 ? t.unlockFree : t.unlockPaid(commission);
+  const startChat = async (identity: BuyerIdentity) => {
+    setBuyerIdentity(identity);
+
+    // Resume an existing session from localStorage if available —
+    // avoids calling POST /conversations (which always creates a new conv)
+    const vid = listing.vendorId ?? 0;
+    const lid = listing.id;
+    const stored = vid ? loadChatSession(vid, lid) : null;
+    if (stored) {
+      setConversationId(stored.convId);
+      setBuyerToken(stored.buyerToken);
+      setChatOpen(true);
+      return;
+    }
+
+    setChatLoading(true);
+    try {
+      const res = await fetch("/api/conversations", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          vendorId: vid,
+          buyerName: identity.name,
+          buyerPhone: identity.phone,
+          listingTitle: listing.name,
+          listingId: lid,
+        }),
+      });
+      if (res.ok) {
+        const conv = await res.json() as { id: number; buyerToken: string };
+        storeChatSession(vid, lid, conv.id, conv.buyerToken);
+        setConversationId(conv.id);
+        setBuyerToken(conv.buyerToken);
+        setChatOpen(true);
+      }
+    } finally {
+      setChatLoading(false);
+    }
+  };
+
+  const handleContactVendor = () => {
+    const existing = loadBuyerIdentity();
+    if (existing) {
+      startChat(existing);
+    } else {
+      setIdentityPromptOpen(true);
+    }
+  };
+
+  const handleIdentityConfirm = (identity: BuyerIdentity) => {
+    setIdentityPromptOpen(false);
+    startChat(identity);
+  };
+
+  const vendorDisplayName = listing.sector || "Vendeur";
 
   return (
     <>
@@ -173,10 +244,12 @@ export function ListingCard({ listing, isAdmin, adminPassword, commissionRate, w
           </div>
 
           <Button
-            onClick={() => setContactModalOpen(true)}
-            className="w-full bg-accent hover:bg-accent/90 text-accent-foreground text-sm"
+            onClick={handleContactVendor}
+            disabled={chatLoading}
+            className="w-full bg-accent hover:bg-accent/90 text-accent-foreground text-sm gap-2"
           >
-            {unlockLabel}
+            <MessageCircle className="w-4 h-4" />
+            {chatLoading ? (lang === "fr" ? "Ouverture…" : "Opening…") : t.contactVendor}
           </Button>
 
           {isAdmin && (
@@ -207,12 +280,24 @@ export function ListingCard({ listing, isAdmin, adminPassword, commissionRate, w
         onClose={() => setViewerOpen(false)}
       />
     )}
-    <ContactUnlockModal
-      open={contactModalOpen}
-      onClose={() => setContactModalOpen(false)}
-      listing={listing}
-      commissionRate={commissionRate}
+
+    <BuyerIdentityPrompt
+      open={identityPromptOpen}
+      onOpenChange={setIdentityPromptOpen}
+      onConfirm={handleIdentityConfirm}
     />
+
+    {chatOpen && conversationId !== null && buyerIdentity && buyerToken && (
+      <ChatWindow
+        open={chatOpen}
+        onOpenChange={setChatOpen}
+        conversationId={conversationId}
+        buyerIdentity={buyerIdentity}
+        vendorName={vendorDisplayName}
+        listingTitle={listing.name}
+        auth={{ kind: "buyer", buyerToken }}
+      />
+    )}
     </>
   );
 }

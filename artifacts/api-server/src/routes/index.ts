@@ -14,6 +14,8 @@ import contactRequestsRouter from "./contact-requests";
 import assistantRouter from "./assistant";
 import servicesRouter from "./services";
 import fedapayRouter from "./fedapay";
+import chatRouter from "./chat";
+import pushRouter from "./push";
 
 const router: IRouter = Router();
 
@@ -31,5 +33,7 @@ router.use(contactRequestsRouter);
 router.use(assistantRouter);
 router.use(servicesRouter);
 router.use(fedapayRouter);
+router.use(chatRouter);
+router.use(pushRouter);
 
 export default router;

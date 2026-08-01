@@ -85,16 +85,28 @@ Option 2 — Flux général (onglet Market Place) :
 • Les publicités vidéo des marchands s'affichent en haut de ce flux
 
 Dans les deux cas :
-• Cliquer sur "Voir le contact" pour débloquer le numéro du vendeur
+• Cliquer sur "Contacter — Vendeur" pour ouvrir un chat direct avec le vendeur
 
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-COMMENT DÉBLOQUER UN CONTACT ?
+CHAT INTERNE TOGOMARKET
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-• Cliquer "Voir le contact" sur une annonce
-• Pour certaines annonces, c'est GRATUIT
-• Pour d'autres, une commission de 5% du prix est demandée (payable via WhatsApp)
-• Contacter le support WhatsApp au +22870703131 pour payer la commission
-• Une fois payé, le numéro du vendeur est affiché
+TogoMarket dispose d'un chat interne temps réel entre acheteurs et vendeurs :
+• Bouton "Contacter — Vendeur" sur chaque annonce (remplace l'ancien "Débloquer le Contact")
+• L'acheteur donne son prénom et numéro au premier contact (stocké localement dans le navigateur)
+• La conversation s'ouvre dans un drawer en bas de l'écran
+• Les messages sont envoyés en temps réel via Socket.io
+• Le vendeur voit ses conversations dans l'onglet Stand (quand il est connecté), avec compteur de messages non lus
+• Aucun compte acheteur n'est nécessaire — l'identité est mémorisée dans le navigateur
+• WhatsApp n'est conservé QUE pour : admin, "Introuvable", OTP, et annonces Services
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+NOTIFICATIONS PUSH POUR LES VENDEURS
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+• Les vendeurs peuvent activer des notifications push pour être alertés quand un acheteur leur envoie un message
+• Une bannière d'invitation apparaît dans l'onglet Stand si les notifications ne sont pas encore activées
+• L'activation se fait en un clic (permission navigateur + enregistrement automatique)
+• Le vendeur peut aussi activer les notifications à l'inscription (case cochée par défaut)
+• Fonctionne même si le navigateur est en arrière-plan (via Service Worker)
 
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 COMMENT VENDRE SUR TOGOMARKET ?
