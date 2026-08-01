@@ -214,20 +214,21 @@ export function ChatWindow({
   };
 
   // ── Render message bubble ──────────────────────────────────────────────────
-  const renderBubble = (msg: ChatMessage) => {
+  const renderBubble = (msg: ChatMessage, idx: number) => {
     const isSelf = msg.senderType === selfType;
 
     if (msg.deletedAt) return null;
 
     const showMenu = menuMsgId === msg.id && isSelf;
     const withinEdit = canEditOrDelete(msg);
+    const isFirst = idx === 0;
 
     return (
       <div key={msg.id} className={`flex ${isSelf ? "justify-end" : "justify-start"} relative`}>
         {/* Context menu */}
         {showMenu && (
           <div
-            className={`absolute bottom-full mb-1 z-20 bg-popover border border-border rounded-xl shadow-lg flex gap-1 p-1 ${isSelf ? "right-0" : "left-0"}`}
+            className={`absolute ${isFirst ? "top-full mt-1" : "bottom-full mb-1"} z-20 bg-popover border border-border rounded-xl shadow-lg flex gap-1 p-1 ${isSelf ? "right-0" : "left-0"}`}
           >
             {withinEdit && !msg.fileUrl && (
               <button
@@ -347,7 +348,7 @@ export function ChatWindow({
                 : "Start the conversation! The seller will reply as soon as possible."}
             </div>
           ) : (
-            messages.map(renderBubble)
+            messages.map((m, i) => renderBubble(m, i))
           )}
           <div ref={endRef} />
         </div>
