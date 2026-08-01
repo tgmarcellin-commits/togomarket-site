@@ -317,6 +317,8 @@ export interface VendorRegisterInput {
   password: string;
   /** @nullable */
   referredBy?: number | null;
+  /** @nullable */
+  profilePhoto?: string | null;
 }
 
 export interface VendorInSector {

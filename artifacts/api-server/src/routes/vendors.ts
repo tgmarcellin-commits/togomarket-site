@@ -97,6 +97,7 @@ router.post("/vendors/register", async (req, res) => {
   }
   const { firstName, lastName, password } = parsed.data;
   const shopName = parsed.data.shopName ? String(parsed.data.shopName).trim() || null : null;
+  const profilePhoto = parsed.data.profilePhoto ? String(parsed.data.profilePhoto).trim() || null : null;
   const phone = normalizePhone(parsed.data.phone);
   const referredBy = parsed.data.referredBy ? Number(parsed.data.referredBy) : null;
 
@@ -137,6 +138,7 @@ router.post("/vendors/register", async (req, res) => {
         shopName: shopName ?? undefined,
         phone,
         passwordHash,
+        profilePhoto: profilePhoto ?? undefined,
         verified: false,
         expiryDate: trialEnd,
         isPublished: false,

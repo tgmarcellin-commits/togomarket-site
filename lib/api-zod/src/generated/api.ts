@@ -410,7 +410,8 @@ export const VendorRegisterBody = zod.object({
   "shopName": zod.string().nullish(),
   "phone": zod.string(),
   "password": zod.string(),
-  "referredBy": zod.number().nullish()
+  "referredBy": zod.number().nullish(),
+  "profilePhoto": zod.string().nullish()
 })
 
 

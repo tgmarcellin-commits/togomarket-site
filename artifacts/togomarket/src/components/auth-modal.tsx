@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useRef } from "react";
 import { openWhatsApp } from "@/lib/whatsapp";
 import { useVendorRegister, useVendorLogin, useVendorVerifyOtp, useVendorResendOtp, useVendorRequestManualActivation, type VendorProfile } from "@workspace/api-client-react";
 import { Button } from "@/components/ui/button";
@@ -10,9 +10,10 @@ import {
 } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { useToast } from "@/hooks/use-toast";
-import { UserPlus, LogIn, Eye, EyeOff, ShieldCheck, HelpCircle } from "lucide-react";
+import { UserPlus, LogIn, Eye, EyeOff, ShieldCheck, HelpCircle, Camera, X } from "lucide-react";
 import { useSiteSettings } from "@/lib/site-settings";
 import { useT } from "@/lib/i18n";
+import { uploadImageFile } from "@/lib/upload";
 
 interface AuthModalProps {
   open: boolean;
@@ -43,6 +44,7 @@ interface PendingRegister {
   phone: string;
   password: string;
   referredBy?: number;
+  profilePhoto?: string | null;
 }
 
 const PRIVACY_POLICY_FR = `En créant votre compte vendeur sur TogoMarket, vous autorisez TogoMarket à collecter et utiliser vos informations personnelles (nom, prénom, numéro de téléphone et photo de profil) dans le seul but de gérer votre compte, afficher vos annonces et faciliter la mise en relation avec les acheteurs sur la plateforme.
@@ -74,11 +76,16 @@ export function AuthModal({ open, onOpenChange, onLoginSuccess, referredBy }: Au
   const [regFirstName, setRegFirstName] = useState("");
   const [regLastName, setRegLastName] = useState("");
   const [regShopName, setRegShopName] = useState("");
+  const [regProfilePhotoPath, setRegProfilePhotoPath] = useState<string | null>(null);
+  const [regProfilePhotoPreview, setRegProfilePhotoPreview] = useState<string | null>(null);
+  const [profilePhotoUploading, setProfilePhotoUploading] = useState(false);
   const [regDialCode, setRegDialCode] = useState("228");
   const [regLocalPhone, setRegLocalPhone] = useState("");
   const [regPassword, setRegPassword] = useState("");
   const [regPassword2, setRegPassword2] = useState("");
   const [cguAccepted, setCguAccepted] = useState(false);
+
+  const photoInputRef = useRef<HTMLInputElement>(null);
 
   const [otpCode, setOtpCode] = useState("");
   const [resendCooldown, setResendCooldown] = useState(0);
@@ -98,6 +105,9 @@ export function AuthModal({ open, onOpenChange, onLoginSuccess, referredBy }: Au
     setRegFirstName("");
     setRegLastName("");
     setRegShopName("");
+    setRegProfilePhotoPath(null);
+    setRegProfilePhotoPreview(null);
+    setProfilePhotoUploading(false);
     setRegDialCode("228");
     setRegLocalPhone("");
     setRegPassword("");
@@ -107,6 +117,27 @@ export function AuthModal({ open, onOpenChange, onLoginSuccess, referredBy }: Au
     setPendingRegister(null);
     setOtpCode("");
     setResendCooldown(0);
+  };
+
+  const handleProfilePhotoChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    // Preview immédiat
+    const preview = URL.createObjectURL(file);
+    setRegProfilePhotoPreview(preview);
+    setRegProfilePhotoPath(null);
+    setProfilePhotoUploading(true);
+    try {
+      const objectPath = await uploadImageFile(file, file.name);
+      setRegProfilePhotoPath(objectPath);
+    } catch {
+      toast({ title: "Échec de l'envoi de la photo. Réessayez.", variant: "destructive" });
+      setRegProfilePhotoPreview(null);
+    } finally {
+      setProfilePhotoUploading(false);
+      // Réinitialiser l'input pour permettre de re-sélectionner le même fichier
+      e.target.value = "";
+    }
   };
 
   const handleOpenChange = (val: boolean) => {
@@ -164,6 +195,7 @@ export function AuthModal({ open, onOpenChange, onLoginSuccess, referredBy }: Au
       phone: fullPhone,
       password: regPassword,
       referredBy,
+      profilePhoto: regProfilePhotoPath ?? null,
     });
     setScreen("privacy");
   };
@@ -335,6 +367,85 @@ export function AuthModal({ open, onOpenChange, onLoginSuccess, referredBy }: Au
               />
               <p className="text-xs text-muted-foreground">Facultatif — si vide, votre prénom sera utilisé.</p>
             </div>
+
+            {/* Photo de profil de la boutique */}
+            <div className="space-y-1.5">
+              <label className="text-sm font-medium">
+                Photo de la boutique{" "}
+                <span className="text-muted-foreground font-normal">(facultatif)</span>
+              </label>
+              <div className="flex items-center gap-4">
+                {/* Avatar circulaire cliquable */}
+                <button
+                  type="button"
+                  onClick={() => photoInputRef.current?.click()}
+                  disabled={profilePhotoUploading}
+                  className="w-16 h-16 rounded-full border-2 border-dashed border-border bg-muted flex items-center justify-center overflow-hidden flex-shrink-0 relative active:scale-95 transition-transform"
+                >
+                  {regProfilePhotoPreview ? (
+                    <img
+                      src={regProfilePhotoPreview}
+                      alt="Aperçu"
+                      className="w-full h-full object-cover"
+                    />
+                  ) : (
+                    <Camera className="w-6 h-6 text-muted-foreground" />
+                  )}
+                  {profilePhotoUploading && (
+                    <div className="absolute inset-0 bg-black/40 flex items-center justify-center rounded-full">
+                      <div className="w-5 h-5 border-2 border-white border-t-transparent rounded-full animate-spin" />
+                    </div>
+                  )}
+                </button>
+                <div className="flex-1 min-w-0">
+                  {!regProfilePhotoPreview ? (
+                    <button
+                      type="button"
+                      onClick={() => photoInputRef.current?.click()}
+                      className="text-sm text-primary underline"
+                    >
+                      Ajouter une photo
+                    </button>
+                  ) : (
+                    <div className="flex items-center gap-3">
+                      <button
+                        type="button"
+                        onClick={() => photoInputRef.current?.click()}
+                        className="text-sm text-primary underline"
+                        disabled={profilePhotoUploading}
+                      >
+                        Changer
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setRegProfilePhotoPreview(null);
+                          setRegProfilePhotoPath(null);
+                        }}
+                        className="flex items-center gap-1 text-sm text-destructive/70 hover:text-destructive"
+                        disabled={profilePhotoUploading}
+                      >
+                        <X className="w-3 h-3" />
+                        Supprimer
+                      </button>
+                    </div>
+                  )}
+                  <p className="text-xs text-muted-foreground mt-1">
+                    {profilePhotoUploading
+                      ? "Envoi en cours…"
+                      : "JPG, PNG — visible sur votre boutique"}
+                  </p>
+                </div>
+              </div>
+              <input
+                ref={photoInputRef}
+                type="file"
+                accept="image/*"
+                className="hidden"
+                onChange={handleProfilePhotoChange}
+              />
+            </div>
+
             <div className="space-y-1.5">
               <label className="text-sm font-medium">{t.whatsappNumber}</label>
               <div className="flex gap-2">
