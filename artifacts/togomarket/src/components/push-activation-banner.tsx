@@ -20,6 +20,7 @@ export function PushActivationBanner({ vendor, vendorPassword }: PushActivationB
   const { lang } = useSiteSettings();
   const [show, setShow] = useState(false);
   const [loading, setLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
   const [dismissed, setDismissed] = useState(() => {
     return sessionStorage.getItem("tm_push_dismissed") === "1";
   });
@@ -36,25 +37,36 @@ export function PushActivationBanner({ vendor, vendorPassword }: PushActivationB
 
   const handleActivate = async () => {
     setLoading(true);
+    setError(null);
     try {
-      // Register service worker
-      const reg = await navigator.serviceWorker.register("/sw.js");
-      await navigator.serviceWorker.ready;
+      // Register service worker and wait for it to become active
+      await navigator.serviceWorker.register("/sw.js");
+      const activeReg = await navigator.serviceWorker.ready;
 
-      // Request permission
+      // Request permission (no-op if already granted)
       const perm = await Notification.requestPermission();
+      if (perm === "denied") {
+        setError(lang === "fr"
+          ? "Notifications bloquées. Autorisez-les dans les paramètres du navigateur."
+          : "Notifications blocked. Allow them in your browser settings.");
+        setLoading(false);
+        return;
+      }
       if (perm !== "granted") {
         setShow(false);
+        setLoading(false);
         return;
       }
 
       // Fetch VAPID public key
       const keyRes = await fetch("/api/push/vapid-public-key");
+      if (!keyRes.ok) throw new Error("vapid-key-fetch-failed");
       const { key } = await keyRes.json() as { key: string };
+      if (!key) throw new Error("vapid-key-empty");
 
-      // Subscribe
+      // Subscribe — pass Uint8Array directly (not .buffer) for mobile Chrome compatibility
       const keyBytes = urlBase64ToUint8Array(key);
-      const sub = await reg.pushManager.subscribe({
+      const sub = await activeReg.pushManager.subscribe({
         userVisibleOnly: true,
         applicationServerKey: keyBytes.buffer as ArrayBuffer,
       });
@@ -64,7 +76,7 @@ export function PushActivationBanner({ vendor, vendorPassword }: PushActivationB
         keys: { auth: string; p256dh: string };
       };
 
-      await fetch("/api/push/subscribe", {
+      const saveRes = await fetch("/api/push/subscribe", {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
@@ -73,10 +85,14 @@ export function PushActivationBanner({ vendor, vendorPassword }: PushActivationB
         },
         body: JSON.stringify({ endpoint: subJson.endpoint, keys: subJson.keys }),
       });
+      if (!saveRes.ok) throw new Error("subscribe-save-failed");
 
       setShow(false);
-    } catch {
-      // Non-fatal
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : String(err);
+      setError(lang === "fr"
+        ? `Échec de l'activation (${msg}). Réessayez ou rechargez la page.`
+        : `Activation failed (${msg}). Retry or reload the page.`);
     } finally {
       setLoading(false);
     }
@@ -100,6 +116,9 @@ export function PushActivationBanner({ vendor, vendorPassword }: PushActivationB
             ? "Recevez une notification instantanée dès qu'un acheteur vous envoie un message."
             : "Get notified instantly when a buyer sends you a message."}
         </p>
+        {error && (
+          <p className="text-xs text-destructive mt-1.5 leading-relaxed">{error}</p>
+        )}
         <Button
           size="sm"
           className="mt-2 h-7 text-xs rounded-full px-4"
