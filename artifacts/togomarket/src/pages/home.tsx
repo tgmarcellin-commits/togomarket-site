@@ -11,6 +11,7 @@ import {
   type Listing,
 } from "@workspace/api-client-react";
 import { Search, SearchIcon, LogIn, UserCircle2, Settings, Link2Off, MessageCircle } from "lucide-react";
+import { resolveImageUrl } from "@/lib/image";
 import { useSiteSettings } from "@/lib/site-settings";
 import { useT } from "@/lib/i18n";
 import { Button } from "@/components/ui/button";
@@ -566,13 +567,15 @@ export default function Home() {
                       className="group flex flex-col items-center gap-1.5 p-3 bg-card rounded-2xl border border-border hover:border-primary/50 hover:shadow-md active:scale-95 transition-all"
                     >
                       {v.profilePhoto ? (
-                        <img
-                          src={v.profilePhoto}
-                          alt={v.firstName}
-                          className="w-14 h-14 rounded-full object-cover border-2 border-border group-hover:border-primary/40 transition-colors"
-                        />
+                        <div className="w-14 h-14 rounded-full border-2 border-border group-hover:border-primary/40 transition-colors overflow-hidden flex-shrink-0">
+                          <img
+                            src={resolveImageUrl(v.profilePhoto)}
+                            alt={v.shopName ?? v.firstName}
+                            className="w-full h-full object-cover"
+                          />
+                        </div>
                       ) : (
-                        <div className="w-14 h-14 rounded-full bg-muted flex items-center justify-center border-2 border-border">
+                        <div className="w-14 h-14 rounded-full bg-muted flex items-center justify-center border-2 border-border flex-shrink-0">
                           <UserCircle2 className="w-8 h-8 text-muted-foreground" />
                         </div>
                       )}
