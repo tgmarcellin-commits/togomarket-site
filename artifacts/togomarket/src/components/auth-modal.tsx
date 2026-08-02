@@ -48,15 +48,35 @@ interface PendingRegister {
   wantsNotifications?: boolean;
 }
 
-const PRIVACY_POLICY_FR = `En créant votre compte vendeur sur TogoMarket, vous autorisez TogoMarket à collecter et utiliser vos informations personnelles (nom, prénom, numéro de téléphone et photo de profil) dans le seul but de gérer votre compte, afficher vos annonces et faciliter la mise en relation avec les acheteurs sur la plateforme.
+const PRIVACY_POLICY_FR = `TogoMarket collecte uniquement les informations nécessaires au fonctionnement de la plateforme : nom, prénom, numéro de téléphone, photo de profil et contenu de vos annonces.
 
-Vos données ne seront jamais vendues ni partagées avec des tiers à des fins commerciales. Elles sont conservées de manière sécurisée et utilisées uniquement dans le cadre des services TogoMarket. Vous pouvez demander la suppression de votre compte et de vos données à tout moment en contactant l'administrateur via WhatsApp.
+🔒 Confidentialité des conversations
+Toutes les communications échangées sur TogoMarket (messagerie acheteur-vendeur) sont transmises via une connexion sécurisée HTTPS (chiffrement TLS). L'accès aux messages est strictement limité aux participants de chaque conversation grâce à un système de jetons sécurisés. TogoMarket s'engage formellement à ne pas consulter, surveiller ni divulguer le contenu de vos conversations privées. Aucun tiers ne peut accéder à vos messages.
+
+📋 Utilisation des données
+Vos données personnelles sont utilisées exclusivement pour : afficher vos annonces, permettre la mise en relation avec les acheteurs, gérer votre compte, envoyer des notifications liées à votre activité sur la plateforme. Elles ne sont jamais vendues ni cédées à des fins commerciales.
+
+📱 Notifications push
+Si vous activez les notifications, votre appareil est enregistré pour recevoir des alertes liées à vos conversations et annonces. Vous pouvez désactiver cette option à tout moment dans les paramètres de votre profil.
+
+🗑️ Suppression des données
+Vous pouvez demander la suppression de votre compte et de l'ensemble de vos données à tout moment en contactant l'administrateur via WhatsApp. Votre compte et vos annonces seront supprimés dans les meilleurs délais.
 
 En cliquant sur "J'accepte et je continue", vous confirmez avoir lu et accepté la présente politique de confidentialité.`;
 
-const PRIVACY_POLICY_EN = `By creating your seller account on TogoMarket, you authorize TogoMarket to collect and use your personal information (name, first name, phone number and profile photo) solely for the purpose of managing your account, displaying your listings and facilitating contact with buyers on the platform.
+const PRIVACY_POLICY_EN = `TogoMarket only collects the information necessary for the platform to function: name, first name, phone number, profile photo, and your listing content.
 
-Your data will never be sold or shared with third parties for commercial purposes. It is kept securely and used only within the scope of TogoMarket services. You can request the deletion of your account and data at any time by contacting the administrator via WhatsApp.
+🔒 Conversation confidentiality
+All communications exchanged on TogoMarket (buyer-seller messaging) are transmitted via a secure HTTPS connection (TLS encryption). Access to messages is strictly limited to the participants of each conversation through a secure token system. TogoMarket formally commits to never consulting, monitoring, or disclosing the content of your private conversations. No third party can access your messages.
+
+📋 Use of data
+Your personal data is used exclusively for: displaying your listings, enabling contact with buyers, managing your account, and sending notifications related to your activity on the platform. It is never sold or transferred for commercial purposes.
+
+📱 Push notifications
+If you enable notifications, your device is registered to receive alerts related to your conversations and listings. You can disable this option at any time in your profile settings.
+
+🗑️ Data deletion
+You can request the deletion of your account and all your data at any time by contacting the administrator via WhatsApp. Your account and listings will be deleted as soon as possible.
 
 By clicking "I accept and continue", you confirm that you have read and accepted this privacy policy.`;
 
