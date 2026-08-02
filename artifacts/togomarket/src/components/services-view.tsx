@@ -310,6 +310,16 @@ export function ServicesView() {
   /* ── Catalog grid (default view) ────────────────────────────────────────── */
   return (
     <div className="container mx-auto px-4 py-6 max-w-2xl">
+      {/* Bannière Services */}
+      <div className="mb-5 rounded-2xl overflow-hidden shadow-md">
+        <img
+          src="/services-banner.jpg"
+          alt="TogoMarket Services"
+          className="w-full object-cover"
+          style={{ maxHeight: "160px", objectPosition: "center" }}
+        />
+      </div>
+
       <p className="text-center text-sm text-muted-foreground mb-5 font-medium">
         {lang === "fr" ? "Choisissez une catégorie" : "Choose a category"}
       </p>
