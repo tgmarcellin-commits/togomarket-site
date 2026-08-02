@@ -3,6 +3,14 @@ export function resolveImageUrl(img: string): string {
   return `/api/storage${img}`;
 }
 
+/** Détecte les vidéos : préfixe v: (nouveaux uploads) OU extension connue (anciens uploads) */
+export const isVideoMedia = (path: string) =>
+  path.startsWith("v:") || /\.(mp4|webm|mov|avi|mkv|m4v)$/i.test(path);
+
+/** Résout l'URL en retirant le préfixe v: si présent */
+export const resolveMediaUrl = (path: string) =>
+  resolveImageUrl(path.startsWith("v:") ? path.slice(2) : path);
+
 export function resizeImage(file: File): Promise<string> {
   return new Promise((resolve, reject) => {
     const reader = new FileReader();

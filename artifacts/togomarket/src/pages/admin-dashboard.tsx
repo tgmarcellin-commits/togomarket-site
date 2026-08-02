@@ -34,7 +34,7 @@ import {
   type AdminContactStat,
 } from "@workspace/api-client-react";
 import { loadAdminSession, clearAdminSession } from "./admin-login";
-import { resolveImageUrl, resizeImageToBlob } from "@/lib/image";
+import { resolveImageUrl, resizeImageToBlob, isVideoMedia, resolveMediaUrl } from "@/lib/image";
 import { uploadImageFile, uploadVideoFile } from "@/lib/upload";
 import { openWhatsApp } from "@/lib/whatsapp";
 import { ImageViewer } from "@/components/image-viewer";
@@ -1124,13 +1124,28 @@ export default function AdminDashboard() {
                     {listing.images && listing.images.length > 0 && (
                       <div className="flex gap-2 overflow-x-auto" onClick={(e) => e.stopPropagation()}>
                         {listing.images.map((img, i) => (
-                          <img
-                            key={i}
-                            src={resolveImageUrl(img)}
-                            alt=""
-                            className="h-20 w-20 object-cover rounded-lg flex-shrink-0 cursor-pointer"
-                            onClick={() => { setViewerImages(listing.images); setViewerIndex(i); }}
-                          />
+                          isVideoMedia(img) ? (
+                            <div
+                              key={i}
+                              className="h-20 w-20 rounded-lg flex-shrink-0 overflow-hidden bg-black relative cursor-pointer"
+                              onClick={() => { setViewerImages(listing.images); setViewerIndex(i); }}
+                            >
+                              <video src={resolveMediaUrl(img)} className="w-full h-full object-cover" muted playsInline />
+                              <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
+                                <div className="bg-black/50 rounded-full w-6 h-6 flex items-center justify-center">
+                                  <svg className="w-3 h-3 text-white ml-0.5" fill="currentColor" viewBox="0 0 24 24"><path d="M8 5v14l11-7z"/></svg>
+                                </div>
+                              </div>
+                            </div>
+                          ) : (
+                            <img
+                              key={i}
+                              src={resolveImageUrl(img)}
+                              alt=""
+                              className="h-20 w-20 object-cover rounded-lg flex-shrink-0 cursor-pointer"
+                              onClick={() => { setViewerImages(listing.images); setViewerIndex(i); }}
+                            />
+                          )
                         ))}
                       </div>
                     )}
@@ -1146,13 +1161,24 @@ export default function AdminDashboard() {
                     <div className="relative">
                       <div className="flex overflow-x-auto snap-x snap-mandatory">
                         {selectedPendingListing.images.map((img, i) => (
-                          <img
-                            key={i}
-                            src={resolveImageUrl(img)}
-                            alt=""
-                            className="w-full flex-shrink-0 snap-center object-cover max-h-72 cursor-pointer"
-                            onClick={() => { setViewerImages(selectedPendingListing.images); setViewerIndex(i); }}
-                          />
+                          isVideoMedia(img) ? (
+                            <div key={i} className="w-full flex-shrink-0 snap-center bg-black flex items-center justify-center max-h-72 overflow-hidden">
+                              <video
+                                src={resolveMediaUrl(img)}
+                                controls
+                                playsInline
+                                className="w-full max-h-72 object-contain"
+                              />
+                            </div>
+                          ) : (
+                            <img
+                              key={i}
+                              src={resolveImageUrl(img)}
+                              alt=""
+                              className="w-full flex-shrink-0 snap-center object-cover max-h-72 cursor-pointer"
+                              onClick={() => { setViewerImages(selectedPendingListing.images); setViewerIndex(i); }}
+                            />
+                          )
                         ))}
                       </div>
                       {selectedPendingListing.images.length > 1 && (

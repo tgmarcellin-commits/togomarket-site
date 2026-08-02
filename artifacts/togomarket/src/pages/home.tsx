@@ -11,7 +11,7 @@ import {
   type Listing,
 } from "@workspace/api-client-react";
 import { Search, SearchIcon, LogIn, UserCircle2, Settings, Link2Off, MessageCircle } from "lucide-react";
-import { resolveImageUrl } from "@/lib/image";
+import { resolveImageUrl, isVideoMedia, resolveMediaUrl } from "@/lib/image";
 import { useSiteSettings } from "@/lib/site-settings";
 import { useT } from "@/lib/i18n";
 import { Button } from "@/components/ui/button";
@@ -74,12 +74,6 @@ interface TourismeCatalog {
   createdAt: string;
 }
 
-/** Détecte les vidéos : préfixe v: (nouveaux uploads) OU extension connue (anciens uploads) */
-const isVideoMedia = (path: string) =>
-  path.startsWith("v:") || /\.(mp4|webm|mov|avi|mkv|m4v)$/i.test(path);
-/** Résout l'URL en retirant le préfixe v: si présent */
-const resolveMediaUrl = (path: string, resolveImageUrl: (p: string) => string) =>
-  resolveImageUrl(path.startsWith("v:") ? path.slice(2) : path);
 
 const CATALOG_SECTORS = [
   { label: "Tourisme", emoji: "🌴", value: "Tourisme" },
@@ -601,7 +595,7 @@ export default function Home() {
                               isVideoMedia(img) ? (
                                 <div key={i} className="col-span-2 rounded-xl overflow-hidden bg-black aspect-video relative">
                                   <video
-                                    src={resolveMediaUrl(img, resolveImageUrl)}
+                                    src={resolveMediaUrl(img)}
                                     controls
                                     playsInline
                                     className="w-full h-full object-contain"
@@ -656,7 +650,7 @@ export default function Home() {
                               isVideoMedia(catalog.images[0]) ? (
                                 <div className="w-full h-full flex items-center justify-center bg-black relative">
                                   <video
-                                    src={resolveMediaUrl(catalog.images[0], resolveImageUrl)}
+                                    src={resolveMediaUrl(catalog.images[0])}
                                     className="w-full h-full object-cover"
                                     muted
                                     playsInline
