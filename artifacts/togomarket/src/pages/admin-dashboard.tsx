@@ -134,13 +134,23 @@ export default function AdminDashboard() {
 
   const initialTab = (): DashTab => {
     if (!session) return "stats";
+    // Restricted roles are always sent to their designated tab
     if (session.role === "admin_pub") return "ads";
     if (session.role === "admin_event") return "events";
     if (session.role === "admin_service") return "services";
     if (session.role === "admin_stats") return "stats";
+    // Superadmin / full admin: restore the last tab the user was on before refresh
+    const saved = sessionStorage.getItem("tm_admin_tab") as DashTab | null;
+    const valid: DashTab[] = ["stats", "pending", "vendors", "ads", "events", "services", "settings", "accounts"];
+    if (saved && valid.includes(saved)) return saved;
     return "stats";
   };
   const [tab, setTab] = useState<DashTab>(initialTab);
+
+  // Persist active tab so a page refresh lands on the same tab
+  useEffect(() => {
+    sessionStorage.setItem("tm_admin_tab", tab);
+  }, [tab]);
   const [vendorSearch, setVendorSearch] = useState("");
   const [viewerImages, setViewerImages] = useState<string[]>([]);
   const [viewerIndex, setViewerIndex] = useState(0);
