@@ -590,7 +590,7 @@ export function ChatWindow({
                 className={`flex-shrink-0 w-9 h-9 rounded-full flex items-center justify-center transition-colors disabled:opacity-50 ${
                   isRecording
                     ? "bg-red-500 text-white hover:bg-red-600"
-                    : "text-muted-foreground hover:bg-muted hover:text-foreground"
+                    : "bg-muted text-muted-foreground hover:text-foreground"
                 }`}
                 title={isRecording
                   ? (lang === "fr" ? "Arrêter l'enregistrement" : "Stop recording")

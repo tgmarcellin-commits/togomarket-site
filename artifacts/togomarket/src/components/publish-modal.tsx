@@ -66,6 +66,7 @@ export function PublishModal({ open, onOpenChange, vendor, vendorPassword, onNee
   const [catalogDesc, setCatalogDesc] = useState("");
   const [tourismeMedia, setTourismeMedia] = useState<{ dataUrl: string; objectPath: string; isVideo: boolean }[]>([]);
   const [uploadingTourisme, setUploadingTourisme] = useState(false);
+  const [sectorValue, setSectorValue] = useState<string>("Divers");
   const { toast } = useToast();
   const queryClient = useQueryClient();
   const createListing = useCreateListing();
@@ -84,6 +85,7 @@ export function PublishModal({ open, onOpenChange, vendor, vendorPassword, onNee
   useEffect(() => {
     if (!open) return;
     setScreen("gate");
+    setSectorValue(form.getValues("sector") ?? "Divers");
   }, [open]);
 
   const handleFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -150,8 +152,7 @@ export function PublishModal({ open, onOpenChange, vendor, vendorPassword, onNee
     );
   };
 
-  const watchedSector = form.watch("sector");
-  const isTourisme = watchedSector === "Tourisme";
+  const isTourisme = sectorValue === "Tourisme";
 
   const handleTourismeFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
     if (!e.target.files) return;
@@ -477,7 +478,10 @@ export function PublishModal({ open, onOpenChange, vendor, vendorPassword, onNee
                   render={({ field }) => (
                     <FormItem>
                       <FormLabel>{t.sectorLabel}</FormLabel>
-                      <Select onValueChange={field.onChange} value={field.value}>
+                      <Select
+                        onValueChange={(val) => { field.onChange(val); setSectorValue(val); }}
+                        value={field.value}
+                      >
                         <FormControl>
                           <SelectTrigger>
                             <SelectValue placeholder={t.chooseSector} />
@@ -517,7 +521,10 @@ export function PublishModal({ open, onOpenChange, vendor, vendorPassword, onNee
                     render={({ field }) => (
                       <FormItem>
                         <FormLabel>{t.sectorLabel}</FormLabel>
-                        <Select onValueChange={field.onChange} value={field.value}>
+                        <Select
+                          onValueChange={(val) => { field.onChange(val); setSectorValue(val); }}
+                          value={field.value}
+                        >
                           <FormControl>
                             <SelectTrigger>
                               <SelectValue placeholder={t.chooseSector} />
