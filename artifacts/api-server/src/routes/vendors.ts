@@ -1,9 +1,11 @@
 import { Router, type IRouter } from "express";
 import { eq, desc, and, gt, lt } from "drizzle-orm";
 import bcrypt from "bcryptjs";
-import { db, vendorsTable, publishCodesTable, otpCodesTable, listingsTable } from "@workspace/db";
+import { randomUUID } from "node:crypto";
+import { db, vendorsTable, publishCodesTable, otpCodesTable, listingsTable, conversationsTable, messagesTable } from "@workspace/db";
 import { sendWhatsAppOTP, sendWhatsAppText } from "../lib/whatsapp-api";
 import { normalizePhone, phoneEq } from "../lib/phone";
+import { getIo } from "../lib/socket-io";
 
 function getPhoneCountry(phone: string): string {
   const d = phone.replace(/\D/g, "");
@@ -730,6 +732,84 @@ router.post("/admin/vendors/delete", async (req, res) => {
     req.log.error({ err }, "Failed to delete vendor");
     return res.status(500).json({ error: "Erreur interne" });
   }
+});
+
+/* ──────────────────────────────────────────────────────────────
+   POST /api/admin/broadcast-message
+   Superadmin only — sends a message from "TogoMarket" to every verified vendor.
+   Uses or creates one TogoMarket conversation per vendor, then appends the message.
+   Body: { password: string, message: string }
+   ────────────────────────────────────────────────────────────── */
+router.post("/admin/broadcast-message", async (req, res) => {
+  const { password, message } = req.body as { password?: string; message?: string };
+  if (!password || !message?.trim()) {
+    return res.status(400).json({ error: "password and message required" });
+  }
+
+  const isSuper = await isSuperAdmin(password);
+  if (!isSuper) {
+    return res.status(403).json({ error: "superadmin only" });
+  }
+
+  const allVendors = await db
+    .select({ id: vendorsTable.id })
+    .from(vendorsTable)
+    .where(eq(vendorsTable.verified, true));
+
+  let io: ReturnType<typeof getIo> | null = null;
+  try { io = getIo(); } catch { /* socket not ready – non-fatal */ }
+
+  let sent = 0;
+
+  for (const vendor of allVendors) {
+    try {
+      // Reuse the most recent TogoMarket conversation or create a fresh one
+      const existing = await db
+        .select({ id: conversationsTable.id, vendorUnreadCount: conversationsTable.vendorUnreadCount })
+        .from(conversationsTable)
+        .where(and(eq(conversationsTable.vendorId, vendor.id), eq(conversationsTable.buyerPhone, "##007##")))
+        .orderBy(desc(conversationsTable.createdAt))
+        .limit(1);
+
+      let convId: number;
+      let prevUnread: number;
+
+      if (existing.length > 0) {
+        convId = existing[0].id;
+        prevUnread = existing[0].vendorUnreadCount;
+      } else {
+        const [conv] = await db.insert(conversationsTable).values({
+          vendorId: vendor.id,
+          buyerName: "TogoMarket",
+          buyerPhone: "##007##",
+          buyerToken: randomUUID(),
+        }).returning({ id: conversationsTable.id });
+        convId = conv.id;
+        prevUnread = 0;
+      }
+
+      const [msg] = await db.insert(messagesTable).values({
+        conversationId: convId,
+        senderType: "buyer",
+        content: message.trim(),
+      }).returning();
+
+      // Reset vendor-deleted flag so broadcast always surfaces
+      await db.update(conversationsTable).set({
+        updatedAt: new Date(),
+        vendorUnreadCount: prevUnread + 1,
+        vendorDeletedAt: null,
+      }).where(eq(conversationsTable.id, convId));
+
+      io?.to(`vendor:${vendor.id}`).emit("new_message", { conversationId: convId, message: msg });
+
+      sent++;
+    } catch {
+      // Non-fatal: skip this vendor and continue
+    }
+  }
+
+  return res.json({ ok: true, sent });
 });
 
 export default router;

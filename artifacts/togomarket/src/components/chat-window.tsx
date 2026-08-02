@@ -65,12 +65,24 @@ export function ChatWindow({
   const [confirmDeleteConv, setConfirmDeleteConv] = useState(false);
   const [deletingConv, setDeletingConv] = useState(false);
   const endRef = useRef<HTMLDivElement>(null);
+  const scrollAreaRef = useRef<HTMLDivElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const longPressTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const selfType = auth.kind === "vendor" ? "vendor" : "buyer";
 
   const scrollToBottom = () => endRef.current?.scrollIntoView({ behavior: "smooth" });
+
+  // ── Keyboard scroll fix ────────────────────────────────────────────────────
+  // When the soft keyboard opens on mobile the scroll area can jump. We save
+  // the scrollTop just before the keyboard appears and restore it afterwards
+  // so the user stays at whatever position they were reading.
+  const handleInputFocus = useCallback(() => {
+    const area = scrollAreaRef.current;
+    if (!area) return;
+    const saved = area.scrollTop;
+    setTimeout(() => { if (area) area.scrollTop = saved; }, 400);
+  }, []);
 
   const fetchMessages = useCallback(async () => {
     if (!conversationId) return;
@@ -404,6 +416,7 @@ export function ChatWindow({
 
         {/* Messages */}
         <div
+          ref={scrollAreaRef}
           className="flex-1 overflow-y-auto px-4 py-3 space-y-2 min-h-0"
           onClick={closeMenu}
         >
@@ -474,6 +487,7 @@ export function ChatWindow({
               value={input}
               onChange={(e) => setInput(e.target.value)}
               onKeyDown={handleKeyDown}
+              onFocus={handleInputFocus}
               disabled={sending}
             />
             <Button

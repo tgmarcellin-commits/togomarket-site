@@ -212,6 +212,10 @@ export function AdminModal({
   const [whatsappServicesInput, setWhatsappServicesInput] = useState("");
   const [subAdminPwdInput, setSubAdminPwdInput] = useState("");
   const [vendorSearch, setVendorSearch] = useState("");
+  const [showBroadcast, setShowBroadcast] = useState(false);
+  const [broadcastMsg, setBroadcastMsg] = useState("");
+  const [broadcastLoading, setBroadcastLoading] = useState(false);
+  const [broadcastResult, setBroadcastResult] = useState<{ sent: number } | "forbidden" | "error" | null>(null);
 
   const [allServices, setAllServices] = useState<Service[]>([]);
   const [servicesLoading, setServicesLoading] = useState(false);
@@ -985,6 +989,75 @@ export function AdminModal({
             {/* Tab: Vendeurs */}
             {tab === "vendors" && (
               <div className="space-y-3">
+                {/* ── Broadcast TogoMarket → tous les vendeurs (superadmin only) ── */}
+                <div className="border rounded-xl overflow-hidden">
+                  <button
+                    className="w-full flex items-center justify-between px-3 py-2.5 bg-primary/5 hover:bg-primary/10 transition-colors text-left"
+                    onClick={() => { setShowBroadcast((v) => !v); setBroadcastResult(null); }}
+                  >
+                    <span className="flex items-center gap-2 text-sm font-semibold text-primary">
+                      <Megaphone className="w-4 h-4" />
+                      Message à tous les vendeurs
+                    </span>
+                    <span className="text-muted-foreground text-xs">{showBroadcast ? "▲" : "▼"}</span>
+                  </button>
+
+                  {showBroadcast && (
+                    <div className="px-3 pb-3 pt-2 space-y-2 bg-card">
+                      <p className="text-xs text-muted-foreground">
+                        Ce message sera envoyé à <strong>tous les vendeurs vérifiés</strong> dans leur onglet Messages, sous le nom <strong>TogoMarket</strong>.
+                      </p>
+                      <textarea
+                        className="w-full border rounded-lg px-3 py-2 text-sm resize-none focus:outline-none focus:ring-2 focus:ring-primary/40"
+                        rows={4}
+                        placeholder="Rédigez votre message ici…"
+                        value={broadcastMsg}
+                        onChange={(e) => { setBroadcastMsg(e.target.value); setBroadcastResult(null); }}
+                        maxLength={1000}
+                      />
+                      <div className="flex items-center justify-between gap-2">
+                        <span className="text-[11px] text-muted-foreground">{broadcastMsg.length}/1000</span>
+                        <Button
+                          size="sm"
+                          className="h-8 text-xs gap-1.5 bg-primary hover:bg-primary/90 text-white"
+                          disabled={!broadcastMsg.trim() || broadcastLoading}
+                          onClick={async () => {
+                            setBroadcastLoading(true);
+                            setBroadcastResult(null);
+                            try {
+                              const res = await fetch("/api/admin/broadcast-message", {
+                                method: "POST",
+                                headers: { "Content-Type": "application/json" },
+                                body: JSON.stringify({ password: storedPassword, message: broadcastMsg.trim() }),
+                              });
+                              if (res.status === 403) { setBroadcastResult("forbidden"); return; }
+                              if (!res.ok) { setBroadcastResult("error"); return; }
+                              const data = await res.json() as { sent: number };
+                              setBroadcastResult({ sent: data.sent });
+                              setBroadcastMsg("");
+                            } catch { setBroadcastResult("error"); }
+                            finally { setBroadcastLoading(false); }
+                          }}
+                        >
+                          <Megaphone className="w-3.5 h-3.5" />
+                          {broadcastLoading ? "Envoi…" : "Envoyer à tous"}
+                        </Button>
+                      </div>
+                      {broadcastResult === "forbidden" && (
+                        <p className="text-xs text-destructive font-medium">Non autorisé — réservé au superadmin.</p>
+                      )}
+                      {broadcastResult === "error" && (
+                        <p className="text-xs text-destructive font-medium">Erreur lors de l'envoi. Réessayez.</p>
+                      )}
+                      {broadcastResult !== null && broadcastResult !== "forbidden" && broadcastResult !== "error" && (
+                        <p className="text-xs text-green-700 font-medium">
+                          ✓ Message envoyé à {broadcastResult.sent} vendeur{broadcastResult.sent > 1 ? "s" : ""}.
+                        </p>
+                      )}
+                    </div>
+                  )}
+                </div>
+
                 {generatedCode && (
                   <div className="bg-green-50 border border-green-200 rounded-lg p-3 space-y-2">
                     <p className="text-xs font-semibold text-green-700">Code généré avec succès !</p>
