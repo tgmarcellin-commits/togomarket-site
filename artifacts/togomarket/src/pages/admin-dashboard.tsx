@@ -1188,7 +1188,7 @@ export default function AdminDashboard() {
                           <AdminMediaThumb
                             key={i}
                             path={img}
-                            onClick={() => { setViewerImages(listing.images.filter(p => !isVideoMedia(p) && !p.startsWith("v:")); setViewerIndex(0); }}
+                            onClick={() => { setViewerImages(listing.images.filter(p => !isVideoMedia(p) && !p.startsWith("v:"))); setViewerIndex(0); }}
                             onVideoClick={(url) => setVideoPlayerUrl(url)}
                           />
                         ))}
