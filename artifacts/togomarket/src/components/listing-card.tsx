@@ -296,6 +296,16 @@ export function ListingCard({ listing, isAdmin, adminPassword, commissionRate, w
         vendorName={vendorDisplayName}
         listingTitle={listing.name}
         auth={{ kind: "buyer", buyerToken }}
+        onConversationDeleted={() => {
+          // Clear the stored session so the buyer won't re-open this deleted conversation
+          const vid = listing.vendorId ?? 0;
+          if (vid) {
+            try { localStorage.removeItem(`tm_chat_${vid}_${listing.id}`); } catch {}
+          }
+          setConversationId(null);
+          setBuyerToken(null);
+          setChatOpen(false);
+        }}
       />
     )}
     </>

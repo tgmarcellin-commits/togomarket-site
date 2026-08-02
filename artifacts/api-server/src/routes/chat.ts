@@ -1,5 +1,5 @@
 import { Router, type IRouter } from "express";
-import { eq, desc, and } from "drizzle-orm";
+import { eq, desc, and, isNull } from "drizzle-orm";
 import { db } from "@workspace/db";
 import {
   conversationsTable,
@@ -186,7 +186,7 @@ router.post("/conversations/:id/messages", async (req, res) => {
     .values({ conversationId: convId, senderType, content: content.trim() })
     .returning();
 
-  // Update updatedAt + increment unread for vendor when buyer sends
+  // Update updatedAt + unread count + reset recipient's soft-delete so conversation reappears
   await db
     .update(conversationsTable)
     .set({
@@ -194,6 +194,9 @@ router.post("/conversations/:id/messages", async (req, res) => {
       vendorUnreadCount: senderType === "buyer"
         ? conv.vendorUnreadCount + 1
         : conv.vendorUnreadCount,
+      // Sending a message to someone who deleted it from their side brings it back for them
+      vendorDeletedAt: senderType === "buyer" ? null : conv.vendorDeletedAt,
+      buyerDeletedAt: senderType === "vendor" ? null : conv.buyerDeletedAt,
     })
     .where(eq(conversationsTable.id, convId));
 
@@ -312,7 +315,12 @@ router.post(
 
     await db
       .update(conversationsTable)
-      .set({ updatedAt: new Date(), vendorUnreadCount: senderType === "buyer" ? conv.vendorUnreadCount + 1 : conv.vendorUnreadCount })
+      .set({
+        updatedAt: new Date(),
+        vendorUnreadCount: senderType === "buyer" ? conv.vendorUnreadCount + 1 : conv.vendorUnreadCount,
+        vendorDeletedAt: senderType === "buyer" ? null : conv.vendorDeletedAt,
+        buyerDeletedAt: senderType === "vendor" ? null : conv.buyerDeletedAt,
+      })
       .where(eq(conversationsTable.id, convId));
 
     try {
@@ -422,6 +430,7 @@ router.get("/vendor/conversations", async (req, res) => {
   if (!vendor) { res.status(401).json({ error: "invalid credentials" }); return; }
 
   // Return conversations without buyerToken (not needed by vendor)
+  // Filter out conversations the vendor has soft-deleted
   const convs = await db
     .select({
       id: conversationsTable.id,
@@ -435,7 +444,10 @@ router.get("/vendor/conversations", async (req, res) => {
       vendorUnreadCount: conversationsTable.vendorUnreadCount,
     })
     .from(conversationsTable)
-    .where(eq(conversationsTable.vendorId, vendor.id))
+    .where(and(
+      eq(conversationsTable.vendorId, vendor.id),
+      isNull(conversationsTable.vendorDeletedAt),
+    ))
     .orderBy(desc(conversationsTable.updatedAt));
 
   res.json(convs);
@@ -481,15 +493,46 @@ router.delete("/vendor/conversations/:id", async (req, res) => {
   const convId = parseInt(req.params["id"] ?? "", 10);
   if (isNaN(convId)) { res.status(400).json({ error: "invalid id" }); return; }
 
-  // Only delete if vendor owns this conversation
+  // Soft-delete: mark deleted only for the vendor — buyer's view is unaffected
   await db
-    .delete(conversationsTable)
+    .update(conversationsTable)
+    .set({ vendorDeletedAt: new Date() })
     .where(
       and(
         eq(conversationsTable.id, convId),
         eq(conversationsTable.vendorId, vendor.id),
       ),
     );
+
+  res.json({ ok: true });
+});
+
+/* ──────────────────────────────────────────────────────────────
+   DELETE /api/conversations/:id   (buyer side)
+   Soft-delete the conversation from the buyer's view only.
+   Auth: x-buyer-token
+   ────────────────────────────────────────────────────────────── */
+router.delete("/conversations/:id", async (req, res) => {
+  const convId = parseInt(req.params["id"] ?? "", 10);
+  if (isNaN(convId)) { res.status(400).json({ error: "invalid id" }); return; }
+
+  const buyerToken = req.headers["x-buyer-token"] as string | undefined;
+  if (!buyerToken) { res.status(401).json({ error: "x-buyer-token required" }); return; }
+
+  // Verify token matches this conversation
+  const convRows = await db
+    .select({ id: conversationsTable.id, buyerToken: conversationsTable.buyerToken })
+    .from(conversationsTable)
+    .where(eq(conversationsTable.id, convId))
+    .limit(1);
+  if (!convRows.length) { res.status(404).json({ error: "not found" }); return; }
+  if (convRows[0].buyerToken !== buyerToken) { res.status(401).json({ error: "unauthorized" }); return; }
+
+  // Soft-delete: mark deleted only for the buyer — vendor's view is unaffected
+  await db
+    .update(conversationsTable)
+    .set({ buyerDeletedAt: new Date() })
+    .where(eq(conversationsTable.id, convId));
 
   res.json({ ok: true });
 });

@@ -28,6 +28,10 @@ export const conversationsTable = pgTable("conversations", {
   vendorUnreadCount: integer("vendor_unread_count").notNull().default(0),
   /** Unguessable token returned to buyer at conversation creation; required for buyer reads/sends */
   buyerToken: text("buyer_token").notNull(),
+  /** Set when the vendor soft-deletes the conversation from their side only */
+  vendorDeletedAt: timestamp("vendor_deleted_at", { withTimezone: true }),
+  /** Set when the buyer soft-deletes the conversation from their side only */
+  buyerDeletedAt: timestamp("buyer_deleted_at", { withTimezone: true }),
 });
 
 // Messages within a conversation

@@ -4,7 +4,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import {
   Send, MessageCircle, ShoppingBag, Paperclip,
-  Pencil, Trash2, X, Check, FileText,
+  Pencil, Trash2, X, Check, FileText, Eraser,
 } from "lucide-react";
 import { useSiteSettings } from "@/lib/site-settings";
 import { getSocket } from "@/lib/socket";
@@ -35,6 +35,8 @@ interface ChatWindowProps {
   vendorName: string;
   listingTitle?: string | null;
   auth: ChatAuth;
+  /** Called after the current user successfully deletes their copy of the conversation */
+  onConversationDeleted?: () => void;
 }
 
 function authHeaders(auth: ChatAuth): Record<string, string> {
@@ -48,6 +50,7 @@ function canEditOrDelete(msg: ChatMessage): boolean {
 
 export function ChatWindow({
   open, onOpenChange, conversationId, buyerIdentity, vendorName, listingTitle, auth,
+  onConversationDeleted,
 }: ChatWindowProps) {
   const { lang } = useSiteSettings();
   const [messages, setMessages] = useState<ChatMessage[]>([]);
@@ -59,6 +62,8 @@ export function ChatWindow({
   const [editContent, setEditContent] = useState("");
   const [menuMsgId, setMenuMsgId] = useState<number | null>(null);
   const [menuPos, setMenuPos] = useState<{ top: number; right: number } | null>(null);
+  const [confirmDeleteConv, setConfirmDeleteConv] = useState(false);
+  const [deletingConv, setDeletingConv] = useState(false);
   const endRef = useRef<HTMLDivElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const longPressTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -162,6 +167,24 @@ export function ChatWindow({
         setMessages((prev) => prev.some((m) => m.id === msg.id) ? prev : [...prev, msg]);
       }
     } finally { setUploading(false); }
+  };
+
+  // ── Delete conversation (own side only) ───────────────────────────────────
+  const deleteConversation = async () => {
+    setDeletingConv(true);
+    try {
+      const url = auth.kind === "vendor"
+        ? `/api/vendor/conversations/${conversationId}`
+        : `/api/conversations/${conversationId}`;
+      const res = await fetch(url, { method: "DELETE", headers: authHeaders(auth) });
+      if (res.ok) {
+        onConversationDeleted?.();
+        onOpenChange(false);
+      }
+    } finally {
+      setDeletingConv(false);
+      setConfirmDeleteConv(false);
+    }
   };
 
   // ── Delete message ─────────────────────────────────────────────────────────
@@ -294,7 +317,38 @@ export function ChatWindow({
         <SheetHeader className="px-4 py-3 border-b bg-card flex-shrink-0">
           <SheetTitle className="flex items-center gap-2 text-base">
             <MessageCircle className="w-5 h-5 text-primary flex-shrink-0" />
-            <span>{auth.kind === "vendor" ? buyerIdentity.name : vendorName}</span>
+            <span className="flex-1 min-w-0 truncate">
+              {auth.kind === "vendor" ? buyerIdentity.name : vendorName}
+            </span>
+            {/* Delete conversation — own side only */}
+            {!confirmDeleteConv ? (
+              <button
+                onClick={() => setConfirmDeleteConv(true)}
+                className="flex-shrink-0 p-1.5 rounded-lg text-muted-foreground hover:text-destructive hover:bg-destructive/10 transition-colors"
+                title={lang === "fr" ? "Supprimer ma copie" : "Delete my copy"}
+              >
+                <Eraser className="w-4 h-4" />
+              </button>
+            ) : (
+              <div className="flex items-center gap-1.5 flex-shrink-0">
+                <span className="text-xs text-destructive font-medium">
+                  {lang === "fr" ? "Supprimer ?" : "Delete?"}
+                </span>
+                <button
+                  onClick={deleteConversation}
+                  disabled={deletingConv}
+                  className="px-2.5 py-1 rounded-lg text-xs font-semibold bg-destructive text-white disabled:opacity-50"
+                >
+                  {lang === "fr" ? "Oui" : "Yes"}
+                </button>
+                <button
+                  onClick={() => setConfirmDeleteConv(false)}
+                  className="px-2.5 py-1 rounded-lg text-xs font-semibold bg-muted text-foreground"
+                >
+                  {lang === "fr" ? "Non" : "No"}
+                </button>
+              </div>
+            )}
           </SheetTitle>
           {listingTitle && (
             <div className="flex items-center gap-2 mt-1.5 bg-primary/10 border border-primary/20 rounded-lg px-3 py-2">
