@@ -104,19 +104,29 @@ interface AdminStats {
   expiringSoon: Array<{ id: number; firstName: string; lastName: string; phone: string; expiryDate: string | null }>;
 }
 
-/** Thumbnail (h-20 w-20) — détecte automatiquement les vidéos, y compris les anciens chemins sans préfixe. */
-function AdminMediaThumb({ path, onClick }: { path: string; onClick?: () => void }) {
+/** Thumbnail (h-20 w-20) — détecte automatiquement les vidéos.
+ *  Pour les vidéos, appelle onVideoClick(resolvedUrl) au lieu de onClick. */
+function AdminMediaThumb({
+  path,
+  onClick,
+  onVideoClick,
+}: {
+  path: string;
+  onClick?: () => void;
+  onVideoClick?: (url: string) => void;
+}) {
   const [isVid, setIsVid] = useState(isVideoMedia(path));
+  const handleVidClick = () => onVideoClick?.(resolveMediaUrl(path));
   if (isVid) {
     return (
       <div
         className="h-20 w-20 rounded-lg flex-shrink-0 overflow-hidden bg-black relative cursor-pointer"
-        onClick={onClick}
+        onClick={handleVidClick}
       >
         <video src={resolveMediaUrl(path)} className="w-full h-full object-cover" muted playsInline />
         <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
-          <div className="bg-black/50 rounded-full w-6 h-6 flex items-center justify-center">
-            <svg className="w-3 h-3 text-white ml-0.5" fill="currentColor" viewBox="0 0 24 24"><path d="M8 5v14l11-7z"/></svg>
+          <div className="bg-black/50 rounded-full w-8 h-8 flex items-center justify-center">
+            <svg className="w-4 h-4 text-white ml-0.5" fill="currentColor" viewBox="0 0 24 24"><path d="M8 5v14l11-7z"/></svg>
           </div>
         </div>
       </div>
@@ -208,6 +218,7 @@ export default function AdminDashboard() {
   const [broadcastResult, setBroadcastResult] = useState<{ sent: number } | "error" | null>(null);
   const [viewerImages, setViewerImages] = useState<string[]>([]);
   const [viewerIndex, setViewerIndex] = useState(0);
+  const [videoPlayerUrl, setVideoPlayerUrl] = useState<string | null>(null);
 
   const [stats, setStats] = useState<AdminStats | null>(null);
   const [statsLoading, setStatsLoading] = useState(false);
@@ -1177,7 +1188,8 @@ export default function AdminDashboard() {
                           <AdminMediaThumb
                             key={i}
                             path={img}
-                            onClick={() => { setViewerImages(listing.images); setViewerIndex(i); }}
+                            onClick={() => { setViewerImages(listing.images.filter(p => !isVideoMedia(p) && !p.startsWith("v:")); setViewerIndex(0); }}
+                            onVideoClick={(url) => setVideoPlayerUrl(url)}
                           />
                         ))}
                       </div>
@@ -1984,6 +1996,22 @@ export default function AdminDashboard() {
           onClose={() => setViewerImages([])}
         />
       )}
+
+      {/* ── LECTEUR VIDÉO ──────────────────────────────────────── */}
+      <Dialog open={!!videoPlayerUrl} onOpenChange={(o) => { if (!o) setVideoPlayerUrl(null); }}>
+        <DialogContent className="max-w-lg p-2 bg-black border-black">
+          {videoPlayerUrl && (
+            <video
+              key={videoPlayerUrl}
+              src={videoPlayerUrl}
+              controls
+              autoPlay
+              playsInline
+              className="w-full max-h-[70vh] rounded-lg"
+            />
+          )}
+        </DialogContent>
+      </Dialog>
 
       {/* ── CONFIRMATION +30 JOURS ────────────────────────────── */}
       <Dialog open={!!confirm30Vendor} onOpenChange={(v) => { if (!v) setConfirm30Vendor(null); }}>
