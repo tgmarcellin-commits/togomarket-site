@@ -4,7 +4,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import {
   Send, MessageCircle, ShoppingBag, Paperclip,
-  Pencil, Trash2, X, Check, FileText, Eraser, Mic, StopCircle,
+  Pencil, Trash2, X, Check, FileText, Eraser, Mic, StopCircle, MoreVertical,
 } from "lucide-react";
 import { useSiteSettings } from "@/lib/site-settings";
 import { getSocket } from "@/lib/socket";
@@ -324,20 +324,23 @@ export function ChatWindow({
     setEditContent("");
   };
 
-  // ── Long press handlers ────────────────────────────────────────────────────
+  // ── Menu helpers ────────────────────────────────────────────────────────────
+  const openMenuAt = (id: number, el: HTMLElement) => {
+    const rect = el.getBoundingClientRect();
+    const menuHeight = 160; // approximate height of the menu
+    const spaceAbove = rect.top - 60;
+    const top = spaceAbove >= menuHeight
+      ? rect.top - menuHeight - 6
+      : rect.bottom + 6;
+    const right = window.innerWidth - rect.right;
+    setMenuPos({ top, right });
+    setMenuMsgId(id);
+  };
+
+  // ── Long press handlers (text / image / pdf bubbles) ───────────────────────
   const onPressStart = (id: number, e: React.PointerEvent) => {
     const el = e.currentTarget as HTMLElement;
-    longPressTimer.current = setTimeout(() => {
-      const rect = el.getBoundingClientRect();
-      const menuHeight = 44;
-      const spaceAbove = rect.top - 60; // 60px for the sheet header
-      const top = spaceAbove >= menuHeight
-        ? rect.top - menuHeight - 6
-        : rect.bottom + 6;
-      const right = window.innerWidth - rect.right;
-      setMenuPos({ top, right });
-      setMenuMsgId(id);
-    }, 500);
+    longPressTimer.current = setTimeout(() => openMenuAt(id, el), 500);
   };
   const onPressEnd = () => {
     if (longPressTimer.current) clearTimeout(longPressTimer.current);
@@ -378,14 +381,29 @@ export function ChatWindow({
             </a>
           )}
 
-          {/* Audio */}
+          {/* Audio — ⋮ button needed because <audio controls> swallows all pointer events */}
           {msg.fileUrl && msg.fileType === "audio" && (
-            <div className="px-3 py-2.5">
+            <div className="px-2 py-2 flex items-center gap-1">
               <audio
                 controls
                 src={resolveImageUrl(msg.fileUrl)}
-                className="h-10 max-w-[220px]"
+                className="h-10 max-w-[180px] flex-1"
+                onPointerDown={(e) => e.stopPropagation()}
               />
+              <button
+                type="button"
+                onPointerDown={(e) => e.stopPropagation()}
+                onClick={(e) => {
+                  e.stopPropagation();
+                  openMenuAt(msg.id, e.currentTarget);
+                }}
+                className={`flex-shrink-0 w-6 h-6 flex items-center justify-center rounded-full opacity-60 hover:opacity-100 transition-opacity ${
+                  isSelf ? "text-primary-foreground hover:bg-white/20" : "text-foreground hover:bg-black/10"
+                }`}
+                title={lang === "fr" ? "Options" : "Options"}
+              >
+                <MoreVertical className="w-4 h-4" />
+              </button>
             </div>
           )}
 
