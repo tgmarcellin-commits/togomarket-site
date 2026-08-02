@@ -12,18 +12,35 @@ export interface BuyerIdentity {
 
 const BUYER_KEY = "tm_buyer";
 
+/** Numéro officiel de la plateforme TogoMarket — toujours affiché comme "TogoMarket" */
+const TOGOMARKET_PHONE = "22870703131";
+
+function normalizePhone(p: string) {
+  return p.replace(/\D/g, "").replace(/^00/, "").replace(/^\+/, "");
+}
+
+function applyTogoMarketRule(identity: BuyerIdentity): BuyerIdentity {
+  if (normalizePhone(identity.phone) === TOGOMARKET_PHONE && identity.name !== "TogoMarket") {
+    const corrected = { ...identity, name: "TogoMarket" };
+    // Persist the correction silently
+    try { localStorage.setItem(BUYER_KEY, JSON.stringify(corrected)); } catch {}
+    return corrected;
+  }
+  return identity;
+}
+
 export function loadBuyerIdentity(): BuyerIdentity | null {
   try {
     const raw = localStorage.getItem(BUYER_KEY);
     if (!raw) return null;
-    return JSON.parse(raw);
+    return applyTogoMarketRule(JSON.parse(raw) as BuyerIdentity);
   } catch {
     return null;
   }
 }
 
 export function saveBuyerIdentity(identity: BuyerIdentity) {
-  localStorage.setItem(BUYER_KEY, JSON.stringify(identity));
+  localStorage.setItem(BUYER_KEY, JSON.stringify(applyTogoMarketRule(identity)));
 }
 
 interface BuyerIdentityPromptProps {
@@ -39,15 +56,18 @@ export function BuyerIdentityPrompt({ open, onOpenChange, onConfirm }: BuyerIden
   const [error, setError] = useState("");
 
   const handleConfirm = () => {
-    if (!name.trim()) {
-      setError(lang === "fr" ? "Votre prénom est requis." : "Your name is required.");
-      return;
-    }
     if (!phone.trim()) {
       setError(lang === "fr" ? "Votre numéro est requis." : "Your phone number is required.");
       return;
     }
-    const identity: BuyerIdentity = { name: name.trim(), phone: phone.trim() };
+    // Numéro TogoMarket → nom imposé automatiquement, pas de saisie requise
+    const isTogoMarket = normalizePhone(phone.trim()) === TOGOMARKET_PHONE;
+    const resolvedName = isTogoMarket ? "TogoMarket" : name.trim();
+    if (!resolvedName) {
+      setError(lang === "fr" ? "Votre prénom est requis." : "Your name is required.");
+      return;
+    }
+    const identity: BuyerIdentity = { name: resolvedName, phone: phone.trim() };
     saveBuyerIdentity(identity);
     onConfirm(identity);
   };
