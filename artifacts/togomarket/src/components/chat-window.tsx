@@ -121,6 +121,11 @@ export function ChatWindow({
         prev.map((m) => m.id === data.messageId ? { ...m, content: data.content, editedAt: data.editedAt } : m),
       );
     };
+    const onHiddenMe = (data: { messageId: number }) => {
+      setMessages((prev) => prev.filter((m) => m.id !== data.messageId));
+    };
+    socket.on("message_hidden_me", onHiddenMe);
+
     const onDeleted = (data: { messageId: number }) => {
       setMessages((prev) =>
         prev.map((m) => m.id === data.messageId ? { ...m, deletedAt: new Date().toISOString() } : m),
@@ -134,6 +139,7 @@ export function ChatWindow({
       socket.off("new_message", onNew);
       socket.off("message_edited", onEdited);
       socket.off("message_deleted", onDeleted);
+      socket.off("message_hidden_me", onHiddenMe);
     };
   }, [open, conversationId, fetchMessages]);
 
@@ -268,7 +274,7 @@ export function ChatWindow({
     }
   };
 
-  // ── Delete message ─────────────────────────────────────────────────────────
+  // ── Delete message for both parties (own message only) ────────────────────
   const deleteMessage = async (id: number) => {
     closeMenu();
     const res = await fetch(`/api/messages/${id}`, {
@@ -279,6 +285,18 @@ export function ChatWindow({
       setMessages((prev) =>
         prev.map((m) => m.id === id ? { ...m, deletedAt: new Date().toISOString() } : m),
       );
+    }
+  };
+
+  // ── Delete message for me only ─────────────────────────────────────────────
+  const deleteMessageForMe = async (id: number) => {
+    closeMenu();
+    const res = await fetch(`/api/messages/${id}/me`, {
+      method: "DELETE",
+      headers: authHeaders(auth),
+    });
+    if (res.ok) {
+      setMessages((prev) => prev.filter((m) => m.id !== id));
     }
   };
 
@@ -339,10 +357,10 @@ export function ChatWindow({
     return (
       <div key={msg.id} className={`flex ${isSelf ? "justify-end" : "justify-start"}`}>
         <div
-          onPointerDown={isSelf ? (e) => onPressStart(msg.id, e) : undefined}
-          onPointerUp={isSelf ? onPressEnd : undefined}
-          onPointerLeave={isSelf ? onPressEnd : undefined}
-          onClick={isSelf && menuMsgId === msg.id ? closeMenu : undefined}
+          onPointerDown={(e) => onPressStart(msg.id, e)}
+          onPointerUp={onPressEnd}
+          onPointerLeave={onPressEnd}
+          onClick={menuMsgId === msg.id ? closeMenu : undefined}
           className={`max-w-[75%] rounded-2xl text-sm leading-relaxed overflow-hidden select-none ${
             isSelf
               ? "bg-primary text-primary-foreground rounded-br-sm"
@@ -462,33 +480,47 @@ export function ChatWindow({
         {menuMsgId !== null && menuPos && (() => {
           const msg = messages.find((m) => m.id === menuMsgId);
           if (!msg) return null;
+          const isSelfMsg = msg.senderType === selfType;
           const withinEdit = canEditOrDelete(msg);
           return (
             <div
               style={{ position: "fixed", top: menuPos.top, right: menuPos.right, zIndex: 9999 }}
-              className="bg-popover border border-border rounded-xl shadow-lg flex gap-1 p-1"
+              className="bg-popover border border-border rounded-xl shadow-lg flex flex-col gap-0.5 p-1 min-w-[160px]"
             >
-              {withinEdit && !msg.fileUrl && (
+              {/* Edit — own text messages only, within 5 min */}
+              {isSelfMsg && withinEdit && !msg.fileUrl && (
                 <button
                   onClick={() => startEdit(msg)}
-                  className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium hover:bg-muted transition-colors"
+                  className="flex items-center gap-2 px-3 py-2 rounded-lg text-xs font-medium hover:bg-muted transition-colors text-left"
                 >
-                  <Pencil className="w-3.5 h-3.5" />
+                  <Pencil className="w-3.5 h-3.5 flex-shrink-0" />
                   {lang === "fr" ? "Modifier" : "Edit"}
                 </button>
               )}
+              {/* Delete for me — always available */}
               <button
-                onClick={() => deleteMessage(msg.id)}
-                className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium text-destructive hover:bg-destructive/10 transition-colors"
+                onClick={() => deleteMessageForMe(msg.id)}
+                className="flex items-center gap-2 px-3 py-2 rounded-lg text-xs font-medium text-amber-600 hover:bg-amber-50 dark:hover:bg-amber-950/30 transition-colors text-left"
               >
-                <Trash2 className="w-3.5 h-3.5" />
-                {lang === "fr" ? "Supprimer" : "Delete"}
+                <Trash2 className="w-3.5 h-3.5 flex-shrink-0" />
+                {lang === "fr" ? "Supprimer pour moi" : "Delete for me"}
               </button>
+              {/* Delete for both — own messages only */}
+              {isSelfMsg && (
+                <button
+                  onClick={() => deleteMessage(msg.id)}
+                  className="flex items-center gap-2 px-3 py-2 rounded-lg text-xs font-medium text-destructive hover:bg-destructive/10 transition-colors text-left"
+                >
+                  <Trash2 className="w-3.5 h-3.5 flex-shrink-0" />
+                  {lang === "fr" ? "Supprimer pour tous" : "Delete for everyone"}
+                </button>
+              )}
               <button
                 onClick={closeMenu}
-                className="flex items-center px-2 py-1.5 rounded-lg text-xs hover:bg-muted transition-colors"
+                className="flex items-center gap-2 px-3 py-2 rounded-lg text-xs hover:bg-muted transition-colors text-left text-muted-foreground"
               >
-                <X className="w-3.5 h-3.5" />
+                <X className="w-3.5 h-3.5 flex-shrink-0" />
+                {lang === "fr" ? "Annuler" : "Cancel"}
               </button>
             </div>
           );

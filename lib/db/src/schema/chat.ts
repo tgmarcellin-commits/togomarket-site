@@ -43,9 +43,14 @@ export const messagesTable = pgTable("messages", {
   senderType: text("sender_type").notNull(), // "buyer" | "vendor"
   content: text("content"),               // nullable when a file-only message
   fileUrl: text("file_url"),              // Object Storage path e.g. /objects/uploads/...
-  fileType: text("file_type"),            // "image" | "pdf"
+  fileType: text("file_type"),            // "image" | "pdf" | "audio"
   editedAt: timestamp("edited_at", { withTimezone: true }),
+  /** Hard delete for both parties (sender only) */
   deletedAt: timestamp("deleted_at", { withTimezone: true }),
+  /** Soft-delete for the vendor's view only */
+  vendorDeletedAt: timestamp("vendor_deleted_at", { withTimezone: true }),
+  /** Soft-delete for the buyer's view only */
+  buyerDeletedAt: timestamp("buyer_deleted_at", { withTimezone: true }),
   createdAt: timestamp("created_at", { withTimezone: true })
     .notNull()
     .defaultNow(),

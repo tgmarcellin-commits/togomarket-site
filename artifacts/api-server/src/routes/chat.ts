@@ -1,5 +1,5 @@
 import { Router, type IRouter } from "express";
-import { eq, desc, and, isNull } from "drizzle-orm";
+import { eq, desc, and, isNull, or } from "drizzle-orm";
 import { db } from "@workspace/db";
 import {
   conversationsTable,
@@ -143,10 +143,19 @@ router.get("/conversations/:id/messages", async (req, res) => {
   const identity = await resolveIdentity(req as Parameters<typeof resolveIdentity>[0], convId);
   if (!identity) { res.status(401).json({ error: "unauthorized" }); return; }
 
+  // Filter out messages deleted for the requesting party
+  const deletedFilter = identity.role === "vendor"
+    ? isNull(messagesTable.vendorDeletedAt)
+    : isNull(messagesTable.buyerDeletedAt);
+
   const msgs = await db
     .select()
     .from(messagesTable)
-    .where(eq(messagesTable.conversationId, convId))
+    .where(and(
+      eq(messagesTable.conversationId, convId),
+      isNull(messagesTable.deletedAt),
+      deletedFilter,
+    ))
     .orderBy(messagesTable.createdAt);
 
   res.json(msgs);
@@ -338,7 +347,38 @@ router.post(
 );
 
 /* ──────────────────────────────────────────────────────────────
-   DELETE /api/messages/:id  — soft delete (own message only)
+   DELETE /api/messages/:id/me  — hide message from requesting party only
+   ────────────────────────────────────────────────────────────── */
+router.delete("/messages/:id/me", async (req, res) => {
+  const msgId = parseInt(req.params["id"] ?? "", 10);
+  if (isNaN(msgId)) { res.status(400).json({ error: "invalid id" }); return; }
+
+  const msgRows = await db.select().from(messagesTable).where(eq(messagesTable.id, msgId)).limit(1);
+  if (!msgRows.length) { res.status(404).json({ error: "not found" }); return; }
+  const msg = msgRows[0];
+
+  const identity = await resolveIdentity(req as Parameters<typeof resolveIdentity>[0], msg.conversationId);
+  if (!identity) { res.status(401).json({ error: "unauthorized" }); return; }
+
+  const field = identity.role === "vendor" ? { vendorDeletedAt: new Date() } : { buyerDeletedAt: new Date() };
+
+  await db.update(messagesTable).set(field).where(eq(messagesTable.id, msgId));
+
+  // Notify only the requesting party's socket room
+  try {
+    const io = getIo();
+    if (identity.role === "vendor") {
+      io.to(`vendor:${identity.vendorId}`).emit("message_hidden_me", { messageId: msgId, conversationId: msg.conversationId });
+    } else {
+      io.to(`conv:${msg.conversationId}`).emit("message_hidden_me", { messageId: msgId, conversationId: msg.conversationId });
+    }
+  } catch { /* non-fatal */ }
+
+  res.json({ ok: true });
+});
+
+/* ──────────────────────────────────────────────────────────────
+   DELETE /api/messages/:id  — soft delete for both (own message only)
    ────────────────────────────────────────────────────────────── */
 router.delete("/messages/:id", async (req, res) => {
   const msgId = parseInt(req.params["id"] ?? "", 10);
