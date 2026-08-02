@@ -315,12 +315,13 @@ export function ChatWindow({
       <SheetContent side="bottom" className="h-[90dvh] flex flex-col p-0">
         {/* Header */}
         <SheetHeader className="px-4 py-3 border-b bg-card flex-shrink-0">
-          <SheetTitle className="flex items-center gap-2 text-base">
+          {/* pr-8 reserves space for the Sheet's built-in ✕ close button */}
+          <SheetTitle className="flex items-center gap-2 text-base pr-8">
             <MessageCircle className="w-5 h-5 text-primary flex-shrink-0" />
             <span className="flex-1 min-w-0 truncate">
               {auth.kind === "vendor" ? buyerIdentity.name : vendorName}
             </span>
-            {/* Delete conversation — own side only */}
+            {/* Delete conversation — own side only; sits LEFT of the Sheet close button */}
             {!confirmDeleteConv ? (
               <button
                 onClick={() => setConfirmDeleteConv(true)}
@@ -331,7 +332,7 @@ export function ChatWindow({
               </button>
             ) : (
               <div className="flex items-center gap-1.5 flex-shrink-0">
-                <span className="text-xs text-destructive font-medium">
+                <span className="text-xs text-destructive font-medium whitespace-nowrap">
                   {lang === "fr" ? "Supprimer ?" : "Delete?"}
                 </span>
                 <button
