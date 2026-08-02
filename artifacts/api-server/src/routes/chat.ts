@@ -468,4 +468,30 @@ router.post("/vendor/conversations/:id/read", async (req, res) => {
   res.json({ ok: true });
 });
 
+/*  DELETE /api/vendor/conversations/:id
+    ────────────────────────────────────────────────────────────── */
+router.delete("/vendor/conversations/:id", async (req, res) => {
+  const phone = req.headers["x-vendor-phone"] as string;
+  const password = req.headers["x-vendor-password"] as string;
+  if (!phone || !password) { res.status(401).json({ error: "auth required" }); return; }
+
+  const vendor = await authenticateVendor(phone, password);
+  if (!vendor) { res.status(401).json({ error: "invalid credentials" }); return; }
+
+  const convId = parseInt(req.params["id"] ?? "", 10);
+  if (isNaN(convId)) { res.status(400).json({ error: "invalid id" }); return; }
+
+  // Only delete if vendor owns this conversation
+  await db
+    .delete(conversationsTable)
+    .where(
+      and(
+        eq(conversationsTable.id, convId),
+        eq(conversationsTable.vendorId, vendor.id),
+      ),
+    );
+
+  res.json({ ok: true });
+});
+
 export default router;

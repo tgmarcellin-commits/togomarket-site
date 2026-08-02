@@ -1,6 +1,5 @@
-import { useState, useEffect, useCallback } from "react";
-import { MessageCircle, RefreshCw } from "lucide-react";
-import { Button } from "@/components/ui/button";
+import { useState, useEffect, useCallback, useRef } from "react";
+import { MessageCircle, RefreshCw, Trash2 } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { ChatWindow } from "@/components/chat-window";
 import { useSiteSettings } from "@/lib/site-settings";
@@ -30,60 +29,71 @@ export function VendorConversations({ vendor, vendorPassword, onUnreadChange }: 
   const [conversations, setConversations] = useState<Conversation[]>([]);
   const [loading, setLoading] = useState(false);
   const [openConv, setOpenConv] = useState<Conversation | null>(null);
+  const [deletingId, setDeletingId] = useState<number | null>(null);
+  const longPressTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  const authHeaders = {
+    "x-vendor-phone": vendor.phone,
+    "x-vendor-password": vendorPassword,
+  };
 
   const fetchConversations = useCallback(async () => {
     setLoading(true);
     try {
-      const res = await fetch("/api/vendor/conversations", {
-        headers: {
-          "x-vendor-phone": vendor.phone,
-          "x-vendor-password": vendorPassword,
-        },
-      });
+      const res = await fetch("/api/vendor/conversations", { headers: authHeaders });
       if (res.ok) {
         const data = await res.json() as Conversation[];
         setConversations(data);
-        const total = data.reduce((sum, c) => sum + c.vendorUnreadCount, 0);
-        onUnreadChange?.(total);
+        onUnreadChange?.(data.reduce((sum, c) => sum + c.vendorUnreadCount, 0));
       }
     } finally {
-      setLoading(false);
-    }
+      setLoading(false); }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [vendor.phone, vendorPassword]);
 
   useEffect(() => {
     fetchConversations();
-    // Authenticate vendor socket
     const socket = getSocket();
     socket.emit("auth", { phone: vendor.phone, password: vendorPassword });
-    const handler = () => {
-      // Refresh conversations when a new message arrives
-      fetchConversations();
-    };
+    const handler = () => { fetchConversations(); };
     socket.on("new_message", handler);
     return () => { socket.off("new_message", handler); };
   }, [fetchConversations, vendor.phone, vendorPassword]);
 
   const handleOpenConv = async (conv: Conversation) => {
+    if (deletingId !== null) return; // don't open while confirming delete
     setOpenConv(conv);
-    // Mark as read
     await fetch(`/api/vendor/conversations/${conv.id}/read`, {
-      method: "POST",
-      headers: {
-        "x-vendor-phone": vendor.phone,
-        "x-vendor-password": vendorPassword,
-      },
+      method: "POST", headers: authHeaders,
     }).catch(() => {});
-    // Reset unread locally
     setConversations((prev) =>
       prev.map((c) => (c.id === conv.id ? { ...c, vendorUnreadCount: 0 } : c))
     );
   };
 
+  const deleteConversation = async (id: number) => {
+    setDeletingId(null);
+    await fetch(`/api/vendor/conversations/${id}`, {
+      method: "DELETE", headers: authHeaders,
+    });
+    setConversations((prev) => {
+      const next = prev.filter((c) => c.id !== id);
+      onUnreadChange?.(next.reduce((s, c) => s + c.vendorUnreadCount, 0));
+      return next;
+    });
+  };
+
+  const onPressStart = (id: number) => {
+    longPressTimer.current = setTimeout(() => setDeletingId(id), 500);
+  };
+  const onPressEnd = () => {
+    if (longPressTimer.current) clearTimeout(longPressTimer.current);
+  };
+
   const totalUnread = conversations.reduce((s, c) => s + (c.vendorUnreadCount ?? 0), 0);
 
   return (
-    <div className="space-y-3">
+    <div className="space-y-3" onClick={() => { if (deletingId) setDeletingId(null); }}>
       <div className="flex items-center justify-between">
         <h3 className="font-semibold text-base flex items-center gap-2">
           <MessageCircle className="w-4 h-4 text-primary" />
@@ -113,40 +123,78 @@ export function VendorConversations({ vendor, vendorPassword, onUnreadChange }: 
         </p>
       ) : (
         <div className="space-y-2">
-          {conversations.map((conv) => (
-            <button
-              key={conv.id}
-              onClick={() => handleOpenConv(conv)}
-              className="w-full text-left rounded-xl border bg-card hover:bg-muted/50 transition-colors p-3 flex items-start gap-3"
-            >
-              <div className="w-9 h-9 rounded-full bg-primary/10 flex items-center justify-center flex-shrink-0 mt-0.5">
-                <span className="text-primary font-semibold text-sm">
-                  {conv.buyerName.charAt(0).toUpperCase()}
-                </span>
-              </div>
-              <div className="flex-1 min-w-0">
-                <div className="flex items-center justify-between gap-1">
-                  <span className="font-medium text-sm truncate">{conv.buyerName}</span>
-                  {conv.vendorUnreadCount > 0 && (
-                    <Badge className="bg-primary text-primary-foreground text-[10px] px-1.5 py-0 rounded-full flex-shrink-0">
-                      {conv.vendorUnreadCount}
-                    </Badge>
-                  )}
-                </div>
-                {conv.listingTitle && (
-                  <p className="text-xs text-muted-foreground truncate">{conv.listingTitle}</p>
+          {conversations.map((conv) => {
+            const isDeleting = deletingId === conv.id;
+            return (
+              <div
+                key={conv.id}
+                onPointerDown={() => onPressStart(conv.id)}
+                onPointerUp={onPressEnd}
+                onPointerLeave={onPressEnd}
+                onClick={(e) => {
+                  e.stopPropagation();
+                  if (isDeleting) { setDeletingId(null); return; }
+                  handleOpenConv(conv);
+                }}
+                className={`w-full text-left rounded-xl border bg-card p-3 flex items-start gap-3 transition-all select-none cursor-pointer ${
+                  isDeleting
+                    ? "ring-2 ring-destructive/60 bg-destructive/5"
+                    : "hover:bg-muted/50"
+                }`}
+              >
+                {isDeleting ? (
+                  /* ── Confirmation suppression ── */
+                  <div className="flex-1 flex items-center justify-between gap-2">
+                    <span className="text-sm text-destructive font-medium">
+                      {lang === "fr" ? "Supprimer cette conversation ?" : "Delete this conversation?"}
+                    </span>
+                    <div className="flex gap-2 flex-shrink-0">
+                      <button
+                        onClick={(e) => { e.stopPropagation(); deleteConversation(conv.id); }}
+                        className="flex items-center gap-1 px-3 py-1.5 rounded-lg text-xs font-semibold bg-destructive text-white"
+                      >
+                        <Trash2 className="w-3 h-3" />
+                        {lang === "fr" ? "Oui" : "Yes"}
+                      </button>
+                      <button
+                        onClick={(e) => { e.stopPropagation(); setDeletingId(null); }}
+                        className="px-3 py-1.5 rounded-lg text-xs font-semibold bg-muted text-foreground"
+                      >
+                        {lang === "fr" ? "Non" : "No"}
+                      </button>
+                    </div>
+                  </div>
+                ) : (
+                  /* ── Carte normale ── */
+                  <>
+                    <div className="w-9 h-9 rounded-full bg-primary/10 flex items-center justify-center flex-shrink-0 mt-0.5">
+                      <span className="text-primary font-semibold text-sm">
+                        {conv.buyerName.charAt(0).toUpperCase()}
+                      </span>
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <div className="flex items-center justify-between gap-1">
+                        <span className="font-medium text-sm truncate">{conv.buyerName}</span>
+                        {conv.vendorUnreadCount > 0 && (
+                          <Badge className="bg-primary text-primary-foreground text-[10px] px-1.5 py-0 rounded-full flex-shrink-0">
+                            {conv.vendorUnreadCount}
+                          </Badge>
+                        )}
+                      </div>
+                      {conv.listingTitle && (
+                        <p className="text-xs text-muted-foreground truncate">{conv.listingTitle}</p>
+                      )}
+                      <p className="text-xs text-muted-foreground">
+                        {new Date(conv.updatedAt).toLocaleDateString(lang === "fr" ? "fr-FR" : "en-US", {
+                          day: "2-digit", month: "short", hour: "2-digit", minute: "2-digit",
+                        })}
+                      </p>
+                    </div>
+                  </>
                 )}
-                <p className="text-xs text-muted-foreground">
-                  {new Date(conv.updatedAt).toLocaleDateString(lang === "fr" ? "fr-FR" : "en-US", {
-                    day: "2-digit",
-                    month: "short",
-                    hour: "2-digit",
-                    minute: "2-digit",
-                  })}
-                </p>
               </div>
-            </button>
-          ))}
+            );
+          })}
         </div>
       )}
 
