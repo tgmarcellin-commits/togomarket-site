@@ -12,35 +12,37 @@ export interface BuyerIdentity {
 
 const BUYER_KEY = "tm_buyer";
 
-/** Numéro officiel de la plateforme TogoMarket — toujours affiché comme "TogoMarket" */
-const TOGOMARKET_PHONE = "22870703131";
+/**
+ * Combinaison secrète exclusive pour l'identité TogoMarket.
+ * Seule cette combinaison exacte (prénom + code) est acceptée pour afficher "TogoMarket".
+ * Toute tentative d'utiliser l'un sans l'autre est rejetée.
+ */
+const TM_SECRET_NAME  = "TogoMarket";
+const TM_SECRET_PHONE = "##007##";
 
 export function normalizePhone(p: string) {
   return p.replace(/\D/g, "").replace(/^00/, "").replace(/^\+/, "");
 }
 
-function applyTogoMarketRule(identity: BuyerIdentity): BuyerIdentity {
-  if (normalizePhone(identity.phone) === TOGOMARKET_PHONE && identity.name !== "TogoMarket") {
-    const corrected = { ...identity, name: "TogoMarket" };
-    // Persist the correction silently
-    try { localStorage.setItem(BUYER_KEY, JSON.stringify(corrected)); } catch {}
-    return corrected;
-  }
-  return identity;
+/** Returns true if the identity is the authentic TogoMarket secret combo */
+function isTogoMarketCombo(name: string, phone: string): boolean {
+  return name.trim() === TM_SECRET_NAME && phone.trim() === TM_SECRET_PHONE;
 }
 
 export function loadBuyerIdentity(): BuyerIdentity | null {
   try {
     const raw = localStorage.getItem(BUYER_KEY);
     if (!raw) return null;
-    return applyTogoMarketRule(JSON.parse(raw) as BuyerIdentity);
+    return JSON.parse(raw) as BuyerIdentity;
   } catch {
     return null;
   }
 }
 
 export function saveBuyerIdentity(identity: BuyerIdentity) {
-  localStorage.setItem(BUYER_KEY, JSON.stringify(applyTogoMarketRule(identity)));
+  try {
+    localStorage.setItem(BUYER_KEY, JSON.stringify(identity));
+  } catch {}
 }
 
 interface BuyerIdentityPromptProps {
@@ -53,13 +55,16 @@ interface BuyerIdentityPromptProps {
   defaultPhone?: string;
 }
 
-export function BuyerIdentityPrompt({ open, onOpenChange, onConfirm, defaultName = "", defaultPhone = "" }: BuyerIdentityPromptProps) {
+export function BuyerIdentityPrompt({
+  open, onOpenChange, onConfirm,
+  defaultName = "", defaultPhone = "",
+}: BuyerIdentityPromptProps) {
   const { lang } = useSiteSettings();
   const [name, setName] = useState(defaultName);
   const [phone, setPhone] = useState(defaultPhone);
   const [error, setError] = useState("");
 
-  // Re-populate fields whenever the dialog opens (handles re-use of the same component instance)
+  // Re-populate fields whenever the dialog opens
   useEffect(() => {
     if (open) {
       setName(defaultName);
@@ -70,18 +75,42 @@ export function BuyerIdentityPrompt({ open, onOpenChange, onConfirm, defaultName
   }, [open]);
 
   const handleConfirm = () => {
-    if (!phone.trim()) {
+    const trimName  = name.trim();
+    const trimPhone = phone.trim();
+
+    if (!trimPhone) {
       setError(lang === "fr" ? "Votre numéro est requis." : "Your phone number is required.");
       return;
     }
-    // Numéro TogoMarket → nom imposé automatiquement, pas de saisie requise
-    const isTogoMarket = normalizePhone(phone.trim()) === TOGOMARKET_PHONE;
-    const resolvedName = isTogoMarket ? "TogoMarket" : name.trim();
-    if (!resolvedName) {
+
+    // ── Règles de protection de l'identité TogoMarket ──────────────────────
+    // "TogoMarket" comme prénom → accepté UNIQUEMENT avec le code secret complet
+    if (trimName.toLowerCase() === TM_SECRET_NAME.toLowerCase() && trimPhone !== TM_SECRET_PHONE) {
+      setError(lang === "fr" ? "Identifiant réservé. Échec." : "Reserved identity. Failed.");
+      return;
+    }
+    // Code secret seul (sans le bon prénom) → refusé
+    if (trimPhone === TM_SECRET_PHONE && trimName !== TM_SECRET_NAME) {
+      setError(lang === "fr" ? "Code réservé. Échec." : "Reserved code. Failed.");
+      return;
+    }
+    // ── Fin des règles ──────────────────────────────────────────────────────
+
+    // Combinaison secrète valide → identité TogoMarket
+    if (isTogoMarketCombo(trimName, trimPhone)) {
+      const identity: BuyerIdentity = { name: TM_SECRET_NAME, phone: TM_SECRET_PHONE };
+      saveBuyerIdentity(identity);
+      onConfirm(identity);
+      return;
+    }
+
+    // Utilisateur normal
+    if (!trimName) {
       setError(lang === "fr" ? "Votre prénom est requis." : "Your name is required.");
       return;
     }
-    const identity: BuyerIdentity = { name: resolvedName, phone: phone.trim() };
+
+    const identity: BuyerIdentity = { name: trimName, phone: trimPhone };
     saveBuyerIdentity(identity);
     onConfirm(identity);
   };
@@ -121,7 +150,7 @@ export function BuyerIdentityPrompt({ open, onOpenChange, onConfirm, defaultName
               onChange={(e) => { setPhone(e.target.value); setError(""); }}
             />
           </div>
-          {error && <p className="text-xs text-destructive">{error}</p>}
+          {error && <p className="text-xs text-destructive font-medium">{error}</p>}
           <Button className="w-full" onClick={handleConfirm}>
             {lang === "fr" ? "Commencer le chat" : "Start chat"}
           </Button>
