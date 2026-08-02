@@ -104,6 +104,56 @@ interface AdminStats {
   expiringSoon: Array<{ id: number; firstName: string; lastName: string; phone: string; expiryDate: string | null }>;
 }
 
+/** Thumbnail (h-20 w-20) — détecte automatiquement les vidéos, y compris les anciens chemins sans préfixe. */
+function AdminMediaThumb({ path, onClick }: { path: string; onClick?: () => void }) {
+  const [isVid, setIsVid] = useState(isVideoMedia(path));
+  if (isVid) {
+    return (
+      <div
+        className="h-20 w-20 rounded-lg flex-shrink-0 overflow-hidden bg-black relative cursor-pointer"
+        onClick={onClick}
+      >
+        <video src={resolveMediaUrl(path)} className="w-full h-full object-cover" muted playsInline />
+        <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
+          <div className="bg-black/50 rounded-full w-6 h-6 flex items-center justify-center">
+            <svg className="w-3 h-3 text-white ml-0.5" fill="currentColor" viewBox="0 0 24 24"><path d="M8 5v14l11-7z"/></svg>
+          </div>
+        </div>
+      </div>
+    );
+  }
+  return (
+    <img
+      src={resolveImageUrl(path)}
+      alt=""
+      className="h-20 w-20 object-cover rounded-lg flex-shrink-0 cursor-pointer"
+      onClick={onClick}
+      onError={() => setIsVid(true)}
+    />
+  );
+}
+
+/** Slide plein-écran dans le carousel du modal — vidéo avec controls si besoin. */
+function AdminMediaSlide({ path, onClick }: { path: string; onClick?: () => void }) {
+  const [isVid, setIsVid] = useState(isVideoMedia(path));
+  if (isVid) {
+    return (
+      <div className="w-full flex-shrink-0 snap-center bg-black flex items-center justify-center max-h-72 overflow-hidden">
+        <video src={resolveMediaUrl(path)} controls playsInline className="w-full max-h-72 object-contain" />
+      </div>
+    );
+  }
+  return (
+    <img
+      src={resolveImageUrl(path)}
+      alt=""
+      className="w-full flex-shrink-0 snap-center object-cover max-h-72 cursor-pointer"
+      onClick={onClick}
+      onError={() => setIsVid(true)}
+    />
+  );
+}
+
 function StatCard({ label, value, sub, color }: { label: string; value: number; sub?: string; color?: string }) {
   return (
     <div className="bg-card border rounded-xl p-4 space-y-1">
@@ -1124,28 +1174,11 @@ export default function AdminDashboard() {
                     {listing.images && listing.images.length > 0 && (
                       <div className="flex gap-2 overflow-x-auto" onClick={(e) => e.stopPropagation()}>
                         {listing.images.map((img, i) => (
-                          isVideoMedia(img) ? (
-                            <div
-                              key={i}
-                              className="h-20 w-20 rounded-lg flex-shrink-0 overflow-hidden bg-black relative cursor-pointer"
-                              onClick={() => { setViewerImages(listing.images); setViewerIndex(i); }}
-                            >
-                              <video src={resolveMediaUrl(img)} className="w-full h-full object-cover" muted playsInline />
-                              <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
-                                <div className="bg-black/50 rounded-full w-6 h-6 flex items-center justify-center">
-                                  <svg className="w-3 h-3 text-white ml-0.5" fill="currentColor" viewBox="0 0 24 24"><path d="M8 5v14l11-7z"/></svg>
-                                </div>
-                              </div>
-                            </div>
-                          ) : (
-                            <img
-                              key={i}
-                              src={resolveImageUrl(img)}
-                              alt=""
-                              className="h-20 w-20 object-cover rounded-lg flex-shrink-0 cursor-pointer"
-                              onClick={() => { setViewerImages(listing.images); setViewerIndex(i); }}
-                            />
-                          )
+                          <AdminMediaThumb
+                            key={i}
+                            path={img}
+                            onClick={() => { setViewerImages(listing.images); setViewerIndex(i); }}
+                          />
                         ))}
                       </div>
                     )}
@@ -1161,24 +1194,11 @@ export default function AdminDashboard() {
                     <div className="relative">
                       <div className="flex overflow-x-auto snap-x snap-mandatory">
                         {selectedPendingListing.images.map((img, i) => (
-                          isVideoMedia(img) ? (
-                            <div key={i} className="w-full flex-shrink-0 snap-center bg-black flex items-center justify-center max-h-72 overflow-hidden">
-                              <video
-                                src={resolveMediaUrl(img)}
-                                controls
-                                playsInline
-                                className="w-full max-h-72 object-contain"
-                              />
-                            </div>
-                          ) : (
-                            <img
-                              key={i}
-                              src={resolveImageUrl(img)}
-                              alt=""
-                              className="w-full flex-shrink-0 snap-center object-cover max-h-72 cursor-pointer"
-                              onClick={() => { setViewerImages(selectedPendingListing.images); setViewerIndex(i); }}
-                            />
-                          )
+                          <AdminMediaSlide
+                            key={i}
+                            path={img}
+                            onClick={() => { setViewerImages(selectedPendingListing.images); setViewerIndex(i); }}
+                          />
                         ))}
                       </div>
                       {selectedPendingListing.images.length > 1 && (
