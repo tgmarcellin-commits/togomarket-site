@@ -204,7 +204,7 @@ export function PublishModal({ open, onOpenChange, vendor, vendorPassword, onNee
           location: catalogDesc.trim() || "Catalogue Tourisme",
           country: "Togo",
           sector: "Tourisme" as const,
-          images: tourismeMedia.map((m) => m.objectPath),
+          images: tourismeMedia.map((m) => m.isVideo ? `v:${m.objectPath}` : m.objectPath),
           vendorPhone: vendor.phone,
           vendorPassword,
         },

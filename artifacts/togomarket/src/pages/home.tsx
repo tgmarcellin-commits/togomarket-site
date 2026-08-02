@@ -74,7 +74,12 @@ interface TourismeCatalog {
   createdAt: string;
 }
 
-const isVideoPath = (path: string) => /\.(mp4|webm|mov|avi|mkv|m4v)$/i.test(path);
+/** Détecte les vidéos : préfixe v: (nouveaux uploads) OU extension connue (anciens uploads) */
+const isVideoMedia = (path: string) =>
+  path.startsWith("v:") || /\.(mp4|webm|mov|avi|mkv|m4v)$/i.test(path);
+/** Résout l'URL en retirant le préfixe v: si présent */
+const resolveMediaUrl = (path: string, resolveImageUrl: (p: string) => string) =>
+  resolveImageUrl(path.startsWith("v:") ? path.slice(2) : path);
 
 const CATALOG_SECTORS = [
   { label: "Tourisme", emoji: "🌴", value: "Tourisme" },
@@ -593,13 +598,15 @@ export default function Home() {
                         ) : (
                           <div className="grid grid-cols-2 gap-3">
                             {catalog.images.map((img, i) => (
-                              isVideoPath(img) ? (
-                                <video
-                                  key={i}
-                                  src={resolveImageUrl(img)}
-                                  controls
-                                  className="w-full rounded-xl object-cover col-span-2"
-                                />
+                              isVideoMedia(img) ? (
+                                <div key={i} className="col-span-2 rounded-xl overflow-hidden bg-black aspect-video relative">
+                                  <video
+                                    src={resolveMediaUrl(img, resolveImageUrl)}
+                                    controls
+                                    playsInline
+                                    className="w-full h-full object-contain"
+                                  />
+                                </div>
                               ) : (
                                 <a key={i} href={resolveImageUrl(img)} target="_blank" rel="noopener noreferrer">
                                   <img
@@ -646,13 +653,21 @@ export default function Home() {
                         >
                           <div className="aspect-video bg-muted relative overflow-hidden">
                             {catalog.images[0] ? (
-                              isVideoPath(catalog.images[0]) ? (
-                                <video
-                                  src={resolveImageUrl(catalog.images[0])}
-                                  className="w-full h-full object-cover"
-                                  muted
-                                  playsInline
-                                />
+                              isVideoMedia(catalog.images[0]) ? (
+                                <div className="w-full h-full flex items-center justify-center bg-black relative">
+                                  <video
+                                    src={resolveMediaUrl(catalog.images[0], resolveImageUrl)}
+                                    className="w-full h-full object-cover"
+                                    muted
+                                    playsInline
+                                  />
+                                  {/* Play icon overlay so the user knows it's a video */}
+                                  <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
+                                    <div className="bg-black/50 rounded-full w-10 h-10 flex items-center justify-center">
+                                      <svg className="w-5 h-5 text-white ml-0.5" fill="currentColor" viewBox="0 0 24 24"><path d="M8 5v14l11-7z"/></svg>
+                                    </div>
+                                  </div>
+                                </div>
                               ) : (
                                 <img
                                   src={resolveImageUrl(catalog.images[0])}
