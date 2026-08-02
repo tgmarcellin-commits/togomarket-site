@@ -1,5 +1,5 @@
 import { Router, type IRouter } from "express";
-import { eq, ilike, and, desc, sql, gt, inArray, type SQL } from "drizzle-orm";
+import { eq, ilike, and, desc, sql, gt, inArray, ne, type SQL } from "drizzle-orm";
 import { normalizePhone, phoneEq } from "../lib/phone";
 import bcrypt from "bcryptjs";
 import { db, listingsTable, vendorsTable } from "@workspace/db";
@@ -62,6 +62,7 @@ router.get("/listings", async (req, res): Promise<void> => {
     inArray(listingsTable.phone, activeVendorPhones),
   ];
   if (sector) conditions.push(eq(listingsTable.sector, sector));
+  else conditions.push(ne(listingsTable.sector, "Tourisme")); // Tourisme has its own catalog endpoint
   if (search) conditions.push(ilike(listingsTable.name, `%${search}%`));
   let shopVendorName: string | undefined;
   if (shopNumber) {
@@ -102,6 +103,56 @@ router.get("/listings", async (req, res): Promise<void> => {
     hasMore: offset + listings.length < total,
     ...(shopVendorName ? { vendorName: shopVendorName } : {}),
   }));
+});
+
+/* ──────────────────────────────────────────────────────────────
+   GET /api/listings/tourisme  — Tourisme catalogs grouped by (phone, name)
+   ────────────────────────────────────────────────────────────── */
+router.get("/listings/tourisme", async (_req, res): Promise<void> => {
+  const rows = await db
+    .select({
+      listing: listingsTable,
+      vendorId: vendorsTable.id,
+      vendorFirstName: vendorsTable.firstName,
+      vendorLastName: vendorsTable.lastName,
+      vendorShopName: vendorsTable.shopName,
+    })
+    .from(listingsTable)
+    .leftJoin(vendorsTable, eq(vendorsTable.phone, listingsTable.phone))
+    .where(and(
+      eq(listingsTable.approved, true),
+      eq(listingsTable.sector, "Tourisme"),
+    ))
+    .orderBy(desc(listingsTable.createdAt));
+
+  interface CatalogEntry {
+    catalogName: string;
+    description: string;
+    vendorName: string;
+    vendorId: number | null;
+    images: string[];
+    createdAt: string;
+  }
+
+  const map = new Map<string, CatalogEntry>();
+
+  for (const { listing, vendorId, vendorFirstName, vendorLastName, vendorShopName } of rows) {
+    const key = `${listing.phone}::${listing.name.toLowerCase().trim()}`;
+    if (!map.has(key)) {
+      map.set(key, {
+        catalogName: listing.name,
+        description: listing.location,
+        vendorName: vendorShopName ?? `${vendorFirstName ?? ""} ${vendorLastName ?? ""}`.trim(),
+        vendorId: vendorId ?? null,
+        images: [...listing.images],
+        createdAt: listing.createdAt.toISOString(),
+      });
+    } else {
+      map.get(key)!.images.push(...listing.images);
+    }
+  }
+
+  res.json(Array.from(map.values()));
 });
 
 router.post("/listings", async (req, res): Promise<void> => {

@@ -283,21 +283,25 @@ router.post(
     const file = req.file;
     if (!file) { res.status(400).json({ error: "file required" }); return; }
 
-    const allowed = ["image/jpeg", "image/jpg", "image/png", "application/pdf"];
+    const allowed = [
+      "image/jpeg", "image/jpg", "image/png", "application/pdf",
+      "audio/webm", "audio/mp4", "audio/ogg", "audio/mpeg", "audio/wav", "audio/aac",
+    ];
     if (!allowed.includes(file.mimetype)) {
-      res.status(400).json({ error: "only JPEG, PNG, PDF allowed" });
+      res.status(400).json({ error: "only JPEG, PNG, PDF, or audio files allowed" });
       return;
     }
 
-    const fileType = file.mimetype === "application/pdf" ? "pdf" : "image";
-    const mimeType = file.mimetype as "image/jpeg" | "image/png" | "application/pdf";
+    const fileType = file.mimetype === "application/pdf" ? "pdf"
+      : file.mimetype.startsWith("audio/") ? "audio"
+      : "image";
 
     // Upload to Object Storage
     const fs = await import("node:fs/promises");
     const buffer = await fs.readFile(file.path);
     await fs.unlink(file.path).catch(() => {});
 
-    const objectPath = await objectStorage.uploadObjectEntity(buffer, mimeType);
+    const objectPath = await objectStorage.uploadObjectEntity(buffer, file.mimetype);
 
     const senderType: "buyer" | "vendor" = identity.role === "vendor" ? "vendor" : "buyer";
     const convRows = await db

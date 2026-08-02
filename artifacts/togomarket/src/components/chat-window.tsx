@@ -4,7 +4,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import {
   Send, MessageCircle, ShoppingBag, Paperclip,
-  Pencil, Trash2, X, Check, FileText, Eraser,
+  Pencil, Trash2, X, Check, FileText, Eraser, Mic, StopCircle,
 } from "lucide-react";
 import { useSiteSettings } from "@/lib/site-settings";
 import { getSocket } from "@/lib/socket";
@@ -64,10 +64,15 @@ export function ChatWindow({
   const [menuPos, setMenuPos] = useState<{ top: number; right: number } | null>(null);
   const [confirmDeleteConv, setConfirmDeleteConv] = useState(false);
   const [deletingConv, setDeletingConv] = useState(false);
+  const [isRecording, setIsRecording] = useState(false);
+  const [recordingDuration, setRecordingDuration] = useState(0);
   const endRef = useRef<HTMLDivElement>(null);
   const scrollAreaRef = useRef<HTMLDivElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const longPressTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const mediaRecorderRef = useRef<MediaRecorder | null>(null);
+  const audioChunksRef = useRef<Blob[]>([]);
+  const recordingTimerRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
   const selfType = auth.kind === "vendor" ? "vendor" : "buyer";
 
@@ -133,6 +138,70 @@ export function ChatWindow({
   }, [open, conversationId, fetchMessages]);
 
   useEffect(() => { scrollToBottom(); }, [messages]);
+
+  // ── Voice recording ────────────────────────────────────────────────────────
+  const startRecording = async () => {
+    if (uploading || sending) return;
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+      const mimeType = MediaRecorder.isTypeSupported("audio/webm") ? "audio/webm" : "";
+      const mediaRecorder = mimeType
+        ? new MediaRecorder(stream, { mimeType })
+        : new MediaRecorder(stream);
+      mediaRecorderRef.current = mediaRecorder;
+      audioChunksRef.current = [];
+
+      mediaRecorder.ondataavailable = (e) => {
+        if (e.data.size > 0) audioChunksRef.current.push(e.data);
+      };
+
+      mediaRecorder.onstop = async () => {
+        stream.getTracks().forEach((t) => t.stop());
+        const actualMime = mediaRecorder.mimeType || "audio/webm";
+        const blob = new Blob(audioChunksRef.current, { type: actualMime });
+        const ext = actualMime.includes("ogg") ? "ogg" : actualMime.includes("mp4") ? "mp4" : "webm";
+        await uploadAudioBlob(blob, ext);
+      };
+
+      mediaRecorder.start(250);
+      setIsRecording(true);
+      setRecordingDuration(0);
+      recordingTimerRef.current = setInterval(() => setRecordingDuration((d) => d + 1), 1000);
+    } catch {
+      /* microphone access denied — ignore silently */
+    }
+  };
+
+  const stopRecording = () => {
+    if (mediaRecorderRef.current && isRecording) {
+      mediaRecorderRef.current.stop();
+      if (recordingTimerRef.current) {
+        clearInterval(recordingTimerRef.current);
+        recordingTimerRef.current = null;
+      }
+      setIsRecording(false);
+      setRecordingDuration(0);
+    }
+  };
+
+  const uploadAudioBlob = async (blob: Blob, ext: string) => {
+    setUploading(true);
+    try {
+      const formData = new FormData();
+      formData.append("file", blob, `audio.${ext}`);
+      const res = await fetch(`/api/conversations/${conversationId}/upload`, {
+        method: "POST",
+        headers: authHeaders(auth),
+        body: formData,
+      });
+      if (res.ok) {
+        const msg = await res.json() as ChatMessage;
+        setMessages((prev) => prev.some((m) => m.id === msg.id) ? prev : [...prev, msg]);
+      }
+    } finally {
+      setUploading(false);
+    }
+  };
 
   // ── Send text ──────────────────────────────────────────────────────────────
   const sendMessage = async () => {
@@ -289,6 +358,17 @@ export function ChatWindow({
                 className="max-w-[220px] max-h-[220px] object-cover block"
               />
             </a>
+          )}
+
+          {/* Audio */}
+          {msg.fileUrl && msg.fileType === "audio" && (
+            <div className="px-3 py-2.5">
+              <audio
+                controls
+                src={resolveImageUrl(msg.fileUrl)}
+                className="h-10 max-w-[220px]"
+              />
+            </div>
           )}
 
           {/* PDF */}
@@ -462,43 +542,72 @@ export function ChatWindow({
           </div>
         ) : (
           /* Normal mode */
-          <div className="flex items-center gap-2 px-4 py-3 border-t bg-card flex-shrink-0">
-            {/* File attachment */}
-            <button
-              onClick={() => fileInputRef.current?.click()}
-              disabled={uploading}
-              className="flex-shrink-0 w-9 h-9 rounded-full flex items-center justify-center text-muted-foreground hover:bg-muted hover:text-foreground transition-colors disabled:opacity-50"
-              title={lang === "fr" ? "Joindre un fichier" : "Attach a file"}
-            >
-              {uploading
-                ? <div className="w-4 h-4 border-2 border-primary border-t-transparent rounded-full animate-spin" />
-                : <Paperclip className="w-5 h-5" />}
-            </button>
-            <input
-              ref={fileInputRef}
-              type="file"
-              accept=".jpg,.jpeg,.png,.pdf,image/jpeg,image/png,application/pdf"
-              className="hidden"
-              onChange={handleFileChange}
-            />
-            <Input
-              className="flex-1 rounded-full"
-              placeholder={lang === "fr" ? "Votre message…" : "Your message…"}
-              value={input}
-              onChange={(e) => setInput(e.target.value)}
-              onKeyDown={handleKeyDown}
-              onFocus={handleInputFocus}
-              disabled={sending}
-            />
-            <Button
-              size="icon"
-              className="rounded-full flex-shrink-0"
-              onClick={sendMessage}
-              disabled={!input.trim() || sending}
-            >
-              <Send className="w-4 h-4" />
-            </Button>
-          </div>
+          <>
+            {isRecording && (
+              <div className="flex items-center gap-2 px-4 py-2 bg-red-50 border-t border-red-100 flex-shrink-0">
+                <div className="w-2 h-2 rounded-full bg-red-500 animate-pulse" />
+                <span className="text-xs font-medium text-red-600">
+                  {String(Math.floor(recordingDuration / 60)).padStart(2, "0")}:{String(recordingDuration % 60).padStart(2, "0")}
+                </span>
+                <span className="text-xs text-red-400 flex-1">
+                  {lang === "fr" ? "Enregistrement…" : "Recording…"}
+                </span>
+              </div>
+            )}
+            <div className="flex items-center gap-2 px-4 py-3 border-t bg-card flex-shrink-0">
+              {/* File attachment */}
+              <button
+                onClick={() => fileInputRef.current?.click()}
+                disabled={uploading || isRecording}
+                className="flex-shrink-0 w-9 h-9 rounded-full flex items-center justify-center text-muted-foreground hover:bg-muted hover:text-foreground transition-colors disabled:opacity-50"
+                title={lang === "fr" ? "Joindre un fichier" : "Attach a file"}
+              >
+                {uploading
+                  ? <div className="w-4 h-4 border-2 border-primary border-t-transparent rounded-full animate-spin" />
+                  : <Paperclip className="w-5 h-5" />}
+              </button>
+              <input
+                ref={fileInputRef}
+                type="file"
+                accept=".jpg,.jpeg,.png,.pdf,image/jpeg,image/png,application/pdf"
+                className="hidden"
+                onChange={handleFileChange}
+              />
+              <Input
+                className="flex-1 rounded-full"
+                placeholder={lang === "fr" ? "Votre message…" : "Your message…"}
+                value={input}
+                onChange={(e) => setInput(e.target.value)}
+                onKeyDown={handleKeyDown}
+                onFocus={handleInputFocus}
+                disabled={sending || isRecording}
+              />
+              {/* Voice message button */}
+              <button
+                type="button"
+                onClick={isRecording ? stopRecording : startRecording}
+                disabled={uploading || sending}
+                className={`flex-shrink-0 w-9 h-9 rounded-full flex items-center justify-center transition-colors disabled:opacity-50 ${
+                  isRecording
+                    ? "bg-red-500 text-white hover:bg-red-600"
+                    : "text-muted-foreground hover:bg-muted hover:text-foreground"
+                }`}
+                title={isRecording
+                  ? (lang === "fr" ? "Arrêter l'enregistrement" : "Stop recording")
+                  : (lang === "fr" ? "Message vocal" : "Voice message")}
+              >
+                {isRecording ? <StopCircle className="w-5 h-5" /> : <Mic className="w-5 h-5" />}
+              </button>
+              <Button
+                size="icon"
+                className="rounded-full flex-shrink-0"
+                onClick={sendMessage}
+                disabled={!input.trim() || sending || isRecording}
+              >
+                <Send className="w-4 h-4" />
+              </Button>
+            </div>
+          </>
         )}
       </SheetContent>
     </Sheet>

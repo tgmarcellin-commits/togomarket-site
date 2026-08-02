@@ -23,8 +23,8 @@ import {
 import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { resizeImageToBlob, resolveImageUrl } from "@/lib/image";
-import { uploadImageFile } from "@/lib/upload";
-import { UploadCloud, X, Lock, AlertCircle, UserCircle2, Store, CreditCard, Loader2, Copy, Users } from "lucide-react";
+import { uploadImageFile, uploadVideoFile } from "@/lib/upload";
+import { UploadCloud, X, Lock, AlertCircle, UserCircle2, Store, CreditCard, Loader2, Copy, Users, Video } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { useSiteSettings } from "@/lib/site-settings";
 import { useT } from "@/lib/i18n";
@@ -63,6 +63,9 @@ export function PublishModal({ open, onOpenChange, vendor, vendorPassword, onNee
   const [images, setImages] = useState<{ dataUrl: string; objectPath: string }[]>([]);
   const [isProcessing, setIsProcessing] = useState(false);
   const [fedapayLoading, setFedapayLoading] = useState(false);
+  const [catalogDesc, setCatalogDesc] = useState("");
+  const [tourismeMedia, setTourismeMedia] = useState<{ dataUrl: string; objectPath: string; isVideo: boolean }[]>([]);
+  const [uploadingTourisme, setUploadingTourisme] = useState(false);
   const { toast } = useToast();
   const queryClient = useQueryClient();
   const createListing = useCreateListing();
@@ -147,11 +150,96 @@ export function PublishModal({ open, onOpenChange, vendor, vendorPassword, onNee
     );
   };
 
+  const watchedSector = form.watch("sector");
+  const isTourisme = watchedSector === "Tourisme";
+
+  const handleTourismeFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    if (!e.target.files) return;
+    const files = Array.from(e.target.files);
+    e.target.value = "";
+    if (tourismeMedia.length + files.length > 10) {
+      toast({ title: lang === "fr" ? "Maximum 10 médias autorisés" : "Maximum 10 media files allowed", variant: "destructive" });
+      return;
+    }
+    setUploadingTourisme(true);
+    try {
+      const entries = await Promise.all(
+        files.map(async (file) => {
+          const isVideoFile = file.type.startsWith("video/");
+          if (isVideoFile) {
+            const objectPath = await uploadVideoFile(file);
+            return { dataUrl: URL.createObjectURL(file), objectPath, isVideo: true };
+          } else {
+            const { blob, dataUrl } = await resizeImageToBlob(file);
+            const objectPath = await uploadImageFile(blob, file.name);
+            return { dataUrl, objectPath, isVideo: false };
+          }
+        })
+      );
+      setTourismeMedia((prev) => [...prev, ...entries].slice(0, 10));
+    } catch {
+      toast({ title: t.imageProcessingError, variant: "destructive" });
+    } finally {
+      setUploadingTourisme(false);
+    }
+  };
+
+  const removeTourismeMedia = (index: number) => {
+    setTourismeMedia((prev) => prev.filter((_, i) => i !== index));
+  };
+
+  const onSubmitTourisme = () => {
+    if (!vendor) return;
+    const name = form.getValues("name");
+    if (!name || name.trim().length < 3) {
+      form.setError("name", { message: t.titleTooShort });
+      return;
+    }
+    createListing.mutate(
+      {
+        data: {
+          name: name.trim(),
+          price: 0,
+          location: catalogDesc.trim() || "Catalogue Tourisme",
+          country: "Togo",
+          sector: "Tourisme" as const,
+          images: tourismeMedia.map((m) => m.objectPath),
+          vendorPhone: vendor.phone,
+          vendorPassword,
+        },
+      },
+      {
+        onSuccess: () => {
+          queryClient.invalidateQueries({ queryKey: getGetListingsQueryKey() });
+          toast({
+            title: lang === "fr" ? "Catalogue soumis !" : "Catalog submitted!",
+            description: lang === "fr" ? "Votre catalogue Tourisme est en attente de validation." : "Your Tourisme catalog is pending approval.",
+          });
+          const message = lang === "fr"
+            ? `Nouveau catalogue Tourisme soumis\n\nNom : ${name.trim()}\nVendeur : ${vendor.firstName} ${vendor.lastName}\nTéléphone : ${vendor.phone}`
+            : `New Tourisme catalog submitted\n\nName: ${name.trim()}\nSeller: ${vendor.firstName} ${vendor.lastName}\nPhone: ${vendor.phone}`;
+          openWhatsApp(`https://wa.me/22870703131?text=${encodeURIComponent(message)}`);
+          form.reset();
+          setCatalogDesc("");
+          setTourismeMedia([]);
+          setScreen("gate");
+          onOpenChange(false);
+        },
+        onError: (err: unknown) => {
+          const msg = (err as { message?: string })?.message ?? "";
+          toast({ title: t.publishError, description: msg || undefined, variant: "destructive" });
+        },
+      }
+    );
+  };
+
   const handleOpenChange = (val: boolean) => {
     if (!val) {
       setScreen("gate");
       form.reset();
       setImages([]);
+      setCatalogDesc("");
+      setTourismeMedia([]);
     }
     onOpenChange(val);
   };
@@ -373,29 +461,16 @@ export function PublishModal({ open, onOpenChange, vendor, vendorPassword, onNee
                 name="name"
                 render={({ field }) => (
                   <FormItem>
-                    <FormLabel>{t.articleTitle}</FormLabel>
+                    <FormLabel>{isTourisme ? (lang === "fr" ? "Nom du catalogue" : "Catalog name") : t.articleTitle}</FormLabel>
                     <FormControl>
-                      <Input placeholder="Ex: iPhone 12 Pro Max" {...field} />
+                      <Input placeholder={isTourisme ? (lang === "fr" ? "Ex : Visite des cascades de Kpalimé" : "Ex: Kpalimé waterfalls tour") : "Ex: iPhone 12 Pro Max"} {...field} />
                     </FormControl>
                     <FormMessage />
                   </FormItem>
                 )}
               />
 
-              <div className="grid grid-cols-2 gap-4">
-                <FormField
-                  control={form.control}
-                  name="price"
-                  render={({ field }) => (
-                    <FormItem>
-                      <FormLabel>{t.priceLabel}</FormLabel>
-                      <FormControl>
-                        <Input type="number" placeholder="150000" {...field} />
-                      </FormControl>
-                      <FormMessage />
-                    </FormItem>
-                  )}
-                />
+              {isTourisme ? (
                 <FormField
                   control={form.control}
                   name="sector"
@@ -421,75 +496,191 @@ export function PublishModal({ open, onOpenChange, vendor, vendorPassword, onNee
                     </FormItem>
                   )}
                 />
-              </div>
-
-              <FormField
-                control={form.control}
-                name="location"
-                render={({ field }) => (
-                  <FormItem>
-                    <FormLabel>{t.locationLabel}</FormLabel>
-                    <FormControl>
-                      <Input placeholder="Lomé, Agoè" {...field} />
-                    </FormControl>
-                    <FormMessage />
-                  </FormItem>
-                )}
-              />
-
-              <FormField
-                control={form.control}
-                name="country"
-                render={({ field }) => (
-                  <FormItem>
-                    <FormLabel>{t.countryLabel}</FormLabel>
-                    <FormControl>
-                      <Input placeholder="Togo" {...field} />
-                    </FormControl>
-                    <FormMessage />
-                  </FormItem>
-                )}
-              />
-
-              <div>
-                <label className="text-sm font-medium leading-none">{t.imagesLabel}</label>
-                <div className="mt-2 flex flex-wrap gap-3">
-                  {images.map((img, idx) => (
-                    <div key={idx} className="relative w-20 h-20 rounded-md overflow-hidden border border-border">
-                      <img src={img.dataUrl} alt={`Preview ${idx}`} className="w-full h-full object-cover" />
-                      <button
-                        type="button"
-                        onClick={() => removeImage(idx)}
-                        className="absolute top-1 right-1 bg-black/50 text-white rounded-full p-0.5 hover:bg-black/70"
-                      >
-                        <X className="w-3 h-3" />
-                      </button>
-                    </div>
-                  ))}
-                  {images.length < 4 && (
-                    <label className="w-20 h-20 flex flex-col items-center justify-center border-2 border-dashed border-muted-foreground/30 rounded-md cursor-pointer hover:bg-muted/50 transition-colors">
-                      <UploadCloud className="w-5 h-5 text-muted-foreground mb-1" />
-                      <span className="text-[10px] text-muted-foreground font-medium">{t.add}</span>
-                      <input
-                        type="file"
-                        accept="image/*"
-                        multiple
-                        className="hidden"
-                        onChange={handleFileChange}
-                        disabled={isProcessing}
-                      />
-                    </label>
-                  )}
+              ) : (
+                <div className="grid grid-cols-2 gap-4">
+                  <FormField
+                    control={form.control}
+                    name="price"
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel>{t.priceLabel}</FormLabel>
+                        <FormControl>
+                          <Input type="number" placeholder="150000" {...field} />
+                        </FormControl>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+                  <FormField
+                    control={form.control}
+                    name="sector"
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel>{t.sectorLabel}</FormLabel>
+                        <Select onValueChange={field.onChange} value={field.value}>
+                          <FormControl>
+                            <SelectTrigger>
+                              <SelectValue placeholder={t.chooseSector} />
+                            </SelectTrigger>
+                          </FormControl>
+                          <SelectContent>
+                            <SelectItem value="Tourisme">Tourisme 🌴</SelectItem>
+                            <SelectItem value="AgriMarket">AgriMarket 🌿</SelectItem>
+                            <SelectItem value="Immobilier">Immobilier 🏢</SelectItem>
+                            <SelectItem value="Automobile">Automobile 🚗</SelectItem>
+                            <SelectItem value="Repas">Repas 🍽️</SelectItem>
+                            <SelectItem value="Divers">Divers 📦</SelectItem>
+                          </SelectContent>
+                        </Select>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
                 </div>
-              </div>
+              )}
 
-              <Button
-                type="submit"
-                className="w-full bg-primary hover:bg-primary/90 mt-6"
-                disabled={createListing.isPending || isProcessing}
-              >
-                {createListing.isPending ? t.sending : t.submitListing}
-              </Button>
+              {isTourisme ? (
+                <div>
+                  <label className="text-sm font-medium leading-none">
+                    {lang === "fr" ? "Description (facultatif)" : "Description (optional)"}
+                  </label>
+                  <textarea
+                    value={catalogDesc}
+                    onChange={(e) => setCatalogDesc(e.target.value)}
+                    placeholder={lang === "fr" ? "Décrivez votre catalogue Tourisme…" : "Describe your Tourisme catalog…"}
+                    rows={3}
+                    className="mt-2 w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 resize-none"
+                  />
+                </div>
+              ) : (
+                <>
+                  <FormField
+                    control={form.control}
+                    name="location"
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel>{t.locationLabel}</FormLabel>
+                        <FormControl>
+                          <Input placeholder="Lomé, Agoè" {...field} />
+                        </FormControl>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+                  <FormField
+                    control={form.control}
+                    name="country"
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel>{t.countryLabel}</FormLabel>
+                        <FormControl>
+                          <Input placeholder="Togo" {...field} />
+                        </FormControl>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+                </>
+              )}
+
+              {isTourisme ? (
+                <div>
+                  <label className="text-sm font-medium leading-none">
+                    {lang === "fr" ? "Photos & vidéos (max 10)" : "Photos & videos (max 10)"}
+                  </label>
+                  <div className="mt-2 flex flex-wrap gap-3">
+                    {tourismeMedia.map((m, idx) => (
+                      <div key={idx} className="relative w-20 h-20 rounded-md overflow-hidden border border-border bg-muted">
+                        {m.isVideo ? (
+                          <div className="w-full h-full flex items-center justify-center">
+                            <Video className="w-7 h-7 text-muted-foreground" />
+                          </div>
+                        ) : (
+                          <img src={m.dataUrl} alt={`Preview ${idx}`} className="w-full h-full object-cover" />
+                        )}
+                        <button
+                          type="button"
+                          onClick={() => removeTourismeMedia(idx)}
+                          className="absolute top-1 right-1 bg-black/50 text-white rounded-full p-0.5 hover:bg-black/70"
+                        >
+                          <X className="w-3 h-3" />
+                        </button>
+                      </div>
+                    ))}
+                    {tourismeMedia.length < 10 && (
+                      <label className="w-20 h-20 flex flex-col items-center justify-center border-2 border-dashed border-muted-foreground/30 rounded-md cursor-pointer hover:bg-muted/50 transition-colors">
+                        {uploadingTourisme ? (
+                          <Loader2 className="w-5 h-5 text-muted-foreground animate-spin" />
+                        ) : (
+                          <>
+                            <UploadCloud className="w-5 h-5 text-muted-foreground mb-1" />
+                            <span className="text-[10px] text-muted-foreground font-medium">{t.add}</span>
+                          </>
+                        )}
+                        <input
+                          type="file"
+                          accept="image/*,video/*,.mp4,.mov,.webm"
+                          multiple
+                          className="hidden"
+                          onChange={handleTourismeFileChange}
+                          disabled={uploadingTourisme}
+                        />
+                      </label>
+                    )}
+                  </div>
+                </div>
+              ) : (
+                <div>
+                  <label className="text-sm font-medium leading-none">{t.imagesLabel}</label>
+                  <div className="mt-2 flex flex-wrap gap-3">
+                    {images.map((img, idx) => (
+                      <div key={idx} className="relative w-20 h-20 rounded-md overflow-hidden border border-border">
+                        <img src={img.dataUrl} alt={`Preview ${idx}`} className="w-full h-full object-cover" />
+                        <button
+                          type="button"
+                          onClick={() => removeImage(idx)}
+                          className="absolute top-1 right-1 bg-black/50 text-white rounded-full p-0.5 hover:bg-black/70"
+                        >
+                          <X className="w-3 h-3" />
+                        </button>
+                      </div>
+                    ))}
+                    {images.length < 4 && (
+                      <label className="w-20 h-20 flex flex-col items-center justify-center border-2 border-dashed border-muted-foreground/30 rounded-md cursor-pointer hover:bg-muted/50 transition-colors">
+                        <UploadCloud className="w-5 h-5 text-muted-foreground mb-1" />
+                        <span className="text-[10px] text-muted-foreground font-medium">{t.add}</span>
+                        <input
+                          type="file"
+                          accept="image/*"
+                          multiple
+                          className="hidden"
+                          onChange={handleFileChange}
+                          disabled={isProcessing}
+                        />
+                      </label>
+                    )}
+                  </div>
+                </div>
+              )}
+
+              {isTourisme ? (
+                <Button
+                  type="button"
+                  className="w-full bg-primary hover:bg-primary/90 mt-6"
+                  disabled={createListing.isPending || uploadingTourisme}
+                  onClick={onSubmitTourisme}
+                >
+                  {createListing.isPending ? t.sending : (lang === "fr" ? "Soumettre le catalogue" : "Submit catalog")}
+                </Button>
+              ) : (
+                <Button
+                  type="submit"
+                  className="w-full bg-primary hover:bg-primary/90 mt-6"
+                  disabled={createListing.isPending || isProcessing}
+                >
+                  {createListing.isPending ? t.sending : t.submitListing}
+                </Button>
+              )}
             </form>
           </Form>
         )}

@@ -55,10 +55,12 @@ ONGLET STAND — CATALOGUE DES BOUTIQUES
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 L'onglet Stand est le répertoire officiel des boutiques de TogoMarket, organisé par secteur d'activité.
 
-Navigation à 3 niveaux :
+Navigation à 3 niveaux (sauf Tourisme — voir ci-dessous) :
 1. Grille des secteurs : 6 secteurs affichés en grille (Tourisme 🌴, AgriMarket 🌿, Immobilier 🏢, Automobile 🚗, Repas 🍽️, Divers 📦)
 2. Liste des boutiques : cliquer sur un secteur affiche toutes les boutiques actives de ce secteur (photo de profil, nom de la boutique, numéro N°ID)
 3. Annonces de la boutique : cliquer sur une boutique affiche toutes ses annonces publiées
+
+⚠️ Exception : le secteur Tourisme 🌴 fonctionne différemment — il affiche une galerie de catalogues visuels (photos + vidéos) plutôt qu'une liste de boutiques. Chaque catalogue = un ensemble de médias soumis par un vendeur (ex : circuit touristique, hôtel, attraction). Cliquer sur un catalogue ouvre une galerie plein écran avec toutes les photos et vidéos. Les annonces Tourisme n'apparaissent PAS dans le Market Place — uniquement dans Stand > Tourisme.
 
 Fonctionnalités supplémentaires dans Stand :
 • Barre de recherche en haut : taper un mot-clé cherche des articles dans toutes les boutiques actives
@@ -78,7 +80,8 @@ Deux façons de trouver des annonces :
 Option 1 — Par boutique (onglet Stand) :
 • Aller dans l'onglet "Stand" (1er onglet, icône 🏪)
 • Choisir un secteur (Tourisme, AgriMarket, Immobilier, Automobile, Repas, Divers)
-• Cliquer sur une boutique pour voir toutes ses annonces
+• Pour Tourisme : affiche directement les catalogues visuels (pas de liste de boutiques)
+• Cliquer sur une boutique pour voir toutes ses annonces (secteurs non-Tourisme)
 • Ou taper un mot-clé dans la barre de recherche pour chercher dans toutes les boutiques
 
 Option 2 — Flux général (onglet Market Place) :
@@ -98,6 +101,8 @@ TogoMarket dispose d'un chat interne temps réel entre acheteurs et vendeurs :
 • L'acheteur donne son prénom et numéro au premier contact (stocké localement dans le navigateur)
 • La conversation s'ouvre dans un drawer en bas de l'écran
 • Les messages sont envoyés en temps réel via Socket.io
+• Les types de messages supportés : texte, photos/images (JPEG/PNG), PDF, et messages vocaux (enregistrement audio)
+• Pour envoyer un message vocal : appuyer sur le bouton micro 🎤, parler, puis appuyer sur le bouton stop 🛑 — l'audio est uploadé et affiché avec un lecteur audio intégré
 • Le vendeur voit ses conversations dans l'onglet Stand (quand il est connecté), avec compteur de messages non lus
 • Aucun compte acheteur n'est nécessaire — l'identité est mémorisée dans le navigateur
 • WhatsApp n'est conservé QUE pour : admin, "Introuvable", OTP, et annonces Services

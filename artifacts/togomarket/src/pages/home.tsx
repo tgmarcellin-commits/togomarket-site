@@ -65,6 +65,17 @@ interface VendorInSector {
   profilePhoto?: string | null;
 }
 
+interface TourismeCatalog {
+  catalogName: string;
+  description: string;
+  vendorName: string;
+  vendorId: number | null;
+  images: string[];
+  createdAt: string;
+}
+
+const isVideoPath = (path: string) => /\.(mp4|webm|mov|avi|mkv|m4v)$/i.test(path);
+
 const CATALOG_SECTORS = [
   { label: "Tourisme", emoji: "🌴", value: "Tourisme" },
   { label: "Divers", emoji: "📦", value: "Divers" },
@@ -92,6 +103,9 @@ export default function Home() {
   const [catalogVendors, setCatalogVendors] = useState<VendorInSector[]>([]);
   const [catalogLoading, setCatalogLoading] = useState(false);
   const [catalogShopSearch, setCatalogShopSearch] = useState("");
+  const [tourismeCatalogs, setTourismeCatalogs] = useState<TourismeCatalog[]>([]);
+  const [tourismeCatalogsLoading, setTourismeCatalogsLoading] = useState(false);
+  const [selectedTourismeCatalog, setSelectedTourismeCatalog] = useState<number | null>(null);
   const [shopSearchInput, setShopSearchInput] = useState("");
   const [heroMode, setHeroMode] = useState<"article" | "boutique">("article");
 
@@ -105,6 +119,8 @@ export default function Home() {
     setSearchInput("");
     setCatalogSector(null);
     setCatalogVendors([]);
+    setTourismeCatalogs([]);
+    setSelectedTourismeCatalog(null);
     setShopNumber(undefined);
 
     logoClickCount.current += 1;
@@ -307,6 +323,26 @@ export default function Home() {
     setSearch("");
     setSearchInput("");
     setSector(undefined);
+    setSelectedTourismeCatalog(null);
+    setTourismeCatalogs([]);
+
+    if (sec === "Tourisme") {
+      setCatalogLoading(false);
+      setTourismeCatalogsLoading(true);
+      try {
+        const res = await fetch("/api/listings/tourisme");
+        if (res.ok) {
+          const data = await res.json() as TourismeCatalog[];
+          setTourismeCatalogs(data);
+        }
+      } catch {
+        // Laisse vide
+      } finally {
+        setTourismeCatalogsLoading(false);
+      }
+      return;
+    }
+
     try {
       const res = await fetch(`/api/vendors/sector/${sec}`);
       if (res.ok) {
@@ -510,6 +546,138 @@ export default function Home() {
                 </>
               )}
             </main>
+
+          ) : catalogSector === "Tourisme" && !shopNumber ? (
+            /* ── VUE CATALOGUES TOURISME ── */
+            <>
+              <div className="sticky top-0 z-20 bg-background/95 backdrop-blur-sm border-b border-border/60 px-4 py-2.5 flex items-center gap-3">
+                <button
+                  onClick={() => {
+                    if (selectedTourismeCatalog !== null) {
+                      setSelectedTourismeCatalog(null);
+                    } else {
+                      setCatalogSector(null); setTourismeCatalogs([]); setSelectedTourismeCatalog(null);
+                      setSector(undefined); setShopNumber(undefined);
+                    }
+                  }}
+                  className="flex items-center gap-1.5 text-sm font-medium text-muted-foreground hover:text-foreground active:scale-95 transition-all"
+                >
+                  <span className="text-base">←</span>
+                  <span>{selectedTourismeCatalog !== null ? (lang === "fr" ? "Retour aux catalogues" : "Back to catalogs") : (lang === "fr" ? "Retour aux secteurs" : "Back to sectors")}</span>
+                </button>
+                <span className="text-muted-foreground/40">|</span>
+                <h2 className="text-sm font-bold flex items-center gap-1.5 truncate">
+                  <span>🌴</span>
+                  <span>{selectedTourismeCatalog !== null ? tourismeCatalogs[selectedTourismeCatalog]?.catalogName : "Tourisme"}</span>
+                </h2>
+              </div>
+
+              <main className="container mx-auto px-4 py-6 flex-grow">
+                {selectedTourismeCatalog !== null ? (
+                  /* ── GALERIE DU CATALOGUE SÉLECTIONNÉ ── */
+                  (() => {
+                    const catalog = tourismeCatalogs[selectedTourismeCatalog];
+                    if (!catalog) return null;
+                    return (
+                      <div className="space-y-4">
+                        {catalog.description && catalog.description !== "Catalogue Tourisme" && (
+                          <p className="text-sm text-muted-foreground leading-relaxed">{catalog.description}</p>
+                        )}
+                        <p className="text-xs text-muted-foreground font-medium">
+                          {lang === "fr" ? "Vendeur" : "Seller"} : <span className="text-foreground">{catalog.vendorName}</span>
+                        </p>
+                        {catalog.images.length === 0 ? (
+                          <div className="text-center py-16 text-muted-foreground text-sm">
+                            {lang === "fr" ? "Aucun média dans ce catalogue." : "No media in this catalog."}
+                          </div>
+                        ) : (
+                          <div className="grid grid-cols-2 gap-3">
+                            {catalog.images.map((img, i) => (
+                              isVideoPath(img) ? (
+                                <video
+                                  key={i}
+                                  src={resolveImageUrl(img)}
+                                  controls
+                                  className="w-full rounded-xl object-cover col-span-2"
+                                />
+                              ) : (
+                                <a key={i} href={resolveImageUrl(img)} target="_blank" rel="noopener noreferrer">
+                                  <img
+                                    src={resolveImageUrl(img)}
+                                    alt={`${catalog.catalogName} ${i + 1}`}
+                                    className="w-full aspect-square rounded-xl object-cover hover:opacity-90 transition-opacity"
+                                  />
+                                </a>
+                              )
+                            ))}
+                          </div>
+                        )}
+                      </div>
+                    );
+                  })()
+                ) : (
+                  /* ── GRILLE DES CATALOGUES ── */
+                  tourismeCatalogsLoading ? (
+                    <div className="grid grid-cols-2 gap-4">
+                      {[1, 2, 3, 4].map((n) => (
+                        <div key={n} className="rounded-2xl overflow-hidden border bg-card">
+                          <div className="aspect-video bg-muted animate-pulse" />
+                          <div className="p-3 space-y-2">
+                            <div className="h-4 bg-muted rounded animate-pulse w-3/4" />
+                            <div className="h-3 bg-muted rounded animate-pulse w-1/2" />
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  ) : tourismeCatalogs.length === 0 ? (
+                    <div className="text-center py-20">
+                      <span className="text-5xl block mb-4">🌴</span>
+                      <p className="text-muted-foreground text-sm max-w-xs mx-auto">
+                        {lang === "fr" ? "Aucun catalogue Tourisme disponible pour le moment." : "No Tourisme catalog available yet."}
+                      </p>
+                    </div>
+                  ) : (
+                    <div className="grid grid-cols-2 gap-4">
+                      {tourismeCatalogs.map((catalog, i) => (
+                        <button
+                          key={i}
+                          onClick={() => setSelectedTourismeCatalog(i)}
+                          className="group text-left rounded-2xl overflow-hidden border bg-card hover:border-primary/50 hover:shadow-md active:scale-95 transition-all"
+                        >
+                          <div className="aspect-video bg-muted relative overflow-hidden">
+                            {catalog.images[0] ? (
+                              isVideoPath(catalog.images[0]) ? (
+                                <video
+                                  src={resolveImageUrl(catalog.images[0])}
+                                  className="w-full h-full object-cover"
+                                  muted
+                                  playsInline
+                                />
+                              ) : (
+                                <img
+                                  src={resolveImageUrl(catalog.images[0])}
+                                  alt={catalog.catalogName}
+                                  className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
+                                />
+                              )
+                            ) : (
+                              <div className="w-full h-full flex items-center justify-center text-3xl">🌴</div>
+                            )}
+                            <div className="absolute bottom-1 right-1 bg-black/60 text-white text-[9px] font-medium px-1.5 py-0.5 rounded-full">
+                              {catalog.images.length} {lang === "fr" ? "photo" : "photo"}{catalog.images.length > 1 ? "s" : ""}
+                            </div>
+                          </div>
+                          <div className="p-3">
+                            <p className="font-semibold text-sm text-foreground line-clamp-1">{catalog.catalogName}</p>
+                            <p className="text-xs text-muted-foreground line-clamp-1 mt-0.5">{catalog.vendorName}</p>
+                          </div>
+                        </button>
+                      ))}
+                    </div>
+                  )
+                )}
+              </main>
+            </>
 
           ) : catalogSector && !shopNumber ? (
             /* ── LISTE DES BOUTIQUES DU SECTEUR ── */
