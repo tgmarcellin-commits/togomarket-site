@@ -21,10 +21,34 @@ import {
 } from "@/components/ui/dialog";
 import { useToast } from "@/hooks/use-toast";
 import { UserCircle2, Package, Clock, Trash2, Pencil, LogIn, Store, Bell, Copy, Check, Link2, AlertTriangle, XCircle, CreditCard } from "lucide-react";
-import { resolveImageUrl } from "@/lib/image";
+import { resolveImageUrl, isVideoMedia, resolveMediaUrl } from "@/lib/image";
 import { encodeShopToken } from "@/lib/shop-token";
 import { useSiteSettings } from "@/lib/site-settings";
 import { useT } from "@/lib/i18n";
+
+function BoutiqueMediaThumb({ path, alt }: { path: string; alt: string }) {
+  const [isVid, setIsVid] = useState(isVideoMedia(path));
+  if (isVid) {
+    return (
+      <div className="w-16 h-16 rounded-lg bg-black flex-shrink-0 relative overflow-hidden">
+        <video src={resolveMediaUrl(path)} className="w-full h-full object-cover" muted playsInline />
+        <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
+          <div className="bg-black/50 rounded-full w-6 h-6 flex items-center justify-center">
+            <svg className="w-3 h-3 text-white ml-0.5" fill="currentColor" viewBox="0 0 24 24"><path d="M8 5v14l11-7z"/></svg>
+          </div>
+        </div>
+      </div>
+    );
+  }
+  return (
+    <img
+      src={resolveImageUrl(path)}
+      alt={alt}
+      className="w-16 h-16 rounded-lg object-contain bg-black flex-shrink-0"
+      onError={() => setIsVid(true)}
+    />
+  );
+}
 
 interface BoutiqueViewProps {
   vendor: VendorProfile | null;
@@ -443,11 +467,7 @@ export function BoutiqueView({ vendor, vendorPassword, onNeedLogin }: BoutiqueVi
           {(listings ?? []).map((listing) => (
             <div key={listing.id} className="rounded-xl border bg-card p-3 flex gap-3">
               {listing.images?.[0] ? (
-                <img
-                  src={resolveImageUrl(listing.images[0])}
-                  alt={listing.name}
-                  className="w-16 h-16 rounded-lg object-contain bg-black flex-shrink-0"
-                />
+                <BoutiqueMediaThumb path={listing.images[0]} alt={listing.name} />
               ) : (
                 <div className="w-16 h-16 rounded-lg bg-muted flex items-center justify-center flex-shrink-0">
                   <Package className="w-6 h-6 text-muted-foreground" />

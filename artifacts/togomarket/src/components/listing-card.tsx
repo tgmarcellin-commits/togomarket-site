@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { openWhatsApp } from "@/lib/whatsapp";
-import { resolveImageUrl } from "@/lib/image";
+import { resolveImageUrl, isVideoMedia, resolveMediaUrl } from "@/lib/image";
 import type { Listing } from "@workspace/api-client-react";
 import { useAdminDeleteListing, getGetListingsQueryKey } from "@workspace/api-client-react";
 import { useQueryClient } from "@tanstack/react-query";
@@ -13,6 +13,33 @@ import { useT } from "@/lib/i18n";
 import { BuyerIdentityPrompt, loadBuyerIdentity, normalizePhone } from "@/components/buyer-identity-prompt";
 import { ChatWindow } from "@/components/chat-window";
 import type { BuyerIdentity } from "@/components/buyer-identity-prompt";
+
+/** Slide dans le carrousel d'une annonce — vidéo avec controls si nécessaire, image sinon. */
+function ListingMediaSlide({ path, alt, onClick }: { path: string; alt: string; onClick?: () => void }) {
+  const [isVid, setIsVid] = useState(isVideoMedia(path));
+  if (isVid) {
+    return (
+      <div className="w-full h-full snap-center flex-shrink-0 bg-black flex items-center justify-center relative">
+        <video
+          src={resolveMediaUrl(path)}
+          controls
+          playsInline
+          className="w-full h-full object-contain"
+          onClick={(e) => e.stopPropagation()}
+        />
+      </div>
+    );
+  }
+  return (
+    <img
+      src={resolveImageUrl(path)}
+      alt={alt}
+      className="w-full h-full object-cover snap-center flex-shrink-0 cursor-zoom-in"
+      onClick={onClick}
+      onError={() => setIsVid(true)}
+    />
+  );
+}
 
 /** Per-listing chat session key in localStorage — keyed by vendorId+listingId, not by phone */
 function chatSessionKey(vendorId: number, listingId: number) {
@@ -171,11 +198,10 @@ export function ListingCard({ listing, isAdmin, adminPassword, commissionRate, w
         <div className="flex w-full h-full overflow-x-auto snap-x snap-mandatory scrollbar-hide">
           {listing.images && listing.images.length > 0 ? (
             listing.images.map((img, i) => (
-              <img
+              <ListingMediaSlide
                 key={i}
-                src={resolveImageUrl(img)}
+                path={img}
                 alt={`${listing.name} ${i + 1}`}
-                className="w-full h-full object-cover snap-center flex-shrink-0 cursor-zoom-in"
                 onClick={() => openViewer(i)}
               />
             ))
