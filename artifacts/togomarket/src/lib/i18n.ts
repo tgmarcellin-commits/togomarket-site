@@ -41,7 +41,7 @@ const translations = {
     warningNoPay: "Attention : Ne payez jamais un article sans l'avoir inspecté physiquement.",
     notSpecified: "Non spécifié",
     delete: "Supprimer",
-    contactVendor: "Contacter — Vendeur",
+    contactVendor: "Discuter avec le vendeur",
     unlockFree: "Débloquer le Contact — Gratuit",
     unlockPaid: (n: number) => `Débloquer le Contact — ${new Intl.NumberFormat("fr-FR").format(n)} FCFA`,
     // Boutique view
@@ -316,7 +316,7 @@ const translations = {
     warningNoPay: "Warning: Never pay for an item without physically inspecting it.",
     notSpecified: "Not specified",
     delete: "Delete",
-    contactVendor: "Contact — Seller",
+    contactVendor: "Chat with seller",
     unlockFree: "Unlock Contact — Free",
     unlockPaid: (n: number) => `Unlock Contact — ${new Intl.NumberFormat("fr-FR").format(n)} FCFA`,
     // Boutique view
