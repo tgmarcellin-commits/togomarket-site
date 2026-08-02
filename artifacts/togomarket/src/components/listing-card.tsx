@@ -10,7 +10,7 @@ import { Button } from "@/components/ui/button";
 import { ImageViewer } from "@/components/image-viewer";
 import { useSiteSettings } from "@/lib/site-settings";
 import { useT } from "@/lib/i18n";
-import { BuyerIdentityPrompt, loadBuyerIdentity } from "@/components/buyer-identity-prompt";
+import { BuyerIdentityPrompt, loadBuyerIdentity, normalizePhone } from "@/components/buyer-identity-prompt";
 import { ChatWindow } from "@/components/chat-window";
 import type { BuyerIdentity } from "@/components/buyer-identity-prompt";
 
@@ -109,18 +109,23 @@ export function ListingCard({ listing, isAdmin, adminPassword, commissionRate, w
   const startChat = async (identity: BuyerIdentity) => {
     setBuyerIdentity(identity);
 
-    // Resume an existing session from localStorage if available —
-    // avoids calling POST /conversations (which always creates a new conv)
     const vid = listing.vendorId ?? 0;
     const lid = listing.id;
     const stored = vid ? loadChatSession(vid, lid) : null;
-    if (stored) {
+
+    // Resume previous session only if the phone matches the stored buyer
+    const storedIdentity = loadBuyerIdentity();
+    const samePhone = stored && storedIdentity &&
+      normalizePhone(storedIdentity.phone) === normalizePhone(identity.phone);
+
+    if (samePhone && stored) {
       setConversationId(stored.convId);
       setBuyerToken(stored.buyerToken);
       setChatOpen(true);
       return;
     }
 
+    // Different person or no previous session → create a new conversation
     setChatLoading(true);
     try {
       const res = await fetch("/api/conversations", {
@@ -147,12 +152,9 @@ export function ListingCard({ listing, isAdmin, adminPassword, commissionRate, w
   };
 
   const handleContactVendor = () => {
-    const existing = loadBuyerIdentity();
-    if (existing) {
-      startChat(existing);
-    } else {
-      setIdentityPromptOpen(true);
-    }
+    // Always show the identity form — buyer confirms who they are every time.
+    // The form is pre-filled with the last saved identity for convenience.
+    setIdentityPromptOpen(true);
   };
 
   const handleIdentityConfirm = (identity: BuyerIdentity) => {
@@ -285,6 +287,8 @@ export function ListingCard({ listing, isAdmin, adminPassword, commissionRate, w
       open={identityPromptOpen}
       onOpenChange={setIdentityPromptOpen}
       onConfirm={handleIdentityConfirm}
+      defaultName={loadBuyerIdentity()?.name ?? ""}
+      defaultPhone={loadBuyerIdentity()?.phone ?? ""}
     />
 
     {chatOpen && conversationId !== null && buyerIdentity && buyerToken && (

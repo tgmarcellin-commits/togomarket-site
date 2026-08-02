@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -15,7 +15,7 @@ const BUYER_KEY = "tm_buyer";
 /** Numéro officiel de la plateforme TogoMarket — toujours affiché comme "TogoMarket" */
 const TOGOMARKET_PHONE = "22870703131";
 
-function normalizePhone(p: string) {
+export function normalizePhone(p: string) {
   return p.replace(/\D/g, "").replace(/^00/, "").replace(/^\+/, "");
 }
 
@@ -47,13 +47,27 @@ interface BuyerIdentityPromptProps {
   open: boolean;
   onOpenChange: (v: boolean) => void;
   onConfirm: (identity: BuyerIdentity) => void;
+  /** Pre-fill the name field (e.g. from a previously saved identity) */
+  defaultName?: string;
+  /** Pre-fill the phone field */
+  defaultPhone?: string;
 }
 
-export function BuyerIdentityPrompt({ open, onOpenChange, onConfirm }: BuyerIdentityPromptProps) {
+export function BuyerIdentityPrompt({ open, onOpenChange, onConfirm, defaultName = "", defaultPhone = "" }: BuyerIdentityPromptProps) {
   const { lang } = useSiteSettings();
-  const [name, setName] = useState("");
-  const [phone, setPhone] = useState("");
+  const [name, setName] = useState(defaultName);
+  const [phone, setPhone] = useState(defaultPhone);
   const [error, setError] = useState("");
+
+  // Re-populate fields whenever the dialog opens (handles re-use of the same component instance)
+  useEffect(() => {
+    if (open) {
+      setName(defaultName);
+      setPhone(defaultPhone);
+      setError("");
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [open]);
 
   const handleConfirm = () => {
     if (!phone.trim()) {
