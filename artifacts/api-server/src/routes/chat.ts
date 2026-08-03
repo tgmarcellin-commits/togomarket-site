@@ -196,6 +196,7 @@ router.post("/conversations/:id/messages", async (req, res) => {
     .returning();
 
   // Update updatedAt + unread count + reset recipient's soft-delete so conversation reappears
+  const isBroadcastConv = conv.buyerPhone === "##007##";
   await db
     .update(conversationsTable)
     .set({
@@ -203,6 +204,10 @@ router.post("/conversations/:id/messages", async (req, res) => {
       vendorUnreadCount: senderType === "buyer"
         ? conv.vendorUnreadCount + 1
         : conv.vendorUnreadCount,
+      // Vendor replies to broadcast → admin inbox gets an unread increment
+      adminUnreadCount: senderType === "vendor" && isBroadcastConv
+        ? (conv.adminUnreadCount ?? 0) + 1
+        : (conv.adminUnreadCount ?? 0),
       // Sending a message to someone who deleted it from their side brings it back for them
       vendorDeletedAt: senderType === "buyer" ? null : conv.vendorDeletedAt,
       buyerDeletedAt: senderType === "vendor" ? null : conv.buyerDeletedAt,

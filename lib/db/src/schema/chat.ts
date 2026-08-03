@@ -26,6 +26,8 @@ export const conversationsTable = pgTable("conversations", {
     .notNull()
     .defaultNow(),
   vendorUnreadCount: integer("vendor_unread_count").notNull().default(0),
+  /** Replies from vendors to broadcast messages — unread count for admin inbox */
+  adminUnreadCount: integer("admin_unread_count").notNull().default(0),
   /** Unguessable token returned to buyer at conversation creation; required for buyer reads/sends */
   buyerToken: text("buyer_token").notNull(),
   /** Set when the vendor soft-deletes the conversation from their side only */

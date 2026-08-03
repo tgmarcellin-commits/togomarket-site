@@ -1,5 +1,5 @@
 import { Router, type IRouter } from "express";
-import { eq, desc, and, gt, lt } from "drizzle-orm";
+import { eq, desc, and, gt, lt, inArray, isNull, sql } from "drizzle-orm";
 import bcrypt from "bcryptjs";
 import { randomUUID } from "node:crypto";
 import { db, vendorsTable, publishCodesTable, otpCodesTable, listingsTable, conversationsTable, messagesTable } from "@workspace/db";
@@ -732,6 +732,136 @@ router.post("/admin/vendors/delete", async (req, res) => {
     req.log.error({ err }, "Failed to delete vendor");
     return res.status(500).json({ error: "Erreur interne" });
   }
+});
+
+/* ──────────────────────────────────────────────────────────────
+   BROADCAST INBOX — Super-admin lit les réponses vendeurs
+   ────────────────────────────────────────────────────────────── */
+
+// POST /api/admin/broadcast-inbox  — liste des conversations broadcast avec info vendeur
+router.post("/admin/broadcast-inbox", async (req, res) => {
+  const { password } = req.body as { password?: string };
+  if (!await isSuperAdmin(password ?? "")) return res.status(403).json({ error: "superadmin only" });
+
+  const convs = await db
+    .select({
+      id: conversationsTable.id,
+      vendorId: conversationsTable.vendorId,
+      vendorFirstName: vendorsTable.firstName,
+      vendorLastName: vendorsTable.lastName,
+      vendorPhone: vendorsTable.phone,
+      updatedAt: conversationsTable.updatedAt,
+      adminUnreadCount: conversationsTable.adminUnreadCount,
+    })
+    .from(conversationsTable)
+    .innerJoin(vendorsTable, eq(conversationsTable.vendorId, vendorsTable.id))
+    .where(eq(conversationsTable.buyerPhone, "##007##"))
+    .orderBy(desc(conversationsTable.updatedAt));
+
+  if (!convs.length) return res.json({ conversations: [] });
+
+  // Récupérer le dernier message par conversation en 2 requêtes (pas de N+1)
+  const convIds = convs.map(c => c.id);
+  const maxMsgIds = await db
+    .select({
+      conversationId: messagesTable.conversationId,
+      maxId: sql<number>`MAX(${messagesTable.id})`.as("max_id"),
+    })
+    .from(messagesTable)
+    .where(and(inArray(messagesTable.conversationId, convIds), isNull(messagesTable.deletedAt)))
+    .groupBy(messagesTable.conversationId);
+
+  const lastMessages = maxMsgIds.length > 0
+    ? await db.select({
+        id: messagesTable.id,
+        conversationId: messagesTable.conversationId,
+        content: messagesTable.content,
+        senderType: messagesTable.senderType,
+      })
+      .from(messagesTable)
+      .where(inArray(messagesTable.id, maxMsgIds.map(r => r.maxId)))
+    : [];
+
+  const lastMsgMap = new Map(lastMessages.map(m => [m.conversationId, m]));
+  const result = convs.map(c => ({
+    ...c,
+    lastMessage: lastMsgMap.get(c.id)?.content ?? null,
+    lastSenderType: lastMsgMap.get(c.id)?.senderType ?? null,
+  }));
+
+  return res.json({ conversations: result });
+});
+
+// POST /api/admin/broadcast-inbox/:id/messages  — messages d'une conversation
+router.post("/admin/broadcast-inbox/:id/messages", async (req, res) => {
+  const { password } = req.body as { password?: string };
+  if (!await isSuperAdmin(password ?? "")) return res.status(403).json({ error: "superadmin only" });
+
+  const convId = parseInt(req.params["id"] ?? "", 10);
+  if (isNaN(convId)) return res.status(400).json({ error: "invalid id" });
+
+  const [conv] = await db.select({ id: conversationsTable.id })
+    .from(conversationsTable)
+    .where(and(eq(conversationsTable.id, convId), eq(conversationsTable.buyerPhone, "##007##")))
+    .limit(1);
+  if (!conv) return res.status(404).json({ error: "conversation not found" });
+
+  const msgs = await db.select()
+    .from(messagesTable)
+    .where(and(eq(messagesTable.conversationId, convId), isNull(messagesTable.deletedAt)))
+    .orderBy(messagesTable.createdAt);
+
+  return res.json({ messages: msgs });
+});
+
+// POST /api/admin/broadcast-inbox/:id/reply  — admin répond en tant que TogoMarket
+router.post("/admin/broadcast-inbox/:id/reply", async (req, res) => {
+  const { password, content } = req.body as { password?: string; content?: string };
+  if (!await isSuperAdmin(password ?? "")) return res.status(403).json({ error: "superadmin only" });
+  if (!content?.trim()) return res.status(400).json({ error: "content required" });
+
+  const convId = parseInt(req.params["id"] ?? "", 10);
+  if (isNaN(convId)) return res.status(400).json({ error: "invalid id" });
+
+  const [conv] = await db.select()
+    .from(conversationsTable)
+    .where(and(eq(conversationsTable.id, convId), eq(conversationsTable.buyerPhone, "##007##")))
+    .limit(1);
+  if (!conv) return res.status(404).json({ error: "conversation not found" });
+
+  const [msg] = await db.insert(messagesTable).values({
+    conversationId: convId,
+    senderType: "buyer",
+    content: content.trim(),
+  }).returning();
+
+  await db.update(conversationsTable).set({
+    updatedAt: new Date(),
+    vendorUnreadCount: conv.vendorUnreadCount + 1,
+    vendorDeletedAt: null,
+  }).where(eq(conversationsTable.id, convId));
+
+  try {
+    const io = getIo();
+    io.to(`vendor:${conv.vendorId}`).emit("new_message", { conversationId: convId, message: msg });
+  } catch { /* non-fatal */ }
+
+  return res.status(201).json({ message: msg });
+});
+
+// POST /api/admin/broadcast-inbox/:id/read  — marquer comme lu (reset adminUnreadCount)
+router.post("/admin/broadcast-inbox/:id/read", async (req, res) => {
+  const { password } = req.body as { password?: string };
+  if (!await isSuperAdmin(password ?? "")) return res.status(403).json({ error: "superadmin only" });
+
+  const convId = parseInt(req.params["id"] ?? "", 10);
+  if (isNaN(convId)) return res.status(400).json({ error: "invalid id" });
+
+  await db.update(conversationsTable)
+    .set({ adminUnreadCount: 0 })
+    .where(and(eq(conversationsTable.id, convId), eq(conversationsTable.buyerPhone, "##007##")));
+
+  return res.json({ ok: true });
 });
 
 /* ──────────────────────────────────────────────────────────────
