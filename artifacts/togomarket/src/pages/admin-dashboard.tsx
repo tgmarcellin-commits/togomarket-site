@@ -84,6 +84,8 @@ import {
   StopCircle,
   FileText,
   Paperclip,
+  MoreVertical,
+  Pencil,
 } from "lucide-react";
 
 type DashTab =
@@ -116,6 +118,8 @@ interface InboxMessage {
   content: string | null;
   fileUrl: string | null;
   fileType: string | null;
+  editedAt?: string | null;
+  deletedAt?: string | null;
   createdAt: string;
 }
 
@@ -258,6 +262,9 @@ export default function AdminDashboard() {
   const [inboxMsgsLoading, setInboxMsgsLoading] = useState(false);
   const [inboxReply, setInboxReply] = useState("");
   const [inboxReplying, setInboxReplying] = useState(false);
+  const [inboxMenuMsgId, setInboxMenuMsgId] = useState<number | null>(null);
+  const [inboxEditingId, setInboxEditingId] = useState<number | null>(null);
+  const [inboxEditContent, setInboxEditContent] = useState("");
   const [inboxUploading, setInboxUploading] = useState(false);
   const [inboxIsRecording, setInboxIsRecording] = useState(false);
   const [inboxRecordingDuration, setInboxRecordingDuration] = useState(0);
@@ -374,6 +381,35 @@ export default function AdminDashboard() {
     const allowed = ["image/jpeg", "image/jpg", "image/png", "application/pdf"];
     if (!allowed.includes(file.type)) { toast({ title: "Format non supporté", description: "Utilisez JPEG, PNG ou PDF.", variant: "destructive" }); return; }
     await uploadInboxFile(file);
+  }
+
+  async function editInboxMessage() {
+    if (!selectedInboxConv || !inboxEditingId || !inboxEditContent.trim()) return;
+    try {
+      const res = await fetch(`/api/admin/broadcast-inbox/${selectedInboxConv.id}/messages/${inboxEditingId}/edit`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ password, content: inboxEditContent.trim() }),
+      });
+      if (!res.ok) { toast({ title: "Erreur", description: "Impossible de modifier le message.", variant: "destructive" }); return; }
+      const data = await res.json() as { content: string; editedAt: string };
+      setInboxMessages((prev) => prev.map((m) => m.id === inboxEditingId ? { ...m, content: data.content, editedAt: data.editedAt } : m));
+    } finally {
+      setInboxEditingId(null);
+      setInboxEditContent("");
+    }
+  }
+
+  async function deleteInboxMessage(msgId: number) {
+    if (!selectedInboxConv) return;
+    setInboxMenuMsgId(null);
+    const res = await fetch(`/api/admin/broadcast-inbox/${selectedInboxConv.id}/messages/${msgId}/delete`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ password }),
+    });
+    if (!res.ok) { toast({ title: "Erreur", description: "Impossible de supprimer le message.", variant: "destructive" }); return; }
+    setInboxMessages((prev) => prev.map((m) => m.id === msgId ? { ...m, deletedAt: new Date().toISOString() } : m));
   }
 
   async function sendInboxReply() {
@@ -2210,49 +2246,108 @@ export default function AdminDashboard() {
                     <div className="text-center py-12 text-muted-foreground text-sm">Aucun message dans cette conversation.</div>
                   ) : (
                     inboxMessages.map((msg) => {
+                      if (msg.deletedAt) return null;
                       const isAdmin = msg.senderType === "buyer";
+                      const isEditing = inboxEditingId === msg.id;
+                      const menuOpen = inboxMenuMsgId === msg.id;
+
                       return (
                         <div key={msg.id} className={`flex ${isAdmin ? "justify-end" : "justify-start"}`}>
-                          <div className={`max-w-[80%] rounded-2xl text-sm overflow-hidden ${
-                            isAdmin
-                              ? "bg-primary text-primary-foreground rounded-br-sm"
-                              : "bg-muted text-foreground rounded-bl-sm"
-                          }`}>
-                            {/* Sender label */}
-                            <p className={`text-[10px] font-semibold px-3 pt-2 ${isAdmin ? "opacity-70" : "opacity-60"}`}>
-                              {isAdmin ? "TogoMarket" : "Vendeur"}
-                            </p>
-                            {/* Image */}
-                            {msg.fileUrl && msg.fileType === "image" && (
-                              <a href={resolveImageUrl(msg.fileUrl)} target="_blank" rel="noopener noreferrer">
-                                <img
-                                  src={resolveImageUrl(msg.fileUrl)}
-                                  alt="image"
-                                  className="max-w-[220px] max-h-[220px] object-cover block mt-1"
-                                />
-                              </a>
-                            )}
-                            {/* Audio */}
-                            {msg.fileUrl && msg.fileType === "audio" && (
-                              <div className="px-3 py-2">
-                                <audio controls src={resolveImageUrl(msg.fileUrl)} className="h-10 max-w-[200px]" />
+                          {/* Bubble + menu button wrapper */}
+                          <div className={`relative group max-w-[80%] flex items-end gap-1 ${isAdmin ? "flex-row-reverse" : "flex-row"}`}>
+
+                            {/* ⋮ menu button */}
+                            <button
+                              onClick={(e) => { e.stopPropagation(); setInboxMenuMsgId(menuOpen ? null : msg.id); }}
+                              className="flex-shrink-0 mb-1 opacity-0 group-hover:opacity-100 transition-opacity w-6 h-6 rounded-full flex items-center justify-center hover:bg-muted text-muted-foreground"
+                            >
+                              <MoreVertical className="w-3.5 h-3.5" />
+                            </button>
+
+                            <div className="relative">
+                              <div className={`rounded-2xl text-sm overflow-hidden ${
+                                isAdmin
+                                  ? "bg-primary text-primary-foreground rounded-br-sm"
+                                  : "bg-muted text-foreground rounded-bl-sm"
+                              }`}>
+                                {/* Sender label */}
+                                <p className={`text-[10px] font-semibold px-3 pt-2 ${isAdmin ? "opacity-70" : "opacity-60"}`}>
+                                  {isAdmin ? "TogoMarket" : "Vendeur"}
+                                </p>
+
+                                {/* Mode édition inline */}
+                                {isEditing ? (
+                                  <div className="px-3 pb-2 space-y-1.5">
+                                    <textarea
+                                      autoFocus
+                                      className="w-full border border-primary-foreground/30 rounded-lg px-2 py-1.5 text-sm bg-primary-foreground/10 text-primary-foreground placeholder:text-primary-foreground/50 resize-none focus:outline-none min-h-[60px]"
+                                      value={inboxEditContent}
+                                      onChange={(e) => setInboxEditContent(e.target.value)}
+                                      onKeyDown={(e) => { if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); editInboxMessage(); } if (e.key === "Escape") { setInboxEditingId(null); } }}
+                                    />
+                                    <div className="flex gap-1.5">
+                                      <button onClick={editInboxMessage} className="text-[11px] font-semibold bg-primary-foreground/20 hover:bg-primary-foreground/30 rounded px-2 py-0.5">Enregistrer</button>
+                                      <button onClick={() => setInboxEditingId(null)} className="text-[11px] opacity-70 hover:opacity-100 rounded px-2 py-0.5">Annuler</button>
+                                    </div>
+                                  </div>
+                                ) : (
+                                  <>
+                                    {/* Image */}
+                                    {msg.fileUrl && msg.fileType === "image" && (
+                                      <a href={resolveImageUrl(msg.fileUrl)} target="_blank" rel="noopener noreferrer">
+                                        <img src={resolveImageUrl(msg.fileUrl)} alt="image" className="max-w-[220px] max-h-[220px] object-cover block mt-1" />
+                                      </a>
+                                    )}
+                                    {/* Audio */}
+                                    {msg.fileUrl && msg.fileType === "audio" && (
+                                      <div className="px-3 py-2">
+                                        <audio controls src={resolveImageUrl(msg.fileUrl)} className="h-10 max-w-[200px]" />
+                                      </div>
+                                    )}
+                                    {/* PDF */}
+                                    {msg.fileUrl && msg.fileType === "pdf" && (
+                                      <a href={resolveImageUrl(msg.fileUrl)} target="_blank" rel="noopener noreferrer" className="flex items-center gap-2 px-3 py-2">
+                                        <FileText className="w-8 h-8 flex-shrink-0 opacity-80" />
+                                        <span className="text-xs font-medium underline break-all">Voir le PDF</span>
+                                      </a>
+                                    )}
+                                    {/* Text */}
+                                    {msg.content && <p className="px-3 py-2 break-words whitespace-pre-wrap">{msg.content}</p>}
+                                    {/* Modifié */}
+                                    {msg.editedAt && <p className={`text-[10px] pb-0.5 px-3 opacity-60 ${isAdmin ? "text-right" : ""}`}>Modifié</p>}
+                                  </>
+                                )}
+
+                                <p className={`text-[10px] pb-2 px-3 ${isAdmin ? "text-primary-foreground/60 text-right" : "text-muted-foreground"}`}>
+                                  {new Date(msg.createdAt).toLocaleString("fr-FR", { day: "2-digit", month: "2-digit", hour: "2-digit", minute: "2-digit" })}
+                                </p>
                               </div>
-                            )}
-                            {/* PDF */}
-                            {msg.fileUrl && msg.fileType === "pdf" && (
-                              <a href={resolveImageUrl(msg.fileUrl)} target="_blank" rel="noopener noreferrer"
-                                className="flex items-center gap-2 px-3 py-2">
-                                <FileText className="w-8 h-8 flex-shrink-0 opacity-80" />
-                                <span className="text-xs font-medium underline break-all">Voir le PDF</span>
-                              </a>
-                            )}
-                            {/* Text */}
-                            {msg.content && (
-                              <p className="px-3 py-2 break-words whitespace-pre-wrap">{msg.content}</p>
-                            )}
-                            <p className={`text-[10px] pb-2 px-3 ${isAdmin ? "text-primary-foreground/60 text-right" : "text-muted-foreground"}`}>
-                              {new Date(msg.createdAt).toLocaleString("fr-FR", { day: "2-digit", month: "2-digit", hour: "2-digit", minute: "2-digit" })}
-                            </p>
+
+                              {/* Menu contextuel */}
+                              {menuOpen && (
+                                <div
+                                  className={`absolute z-50 top-full mt-1 ${isAdmin ? "right-0" : "left-0"} bg-popover border rounded-xl shadow-lg py-1 min-w-[140px]`}
+                                  onClick={(e) => e.stopPropagation()}
+                                >
+                                  {isAdmin && !msg.fileUrl && (
+                                    <button
+                                      className="w-full text-left flex items-center gap-2 px-3 py-2 text-sm hover:bg-muted transition-colors"
+                                      onClick={() => { setInboxMenuMsgId(null); setInboxEditingId(msg.id); setInboxEditContent(msg.content ?? ""); }}
+                                    >
+                                      <Pencil className="w-3.5 h-3.5" />
+                                      Modifier
+                                    </button>
+                                  )}
+                                  <button
+                                    className="w-full text-left flex items-center gap-2 px-3 py-2 text-sm text-destructive hover:bg-destructive/10 transition-colors"
+                                    onClick={() => deleteInboxMessage(msg.id)}
+                                  >
+                                    <Trash2 className="w-3.5 h-3.5" />
+                                    Supprimer pour tous
+                                  </button>
+                                </div>
+                              )}
+                            </div>
                           </div>
                         </div>
                       );

@@ -915,6 +915,72 @@ router.post(
   },
 );
 
+// POST /api/admin/broadcast-inbox/:convId/messages/:msgId/edit  — modifier un message TogoMarket
+router.post("/admin/broadcast-inbox/:convId/messages/:msgId/edit", async (req, res) => {
+  const { password, content } = req.body as { password?: string; content?: string };
+  if (!await isSuperAdmin(password ?? "")) return res.status(403).json({ error: "superadmin only" });
+  if (!content?.trim()) return res.status(400).json({ error: "content required" });
+
+  const convId = parseInt(req.params["convId"] ?? "", 10);
+  const msgId = parseInt(req.params["msgId"] ?? "", 10);
+  if (isNaN(convId) || isNaN(msgId)) return res.status(400).json({ error: "invalid id" });
+
+  const [conv] = await db.select({ id: conversationsTable.id, vendorId: conversationsTable.vendorId })
+    .from(conversationsTable)
+    .where(and(eq(conversationsTable.id, convId), eq(conversationsTable.buyerPhone, "##007##")))
+    .limit(1);
+  if (!conv) return res.status(404).json({ error: "conversation not found" });
+
+  const [msg] = await db.select().from(messagesTable)
+    .where(and(eq(messagesTable.id, msgId), eq(messagesTable.conversationId, convId))).limit(1);
+  if (!msg || msg.deletedAt) return res.status(404).json({ error: "message not found" });
+  if (msg.fileUrl) return res.status(400).json({ error: "cannot edit file messages" });
+  if (msg.senderType !== "buyer") return res.status(403).json({ error: "can only edit TogoMarket messages" });
+
+  const editedAt = new Date();
+  await db.update(messagesTable).set({ content: content.trim(), editedAt }).where(eq(messagesTable.id, msgId));
+
+  try {
+    const io = getIo();
+    io.to(`vendor:${conv.vendorId}`).emit("message_edited", {
+      messageId: msgId, content: content.trim(), editedAt: editedAt.toISOString(), conversationId: convId,
+    });
+  } catch { /* non-fatal */ }
+
+  return res.json({ content: content.trim(), editedAt: editedAt.toISOString() });
+});
+
+// POST /api/admin/broadcast-inbox/:convId/messages/:msgId/delete  — supprimer pour les deux parties
+router.post("/admin/broadcast-inbox/:convId/messages/:msgId/delete", async (req, res) => {
+  const { password } = req.body as { password?: string };
+  if (!await isSuperAdmin(password ?? "")) return res.status(403).json({ error: "superadmin only" });
+
+  const convId = parseInt(req.params["convId"] ?? "", 10);
+  const msgId = parseInt(req.params["msgId"] ?? "", 10);
+  if (isNaN(convId) || isNaN(msgId)) return res.status(400).json({ error: "invalid id" });
+
+  const [conv] = await db.select({ id: conversationsTable.id, vendorId: conversationsTable.vendorId })
+    .from(conversationsTable)
+    .where(and(eq(conversationsTable.id, convId), eq(conversationsTable.buyerPhone, "##007##")))
+    .limit(1);
+  if (!conv) return res.status(404).json({ error: "conversation not found" });
+
+  const [msg] = await db.select().from(messagesTable)
+    .where(and(eq(messagesTable.id, msgId), eq(messagesTable.conversationId, convId))).limit(1);
+  if (!msg) return res.status(404).json({ error: "message not found" });
+  if (msg.deletedAt) return res.status(410).json({ error: "already deleted" });
+
+  await db.update(messagesTable).set({ deletedAt: new Date() }).where(eq(messagesTable.id, msgId));
+
+  try {
+    const io = getIo();
+    io.to(`vendor:${conv.vendorId}`).emit("message_deleted", { messageId: msgId, conversationId: convId });
+    io.to(`conv:${convId}`).emit("message_deleted", { messageId: msgId, conversationId: convId });
+  } catch { /* non-fatal */ }
+
+  return res.json({ ok: true });
+});
+
 // POST /api/admin/broadcast-inbox/:id/read  — marquer comme lu (reset adminUnreadCount)
 router.post("/admin/broadcast-inbox/:id/read", async (req, res) => {
   const { password } = req.body as { password?: string };
