@@ -338,8 +338,9 @@ export function ChatWindow({
   };
 
   // ── Long press handlers (text / image / pdf bubbles) ───────────────────────
-  const onPressStart = (id: number, e: React.PointerEvent) => {
-    const el = e.currentTarget as HTMLElement;
+  // onTouchStart + e.preventDefault() = seule méthode fiable sur Android Chrome :
+  // elle coupe le pipeline natif avant que le navigateur fire son propre context-menu.
+  const startLongPress = (id: number, el: HTMLElement) => {
     longPressTimer.current = setTimeout(() => openMenuAt(id, el), 500);
   };
   const onPressEnd = () => {
@@ -360,9 +361,13 @@ export function ChatWindow({
     return (
       <div key={msg.id} className={`flex ${isSelf ? "justify-end" : "justify-start"}`}>
         <div
-          onPointerDown={(e) => onPressStart(msg.id, e)}
-          onPointerUp={onPressEnd}
-          onPointerLeave={onPressEnd}
+          onTouchStart={(e) => { e.preventDefault(); startLongPress(msg.id, e.currentTarget as HTMLElement); }}
+          onTouchEnd={onPressEnd}
+          onTouchMove={onPressEnd}
+          onTouchCancel={onPressEnd}
+          onMouseDown={(e) => startLongPress(msg.id, e.currentTarget as HTMLElement)}
+          onMouseUp={onPressEnd}
+          onMouseLeave={onPressEnd}
           onContextMenu={(e) => e.preventDefault()}
           onClick={menuMsgId === msg.id ? closeMenu : undefined}
           className={`max-w-[75%] rounded-2xl text-sm leading-relaxed overflow-hidden select-none ${

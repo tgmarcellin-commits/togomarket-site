@@ -293,6 +293,9 @@ export default function AdminDashboard() {
   }
 
   async function openInboxConv(conv: InboxConv) {
+    // Pousse une entrée d'historique fictive pour que le bouton ← Android
+    // revienne à la liste plutôt que de quitter le panneau admin.
+    history.pushState({ inboxThread: conv.id }, "", window.location.href);
     setSelectedInboxConv(conv);
     setInboxMsgsLoading(true);
     setInboxMessages([]);
@@ -441,6 +444,21 @@ export default function AdminDashboard() {
       loadInbox();
     }
   }, [tab]);
+
+  // ── Bouton ← Android dans la vue thread inbox ─────────────────
+  // Quand l'admin ouvre un thread, openInboxConv() pousse une entrée
+  // d'historique. Ce listener intercepte le popstate et revient à la
+  // liste au lieu de quitter le panneau admin.
+  useEffect(() => {
+    if (!selectedInboxConv) return;
+    const handlePopState = () => {
+      setSelectedInboxConv(null);
+      setInboxMessages([]);
+      setInboxMenuMsgId(null);
+    };
+    window.addEventListener("popstate", handlePopState);
+    return () => window.removeEventListener("popstate", handlePopState);
+  }, [selectedInboxConv]);
 
   const [stats, setStats] = useState<AdminStats | null>(null);
   const [statsLoading, setStatsLoading] = useState(false);
@@ -672,6 +690,7 @@ export default function AdminDashboard() {
     if (t === "events") loadEvents();
     if (t === "services") loadServices();
     if (t === "accounts") loadAccounts();
+    if (t === "inbox") loadInbox();
   };
 
   const handleApprove = (id: number) => {
@@ -2266,12 +2285,16 @@ export default function AdminDashboard() {
 
                             <div
                               className="relative"
-                              onPointerDown={() => { longPressTimer.current = setTimeout(() => setInboxMenuMsgId(msg.id), 500); }}
-                              onPointerUp={() => { if (longPressTimer.current) clearTimeout(longPressTimer.current); }}
-                              onPointerLeave={() => { if (longPressTimer.current) clearTimeout(longPressTimer.current); }}
+                              onTouchStart={(e) => { e.preventDefault(); longPressTimer.current = setTimeout(() => setInboxMenuMsgId(msg.id), 600); }}
+                              onTouchEnd={() => { if (longPressTimer.current) clearTimeout(longPressTimer.current); }}
+                              onTouchMove={() => { if (longPressTimer.current) clearTimeout(longPressTimer.current); }}
+                              onTouchCancel={() => { if (longPressTimer.current) clearTimeout(longPressTimer.current); }}
+                              onMouseDown={() => { longPressTimer.current = setTimeout(() => setInboxMenuMsgId(msg.id), 600); }}
+                              onMouseUp={() => { if (longPressTimer.current) clearTimeout(longPressTimer.current); }}
+                              onMouseLeave={() => { if (longPressTimer.current) clearTimeout(longPressTimer.current); }}
                               onContextMenu={(e) => e.preventDefault()}
                             >
-                              <div className={`rounded-2xl text-sm overflow-hidden ${
+                              <div className={`rounded-2xl text-sm overflow-hidden select-none ${
                                 isAdmin
                                   ? "bg-primary text-primary-foreground rounded-br-sm"
                                   : "bg-muted text-foreground rounded-bl-sm"
