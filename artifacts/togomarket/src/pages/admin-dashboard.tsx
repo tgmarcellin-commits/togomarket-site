@@ -263,6 +263,7 @@ export default function AdminDashboard() {
   const [inboxReply, setInboxReply] = useState("");
   const [inboxReplying, setInboxReplying] = useState(false);
   const [inboxMenuMsgId, setInboxMenuMsgId] = useState<number | null>(null);
+  const [inboxMenuPos, setInboxMenuPos] = useState<{ top: number; right: number } | null>(null);
   const [inboxEditingId, setInboxEditingId] = useState<number | null>(null);
   const [inboxEditContent, setInboxEditContent] = useState("");
   const [inboxUploading, setInboxUploading] = useState(false);
@@ -406,6 +407,7 @@ export default function AdminDashboard() {
   async function deleteInboxMessage(msgId: number) {
     if (!selectedInboxConv) return;
     setInboxMenuMsgId(null);
+    setInboxMenuPos(null);
     const res = await fetch(`/api/admin/broadcast-inbox/${selectedInboxConv.id}/messages/${msgId}/delete`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
@@ -455,6 +457,7 @@ export default function AdminDashboard() {
       setSelectedInboxConv(null);
       setInboxMessages([]);
       setInboxMenuMsgId(null);
+      setInboxMenuPos(null);
     };
     window.addEventListener("popstate", handlePopState);
     return () => window.removeEventListener("popstate", handlePopState);
@@ -2277,7 +2280,17 @@ export default function AdminDashboard() {
 
                             {/* ⋮ menu button — visible hover desktop / long-press mobile */}
                             <button
-                              onClick={(e) => { e.stopPropagation(); setInboxMenuMsgId(menuOpen ? null : msg.id); }}
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                if (menuOpen) { setInboxMenuMsgId(null); setInboxMenuPos(null); }
+                                else {
+                                  const r = (e.currentTarget as HTMLElement).getBoundingClientRect();
+                                  const menuH = 110;
+                                  const top = r.top > menuH + 60 ? r.top - menuH - 6 : r.bottom + 6;
+                                  setInboxMenuPos({ top, right: window.innerWidth - r.right });
+                                  setInboxMenuMsgId(msg.id);
+                                }
+                              }}
                               className="flex-shrink-0 mb-1 opacity-0 group-hover:opacity-100 transition-opacity w-6 h-6 rounded-full flex items-center justify-center hover:bg-muted text-muted-foreground"
                             >
                               <MoreVertical className="w-3.5 h-3.5" />
@@ -2285,11 +2298,30 @@ export default function AdminDashboard() {
 
                             <div
                               className="relative"
-                              onTouchStart={(e) => { e.preventDefault(); longPressTimer.current = setTimeout(() => setInboxMenuMsgId(msg.id), 600); }}
+                              onTouchStart={(e) => {
+                                e.preventDefault();
+                                const el = e.currentTarget as HTMLElement;
+                                longPressTimer.current = setTimeout(() => {
+                                  const r = el.getBoundingClientRect();
+                                  const menuH = 110;
+                                  const top = r.top > menuH + 60 ? r.top - menuH - 6 : r.bottom + 6;
+                                  setInboxMenuPos({ top, right: window.innerWidth - r.right });
+                                  setInboxMenuMsgId(msg.id);
+                                }, 600);
+                              }}
                               onTouchEnd={() => { if (longPressTimer.current) clearTimeout(longPressTimer.current); }}
                               onTouchMove={() => { if (longPressTimer.current) clearTimeout(longPressTimer.current); }}
                               onTouchCancel={() => { if (longPressTimer.current) clearTimeout(longPressTimer.current); }}
-                              onMouseDown={() => { longPressTimer.current = setTimeout(() => setInboxMenuMsgId(msg.id), 600); }}
+                              onMouseDown={(e) => {
+                                const el = e.currentTarget as HTMLElement;
+                                longPressTimer.current = setTimeout(() => {
+                                  const r = el.getBoundingClientRect();
+                                  const menuH = 110;
+                                  const top = r.top > menuH + 60 ? r.top - menuH - 6 : r.bottom + 6;
+                                  setInboxMenuPos({ top, right: window.innerWidth - r.right });
+                                  setInboxMenuMsgId(msg.id);
+                                }, 600);
+                              }}
                               onMouseUp={() => { if (longPressTimer.current) clearTimeout(longPressTimer.current); }}
                               onMouseLeave={() => { if (longPressTimer.current) clearTimeout(longPressTimer.current); }}
                               onContextMenu={(e) => e.preventDefault()}
@@ -2359,30 +2391,6 @@ export default function AdminDashboard() {
                                 </p>
                               </div>
 
-                              {/* Menu contextuel */}
-                              {menuOpen && (
-                                <div
-                                  className={`absolute z-50 top-full mt-1 ${isAdmin ? "right-0" : "left-0"} bg-popover border rounded-xl shadow-lg py-1 min-w-[140px]`}
-                                  onClick={(e) => e.stopPropagation()}
-                                >
-                                  {isAdmin && !msg.fileUrl && (
-                                    <button
-                                      className="w-full text-left flex items-center gap-2 px-3 py-2 text-sm hover:bg-muted transition-colors"
-                                      onClick={() => { setInboxMenuMsgId(null); setInboxEditingId(msg.id); setInboxEditContent(msg.content ?? ""); }}
-                                    >
-                                      <Pencil className="w-3.5 h-3.5" />
-                                      Modifier
-                                    </button>
-                                  )}
-                                  <button
-                                    className="w-full text-left flex items-center gap-2 px-3 py-2 text-sm text-destructive hover:bg-destructive/10 transition-colors"
-                                    onClick={() => deleteInboxMessage(msg.id)}
-                                  >
-                                    <Trash2 className="w-3.5 h-3.5" />
-                                    Supprimer pour tous
-                                  </button>
-                                </div>
-                              )}
                             </div>
                           </div>
                         </div>
@@ -2535,6 +2543,43 @@ export default function AdminDashboard() {
         )}
 
       </main>
+
+      {/* ── MENU CONTEXTUEL INBOX (position fixe, en dehors de la chaîne touch) ── */}
+      {inboxMenuMsgId !== null && inboxMenuPos && (() => {
+        const menuMsg = inboxMessages.find((m) => m.id === inboxMenuMsgId);
+        if (!menuMsg || menuMsg.deletedAt) return null;
+        const isAdminMsg = menuMsg.senderType === "buyer";
+        const closeInboxMenu = () => { setInboxMenuMsgId(null); setInboxMenuPos(null); };
+        return (
+          <>
+            {/* Fond transparent : tap dehors = fermeture */}
+            <div className="fixed inset-0 z-40" onTouchStart={closeInboxMenu} onClick={closeInboxMenu} />
+            <div
+              style={{ position: "fixed", top: inboxMenuPos.top, right: inboxMenuPos.right, zIndex: 9999 }}
+              className="bg-popover border rounded-xl shadow-xl py-1 min-w-[170px]"
+              onTouchStart={(e) => e.stopPropagation()}
+              onClick={(e) => e.stopPropagation()}
+            >
+              {isAdminMsg && !menuMsg.fileUrl && (
+                <button
+                  className="w-full text-left flex items-center gap-2 px-4 py-3 text-sm hover:bg-muted transition-colors"
+                  onClick={() => { closeInboxMenu(); setInboxEditingId(menuMsg.id); setInboxEditContent(menuMsg.content ?? ""); }}
+                >
+                  <Pencil className="w-4 h-4" />
+                  Modifier
+                </button>
+              )}
+              <button
+                className="w-full text-left flex items-center gap-2 px-4 py-3 text-sm text-destructive hover:bg-destructive/10 transition-colors"
+                onClick={() => { closeInboxMenu(); deleteInboxMessage(menuMsg.id); }}
+              >
+                <Trash2 className="w-4 h-4" />
+                Supprimer pour tous
+              </button>
+            </div>
+          </>
+        );
+      })()}
 
       {viewerImages.length > 0 && (
         <ImageViewer
