@@ -363,6 +363,7 @@ export function ChatWindow({
           onPointerDown={(e) => onPressStart(msg.id, e)}
           onPointerUp={onPressEnd}
           onPointerLeave={onPressEnd}
+          onContextMenu={(e) => e.preventDefault()}
           onClick={menuMsgId === msg.id ? closeMenu : undefined}
           className={`max-w-[75%] rounded-2xl text-sm leading-relaxed overflow-hidden select-none ${
             isSelf
@@ -370,15 +371,20 @@ export function ChatWindow({
               : "bg-muted text-foreground rounded-bl-sm"
           }`}
         >
-          {/* Image */}
+          {/* Image — div instead of <a> to block browser native long-press menu */}
           {msg.fileUrl && msg.fileType === "image" && (
-            <a href={resolveImageUrl(msg.fileUrl)} target="_blank" rel="noopener noreferrer">
+            <div
+              onClick={(e) => { e.stopPropagation(); window.open(resolveImageUrl(msg.fileUrl!), "_blank", "noopener,noreferrer"); }}
+              className="cursor-pointer"
+            >
               <img
                 src={resolveImageUrl(msg.fileUrl)}
                 alt="image"
+                draggable={false}
+                onContextMenu={(e) => e.preventDefault()}
                 className="max-w-[220px] max-h-[220px] object-cover block"
               />
-            </a>
+            </div>
           )}
 
           {/* Audio — ⋮ button needed because <audio controls> swallows all pointer events */}
@@ -389,6 +395,7 @@ export function ChatWindow({
                 src={resolveImageUrl(msg.fileUrl)}
                 className="h-10 max-w-[180px] flex-1"
                 onPointerDown={(e) => e.stopPropagation()}
+                onContextMenu={(e) => e.preventDefault()}
               />
               <button
                 type="button"
@@ -407,19 +414,18 @@ export function ChatWindow({
             </div>
           )}
 
-          {/* PDF */}
+          {/* PDF — div instead of <a> to block browser native long-press menu */}
           {msg.fileUrl && msg.fileType === "pdf" && (
-            <a
-              href={resolveImageUrl(msg.fileUrl)}
-              target="_blank"
-              rel="noopener noreferrer"
-              className="flex items-center gap-2 px-3 py-2"
+            <div
+              onClick={(e) => { e.stopPropagation(); window.open(resolveImageUrl(msg.fileUrl!), "_blank", "noopener,noreferrer"); }}
+              onContextMenu={(e) => e.preventDefault()}
+              className="flex items-center gap-2 px-3 py-2 cursor-pointer"
             >
               <FileText className="w-8 h-8 flex-shrink-0 opacity-80" />
               <span className="text-xs font-medium underline break-all">
                 {lang === "fr" ? "Voir le PDF" : "Open PDF"}
               </span>
-            </a>
+            </div>
           )}
 
           {/* Text */}

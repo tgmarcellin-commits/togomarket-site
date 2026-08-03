@@ -2256,7 +2256,7 @@ export default function AdminDashboard() {
                           {/* Bubble + menu button wrapper */}
                           <div className={`relative group max-w-[80%] flex items-end gap-1 ${isAdmin ? "flex-row-reverse" : "flex-row"}`}>
 
-                            {/* ⋮ menu button */}
+                            {/* ⋮ menu button — visible hover desktop / long-press mobile */}
                             <button
                               onClick={(e) => { e.stopPropagation(); setInboxMenuMsgId(menuOpen ? null : msg.id); }}
                               className="flex-shrink-0 mb-1 opacity-0 group-hover:opacity-100 transition-opacity w-6 h-6 rounded-full flex items-center justify-center hover:bg-muted text-muted-foreground"
@@ -2264,7 +2264,13 @@ export default function AdminDashboard() {
                               <MoreVertical className="w-3.5 h-3.5" />
                             </button>
 
-                            <div className="relative">
+                            <div
+                              className="relative"
+                              onPointerDown={() => { longPressTimer.current = setTimeout(() => setInboxMenuMsgId(msg.id), 500); }}
+                              onPointerUp={() => { if (longPressTimer.current) clearTimeout(longPressTimer.current); }}
+                              onPointerLeave={() => { if (longPressTimer.current) clearTimeout(longPressTimer.current); }}
+                              onContextMenu={(e) => e.preventDefault()}
+                            >
                               <div className={`rounded-2xl text-sm overflow-hidden ${
                                 isAdmin
                                   ? "bg-primary text-primary-foreground rounded-br-sm"
@@ -2294,9 +2300,12 @@ export default function AdminDashboard() {
                                   <>
                                     {/* Image */}
                                     {msg.fileUrl && msg.fileType === "image" && (
-                                      <a href={resolveImageUrl(msg.fileUrl)} target="_blank" rel="noopener noreferrer">
-                                        <img src={resolveImageUrl(msg.fileUrl)} alt="image" className="max-w-[220px] max-h-[220px] object-cover block mt-1" />
-                                      </a>
+                                      <div
+                                        onClick={(e) => { e.stopPropagation(); window.open(resolveImageUrl(msg.fileUrl!), "_blank", "noopener,noreferrer"); }}
+                                        className="cursor-pointer"
+                                      >
+                                        <img src={resolveImageUrl(msg.fileUrl)} alt="image" draggable={false} onContextMenu={(e) => e.preventDefault()} className="max-w-[220px] max-h-[220px] object-cover block mt-1" />
+                                      </div>
                                     )}
                                     {/* Audio */}
                                     {msg.fileUrl && msg.fileType === "audio" && (
@@ -2306,10 +2315,14 @@ export default function AdminDashboard() {
                                     )}
                                     {/* PDF */}
                                     {msg.fileUrl && msg.fileType === "pdf" && (
-                                      <a href={resolveImageUrl(msg.fileUrl)} target="_blank" rel="noopener noreferrer" className="flex items-center gap-2 px-3 py-2">
+                                      <div
+                                        onClick={(e) => { e.stopPropagation(); window.open(resolveImageUrl(msg.fileUrl!), "_blank", "noopener,noreferrer"); }}
+                                        onContextMenu={(e) => e.preventDefault()}
+                                        className="flex items-center gap-2 px-3 py-2 cursor-pointer"
+                                      >
                                         <FileText className="w-8 h-8 flex-shrink-0 opacity-80" />
                                         <span className="text-xs font-medium underline break-all">Voir le PDF</span>
-                                      </a>
+                                      </div>
                                     )}
                                     {/* Text */}
                                     {msg.content && <p className="px-3 py-2 break-words whitespace-pre-wrap">{msg.content}</p>}
