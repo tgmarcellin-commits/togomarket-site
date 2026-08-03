@@ -80,6 +80,10 @@ import {
   MessageSquare,
   Send,
   ArrowLeft,
+  Mic,
+  StopCircle,
+  FileText,
+  Paperclip,
 } from "lucide-react";
 
 type DashTab =
@@ -254,7 +258,14 @@ export default function AdminDashboard() {
   const [inboxMsgsLoading, setInboxMsgsLoading] = useState(false);
   const [inboxReply, setInboxReply] = useState("");
   const [inboxReplying, setInboxReplying] = useState(false);
+  const [inboxUploading, setInboxUploading] = useState(false);
+  const [inboxIsRecording, setInboxIsRecording] = useState(false);
+  const [inboxRecordingDuration, setInboxRecordingDuration] = useState(0);
   const inboxBottomRef = useRef<HTMLDivElement>(null);
+  const inboxFileInputRef = useRef<HTMLInputElement>(null);
+  const inboxMediaRecorderRef = useRef<MediaRecorder | null>(null);
+  const inboxAudioChunksRef = useRef<Blob[]>([]);
+  const inboxRecordingTimerRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
   const totalInboxUnread = inboxConvs.reduce((s, c) => s + c.adminUnreadCount, 0);
 
@@ -302,6 +313,67 @@ export default function AdminDashboard() {
       setInboxMsgsLoading(false);
       setTimeout(() => inboxBottomRef.current?.scrollIntoView({ behavior: "smooth" }), 100);
     }
+  }
+
+  // ── Inbox audio recording ─────────────────────────────────────
+  async function startInboxRecording() {
+    if (inboxUploading || inboxReplying || !selectedInboxConv) return;
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+      const mimeType = MediaRecorder.isTypeSupported("audio/webm") ? "audio/webm" : "";
+      const mediaRecorder = mimeType ? new MediaRecorder(stream, { mimeType }) : new MediaRecorder(stream);
+      inboxMediaRecorderRef.current = mediaRecorder;
+      inboxAudioChunksRef.current = [];
+      mediaRecorder.ondataavailable = (e) => { if (e.data.size > 0) inboxAudioChunksRef.current.push(e.data); };
+      mediaRecorder.onstop = async () => {
+        stream.getTracks().forEach((t) => t.stop());
+        const actualMime = mediaRecorder.mimeType || "audio/webm";
+        const blob = new Blob(inboxAudioChunksRef.current, { type: actualMime });
+        const ext = actualMime.includes("ogg") ? "ogg" : actualMime.includes("mp4") ? "mp4" : "webm";
+        await uploadInboxFile(blob, `audio.${ext}`);
+      };
+      mediaRecorder.start(250);
+      setInboxIsRecording(true);
+      setInboxRecordingDuration(0);
+      inboxRecordingTimerRef.current = setInterval(() => setInboxRecordingDuration((d) => d + 1), 1000);
+    } catch { /* microphone access denied */ }
+  }
+
+  function stopInboxRecording() {
+    if (inboxMediaRecorderRef.current && inboxIsRecording) {
+      inboxMediaRecorderRef.current.stop();
+      if (inboxRecordingTimerRef.current) { clearInterval(inboxRecordingTimerRef.current); inboxRecordingTimerRef.current = null; }
+      setInboxIsRecording(false);
+      setInboxRecordingDuration(0);
+    }
+  }
+
+  // ── Inbox file / audio upload ─────────────────────────────────
+  async function uploadInboxFile(fileOrBlob: File | Blob, filename?: string) {
+    if (!selectedInboxConv) return;
+    setInboxUploading(true);
+    try {
+      const form = new FormData();
+      form.append("password", password);
+      form.append("file", fileOrBlob, filename ?? (fileOrBlob as File).name);
+      const res = await fetch(`/api/admin/broadcast-inbox/${selectedInboxConv.id}/upload`, { method: "POST", body: form });
+      if (!res.ok) { toast({ title: "Erreur", description: "Impossible d'envoyer le fichier.", variant: "destructive" }); return; }
+      const data = await res.json() as { message: InboxMessage };
+      setInboxMessages((prev) => prev.some((m) => m.id === data.message.id) ? prev : [...prev, data.message]);
+      setInboxConvs((prev) => prev.map((c) => c.id === selectedInboxConv.id
+        ? { ...c, updatedAt: new Date().toISOString(), lastMessage: null, lastSenderType: "buyer" } : c)
+        .sort((a, b) => new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime()));
+      setTimeout(() => inboxBottomRef.current?.scrollIntoView({ behavior: "smooth" }), 100);
+    } finally { setInboxUploading(false); }
+  }
+
+  async function handleInboxFileChange(e: React.ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    e.target.value = "";
+    const allowed = ["image/jpeg", "image/jpg", "image/png", "application/pdf"];
+    if (!allowed.includes(file.type)) { toast({ title: "Format non supporté", description: "Utilisez JPEG, PNG ou PDF.", variant: "destructive" }); return; }
+    await uploadInboxFile(file);
   }
 
   async function sendInboxReply() {
@@ -2141,15 +2213,44 @@ export default function AdminDashboard() {
                       const isAdmin = msg.senderType === "buyer";
                       return (
                         <div key={msg.id} className={`flex ${isAdmin ? "justify-end" : "justify-start"}`}>
-                          <div className={`max-w-[80%] rounded-2xl px-3 py-2 text-sm ${
+                          <div className={`max-w-[80%] rounded-2xl text-sm overflow-hidden ${
                             isAdmin
                               ? "bg-primary text-primary-foreground rounded-br-sm"
                               : "bg-muted text-foreground rounded-bl-sm"
                           }`}>
-                            {!isAdmin && <p className="text-[10px] font-semibold mb-0.5 opacity-60">Vendeur</p>}
-                            {isAdmin && <p className="text-[10px] font-semibold mb-0.5 opacity-70">TogoMarket</p>}
-                            <p className="break-words whitespace-pre-wrap">{msg.content}</p>
-                            <p className={`text-[10px] mt-1 ${isAdmin ? "text-primary-foreground/60 text-right" : "text-muted-foreground"}`}>
+                            {/* Sender label */}
+                            <p className={`text-[10px] font-semibold px-3 pt-2 ${isAdmin ? "opacity-70" : "opacity-60"}`}>
+                              {isAdmin ? "TogoMarket" : "Vendeur"}
+                            </p>
+                            {/* Image */}
+                            {msg.fileUrl && msg.fileType === "image" && (
+                              <a href={resolveImageUrl(msg.fileUrl)} target="_blank" rel="noopener noreferrer">
+                                <img
+                                  src={resolveImageUrl(msg.fileUrl)}
+                                  alt="image"
+                                  className="max-w-[220px] max-h-[220px] object-cover block mt-1"
+                                />
+                              </a>
+                            )}
+                            {/* Audio */}
+                            {msg.fileUrl && msg.fileType === "audio" && (
+                              <div className="px-3 py-2">
+                                <audio controls src={resolveImageUrl(msg.fileUrl)} className="h-10 max-w-[200px]" />
+                              </div>
+                            )}
+                            {/* PDF */}
+                            {msg.fileUrl && msg.fileType === "pdf" && (
+                              <a href={resolveImageUrl(msg.fileUrl)} target="_blank" rel="noopener noreferrer"
+                                className="flex items-center gap-2 px-3 py-2">
+                                <FileText className="w-8 h-8 flex-shrink-0 opacity-80" />
+                                <span className="text-xs font-medium underline break-all">Voir le PDF</span>
+                              </a>
+                            )}
+                            {/* Text */}
+                            {msg.content && (
+                              <p className="px-3 py-2 break-words whitespace-pre-wrap">{msg.content}</p>
+                            )}
+                            <p className={`text-[10px] pb-2 px-3 ${isAdmin ? "text-primary-foreground/60 text-right" : "text-muted-foreground"}`}>
                               {new Date(msg.createdAt).toLocaleString("fr-FR", { day: "2-digit", month: "2-digit", hour: "2-digit", minute: "2-digit" })}
                             </p>
                           </div>
@@ -2161,23 +2262,73 @@ export default function AdminDashboard() {
                 </div>
 
                 {/* Zone de réponse */}
-                <div className="pt-3 border-t flex gap-2">
-                  <textarea
-                    className="flex-1 border rounded-xl px-3 py-2 text-sm resize-none focus:outline-none focus:ring-2 focus:ring-primary/40 min-h-[42px] max-h-32"
-                    placeholder="Répondre en tant que TogoMarket…"
-                    value={inboxReply}
-                    rows={1}
-                    onChange={(e) => setInboxReply(e.target.value)}
-                    onKeyDown={(e) => { if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); sendInboxReply(); } }}
+                <div className="pt-3 border-t space-y-2">
+                  {/* Barre d'enregistrement */}
+                  {inboxIsRecording && (
+                    <div className="flex items-center gap-3 bg-destructive/10 border border-destructive/30 rounded-xl px-3 py-2">
+                      <span className="w-2 h-2 rounded-full bg-destructive animate-pulse flex-shrink-0" />
+                      <span className="text-sm font-medium text-destructive flex-1">
+                        Enregistrement… {String(Math.floor(inboxRecordingDuration / 60)).padStart(2, "0")}:{String(inboxRecordingDuration % 60).padStart(2, "0")}
+                      </span>
+                      <Button size="sm" variant="destructive" className="h-8 gap-1.5" onClick={stopInboxRecording}>
+                        <StopCircle className="w-4 h-4" />
+                        Arrêter
+                      </Button>
+                    </div>
+                  )}
+
+                  {/* Input fichier caché */}
+                  <input
+                    ref={inboxFileInputRef}
+                    type="file"
+                    accept="image/jpeg,image/jpg,image/png,application/pdf"
+                    className="hidden"
+                    onChange={handleInboxFileChange}
                   />
-                  <Button
-                    size="sm"
-                    className="h-10 w-10 p-0 flex-shrink-0"
-                    disabled={!inboxReply.trim() || inboxReplying}
-                    onClick={sendInboxReply}
-                  >
-                    {inboxReplying ? <RefreshCw className="w-4 h-4 animate-spin" /> : <Send className="w-4 h-4" />}
-                  </Button>
+
+                  {/* Ligne d'envoi */}
+                  {!inboxIsRecording && (
+                    <div className="flex gap-2 items-end">
+                      {/* Bouton fichier */}
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        className="h-10 w-10 p-0 flex-shrink-0 text-muted-foreground hover:text-foreground"
+                        disabled={inboxUploading}
+                        onClick={() => inboxFileInputRef.current?.click()}
+                        title="Joindre une image ou un PDF"
+                      >
+                        {inboxUploading ? <RefreshCw className="w-4 h-4 animate-spin" /> : <Paperclip className="w-4 h-4" />}
+                      </Button>
+                      {/* Bouton micro */}
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        className="h-10 w-10 p-0 flex-shrink-0 text-muted-foreground hover:text-primary"
+                        disabled={inboxUploading || inboxReplying}
+                        onClick={startInboxRecording}
+                        title="Envoyer un message vocal"
+                      >
+                        <Mic className="w-4 h-4" />
+                      </Button>
+                      <textarea
+                        className="flex-1 border rounded-xl px-3 py-2 text-sm resize-none focus:outline-none focus:ring-2 focus:ring-primary/40 min-h-[42px] max-h-32"
+                        placeholder="Répondre en tant que TogoMarket…"
+                        value={inboxReply}
+                        rows={1}
+                        onChange={(e) => setInboxReply(e.target.value)}
+                        onKeyDown={(e) => { if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); sendInboxReply(); } }}
+                      />
+                      <Button
+                        size="sm"
+                        className="h-10 w-10 p-0 flex-shrink-0"
+                        disabled={!inboxReply.trim() || inboxReplying}
+                        onClick={sendInboxReply}
+                      >
+                        {inboxReplying ? <RefreshCw className="w-4 h-4 animate-spin" /> : <Send className="w-4 h-4" />}
+                      </Button>
+                    </div>
+                  )}
                 </div>
               </div>
             ) : (

@@ -2,10 +2,15 @@ import { Router, type IRouter } from "express";
 import { eq, desc, and, gt, lt, inArray, isNull, sql } from "drizzle-orm";
 import bcrypt from "bcryptjs";
 import { randomUUID } from "node:crypto";
+import multer from "multer";
 import { db, vendorsTable, publishCodesTable, otpCodesTable, listingsTable, conversationsTable, messagesTable } from "@workspace/db";
 import { sendWhatsAppOTP, sendWhatsAppText } from "../lib/whatsapp-api";
 import { normalizePhone, phoneEq } from "../lib/phone";
 import { getIo } from "../lib/socket-io";
+import { ObjectStorageService } from "../lib/objectStorage";
+
+const adminUpload = multer({ dest: "/tmp", limits: { fileSize: 20 * 1024 * 1024 } });
+const adminObjectStorage = new ObjectStorageService();
 
 function getPhoneCountry(phone: string): string {
   const d = phone.replace(/\D/g, "");
@@ -848,6 +853,67 @@ router.post("/admin/broadcast-inbox/:id/reply", async (req, res) => {
 
   return res.status(201).json({ message: msg });
 });
+
+// POST /api/admin/broadcast-inbox/:id/upload  — admin envoie un fichier (image/pdf/audio)
+router.post(
+  "/admin/broadcast-inbox/:id/upload",
+  adminUpload.single("file"),
+  async (req, res) => {
+    const { password } = req.body as { password?: string };
+    if (!await isSuperAdmin(password ?? "")) return res.status(403).json({ error: "superadmin only" });
+
+    const convId = parseInt(req.params["id"] ?? "", 10);
+    if (isNaN(convId)) return res.status(400).json({ error: "invalid id" });
+
+    const file = req.file;
+    if (!file) return res.status(400).json({ error: "file required" });
+
+    const allowed = [
+      "image/jpeg", "image/jpg", "image/png", "application/pdf",
+      "audio/webm", "audio/mp4", "audio/ogg", "audio/mpeg", "audio/wav", "audio/aac",
+    ];
+    if (!allowed.includes(file.mimetype)) {
+      return res.status(400).json({ error: "only JPEG, PNG, PDF, or audio files allowed" });
+    }
+
+    const fileType = file.mimetype === "application/pdf" ? "pdf"
+      : file.mimetype.startsWith("audio/") ? "audio"
+      : "image";
+
+    const [conv] = await db.select()
+      .from(conversationsTable)
+      .where(and(eq(conversationsTable.id, convId), eq(conversationsTable.buyerPhone, "##007##")))
+      .limit(1);
+    if (!conv) return res.status(404).json({ error: "conversation not found" });
+
+    const fs = await import("node:fs/promises");
+    const buffer = await fs.readFile(file.path);
+    await fs.unlink(file.path).catch(() => {});
+
+    const objectPath = await adminObjectStorage.uploadObjectEntity(buffer, file.mimetype);
+
+    const [msg] = await db.insert(messagesTable).values({
+      conversationId: convId,
+      senderType: "buyer",
+      fileUrl: objectPath,
+      fileType,
+      content: null,
+    }).returning();
+
+    await db.update(conversationsTable).set({
+      updatedAt: new Date(),
+      vendorUnreadCount: conv.vendorUnreadCount + 1,
+      vendorDeletedAt: null,
+    }).where(eq(conversationsTable.id, convId));
+
+    try {
+      const io = getIo();
+      io.to(`vendor:${conv.vendorId}`).emit("new_message", { conversationId: convId, message: msg });
+    } catch { /* non-fatal */ }
+
+    return res.status(201).json({ message: msg });
+  },
+);
 
 // POST /api/admin/broadcast-inbox/:id/read  — marquer comme lu (reset adminUnreadCount)
 router.post("/admin/broadcast-inbox/:id/read", async (req, res) => {
