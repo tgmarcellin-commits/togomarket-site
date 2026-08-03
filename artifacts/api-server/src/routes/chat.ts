@@ -190,13 +190,28 @@ router.post("/conversations/:id/messages", async (req, res) => {
   if (!convRows.length) { res.status(404).json({ error: "conversation not found" }); return; }
   const conv = convRows[0];
 
+  // ── Premier message vendeur dans une conv broadcast ? → réponse auto ──────
+  const isBroadcastConv = conv.buyerPhone === "##007##";
+  let isFirstVendorReply = false;
+  if (isBroadcastConv && senderType === "vendor") {
+    const existing = await db
+      .select({ id: messagesTable.id })
+      .from(messagesTable)
+      .where(and(
+        eq(messagesTable.conversationId, convId),
+        eq(messagesTable.senderType, "vendor"),
+        isNull(messagesTable.deletedAt),
+      ))
+      .limit(1);
+    isFirstVendorReply = existing.length === 0;
+  }
+
   const [msg] = await db
     .insert(messagesTable)
     .values({ conversationId: convId, senderType, content: content.trim() })
     .returning();
 
   // Update updatedAt + unread count + reset recipient's soft-delete so conversation reappears
-  const isBroadcastConv = conv.buyerPhone === "##007##";
   await db
     .update(conversationsTable)
     .set({
@@ -221,6 +236,27 @@ router.post("/conversations/:id/messages", async (req, res) => {
     io.to(`conv:${convId}`).emit("new_message", { conversationId: convId, message: msg });
   } catch {
     // socket.io not yet ready – non-fatal
+  }
+
+  // ── Réponse automatique TogoMarket au premier message d'un vendeur ────────
+  if (isFirstVendorReply) {
+    const AUTO_REPLY =
+      "Bonjour ! Merci d'avoir contacté TogoMarket. Nous avons bien reçu votre message et notre équipe reviendra vers vous très prochainement. Merci de votre patience !";
+    try {
+      const [autoMsg] = await db
+        .insert(messagesTable)
+        .values({ conversationId: convId, senderType: "buyer", content: AUTO_REPLY })
+        .returning();
+      // +1 unread pour la réponse auto (le message vendeur n'incrémentait pas vendorUnreadCount)
+      await db
+        .update(conversationsTable)
+        .set({ updatedAt: new Date(), vendorUnreadCount: conv.vendorUnreadCount + 1 })
+        .where(eq(conversationsTable.id, convId));
+      try {
+        const io = getIo();
+        io.to(`vendor:${conv.vendorId}`).emit("new_message", { conversationId: convId, message: autoMsg });
+      } catch { /* non-fatal */ }
+    } catch { /* non-fatal — ne doit pas bloquer la réponse HTTP */ }
   }
 
   // Notifications au vendeur quand c'est l'acheteur qui envoie
