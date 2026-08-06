@@ -2301,7 +2301,7 @@ export default function AdminDashboard() {
                                   setInboxMenuMsgId(msg.id);
                                 }
                               }}
-                              className="flex-shrink-0 mb-1 opacity-50 hover:opacity-100 transition-opacity w-6 h-6 rounded-full flex items-center justify-center hover:bg-muted text-muted-foreground"
+                              className="flex-shrink-0 mb-1 transition-opacity w-6 h-6 rounded-full flex items-center justify-center hover:bg-muted text-black dark:text-white"
                             >
                               <MoreVertical className="w-3.5 h-3.5" />
                             </button>
