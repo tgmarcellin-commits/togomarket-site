@@ -190,6 +190,25 @@ router.post("/conversations/:id/messages", async (req, res) => {
   if (!convRows.length) { res.status(404).json({ error: "conversation not found" }); return; }
   const conv = convRows[0];
 
+  // ── Vérification boutique active (expirée = ni envoyer ni recevoir) ────────
+  if (senderType === "vendor" || senderType === "buyer") {
+    const now = new Date();
+    const [vendorRow] = await db
+      .select({ isPublished: vendorsTable.isPublished, expiryDate: vendorsTable.expiryDate })
+      .from(vendorsTable)
+      .where(eq(vendorsTable.id, conv.vendorId))
+      .limit(1);
+    if (vendorRow) {
+      const isActive = vendorRow.isPublished && (!vendorRow.expiryDate || vendorRow.expiryDate > now);
+      // Broadcast conv (admin ↔ vendor) : aucune restriction d'expiration côté admin
+      const isBroadcastSender = conv.buyerPhone === "##007##" && senderType === "buyer";
+      if (!isActive && !isBroadcastSender) {
+        res.status(403).json({ error: "shop_expired", message: "Votre boutique est expirée. Renouvelez votre abonnement pour envoyer ou recevoir des messages." });
+        return;
+      }
+    }
+  }
+
   // ── Premier message vendeur dans une conv broadcast ? → réponse auto ──────
   const isBroadcastConv = conv.buyerPhone === "##007##";
   let isFirstVendorReply = false;

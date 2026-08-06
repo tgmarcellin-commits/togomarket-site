@@ -266,6 +266,7 @@ export default function AdminDashboard() {
   const [inboxMenuPos, setInboxMenuPos] = useState<{ top: number; right: number } | null>(null);
   const [inboxEditingId, setInboxEditingId] = useState<number | null>(null);
   const [inboxEditContent, setInboxEditContent] = useState("");
+  const [inboxHiddenMsgIds, setInboxHiddenMsgIds] = useState<Set<number>>(new Set());
   const [inboxUploading, setInboxUploading] = useState(false);
   const [inboxIsRecording, setInboxIsRecording] = useState(false);
   const [inboxRecordingDuration, setInboxRecordingDuration] = useState(0);
@@ -274,6 +275,7 @@ export default function AdminDashboard() {
   const inboxMediaRecorderRef = useRef<MediaRecorder | null>(null);
   const inboxAudioChunksRef = useRef<Blob[]>([]);
   const inboxRecordingTimerRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  const longPressTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const totalInboxUnread = inboxConvs.reduce((s, c) => s + c.adminUnreadCount, 0);
 
@@ -300,6 +302,7 @@ export default function AdminDashboard() {
     setSelectedInboxConv(conv);
     setInboxMsgsLoading(true);
     setInboxMessages([]);
+    setInboxHiddenMsgIds(new Set());
     try {
       const [msgsRes] = await Promise.all([
         fetch(`/api/admin/broadcast-inbox/${conv.id}/messages`, {
@@ -372,7 +375,7 @@ export default function AdminDashboard() {
       const data = await res.json() as { message: InboxMessage };
       setInboxMessages((prev) => prev.some((m) => m.id === data.message.id) ? prev : [...prev, data.message]);
       setInboxConvs((prev) => prev.map((c) => c.id === selectedInboxConv.id
-        ? { ...c, updatedAt: new Date().toISOString(), lastMessage: null, lastSenderType: "buyer" } : c)
+        ? { ...c, updatedAt: new Date().toISOString(), lastMessage: null, lastSenderType: "buyer" as const } : c)
         .sort((a, b) => new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime()));
       setTimeout(() => inboxBottomRef.current?.scrollIntoView({ behavior: "smooth" }), 100);
     } finally { setInboxUploading(false); }
@@ -417,6 +420,12 @@ export default function AdminDashboard() {
     setInboxMessages((prev) => prev.map((m) => m.id === msgId ? { ...m, deletedAt: new Date().toISOString() } : m));
   }
 
+  function deleteInboxMessageForMe(msgId: number) {
+    setInboxMenuMsgId(null);
+    setInboxMenuPos(null);
+    setInboxHiddenMsgIds((prev) => new Set([...prev, msgId]));
+  }
+
   async function sendInboxReply() {
     if (!selectedInboxConv || !inboxReply.trim()) return;
     setInboxReplying(true);
@@ -432,7 +441,7 @@ export default function AdminDashboard() {
       setInboxReply("");
       // Update conversation list
       setInboxConvs(prev => prev.map(c => c.id === selectedInboxConv.id
-        ? { ...c, updatedAt: new Date().toISOString(), lastMessage: inboxReply.trim(), lastSenderType: "buyer" }
+        ? { ...c, updatedAt: new Date().toISOString(), lastMessage: inboxReply.trim(), lastSenderType: "buyer" as const }
         : c
       ).sort((a, b) => new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime()));
       setTimeout(() => inboxBottomRef.current?.scrollIntoView({ behavior: "smooth" }), 100);
@@ -2269,6 +2278,7 @@ export default function AdminDashboard() {
                   ) : (
                     inboxMessages.map((msg) => {
                       if (msg.deletedAt) return null;
+                      if (inboxHiddenMsgIds.has(msg.id)) return null;
                       const isAdmin = msg.senderType === "buyer";
                       const isEditing = inboxEditingId === msg.id;
                       const menuOpen = inboxMenuMsgId === msg.id;
@@ -2291,7 +2301,7 @@ export default function AdminDashboard() {
                                   setInboxMenuMsgId(msg.id);
                                 }
                               }}
-                              className="flex-shrink-0 mb-1 opacity-0 group-hover:opacity-100 transition-opacity w-6 h-6 rounded-full flex items-center justify-center hover:bg-muted text-muted-foreground"
+                              className="flex-shrink-0 mb-1 opacity-50 hover:opacity-100 transition-opacity w-6 h-6 rounded-full flex items-center justify-center hover:bg-muted text-muted-foreground"
                             >
                               <MoreVertical className="w-3.5 h-3.5" />
                             </button>
@@ -2569,6 +2579,13 @@ export default function AdminDashboard() {
                   Modifier
                 </button>
               )}
+              <button
+                className="w-full text-left flex items-center gap-2 px-4 py-3 text-sm hover:bg-muted transition-colors"
+                onClick={() => deleteInboxMessageForMe(menuMsg.id)}
+              >
+                <Trash2 className="w-4 h-4 text-muted-foreground" />
+                Supprimer pour moi
+              </button>
               <button
                 className="w-full text-left flex items-center gap-2 px-4 py-3 text-sm text-destructive hover:bg-destructive/10 transition-colors"
                 onClick={() => { closeInboxMenu(); deleteInboxMessage(menuMsg.id); }}
