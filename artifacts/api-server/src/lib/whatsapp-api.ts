@@ -10,7 +10,6 @@ import {
   WHATSAPP_PHONE_NUMBER_ID,
   META_API_VERSION,
   TEMPLATE_OTP_AUTH,
-  TEMPLATE_RENEWAL_REMINDER,
   TEMPLATE_NOTIF_NUDGE,
 } from "./whatsapp-config";
 
@@ -211,38 +210,6 @@ export async function sendWhatsAppNotifNudge(
             { type: "text", text: firstName },   // {{1}} = prénom du vendeur
             { type: "text", text: buyerName },   // {{2}} = nom de l'acheteur
           ],
-        },
-      ],
-    },
-  });
-}
-
-export async function sendRenewalReminderTemplate(
-  phone: string,
-  firstName: string,
-  vendorId: number
-): Promise<void> {
-  await callMetaAPI({
-    messaging_product: "whatsapp",
-    to: phone,
-    type: "template",
-    template: {
-      // ⚠️  Remplacez dans whatsapp-config.ts ou via env WHATSAPP_TEMPLATE_RENEWAL
-      name: TEMPLATE_RENEWAL_REMINDER,
-      language: { code: "fr" },
-      components: [
-        {
-          // Paramètre {{1}} du corps : le prénom du vendeur
-          type: "body",
-          parameters: [{ type: "text", text: firstName }],
-        },
-        {
-          // Bouton CTA URL (index 0) : suffixe dynamique = ID vendeur
-          // URL finale = https://togomarket.site/api/vendors/renewal-link/<vendorId>
-          type: "button",
-          sub_type: "url",
-          index: "0",
-          parameters: [{ type: "text", text: String(vendorId) }],
         },
       ],
     },

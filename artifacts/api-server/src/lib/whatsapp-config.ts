@@ -42,21 +42,6 @@ export const TEMPLATE_OTP_AUTH: string =
 /**
  * Template TYPE : Utility
  * Langue        : fr
- * Corps prévu   : "Bonjour {{1}}, votre boutique sur TogoMarket expire dans
- *                  3 jours. Pour éviter toute interruption, renouvelez votre
- *                  abonnement ici."
- * Bouton CTA    : "Renouveler" → https://togomarket.site/api/vendors/renewal-link/{{1}}
- *                  ({{1}} dans le bouton = l'ID vendeur, suffixe dynamique)
- *
- * ⚠️  Remplacez "togomarket_renewal_reminder" par le nom exact approuvé par Meta.
- *     Ou définissez la variable d'env WHATSAPP_TEMPLATE_RENEWAL.
- */
-export const TEMPLATE_RENEWAL_REMINDER: string =
-  process.env.WHATSAPP_TEMPLATE_RENEWAL ?? "togomarket_renewal_reminder";
-
-/**
- * Template TYPE : Utility
- * Langue        : fr
  * Corps prévu   : "Bonjour {{1}}, vous avez un nouveau message de {{2}} sur
  *                  TogoMarket. Activez les notifications pour ne rien manquer :
  *                  Ouvrez l'app → onglet Messages → Activer les notifications."
