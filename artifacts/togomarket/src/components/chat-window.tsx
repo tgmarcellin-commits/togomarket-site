@@ -608,8 +608,8 @@ export function ChatWindow({
           <div className="px-4 py-4 border-t bg-muted/40 flex-shrink-0 text-center">
             <p className="text-sm text-muted-foreground">
               {lang === "fr"
-                ? "Pour plus d'informations contactez l'administrateur par WhatsApp au"
-                : "For more information, contact the administrator on WhatsApp at"}
+                ? "Pour plus d'informations :"
+                : "For more information:"}
             </p>
             <a
               href="https://wa.me/22870703131"
@@ -618,7 +618,7 @@ export function ChatWindow({
               className="inline-flex items-center gap-1.5 mt-1 font-semibold text-green-600 hover:text-green-700 underline underline-offset-2"
             >
               <MessageCircle className="w-4 h-4" />
-              +228 70 70 31 31
+              {lang === "fr" ? "Contacter l'administrateur" : "Contact the administrator"}
             </a>
           </div>
         ) : editingId ? (
