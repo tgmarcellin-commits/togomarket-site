@@ -1,4 +1,4 @@
-import { lt, and, eq, sql } from "drizzle-orm";
+import { lt, and, eq, ne, sql } from "drizzle-orm";
 import { db, listingsTable } from "@workspace/db";
 import { ObjectStorageService } from "./objectStorage";
 import { logger } from "./logger";
@@ -7,6 +7,8 @@ const objectStorage = new ObjectStorageService();
 
 /**
  * Supprime les annonces approuvées publiées depuis plus de 60 jours.
+ * Exception : les catalogues Tourisme ne sont JAMAIS supprimés automatiquement —
+ * ils restent visibles tant que le vendeur ou l'administrateur ne les efface pas.
  * Appelé au démarrage (après 60s) puis toutes les 24h.
  */
 export async function runListingsCleanup(): Promise<void> {
@@ -19,6 +21,7 @@ export async function runListingsCleanup(): Promise<void> {
         and(
           eq(listingsTable.approved, true),
           lt(listingsTable.createdAt, sixtyDaysAgo),
+          ne(listingsTable.sector, "Tourisme"),
         )
       )
       .returning({ id: listingsTable.id, images: listingsTable.images });
