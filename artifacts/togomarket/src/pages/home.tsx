@@ -32,6 +32,7 @@ import { VendorConversations } from "@/components/vendor-conversations";
 import { PushActivationBanner } from "@/components/push-activation-banner";
 import { VendorSystemNotifications } from "@/components/vendor-system-notifications";
 import { useToast } from "@/hooks/use-toast";
+import { getSocket } from "@/lib/socket";
 
 const STORAGE_KEY = "togomarket_vendor_session";
 
@@ -145,6 +146,53 @@ export default function Home() {
   const [convsUnread, setConvsUnread] = useState(0);
   const [systemNotifsUnread, setSystemNotifsUnread] = useState(0);
   const messagesUnread = convsUnread + systemNotifsUnread;
+
+  // ── Badge "Messages" : compter les non-lus dès l'arrivée sur la plateforme,
+  //    sans attendre que l'onglet Messages soit ouvert ────────────────────────
+  useEffect(() => {
+    if (!vendor || !vendorPassword) {
+      setConvsUnread(0);
+      setSystemNotifsUnread(0);
+      return;
+    }
+    const headers = {
+      "x-vendor-phone": vendor.phone,
+      "x-vendor-password": vendorPassword,
+    };
+    let cancelled = false;
+    const fetchUnreadCounts = async () => {
+      try {
+        const [convRes, notifRes] = await Promise.all([
+          fetch("/api/vendor/conversations", { headers }),
+          fetch("/api/vendor/notifications", { headers }),
+        ]);
+        if (cancelled) return;
+        if (convRes.ok) {
+          const convs = (await convRes.json()) as { vendorUnreadCount: number }[];
+          if (!cancelled)
+            setConvsUnread(convs.reduce((sum, c) => sum + (c.vendorUnreadCount || 0), 0));
+        }
+        if (notifRes.ok) {
+          const notifs = (await notifRes.json()) as { isRead: boolean }[];
+          if (!cancelled)
+            setSystemNotifsUnread(notifs.filter((n) => !n.isRead).length);
+        }
+      } catch {
+        // silencieux : le badge se mettra à jour à la prochaine occasion
+      }
+    };
+    fetchUnreadCounts();
+    // Mise à jour en temps réel quand un nouveau message arrive
+    const socket = getSocket();
+    socket.emit("auth", { phone: vendor.phone, password: vendorPassword });
+    const handler = () => { fetchUnreadCounts(); };
+    socket.on("new_message", handler);
+    return () => {
+      cancelled = true;
+      socket.off("new_message", handler);
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [vendor?.phone, vendorPassword]);
 
   const [page, setPage] = useState(1);
   const [loadedListings, setLoadedListings] = useState<Listing[]>([]);

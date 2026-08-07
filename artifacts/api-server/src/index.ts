@@ -54,6 +54,13 @@ io.on("connection", (socket) => {
       const vendor = vendors[0];
       const ok = await bcrypt.compare(password, vendor.passwordHash);
       if (!ok) return;
+      // Un socket ne doit appartenir qu'à un seul vendeur à la fois :
+      // quitter toute room vendeur précédente (changement de compte sur la même page)
+      for (const room of socket.rooms) {
+        if (room.startsWith("vendor:") && room !== `vendor:${vendor.id}`) {
+          socket.leave(room);
+        }
+      }
       socket.join(`vendor:${vendor.id}`);
       socket.emit("auth_ok", { vendorId: vendor.id });
       logger.debug({ vendorId: vendor.id }, "vendor socket authed");

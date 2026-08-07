@@ -152,28 +152,7 @@ export async function sendWhatsAppOTP(
 }
 
 // =============================================================================
-// 2. RAPPEL DE RENOUVELLEMENT — Template Utilitaire
-// =============================================================================
-// Envoie un rappel 3 jours avant l'expiration de la boutique.
-// Cette fonction est appelée par le cron quotidien (renewal-reminder.ts).
-//
-// ⚠️  Configuration du template dans Meta Business Suite :
-//     Type    : Utility
-//     Langue  : Français (fr)
-//     Corps   : "Bonjour {{1}}, votre boutique sur TogoMarket expire dans
-//                3 jours. Pour éviter toute interruption, renouvelez votre
-//                abonnement ici."
-//     Bouton  : Type = URL dynamique
-//               Texte du bouton = "Renouveler maintenant"
-//               URL de base = "https://togomarket.site/api/vendors/renewal-link/"
-//               Suffixe dynamique {{1}} = l'ID du vendeur (ex: "42")
-//     Nom     : voir TEMPLATE_RENEWAL_REMINDER dans whatsapp-config.ts
-//
-// Si le template n'est pas approuvé, cette fonction lève une exception
-// que le cron capture pour logger et continuer sans bloquer les autres envois.
-// =============================================================================
-// =============================================================================
-// 3. RELANCE ACTIVATION NOTIFICATIONS — Template Utilitaire Meta
+// 2. RELANCE ACTIVATION NOTIFICATIONS — Template Utilitaire Meta
 // =============================================================================
 // Envoyé quand un acheteur écrit à un vendeur qui n'a pas activé les notifs push.
 // Rate-limit : 1 message max par heure par vendeur (voir canSendNudge / markNudgeSent).

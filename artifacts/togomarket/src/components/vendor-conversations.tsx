@@ -66,9 +66,11 @@ export function VendorConversations({ vendor, vendorPassword, onUnreadChange }: 
     await fetch(`/api/vendor/conversations/${conv.id}/read`, {
       method: "POST", headers: authHeaders,
     }).catch(() => {});
-    setConversations((prev) =>
-      prev.map((c) => (c.id === conv.id ? { ...c, vendorUnreadCount: 0 } : c))
-    );
+    setConversations((prev) => {
+      const next = prev.map((c) => (c.id === conv.id ? { ...c, vendorUnreadCount: 0 } : c));
+      onUnreadChange?.(next.reduce((sum, c) => sum + c.vendorUnreadCount, 0));
+      return next;
+    });
   };
 
   const deleteConversation = async (id: number) => {
