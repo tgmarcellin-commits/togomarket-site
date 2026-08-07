@@ -16,7 +16,7 @@ import {
 } from "@workspace/api-zod";
 import { logger } from "../lib/logger";
 import { ObjectStorageService } from "../lib/objectStorage";
-import { ADMIN_PASSWORD } from "../lib/admin-auth";
+import { ADMIN_PASSWORD, isAdminAny } from "../lib/admin-auth";
 
 const objectStorage = new ObjectStorageService();
 
@@ -130,6 +130,7 @@ router.get("/listings/tourisme", async (_req, res): Promise<void> => {
     description: string;
     vendorName: string;
     vendorId: number | null;
+    phone: string;
     images: string[];
     createdAt: string;
   }
@@ -144,6 +145,7 @@ router.get("/listings/tourisme", async (_req, res): Promise<void> => {
         description: listing.location,
         vendorName: vendorShopName ?? `${vendorFirstName ?? ""} ${vendorLastName ?? ""}`.trim(),
         vendorId: vendorId ?? null,
+        phone: listing.phone,
         images: [...listing.images],
         createdAt: listing.createdAt.toISOString(),
       });
@@ -415,6 +417,52 @@ router.post("/admin/listings/delete", async (req, res): Promise<void> => {
 
   req.log.info({ id: parsed.data.id }, "Listing deleted by admin");
   res.json(AdminDeleteListingResponse.parse({ success: true }));
+});
+
+/* ──────────────────────────────────────────────────────────────
+   POST /api/admin/tourisme/delete — supprime un catalogue Tourisme
+   complet (toutes les lignes groupées par téléphone + nom).
+   ────────────────────────────────────────────────────────────── */
+router.post("/admin/tourisme/delete", async (req, res): Promise<void> => {
+  const { password, phone, catalogName } = (req.body ?? {}) as {
+    password?: unknown; phone?: unknown; catalogName?: unknown;
+  };
+  if (typeof password !== "string" || typeof phone !== "string" || typeof catalogName !== "string" || !phone || !catalogName) {
+    res.status(400).json({ error: "password, phone et catalogName sont requis" });
+    return;
+  }
+
+  const isAdmin = password === ADMIN_PASSWORD || (await isAdminAny(password));
+  if (!isAdmin) {
+    res.status(403).json({ error: "Forbidden" });
+    return;
+  }
+
+  const normalizedName = catalogName.toLowerCase().trim();
+  const deleted = await db
+    .delete(listingsTable)
+    .where(and(
+      eq(listingsTable.sector, "Tourisme"),
+      phoneEq(listingsTable.phone, normalizePhone(phone)),
+      sql`lower(trim(${listingsTable.name})) = ${normalizedName}`,
+    ))
+    .returning();
+
+  if (deleted.length === 0) {
+    res.status(404).json({ error: "Catalogue introuvable" });
+    return;
+  }
+
+  const allImages = deleted.flatMap((row) => row.images ?? []);
+  await objectStorage.deleteObjectEntities(allImages).catch((err) => {
+    req.log.warn({ err }, "Tourisme catalog delete: échec suppression médias");
+  });
+
+  req.log.info(
+    { phone, catalogName, rows: deleted.length },
+    "Tourisme catalog deleted by admin"
+  );
+  res.json({ success: true, deletedRows: deleted.length });
 });
 
 export default router;

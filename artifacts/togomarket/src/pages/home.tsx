@@ -71,6 +71,7 @@ interface TourismeCatalog {
   description: string;
   vendorName: string;
   vendorId: number | null;
+  phone: string;
   images: string[];
   createdAt: string;
 }
@@ -108,6 +109,34 @@ export default function Home() {
   const [selectedTourismeCatalog, setSelectedTourismeCatalog] = useState<number | null>(null);
   const [shopSearchInput, setShopSearchInput] = useState("");
   const [heroMode, setHeroMode] = useState<"article" | "boutique">("article");
+
+  const handleDeleteTourismeCatalog = async (catalog: TourismeCatalog) => {
+    let pwd = loadAdminSession()?.code ?? "";
+    if (!pwd) {
+      const entered = window.prompt("Mot de passe administrateur :");
+      if (!entered) return;
+      pwd = entered;
+    }
+    const msg = lang === "fr"
+      ? `Supprimer définitivement le catalogue « ${catalog.catalogName} » ?`
+      : `Permanently delete catalog "${catalog.catalogName}"?`;
+    if (!confirm(msg)) return;
+    try {
+      const res = await fetch("/api/admin/tourisme/delete", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ password: pwd, phone: catalog.phone, catalogName: catalog.catalogName }),
+      });
+      if (!res.ok) {
+        alert(lang === "fr" ? "Échec de la suppression (mot de passe ou catalogue invalide)." : "Deletion failed (invalid password or catalog).");
+        return;
+      }
+      setTourismeCatalogs((prev) => prev.filter((c) => !(c.phone === catalog.phone && c.catalogName === catalog.catalogName)));
+      setSelectedTourismeCatalog(null);
+    } catch {
+      alert(lang === "fr" ? "Erreur réseau lors de la suppression." : "Network error during deletion.");
+    }
+  };
 
   const logoClickCount = useRef(0);
   const logoClickTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -688,10 +717,10 @@ export default function Home() {
                   ) : (
                     <div className="grid grid-cols-2 gap-4">
                       {tourismeCatalogs.map((catalog, i) => (
+                        <div key={i} className="relative">
                         <button
-                          key={i}
                           onClick={() => setSelectedTourismeCatalog(i)}
-                          className="group text-left rounded-2xl overflow-hidden border bg-card hover:border-primary/50 hover:shadow-md active:scale-95 transition-all"
+                          className="group w-full text-left rounded-2xl overflow-hidden border bg-card hover:border-primary/50 hover:shadow-md active:scale-95 transition-all"
                         >
                           <div className="aspect-video bg-muted relative overflow-hidden">
                             {catalog.images[0] ? (
@@ -729,6 +758,18 @@ export default function Home() {
                             <p className="text-xs text-muted-foreground line-clamp-1 mt-0.5">{catalog.vendorName}</p>
                           </div>
                         </button>
+                        {quickMode && (
+                          <button
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              handleDeleteTourismeCatalog(catalog);
+                            }}
+                            className="absolute top-2 left-2 z-10 bg-red-600 hover:bg-red-700 text-white text-[11px] font-bold px-2.5 py-1.5 rounded-full shadow-lg"
+                          >
+                            {lang === "fr" ? "Supprimer" : "Delete"}
+                          </button>
+                        )}
+                        </div>
                       ))}
                     </div>
                   )
