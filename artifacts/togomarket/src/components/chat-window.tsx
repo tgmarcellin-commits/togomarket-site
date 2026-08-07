@@ -332,7 +332,8 @@ export function ChatWindow({
     const top = spaceAbove >= menuHeight
       ? rect.top - menuHeight - 6
       : rect.bottom + 6;
-    const right = window.innerWidth - rect.right;
+    // Clamper pour que le menu (~180px de large) reste toujours visible à l'écran
+    const right = Math.max(8, Math.min(window.innerWidth - rect.right, window.innerWidth - 186));
     setMenuPos({ top, right });
     setMenuMsgId(id);
   };
