@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react";
+import { createPortal } from "react-dom";
 import { resolveImageUrl } from "@/lib/image";
 import { X, ChevronLeft, ChevronRight } from "lucide-react";
 
@@ -24,9 +25,9 @@ export function ImageViewer({ images, startIndex, onClose }: ImageViewerProps) {
   const prev = () => setCurrent((c) => (c - 1 + images.length) % images.length);
   const next = () => setCurrent((c) => (c + 1) % images.length);
 
-  return (
+  return createPortal(
     <div
-      className="fixed inset-0 z-[100] bg-black/95 flex flex-col items-center justify-center"
+      className="fixed inset-0 z-[100] bg-black/95 flex flex-col items-center justify-center pointer-events-auto"
       onClick={onClose}
     >
       {/* Bouton fermer */}
@@ -94,6 +95,7 @@ export function ImageViewer({ images, startIndex, onClose }: ImageViewerProps) {
           ))}
         </div>
       )}
-    </div>
+    </div>,
+    document.body
   );
 }

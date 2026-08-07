@@ -178,7 +178,12 @@ function ServiceCard({ service, lang }: { service: Service; lang: string }) {
 
       {/* Dialog détail */}
       <Dialog open={open} onOpenChange={setOpen}>
-        <DialogContent className="sm:max-w-[420px] max-h-[90vh] overflow-y-auto">
+        <DialogContent
+          className="sm:max-w-[420px] max-h-[90vh] overflow-y-auto"
+          onPointerDownOutside={(e) => { if (viewerOpen) e.preventDefault(); }}
+          onInteractOutside={(e) => { if (viewerOpen) e.preventDefault(); }}
+          onEscapeKeyDown={(e) => { if (viewerOpen) e.preventDefault(); }}
+        >
           <DialogHeader>
             <DialogTitle className="pr-6">{service.title}</DialogTitle>
           </DialogHeader>
@@ -215,17 +220,17 @@ function ServiceCard({ service, lang }: { service: Service; lang: string }) {
             </div>
             <WaBtn contact={service.contact} label={cfg.waLabel} fullWidth />
           </div>
+
+          {/* Visionneuse plein écran (rendue dans le dialog pour rester interactive) */}
+          {viewerOpen && service.image && (
+            <ImageViewer
+              images={[service.image]}
+              startIndex={0}
+              onClose={() => setViewerOpen(false)}
+            />
+          )}
         </DialogContent>
       </Dialog>
-
-      {/* Visionneuse plein écran */}
-      {viewerOpen && service.image && (
-        <ImageViewer
-          images={[resolveImageUrl(service.image)]}
-          startIndex={0}
-          onClose={() => setViewerOpen(false)}
-        />
-      )}
     </>
   );
 }
