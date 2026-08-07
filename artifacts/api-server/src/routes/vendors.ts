@@ -689,6 +689,7 @@ router.get("/vendors/sector/:sector", async (req, res) => {
         eq(listingsTable.sector, sector),
         eq(listingsTable.approved, true),
         eq(vendorsTable.isPublished, true),
+        gt(vendorsTable.expiryDate, new Date()),
       ))
       .orderBy(vendorsTable.id);
     return res.json(vendors);
