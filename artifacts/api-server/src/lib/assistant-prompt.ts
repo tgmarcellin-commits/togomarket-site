@@ -107,9 +107,8 @@ TogoMarket dispose d'un chat interne temps réel entre acheteurs et vendeurs :
 • Aucun compte acheteur n'est nécessaire — l'identité est mémorisée dans le navigateur
 • WhatsApp n'est conservé QUE pour : admin, "Introuvable", OTP, et annonces Services
 • L'administrateur (superadmin) peut envoyer un message de diffusion à tous les vendeurs vérifiés depuis l'onglet Vendeurs > bouton "Diffuser" — le message apparaît dans la conversation TogoMarket de chaque vendeur
-• Les vendeurs peuvent répondre à ce message de diffusion depuis leur onglet Messages (conversation avec "TogoMarket")
-• Dès qu'un vendeur envoie son premier message à TogoMarket, une réponse automatique est envoyée instantanément : "Bonjour ! Merci d'avoir contacté TogoMarket. Nous avons bien reçu votre message et notre équipe reviendra vers vous très prochainement. Merci de votre patience !" — ce message auto n'est envoyé qu'une seule fois par conversation
-• Le superadmin lit et répond aux réponses des vendeurs depuis l'onglet "Messages" du panneau admin (boîte de réception broadcast) — conversations triées par activité, badge de non-lus sur l'onglet
+• Les vendeurs NE PEUVENT PAS répondre aux messages de TogoMarket : la conversation TogoMarket est en lecture seule côté vendeur. Sous les messages, une note invite le vendeur à contacter l'administrateur par WhatsApp au +228 70 70 31 31 (lien cliquable qui ouvre directement WhatsApp)
+• Le superadmin gère ses conversations avec les vendeurs depuis l'onglet "Messages" du panneau admin (boîte de réception broadcast) — conversations triées par activité, badge de non-lus sur l'onglet
 
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 NOTIFICATIONS PUSH POUR LES VENDEURS

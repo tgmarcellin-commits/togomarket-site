@@ -209,20 +209,16 @@ router.post("/conversations/:id/messages", async (req, res) => {
     }
   }
 
-  // ── Premier message vendeur dans une conv broadcast ? → réponse auto ──────
+  // ── Conversation TogoMarket (broadcast/admin) : lecture seule côté vendeur ──
+  // Les vendeurs ne peuvent pas répondre aux messages de TogoMarket ;
+  // ils sont invités à contacter l'administration par WhatsApp.
   const isBroadcastConv = conv.buyerPhone === "##007##";
-  let isFirstVendorReply = false;
   if (isBroadcastConv && senderType === "vendor") {
-    const existing = await db
-      .select({ id: messagesTable.id })
-      .from(messagesTable)
-      .where(and(
-        eq(messagesTable.conversationId, convId),
-        eq(messagesTable.senderType, "vendor"),
-        isNull(messagesTable.deletedAt),
-      ))
-      .limit(1);
-    isFirstVendorReply = existing.length === 0;
+    res.status(403).json({
+      error: "admin_conversation_readonly",
+      message: "Pour plus d'informations contactez l'administrateur par WhatsApp au +228 70 70 31 31.",
+    });
+    return;
   }
 
   const [msg] = await db
@@ -255,27 +251,6 @@ router.post("/conversations/:id/messages", async (req, res) => {
     io.to(`conv:${convId}`).emit("new_message", { conversationId: convId, message: msg });
   } catch {
     // socket.io not yet ready – non-fatal
-  }
-
-  // ── Réponse automatique TogoMarket au premier message d'un vendeur ────────
-  if (isFirstVendorReply) {
-    const AUTO_REPLY =
-      "Bonjour ! Merci d'avoir contacté TogoMarket. Nous avons bien reçu votre message et notre équipe reviendra vers vous très prochainement. Merci de votre patience !";
-    try {
-      const [autoMsg] = await db
-        .insert(messagesTable)
-        .values({ conversationId: convId, senderType: "buyer", content: AUTO_REPLY })
-        .returning();
-      // +1 unread pour la réponse auto (le message vendeur n'incrémentait pas vendorUnreadCount)
-      await db
-        .update(conversationsTable)
-        .set({ updatedAt: new Date(), vendorUnreadCount: conv.vendorUnreadCount + 1 })
-        .where(eq(conversationsTable.id, convId));
-      try {
-        const io = getIo();
-        io.to(`vendor:${conv.vendorId}`).emit("new_message", { conversationId: convId, message: autoMsg });
-      } catch { /* non-fatal */ }
-    } catch { /* non-fatal — ne doit pas bloquer la réponse HTTP */ }
   }
 
   // Notifications au vendeur quand c'est l'acheteur qui envoie
@@ -380,6 +355,15 @@ router.post(
       .limit(1);
     if (!convRows.length) { res.status(404).json({ error: "conversation not found" }); return; }
     const conv = convRows[0];
+
+    // Conversation TogoMarket : lecture seule côté vendeur (pas d'envoi de fichiers)
+    if (conv.buyerPhone === "##007##" && senderType === "vendor") {
+      res.status(403).json({
+        error: "admin_conversation_readonly",
+        message: "Pour plus d'informations contactez l'administrateur par WhatsApp au +228 70 70 31 31.",
+      });
+      return;
+    }
 
     const [msg] = await db
       .insert(messagesTable)

@@ -603,7 +603,25 @@ export function ChatWindow({
         </div>
 
         {/* Input bar */}
-        {editingId ? (
+        {auth.kind === "vendor" && buyerIdentity.phone === "##007##" ? (
+          /* Conversation TogoMarket : lecture seule, contact via WhatsApp */
+          <div className="px-4 py-4 border-t bg-muted/40 flex-shrink-0 text-center">
+            <p className="text-sm text-muted-foreground">
+              {lang === "fr"
+                ? "Pour plus d'informations contactez l'administrateur par WhatsApp au"
+                : "For more information, contact the administrator on WhatsApp at"}
+            </p>
+            <a
+              href="https://wa.me/22870703131"
+              target="_blank"
+              rel="noopener noreferrer"
+              className="inline-flex items-center gap-1.5 mt-1 font-semibold text-green-600 hover:text-green-700 underline underline-offset-2"
+            >
+              <MessageCircle className="w-4 h-4" />
+              +228 70 70 31 31
+            </a>
+          </div>
+        ) : editingId ? (
           /* Edit mode */
           <div className="flex flex-col gap-2 px-4 py-3 border-t bg-amber-50/50 flex-shrink-0">
             <div className="flex items-center gap-1 text-xs text-amber-700 font-medium">
