@@ -398,7 +398,8 @@ router.post("/admin/listings/delete", async (req, res): Promise<void> => {
     return;
   }
 
-  if (parsed.data.password !== ADMIN_PASSWORD) {
+  const isAdmin = parsed.data.password === ADMIN_PASSWORD || (await isAdminAny(parsed.data.password));
+  if (!isAdmin) {
     res.status(403).json({ error: "Forbidden" });
     return;
   }
