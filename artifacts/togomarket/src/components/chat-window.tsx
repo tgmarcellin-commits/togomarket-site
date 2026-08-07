@@ -145,6 +145,30 @@ export function ChatWindow({
 
   useEffect(() => { scrollToBottom(); }, [messages]);
 
+  // ── Adaptation au clavier virtuel (mobile) ─────────────────────────────────
+  // Quand le clavier s'ouvre, le viewport visuel rétrécit. Si l'utilisateur
+  // était en bas de la conversation, on l'y maintient ; sinon on conserve sa
+  // position de lecture. La meta viewport `interactive-widget=resizes-content`
+  // garantit que le conteneur (90dvh) se redimensionne au lieu d'être poussé.
+  useEffect(() => {
+    if (!open) return;
+    const vv = window.visualViewport;
+    if (!vv) return;
+    const onResize = () => {
+      const area = scrollAreaRef.current;
+      if (!area) return;
+      const nearBottom =
+        area.scrollHeight - area.scrollTop - area.clientHeight < 120;
+      if (nearBottom) {
+        requestAnimationFrame(() => {
+          area.scrollTop = area.scrollHeight;
+        });
+      }
+    };
+    vv.addEventListener("resize", onResize);
+    return () => vv.removeEventListener("resize", onResize);
+  }, [open]);
+
   // ── Voice recording ────────────────────────────────────────────────────────
   const startRecording = async () => {
     if (uploading || sending) return;
