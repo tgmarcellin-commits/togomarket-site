@@ -2297,7 +2297,7 @@ export default function AdminDashboard() {
                                   const r = (e.currentTarget as HTMLElement).getBoundingClientRect();
                                   const menuH = 110;
                                   const top = r.top > menuH + 60 ? r.top - menuH - 6 : r.bottom + 6;
-                                  setInboxMenuPos({ top, right: window.innerWidth - r.right });
+                                  setInboxMenuPos({ top, right: Math.max(8, Math.min(window.innerWidth - r.right, window.innerWidth - 186)) });
                                   setInboxMenuMsgId(msg.id);
                                 }
                               }}
@@ -2315,7 +2315,7 @@ export default function AdminDashboard() {
                                   const r = el.getBoundingClientRect();
                                   const menuH = 110;
                                   const top = r.top > menuH + 60 ? r.top - menuH - 6 : r.bottom + 6;
-                                  setInboxMenuPos({ top, right: window.innerWidth - r.right });
+                                  setInboxMenuPos({ top, right: Math.max(8, Math.min(window.innerWidth - r.right, window.innerWidth - 186)) });
                                   setInboxMenuMsgId(msg.id);
                                 }, 600);
                               }}
@@ -2328,7 +2328,7 @@ export default function AdminDashboard() {
                                   const r = el.getBoundingClientRect();
                                   const menuH = 110;
                                   const top = r.top > menuH + 60 ? r.top - menuH - 6 : r.bottom + 6;
-                                  setInboxMenuPos({ top, right: window.innerWidth - r.right });
+                                  setInboxMenuPos({ top, right: Math.max(8, Math.min(window.innerWidth - r.right, window.innerWidth - 186)) });
                                   setInboxMenuMsgId(msg.id);
                                 }, 600);
                               }}
