@@ -177,9 +177,10 @@ export function EvenementielView() {
       <div className="space-y-4">
         {events.map((event) => {
           const eventDate = new Date(event.date);
-          // Passé = fin du jour de la date de fin (ou de la date) dépassée
+          // Passé = expiré à 00h le lendemain du jour de la date de fin (ou de la date)
           const endRef = new Date((event as typeof event & { endDate?: string | null }).endDate || event.date);
-          const isPast = endRef.getTime() + 24 * 60 * 60 * 1000 < Date.now();
+          endRef.setHours(24, 0, 0, 0);
+          const isPast = endRef.getTime() <= Date.now();
           const formattedDate = eventDate.toLocaleDateString(locale, { day: "numeric", month: "long", year: "numeric" });
           const shareText = `🎉 ${event.title}\n📅 ${formattedDate}\n📍 ${event.location}${event.ticketPrice ? `\n🎟️ ${t.entry} : ${event.ticketPrice}` : ""}\n\nDécouvrez sur TogoMarket : ${window.location.origin}`;
           const shareUrl = window.location.origin;

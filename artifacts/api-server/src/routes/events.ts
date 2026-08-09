@@ -33,8 +33,8 @@ router.get("/events", async (req, res) => {
       .from(eventsTable)
       .where(and(
         eq(eventsTable.isPublished, true),
-        // Masquer les évènements passés : visibles jusqu'à la fin du jour de la date de fin (ou de la date)
-        sql`COALESCE(${eventsTable.endDate}, ${eventsTable.date}) + interval '1 day' > now()`,
+        // Masquer les évènements passés : expirés à 00h le lendemain du jour de la date de fin (ou de la date)
+        sql`date_trunc('day', COALESCE(${eventsTable.endDate}, ${eventsTable.date})) + interval '1 day' > now()`,
       ))
       .orderBy(desc(eventsTable.date));
     res.json(events.map(mapEvent));

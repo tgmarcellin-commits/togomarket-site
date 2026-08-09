@@ -2004,7 +2004,7 @@ export default function AdminDashboard() {
                     <div className="flex-1 min-w-0">
                       <div className="flex items-center gap-1.5 flex-wrap">
                         <p className="font-semibold text-sm truncate">{ev.title}</p>
-                        {new Date((ev as ApiEvent & { endDate?: string | null }).endDate || ev.date).getTime() + 24 * 60 * 60 * 1000 < Date.now()
+                        {(() => { const d = new Date((ev as ApiEvent & { endDate?: string | null }).endDate || ev.date); d.setHours(24, 0, 0, 0); return d.getTime() <= Date.now(); })()
                           ? <span className="text-[10px] bg-gray-200 text-gray-600 rounded-full px-2 py-0.5 font-semibold shrink-0">Passé</span>
                           : ev.isPublished
                           ? <span className="text-[10px] bg-green-100 text-green-700 rounded-full px-2 py-0.5 font-semibold shrink-0">Publié</span>
