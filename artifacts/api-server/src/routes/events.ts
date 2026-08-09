@@ -1,5 +1,5 @@
 import { Router, type IRouter } from "express";
-import { eq, desc } from "drizzle-orm";
+import { eq, desc, and, sql } from "drizzle-orm";
 import { db, eventsTable } from "@workspace/db";
 import { isAdminOrSubAdmin } from "../lib/auth-sub";
 
@@ -31,7 +31,11 @@ router.get("/events", async (req, res) => {
     const events = await db
       .select()
       .from(eventsTable)
-      .where(eq(eventsTable.isPublished, true))
+      .where(and(
+        eq(eventsTable.isPublished, true),
+        // Masquer les évènements passés : visibles jusqu'à la fin du jour de la date de fin (ou de la date)
+        sql`COALESCE(${eventsTable.endDate}, ${eventsTable.date}) + interval '1 day' > now()`,
+      ))
       .orderBy(desc(eventsTable.date));
     res.json(events.map(mapEvent));
   } catch (err) {

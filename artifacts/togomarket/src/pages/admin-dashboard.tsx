@@ -934,6 +934,22 @@ export default function AdminDashboard() {
 
   const pinAd = useAdminPinAd();
 
+  const handleRenewAdFree = async (id: number, name: string) => {
+    if (!confirm(`Renouveler gratuitement la publicité de ${name} pour 30 jours ?`)) return;
+    try {
+      const res = await fetch("/api/admin/ads/force-publish", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ code: password, id }),
+      });
+      if (!res.ok) throw new Error();
+      toast({ title: "Publicité renouvelée pour 30 jours ✅" });
+      loadAds();
+    } catch {
+      toast({ title: "Erreur lors du renouvellement", variant: "destructive" });
+    }
+  };
+
   const handleDeleteAd = (id: number) => {
     deleteAd.mutate(
       { data: { id, password } },
@@ -1871,7 +1887,7 @@ export default function AdminDashboard() {
                       </div>
                       <div className="flex gap-2 flex-shrink-0 flex-wrap justify-end">
                         {!active && (
-                          <Button size="sm" variant="outline" className="h-7 text-xs border-orange-400 text-orange-700 hover:bg-orange-50" onClick={() => handleSendRenewalWhatsApp("ad", ad.id, ad.advertiserName, ad.advertiserPhone)}>
+                          <Button size="sm" variant="outline" className="h-7 text-xs border-orange-400 text-orange-700 hover:bg-orange-50" onClick={() => handleRenewAdFree(ad.id, ad.advertiserName)}>
                             🔄 Renouveler
                           </Button>
                         )}
@@ -1988,7 +2004,9 @@ export default function AdminDashboard() {
                     <div className="flex-1 min-w-0">
                       <div className="flex items-center gap-1.5 flex-wrap">
                         <p className="font-semibold text-sm truncate">{ev.title}</p>
-                        {ev.isPublished
+                        {new Date((ev as ApiEvent & { endDate?: string | null }).endDate || ev.date).getTime() + 24 * 60 * 60 * 1000 < Date.now()
+                          ? <span className="text-[10px] bg-gray-200 text-gray-600 rounded-full px-2 py-0.5 font-semibold shrink-0">Passé</span>
+                          : ev.isPublished
                           ? <span className="text-[10px] bg-green-100 text-green-700 rounded-full px-2 py-0.5 font-semibold shrink-0">Publié</span>
                           : <span className="text-[10px] bg-yellow-100 text-yellow-700 rounded-full px-2 py-0.5 font-semibold shrink-0">En attente</span>}
                       </div>
