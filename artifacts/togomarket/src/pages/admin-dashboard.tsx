@@ -1,4 +1,5 @@
 import { useState, useEffect, useRef } from "react";
+import { waPhone } from "@/lib/wa";
 import { useLocation } from "wouter";
 import { useQueryClient } from "@tanstack/react-query";
 import {
@@ -832,7 +833,7 @@ export default function AdminDashboard() {
         return;
       }
       const msg = `Bonjour ${firstName} ! 👋\n\nVotre abonnement TogoMarket arrive à expiration.\n\nRenouvelez facilement en ligne pour 1 000 FCFA/mois :\n${data.widgetUrl}\n\nMerci de votre confiance !`;
-      openWhatsApp(`https://wa.me/${phone.replace(/\D/g, "")}?text=${encodeURIComponent(msg)}`);
+      openWhatsApp(`https://wa.me/${waPhone(phone)}?text=${encodeURIComponent(msg)}`);
     } catch {
       toast({ title: "Erreur réseau", variant: "destructive" });
     } finally {
@@ -850,9 +851,9 @@ export default function AdminDashboard() {
     const renewalUrl = `https://togomarket.site/api/${entityType}s/renewal-link/${entityId}`;
     const entityLabel = entityType === "ad" ? "publicité" : entityType === "event" ? "événement" : "service";
     const msg = `Bonjour ${name} ! 👋\n\nVotre ${entityLabel} TogoMarket a expiré.\n\nRenouvelez facilement pour 1 000 FCFA/mois en cliquant sur ce lien :\n${renewalUrl}\n\nMerci de votre confiance ! 🙏`;
-    const waPhone = phone.replace(/\D/g, "");
-    if (waPhone.length >= 8) {
-      openWhatsApp(`https://wa.me/${waPhone}?text=${encodeURIComponent(msg)}`);
+    const waNumber = waPhone(phone);
+    if (waNumber.length >= 8) {
+      openWhatsApp(`https://wa.me/${waNumber}?text=${encodeURIComponent(msg)}`);
     } else {
       // Pas de numéro valide : copie le lien dans le presse-papier et notifie
       navigator.clipboard.writeText(renewalUrl).catch(() => {});
@@ -886,7 +887,7 @@ export default function AdminDashboard() {
         return;
       }
       const msg = `Bonjour ${paymentLinkDialog.customerName},\n\nVoici votre lien de paiement TogoMarket (1 000 FCFA) :\n${link}\n\nMerci de procéder au paiement pour valider votre annonce sur TogoMarket.`;
-      openWhatsApp(`https://wa.me/${paymentLinkDialog.customerPhone.replace(/\D/g, "")}?text=${encodeURIComponent(msg)}`);
+      openWhatsApp(`https://wa.me/${waPhone(paymentLinkDialog.customerPhone)}?text=${encodeURIComponent(msg)}`);
       setPaymentLinkDialog(null);
     } catch {
       toast({ title: "Erreur réseau", variant: "destructive" });
@@ -1349,7 +1350,7 @@ export default function AdminDashboard() {
                           <div className="flex items-center gap-2">
                             <span className="text-xs text-muted-foreground">{v.phone}</span>
                             <button
-                              onClick={() => openWhatsApp(`https://wa.me/${v.phone.replace(/\D/g, "")}?text=${encodeURIComponent(`Bonjour ${v.firstName}, votre abonnement TogoMarket expire bientôt. Renouvelez pour 1 000 FCFA.`)}`)}
+                              onClick={() => openWhatsApp(`https://wa.me/${waPhone(v.phone)}?text=${encodeURIComponent(`Bonjour ${v.firstName}, votre abonnement TogoMarket expire bientôt. Renouvelez pour 1 000 FCFA.`)}`)}
                               className="text-xs bg-green-500 text-white rounded-full px-2 py-0.5 hover:bg-green-600"
                             >
                               WhatsApp

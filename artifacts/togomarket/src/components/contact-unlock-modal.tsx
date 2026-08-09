@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { waPhone } from "@/lib/wa";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -189,7 +190,7 @@ export function ContactUnlockModal({ open, onClose, listing, commissionRate }: C
                 className="w-full bg-green-600 hover:bg-green-700 text-white gap-2"
                 onClick={() =>
                   openWhatsApp(
-                    `https://wa.me/${vendorPhone}?text=${encodeURIComponent(whatsappMessage)}`
+                    `https://wa.me/${waPhone(vendorPhone)}?text=${encodeURIComponent(whatsappMessage)}`
                   )
                 }
               >

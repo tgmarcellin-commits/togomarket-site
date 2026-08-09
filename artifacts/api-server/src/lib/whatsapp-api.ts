@@ -29,6 +29,7 @@ export function markNudgeSent(vendorId: number): void {
   notifNudgeLastSent.set(vendorId, Date.now());
 }
 import { logger } from "./logger";
+import { normalizePhone } from "./phone";
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Fonction interne : appel POST vers l'API Meta Cloud
@@ -62,6 +63,20 @@ async function callMetaAPI(payload: unknown): Promise<void> {
 }
 
 // =============================================================================
+// NORMALISATION WHATSAPP — Numéros béninois
+// =============================================================================
+// WhatsApp/Meta identifie les numéros béninois avec l'ANCIEN format
+// international (229 + 8 chiffres), sans le préfixe national "01".
+// On retire donc automatiquement le "01" (ou le "1" des numéros mal
+// enregistrés) avant tout envoi, sinon l'OTP n'arrive jamais.
+// =============================================================================
+export function toWhatsAppNumber(raw: string): string {
+  const s = normalizePhone(raw); // canonique : 22901XXXXXXXX pour le Bénin
+  if (/^22901\d{8}$/.test(s)) return "229" + s.slice(5); // 22901XXXXXXXX → 229XXXXXXXX
+  return s;
+}
+
+// =============================================================================
 // 0. ENVOI TEXTE LIBRE — Notification interne / admin
 // =============================================================================
 // Envoie un message texte libre à un numéro donné (ex. notification admin).
@@ -73,7 +88,7 @@ export async function sendWhatsAppText(phone: string, text: string): Promise<voi
   await callMetaAPI({
     messaging_product: "whatsapp",
     recipient_type: "individual",
-    to: phone,
+    to: toWhatsAppNumber(phone),
     type: "text",
     text: { body: text },
   });
@@ -102,7 +117,7 @@ export async function sendWhatsAppOTP(
   try {
     await callMetaAPI({
       messaging_product: "whatsapp",
-      to: phone,
+      to: toWhatsAppNumber(phone),
       type: "template",
       template: {
         // ⚠️  Remplacez dans whatsapp-config.ts ou via env WHATSAPP_TEMPLATE_OTP
@@ -138,7 +153,7 @@ export async function sendWhatsAppOTP(
   // À SUPPRIMER une fois le template approuvé par Meta si souhaité.
   await callMetaAPI({
     messaging_product: "whatsapp",
-    to: phone,
+    to: toWhatsAppNumber(phone),
     type: "text",
     text: {
       body:
@@ -177,7 +192,7 @@ export async function sendWhatsAppNotifNudge(
 ): Promise<void> {
   await callMetaAPI({
     messaging_product: "whatsapp",
-    to: phone,
+    to: toWhatsAppNumber(phone),
     type: "template",
     template: {
       name: TEMPLATE_NOTIF_NUDGE,

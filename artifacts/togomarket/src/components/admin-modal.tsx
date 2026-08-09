@@ -1,4 +1,5 @@
 import { useState, useRef, useEffect } from "react";
+import { waPhone } from "@/lib/wa";
 import { openWhatsApp } from "@/lib/whatsapp";
 import { uploadVideoFile } from "@/lib/upload";
 import { ImageViewer } from "@/components/image-viewer";
@@ -386,7 +387,7 @@ export function AdminModal({
           setGeneratedCode({ code: res.code, phone: res.vendorPhone });
           refetchVendors();
           const msg = "Votre compte TogoMarket est activé avec succès ! Vous venez de bénéficier d'un mois de publication gratuite. Bonne vente ! 🎉";
-          openWhatsApp(`https://wa.me/${res.vendorPhone.replace(/\D/g, "")}?text=${encodeURIComponent(msg)}`);
+          openWhatsApp(`https://wa.me/${waPhone(res.vendorPhone)}?text=${encodeURIComponent(msg)}`);
         },
         onError: () => toast({ title: "Erreur lors de l'activation", variant: "destructive" }),
       }
@@ -441,7 +442,7 @@ export function AdminModal({
 
   const sendCodeWhatsApp = (code: string, phone: string) => {
     const msg = `Bonjour ! Votre code de publication TogoMarket est : ${code}\nIl est valable 30 jours. Bonne vente !`;
-    openWhatsApp(`https://wa.me/${phone.replace(/\D/g, "")}?text=${encodeURIComponent(msg)}`);
+    openWhatsApp(`https://wa.me/${waPhone(phone)}?text=${encodeURIComponent(msg)}`);
   };
 
   const handleAdminPublishImageChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -557,7 +558,7 @@ export function AdminModal({
 
   const handleRenewWhatsApp = (ad: Ad) => {
     const msg = `Bonjour ${ad.advertiserName}, votre publicité sur TogoMarket a expiré. Souhaitez-vous la renouveler pour 1 000 FCFA/mois ?`;
-    openWhatsApp(`https://wa.me/${ad.advertiserPhone.replace(/\D/g, "")}?text=${encodeURIComponent(msg)}`);
+    openWhatsApp(`https://wa.me/${waPhone(ad.advertiserPhone)}?text=${encodeURIComponent(msg)}`);
   };
 
   const openViewer = (images: string[], index: number) => {
@@ -976,7 +977,7 @@ export function AdminModal({
                             Activer ✓
                           </Button>
                           <a
-                            href={`https://wa.me/${vendor.phone}?text=${encodeURIComponent(`Bonjour ${vendor.firstName}, votre compte TogoMarket a été activé manuellement. Vous pouvez maintenant vous connecter sur togomarket.site`)}`}
+                            href={`https://wa.me/${waPhone(vendor.phone)}?text=${encodeURIComponent(`Bonjour ${vendor.firstName}, votre compte TogoMarket a été activé manuellement. Vous pouvez maintenant vous connecter sur togomarket.site`)}`}
                             target="_blank"
                             rel="noopener noreferrer"
                             className="flex items-center justify-center h-7 text-xs bg-[#25D366] hover:bg-[#1da851] text-white rounded px-2 font-medium"
