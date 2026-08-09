@@ -1,6 +1,7 @@
 import { Router, type IRouter } from "express";
 import { db, vendorsTable, adsTable, eventsTable, servicesTable } from "@workspace/db";
 import { eq } from "drizzle-orm";
+import { normalizePhone } from "../lib/phone";
 
 const router: IRouter = Router();
 
@@ -37,6 +38,8 @@ async function createFedapayTransaction(opts: {
   metadata: Record<string, string>;
 }): Promise<{ id: string; paymentUrl: string }> {
   const baseUrl = getFedapayBaseUrl();
+  // Normaliser le numéro (corrige notamment les numéros béninois dont le 0 de "01" a été perdu)
+  const customerPhone = normalizePhone(opts.customerPhone);
   const res = await fetch(`${baseUrl}/transactions`, {
     method: "POST",
     headers: {
@@ -50,7 +53,7 @@ async function createFedapayTransaction(opts: {
       callback_url: opts.callbackUrl,
       customer: {
         firstname: opts.customerName,
-        phone_number: { number: opts.customerPhone, country: getPhoneCountry(opts.customerPhone) },
+        phone_number: { number: customerPhone, country: getPhoneCountry(customerPhone) },
       },
       custom_metadata: opts.metadata,
       include_fees: true,

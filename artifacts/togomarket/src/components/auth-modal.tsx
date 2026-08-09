@@ -193,7 +193,12 @@ export function AuthModal({ open, onOpenChange, onLoginSuccess, referredBy }: Au
   };
 
   const handleRegisterValidate = () => {
-    const localDigits = regLocalPhone.replace(/\D/g, "").replace(/^0+/, "");
+    // Bénin (+229) : le nouveau format local commence par "01" — le 0 doit être conservé.
+    // Pour les autres pays, on retire les zéros de tête (préfixe local).
+    const rawDigits = regLocalPhone.replace(/\D/g, "");
+    const localDigits = regDialCode === "229" && /^01\d{8}$/.test(rawDigits)
+      ? rawDigits
+      : rawDigits.replace(/^0+/, "");
     const fullPhone = regDialCode + localDigits;
     if (!regFirstName.trim() || !regLastName.trim() || !localDigits || !regPassword.trim()) {
       toast({ title: t.allFieldsRequired, variant: "destructive" });

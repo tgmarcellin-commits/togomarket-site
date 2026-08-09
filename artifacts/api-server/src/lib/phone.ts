@@ -17,9 +17,15 @@ export function normalizePhone(raw: string): string {
   if (s.startsWith("00")) s = s.slice(2);
   // 8-digit local without country code → assume Togo
   if (/^\d{8}$/.test(s)) s = "228" + s;
+  // Bénin new-format local entered with leading 01 (10 digits) → prepend 229
+  if (/^01\d{8}$/.test(s)) s = "229" + s;
   // Bénin old format: 229 + exactly 8 digits (11 total), not already starting with 22901
   if (s.startsWith("229") && s.length === 11 && !s.startsWith("22901")) {
     s = "22901" + s.slice(3); // 229XXXXXXXX → 22901XXXXXXXX
+  }
+  // Bénin broken format: leading 0 of "01" was stripped → 229 + 1XXXXXXXX (12 digits)
+  if (/^2291\d{8}$/.test(s)) {
+    s = "22901" + s.slice(4); // 2291XXXXXXXX → 22901XXXXXXXX
   }
   return s;
 }
@@ -41,6 +47,8 @@ export function phoneEq(column: AnyColumn, normalizedPhone: string): SQL {
       WHEN left(regexp_replace(${column}, '[^0-9]', '', 'g'), 3) = '229'
         AND length(regexp_replace(${column}, '[^0-9]', '', 'g')) = 11
         AND left(regexp_replace(${column}, '[^0-9]', '', 'g'), 5) != '22901'
+        THEN '22901' || right(regexp_replace(${column}, '[^0-9]', '', 'g'), 8)
+      WHEN regexp_replace(${column}, '[^0-9]', '', 'g') ~ '^2291[0-9]{8}$'
         THEN '22901' || right(regexp_replace(${column}, '[^0-9]', '', 'g'), 8)
       ELSE regexp_replace(${column}, '[^0-9]', '', 'g')
     END = ${normalizedPhone}
