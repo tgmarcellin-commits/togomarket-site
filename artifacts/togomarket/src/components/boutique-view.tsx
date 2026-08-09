@@ -169,6 +169,8 @@ export function BoutiqueView({ vendor, vendorPassword, onNeedLogin }: BoutiqueVi
   const [deleteTarget, setDeleteTarget] = useState<Listing | null>(null);
   const [priceTarget, setPriceTarget] = useState<Listing | null>(null);
   const [newPrice, setNewPrice] = useState("");
+  const [newPromoPrice, setNewPromoPrice] = useState("");
+  const [newDescription, setNewDescription] = useState("");
   const [contactStats, setContactStats] = useState<ContactRequestStat[]>([]);
 
   const updatePrice = useVendorUpdateListingPrice();
@@ -273,8 +275,20 @@ export function BoutiqueView({ vendor, vendorPassword, onNeedLogin }: BoutiqueVi
       toast({ title: t.invalidPrice, variant: "destructive" });
       return;
     }
+    let promo: number | null = null;
+    if (newPromoPrice.trim()) {
+      promo = parseFloat(newPromoPrice.replace(",", "."));
+      if (isNaN(promo) || promo <= 0) {
+        toast({ title: "Prix promotionnel invalide", variant: "destructive" });
+        return;
+      }
+      if (promo >= parsed) {
+        toast({ title: "Le prix promo doit être inférieur au prix réel", variant: "destructive" });
+        return;
+      }
+    }
     updatePrice.mutate(
-      { data: { id: priceTarget.id, phone: vendor.phone, password: vendorPassword, newPrice: parsed } },
+      { data: { id: priceTarget.id, phone: vendor.phone, password: vendorPassword, newPrice: parsed, promoPrice: promo, description: newDescription.trim() || null } },
       {
         onSuccess: () => {
           toast({ title: t.priceUpdated });
@@ -495,16 +509,29 @@ export function BoutiqueView({ vendor, vendorPassword, onNeedLogin }: BoutiqueVi
                     </span>
                   </div>
                 </div>
-                <p className="text-primary font-bold text-sm mt-0.5">
-                  {listing.price.toLocaleString("fr-FR")} FCFA
-                </p>
+                {listing.promoPrice != null ? (
+                  <p className="text-sm mt-0.5 flex items-baseline gap-1.5 flex-wrap">
+                    <span className="text-red-600 font-bold">{listing.promoPrice.toLocaleString("fr-FR")} FCFA</span>
+                    <span className="text-muted-foreground line-through text-xs">{listing.price.toLocaleString("fr-FR")} FCFA</span>
+                    <span className="text-[9px] bg-red-100 text-red-700 rounded-full px-1.5 py-0.5 font-bold">PROMO</span>
+                  </p>
+                ) : (
+                  <p className="text-primary font-bold text-sm mt-0.5">
+                    {listing.price.toLocaleString("fr-FR")} FCFA
+                  </p>
+                )}
                 <p className="text-xs text-muted-foreground break-words">{listing.location} · {listing.sector}</p>
                 <div className="flex gap-2 mt-2">
                   <Button
                     size="sm"
                     variant="outline"
                     className="h-7 text-xs gap-1"
-                    onClick={() => { setPriceTarget(listing); setNewPrice(String(listing.price)); }}
+                    onClick={() => {
+                      setPriceTarget(listing);
+                      setNewPrice(String(listing.price));
+                      setNewPromoPrice(listing.promoPrice != null ? String(listing.promoPrice) : "");
+                      setNewDescription(listing.description ?? "");
+                    }}
                   >
                     <Pencil className="w-3 h-3" />
                     {t.editPrice}
@@ -556,6 +583,34 @@ export function BoutiqueView({ vendor, vendorPassword, onNeedLogin }: BoutiqueVi
                 value={newPrice}
                 onChange={(e) => setNewPrice(e.target.value)}
                 placeholder="Ex : 15000"
+              />
+            </div>
+            <div>
+              <label className="text-sm font-medium mb-1 block">
+                Prix promotionnel <span className="text-muted-foreground font-normal">(facultatif)</span>
+              </label>
+              <Input
+                type="number"
+                min="0"
+                value={newPromoPrice}
+                onChange={(e) => setNewPromoPrice(e.target.value)}
+                placeholder="Ex : 12000 — laisser vide pour retirer la promo"
+              />
+              <p className="text-[11px] text-muted-foreground mt-1">
+                S'affichera en promo à côté du prix réel barré sur le marketplace.
+              </p>
+            </div>
+            <div>
+              <label className="text-sm font-medium mb-1 block">
+                Description de l'article <span className="text-muted-foreground font-normal">(facultatif)</span>
+              </label>
+              <textarea
+                value={newDescription}
+                onChange={(e) => setNewDescription(e.target.value)}
+                rows={3}
+                maxLength={1000}
+                placeholder="Décrivez votre article : état, caractéristiques, détails…"
+                className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 resize-none"
               />
             </div>
           </div>

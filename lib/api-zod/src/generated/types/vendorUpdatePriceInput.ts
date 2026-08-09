@@ -11,4 +11,8 @@ export interface VendorUpdatePriceInput {
   phone: string;
   password: string;
   newPrice: number;
+  /** @nullable */
+  promoPrice?: number | null;
+  /** @nullable */
+  description?: string | null;
 }

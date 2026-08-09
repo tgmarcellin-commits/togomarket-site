@@ -2,7 +2,7 @@ import { Router, type IRouter } from "express";
 import { eq, ilike, and, desc, sql, gt, inArray, ne, type SQL } from "drizzle-orm";
 import { normalizePhone, phoneEq } from "../lib/phone";
 import bcrypt from "bcryptjs";
-import { db, listingsTable, vendorsTable } from "@workspace/db";
+import { db, listingsTable, vendorsTable, reviewsTable } from "@workspace/db";
 import {
   CreateListingBody,
   GetListingsQueryParams,
@@ -22,11 +22,17 @@ const objectStorage = new ObjectStorageService();
 
 const router: IRouter = Router();
 
-function mapListing(l: typeof listingsTable.$inferSelect, vendorId?: number | null) {
+function mapListing(
+  l: typeof listingsTable.$inferSelect,
+  vendorId?: number | null,
+  stats?: { avgRating: number | null; reviewCount: number },
+) {
   return {
     id: l.id,
     name: l.name,
     price: parseFloat(l.price),
+    promoPrice: l.promoPrice != null ? parseFloat(l.promoPrice) : null,
+    description: l.description ?? null,
     location: l.location,
     country: l.country ?? "Togo",
     sector: l.sector,
@@ -35,6 +41,8 @@ function mapListing(l: typeof listingsTable.$inferSelect, vendorId?: number | nu
     phone: l.phone,
     approved: l.approved,
     vendorId: vendorId ?? null,
+    avgRating: stats?.avgRating ?? null,
+    reviewCount: stats?.reviewCount ?? 0,
   };
 }
 
@@ -85,7 +93,12 @@ router.get("/listings", async (req, res): Promise<void> => {
       .from(listingsTable)
       .where(and(...conditions)),
     db
-      .select({ listing: listingsTable, vendorId: vendorsTable.id })
+      .select({
+        listing: listingsTable,
+        vendorId: vendorsTable.id,
+        avgRating: sql<string | null>`(select round(avg(${reviewsTable.rating})::numeric, 1) from ${reviewsTable} where ${reviewsTable.listingId} = ${listingsTable.id})`,
+        reviewCount: sql<string>`(select count(*) from ${reviewsTable} where ${reviewsTable.listingId} = ${listingsTable.id})`,
+      })
       .from(listingsTable)
       .leftJoin(vendorsTable, eq(vendorsTable.phone, listingsTable.phone))
       .where(and(...conditions))
@@ -97,7 +110,10 @@ router.get("/listings", async (req, res): Promise<void> => {
   const total = Number(countResult[0]?.count ?? 0);
 
   res.json(GetListingsResponse.parse({
-    items: listings.map((row) => mapListing(row.listing, row.vendorId)),
+    items: listings.map((row) => mapListing(row.listing, row.vendorId, {
+      avgRating: row.avgRating != null ? Number(row.avgRating) : null,
+      reviewCount: Number(row.reviewCount ?? 0),
+    })),
     total,
     page,
     hasMore: offset + listings.length < total,
@@ -206,6 +222,7 @@ router.post("/listings", async (req, res): Promise<void> => {
       sector: parsed.data.sector,
       phone: vendor.phone,
       images: parsed.data.images,
+      description: parsed.data.description?.trim() || null,
       approved: false,
     })
     .returning();
@@ -256,9 +273,33 @@ router.post("/listings/update-price", async (req, res): Promise<void> => {
     return;
   }
 
+  // Champs optionnels : prix promo (null = retirer) et description
+  const updateSet: Partial<typeof listingsTable.$inferInsert> = { price: String(newPrice) };
+  if ("promoPrice" in req.body) {
+    const pp = req.body.promoPrice;
+    if (pp === null || pp === "" || pp === undefined) {
+      updateSet.promoPrice = null;
+    } else {
+      const parsedPromo = Number(pp);
+      if (!Number.isFinite(parsedPromo) || parsedPromo <= 0) {
+        res.status(400).json({ error: "Prix promotionnel invalide." });
+        return;
+      }
+      if (parsedPromo >= Number(newPrice)) {
+        res.status(400).json({ error: "Le prix promotionnel doit être inférieur au prix réel." });
+        return;
+      }
+      updateSet.promoPrice = String(parsedPromo);
+    }
+  }
+  if ("description" in req.body) {
+    const d = req.body.description;
+    updateSet.description = typeof d === "string" && d.trim() ? d.trim() : null;
+  }
+
   const [updated] = await db
     .update(listingsTable)
-    .set({ price: String(newPrice) })
+    .set(updateSet)
     .where(eq(listingsTable.id, id))
     .returning();
 
@@ -362,7 +403,7 @@ router.post("/admin/listings/pending", async (req, res): Promise<void> => {
     .where(eq(listingsTable.approved, false))
     .orderBy(listingsTable.createdAt);
 
-  res.json(AdminGetPendingListingsResponse.parse([...listings].reverse().map(mapListing)));
+  res.json(AdminGetPendingListingsResponse.parse([...listings].reverse().map((l) => mapListing(l))));
 });
 
 router.post("/admin/listings/approve", async (req, res): Promise<void> => {

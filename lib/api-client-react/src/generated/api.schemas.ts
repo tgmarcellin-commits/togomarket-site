@@ -19,6 +19,13 @@ export interface Listing {
   approved: boolean;
   /** @nullable */
   vendorId?: number | null;
+  /** @nullable */
+  promoPrice?: number | null;
+  /** @nullable */
+  description?: string | null;
+  /** @nullable */
+  avgRating?: number | null;
+  reviewCount?: number;
 }
 
 export interface ListingsPage {
@@ -83,8 +90,6 @@ export interface Event {
   createdAt: string;
   /** @nullable */
   isPublished?: boolean | null;
-  /** @nullable */
-  subscriptionExpiresAt?: string | null;
 }
 
 export interface AdminCreateEventInput {
@@ -101,6 +106,57 @@ export interface AdminCreateEventInput {
 
 export interface HealthStatus {
   status: string;
+}
+
+export interface Review {
+  id: number;
+  listingId: number;
+  buyerName: string;
+  rating: number;
+  comment: string;
+  createdAt: string;
+}
+
+export interface ReviewInput {
+  /** @minLength 2 */
+  buyerName: string;
+  /** @minLength 8 */
+  buyerPhone: string;
+  /**
+     * @minimum 1
+     * @maximum 5
+     */
+  rating: number;
+  comment?: string;
+}
+
+export interface ReviewCreateResult {
+  review: Review;
+  editToken: string;
+}
+
+export interface ReviewUpdateInput {
+  id: number;
+  editToken: string;
+  /**
+     * @minimum 1
+     * @maximum 5
+     */
+  rating: number;
+  comment?: string;
+}
+
+export interface ReviewDeleteInput {
+  id: number;
+  editToken?: string;
+  password?: string;
+}
+
+export interface ReviewsList {
+  items: Review[];
+  /** @nullable */
+  avgRating: number | null;
+  count: number;
 }
 
 export type ListingInputSector = typeof ListingInputSector[keyof typeof ListingInputSector];
@@ -125,6 +181,7 @@ export interface ListingInput {
   images: string[];
   vendorPhone: string;
   vendorPassword: string;
+  description?: string;
 }
 
 export interface VendorUpdatePriceInput {
@@ -132,6 +189,10 @@ export interface VendorUpdatePriceInput {
   phone: string;
   password: string;
   newPrice: number;
+  /** @nullable */
+  promoPrice?: number | null;
+  /** @nullable */
+  description?: string | null;
 }
 
 export interface VendorDeleteListingInput {
@@ -321,8 +382,7 @@ export interface VendorRegisterInput {
   referredBy?: number | null;
   /** @nullable */
   profilePhoto?: string | null;
-  /** @nullable */
-  wantsNotifications?: boolean | null;
+  wantsNotifications?: boolean;
 }
 
 export interface VendorInSector {

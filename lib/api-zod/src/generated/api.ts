@@ -82,6 +82,7 @@ export const GetListingsQueryParams = zod.object({
 })
 
 export const getListingsResponseItemsItemCountryDefault = `Togo`;
+export const getListingsResponseItemsItemReviewCountDefault = 0;
 
 export const GetListingsResponse = zod.object({
   "items": zod.array(zod.object({
@@ -95,7 +96,11 @@ export const GetListingsResponse = zod.object({
   "createdAt": zod.string(),
   "phone": zod.string().nullish(),
   "approved": zod.boolean(),
-  "vendorId": zod.number().nullish()
+  "vendorId": zod.number().nullish(),
+  "promoPrice": zod.number().nullish(),
+  "description": zod.string().nullish(),
+  "avgRating": zod.number().nullish(),
+  "reviewCount": zod.number().default(getListingsResponseItemsItemReviewCountDefault)
 })),
   "total": zod.number(),
   "page": zod.number(),
@@ -119,7 +124,8 @@ export const CreateListingBody = zod.object({
   "sector": zod.enum(['Tourisme', 'AgriMarket', 'Immobilier', 'Automobile', 'Repas', 'Divers']),
   "images": zod.array(zod.string()).max(createListingBodyImagesMax),
   "vendorPhone": zod.string(),
-  "vendorPassword": zod.string()
+  "vendorPassword": zod.string(),
+  "description": zod.string().optional()
 })
 
 
@@ -130,10 +136,13 @@ export const VendorUpdateListingPriceBody = zod.object({
   "id": zod.number(),
   "phone": zod.string(),
   "password": zod.string(),
-  "newPrice": zod.number()
+  "newPrice": zod.number(),
+  "promoPrice": zod.number().nullish(),
+  "description": zod.string().nullish()
 })
 
 export const vendorUpdateListingPriceResponseCountryDefault = `Togo`;
+export const vendorUpdateListingPriceResponseReviewCountDefault = 0;
 
 export const VendorUpdateListingPriceResponse = zod.object({
   "id": zod.number(),
@@ -145,7 +154,94 @@ export const VendorUpdateListingPriceResponse = zod.object({
   "images": zod.array(zod.string()),
   "createdAt": zod.string(),
   "phone": zod.string().nullish(),
-  "approved": zod.boolean()
+  "approved": zod.boolean(),
+  "vendorId": zod.number().nullish(),
+  "promoPrice": zod.number().nullish(),
+  "description": zod.string().nullish(),
+  "avgRating": zod.number().nullish(),
+  "reviewCount": zod.number().default(vendorUpdateListingPriceResponseReviewCountDefault)
+})
+
+
+/**
+ * @summary Get reviews for a listing
+ */
+export const GetListingReviewsParams = zod.object({
+  "listingId": zod.coerce.number()
+})
+
+export const GetListingReviewsResponse = zod.object({
+  "items": zod.array(zod.object({
+  "id": zod.number(),
+  "listingId": zod.number(),
+  "buyerName": zod.string(),
+  "rating": zod.number(),
+  "comment": zod.string(),
+  "createdAt": zod.string()
+})),
+  "avgRating": zod.number().nullable(),
+  "count": zod.number()
+})
+
+
+/**
+ * @summary Create a review on a listing
+ */
+export const CreateListingReviewParams = zod.object({
+  "listingId": zod.coerce.number()
+})
+
+export const createListingReviewBodyBuyerNameMin = 2;
+
+export const createListingReviewBodyBuyerPhoneMin = 8;
+
+export const createListingReviewBodyRatingMax = 5;
+
+
+
+export const CreateListingReviewBody = zod.object({
+  "buyerName": zod.string().min(createListingReviewBodyBuyerNameMin),
+  "buyerPhone": zod.string().min(createListingReviewBodyBuyerPhoneMin),
+  "rating": zod.number().min(1).max(createListingReviewBodyRatingMax),
+  "comment": zod.string().optional()
+})
+
+
+/**
+ * @summary Update own review (author only, via editToken)
+ */
+export const updateReviewBodyRatingMax = 5;
+
+
+
+export const UpdateReviewBody = zod.object({
+  "id": zod.number(),
+  "editToken": zod.string(),
+  "rating": zod.number().min(1).max(updateReviewBodyRatingMax),
+  "comment": zod.string().optional()
+})
+
+export const UpdateReviewResponse = zod.object({
+  "id": zod.number(),
+  "listingId": zod.number(),
+  "buyerName": zod.string(),
+  "rating": zod.number(),
+  "comment": zod.string(),
+  "createdAt": zod.string()
+})
+
+
+/**
+ * @summary Delete a review (author via editToken, or admin via password)
+ */
+export const DeleteReviewBody = zod.object({
+  "id": zod.number(),
+  "editToken": zod.string().optional(),
+  "password": zod.string().optional()
+})
+
+export const DeleteReviewResponse = zod.object({
+  "success": zod.boolean()
 })
 
 
@@ -234,6 +330,7 @@ export const AdminGetPendingListingsBody = zod.object({
 })
 
 export const adminGetPendingListingsResponseCountryDefault = `Togo`;
+export const adminGetPendingListingsResponseReviewCountDefault = 0;
 
 export const AdminGetPendingListingsResponseItem = zod.object({
   "id": zod.number(),
@@ -245,7 +342,12 @@ export const AdminGetPendingListingsResponseItem = zod.object({
   "images": zod.array(zod.string()),
   "createdAt": zod.string(),
   "phone": zod.string().nullish(),
-  "approved": zod.boolean()
+  "approved": zod.boolean(),
+  "vendorId": zod.number().nullish(),
+  "promoPrice": zod.number().nullish(),
+  "description": zod.string().nullish(),
+  "avgRating": zod.number().nullish(),
+  "reviewCount": zod.number().default(adminGetPendingListingsResponseReviewCountDefault)
 })
 export const AdminGetPendingListingsResponse = zod.array(AdminGetPendingListingsResponseItem)
 
@@ -413,7 +515,7 @@ export const VendorRegisterBody = zod.object({
   "password": zod.string(),
   "referredBy": zod.number().nullish(),
   "profilePhoto": zod.string().nullish(),
-  "wantsNotifications": zod.boolean().nullish()
+  "wantsNotifications": zod.boolean().optional()
 })
 
 
@@ -625,6 +727,7 @@ export const VendorGetListingsBody = zod.object({
 })
 
 export const vendorGetListingsResponseCountryDefault = `Togo`;
+export const vendorGetListingsResponseReviewCountDefault = 0;
 
 export const VendorGetListingsResponseItem = zod.object({
   "id": zod.number(),
@@ -636,7 +739,12 @@ export const VendorGetListingsResponseItem = zod.object({
   "images": zod.array(zod.string()),
   "createdAt": zod.string(),
   "phone": zod.string().nullish(),
-  "approved": zod.boolean()
+  "approved": zod.boolean(),
+  "vendorId": zod.number().nullish(),
+  "promoPrice": zod.number().nullish(),
+  "description": zod.string().nullish(),
+  "avgRating": zod.number().nullish(),
+  "reviewCount": zod.number().default(vendorGetListingsResponseReviewCountDefault)
 })
 export const VendorGetListingsResponse = zod.array(VendorGetListingsResponseItem)
 

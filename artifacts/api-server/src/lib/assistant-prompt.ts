@@ -96,6 +96,11 @@ Dans les deux cas :
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 CHAT INTERNE TOGOMARKET
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+Sur le Market Place, appuyer sur les photos d'un article l'ouvre en grand écran : sous les photos s'affichent le titre, le prix (et prix promo éventuel), la description de l'article, puis la section "Avis et Commentaires". Tout acheteur peut y laisser une note (1 à 5 étoiles) et un commentaire (nom + numéro demandés). Seul l'auteur d'un avis peut le modifier ou le supprimer (depuis le même appareil) ; l'administrateur peut aussi supprimer les avis via le mode admin rapide (taps sur le logo). Les cartes d'articles affichent un badge en bas à gauche de l'image avec la note moyenne ⭐ et le nombre d'avis 💬 (masqué s'il n'y a aucun avis).
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+CHAT INTERNE TOGOMARKET
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 TogoMarket dispose d'un chat interne temps réel entre acheteurs et vendeurs :
 • Bouton "Contacter — Vendeur" sur chaque annonce (remplace l'ancien "Débloquer le Contact")
 • L'acheteur donne son prénom et numéro au premier contact (stocké localement dans le navigateur)
@@ -126,7 +131,7 @@ COMMENT VENDRE SUR TOGOMARKET ?
 2. Le premier mois est GRATUIT (essai de 30 jours automatique)
 3. Un code de vérification à 6 chiffres est envoyé automatiquement par WhatsApp → le vendeur le saisit dans l'application → le compte est activé instantanément
 4. Une fois activé, cliquer sur "Publier une annonce" (bouton en haut à droite)
-5. Remplir le formulaire : titre, prix, secteur, quartier/ville, pays, photos (max 4)
+5. Remplir le formulaire : titre, prix, secteur, quartier/ville, pays, description de l'article (facultatif), photos (max 4)
 6. L'annonce est visible après validation par l'administrateur (24h max)
 IMPORTANT : Le titre et les photos ne doivent pas contenir de numéro de téléphone.
 
@@ -181,7 +186,7 @@ BOUTIQUE VENDEUR
 • Chaque vendeur a une boutique avec un numéro unique
 • Lien de boutique partageable avec les clients
 • Tableau de bord : voir ses annonces publiées et en attente
-• Modifier le prix d'une annonce depuis sa boutique
+• Modifier le prix d'une annonce depuis sa boutique (bouton crayon) — le même formulaire permet aussi de définir un prix promotionnel (affiché en promo avec le prix réel barré sur le Market Place ; laisser vide pour retirer la promo) et d'écrire/modifier la description de l'article
 • Supprimer ses propres annonces
 • La publication est accessible dès que la boutique est active
 • Si la boutique est expirée, le bouton Publier affiche un écran de réactivation (payer via FedaPay ou contacter l'admin)

@@ -4,7 +4,8 @@ import { resolveImageUrl, isVideoMedia, resolveMediaUrl } from "@/lib/image";
 import type { Listing } from "@workspace/api-client-react";
 import { useAdminDeleteListing, getGetListingsQueryKey } from "@workspace/api-client-react";
 import { useQueryClient } from "@tanstack/react-query";
-import { MapPin, Phone, Trash2, Clock, ZoomIn, MessageCircle } from "lucide-react";
+import { MapPin, Phone, Trash2, Clock, ZoomIn, MessageCircle, Star } from "lucide-react";
+import { ListingReviews } from "@/components/listing-reviews";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { ImageViewer } from "@/components/image-viewer";
@@ -88,6 +89,8 @@ export function ListingCard({ listing, isAdmin, adminPassword, commissionRate, w
   const [buyerIdentity, setBuyerIdentity] = useState<BuyerIdentity | null>(null);
   const [buyerToken, setBuyerToken] = useState<string | null>(null);
   const [chatLoading, setChatLoading] = useState(false);
+  const [avgRating, setAvgRating] = useState<number | null>(listing.avgRating ?? null);
+  const [reviewCount, setReviewCount] = useState<number>(listing.reviewCount ?? 0);
 
   const dateLocale = lang === "fr" ? "fr-FR" : "en-US";
 
@@ -242,6 +245,21 @@ export function ListingCard({ listing, isAdmin, adminPassword, commissionRate, w
         >
           {t.reportListing}
         </button>
+        {(reviewCount > 0) && (
+          <button
+            onClick={() => openViewer(0)}
+            className="absolute bottom-2 left-2 z-10 bg-black/60 hover:bg-black/75 text-white rounded-md px-1.5 py-0.5 text-[11px] font-medium flex items-center gap-1 transition-colors"
+            title="Voir les avis"
+          >
+            {avgRating != null && (
+              <span className="flex items-center gap-0.5">
+                <Star className="w-3 h-3 fill-yellow-400 text-yellow-400" />
+                {avgRating.toFixed(1)}
+              </span>
+            )}
+            <span className="flex items-center gap-0.5">💬 {reviewCount}</span>
+          </button>
+        )}
       </div>
 
       <div className="p-4 flex flex-col flex-grow">
@@ -252,9 +270,21 @@ export function ListingCard({ listing, isAdmin, adminPassword, commissionRate, w
         >
           {listing.name}
         </h3>
-        <div className="text-xl font-bold text-primary mt-1 mb-1">
-          {new Intl.NumberFormat("fr-FR").format(listing.price)} FCFA
-        </div>
+        {listing.promoPrice != null ? (
+          <div className="mt-1 mb-1 flex items-baseline gap-2 flex-wrap">
+            <span className="text-xl font-bold text-red-600">
+              {new Intl.NumberFormat("fr-FR").format(listing.promoPrice)} FCFA
+            </span>
+            <span className="text-sm font-medium text-muted-foreground line-through">
+              {new Intl.NumberFormat("fr-FR").format(listing.price)} FCFA
+            </span>
+            <span className="text-[10px] bg-red-100 text-red-700 rounded-full px-1.5 py-0.5 font-bold">PROMO</span>
+          </div>
+        ) : (
+          <div className="text-xl font-bold text-primary mt-1 mb-1">
+            {new Intl.NumberFormat("fr-FR").format(listing.price)} FCFA
+          </div>
+        )}
 
         <div className="flex items-center text-muted-foreground text-xs mb-1">
           <Clock className="w-3.5 h-3.5 mr-1 flex-shrink-0" />
@@ -306,6 +336,38 @@ export function ListingCard({ listing, isAdmin, adminPassword, commissionRate, w
         images={listing.images}
         startIndex={viewerIndex}
         onClose={() => setViewerOpen(false)}
+        footer={
+          <div className="space-y-3">
+            <div>
+              <h3 className="text-white font-bold text-base">{listing.name}</h3>
+              <div className="flex items-baseline gap-2 mt-0.5">
+                {listing.promoPrice != null ? (
+                  <>
+                    <span className="text-red-400 font-bold text-sm">
+                      {new Intl.NumberFormat("fr-FR").format(listing.promoPrice)} FCFA
+                    </span>
+                    <span className="text-white/50 text-xs line-through">
+                      {new Intl.NumberFormat("fr-FR").format(listing.price)} FCFA
+                    </span>
+                  </>
+                ) : (
+                  <span className="text-white font-semibold text-sm">
+                    {new Intl.NumberFormat("fr-FR").format(listing.price)} FCFA
+                  </span>
+                )}
+              </div>
+              {listing.description && (
+                <p className="text-white/80 text-xs mt-1.5 whitespace-pre-wrap break-words">{listing.description}</p>
+              )}
+            </div>
+            <ListingReviews
+              listingId={listing.id}
+              isAdmin={isAdmin}
+              adminPassword={adminPassword}
+              onStatsChange={(avg, count) => { setAvgRating(avg); setReviewCount(count); }}
+            />
+          </div>
+        }
       />
     )}
 

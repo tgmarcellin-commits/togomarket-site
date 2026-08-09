@@ -6,6 +6,8 @@ export const listingsTable = pgTable("listings", {
   id: serial("id").primaryKey(),
   name: text("name").notNull(),
   price: numeric("price", { precision: 12, scale: 2 }).notNull(),
+  promoPrice: numeric("promo_price", { precision: 12, scale: 2 }),
+  description: text("description"),
   location: text("location").notNull(),
   country: text("country").notNull().default("Togo"),
   sector: text("sector").notNull(),

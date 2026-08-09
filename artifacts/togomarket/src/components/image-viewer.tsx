@@ -7,9 +7,11 @@ interface ImageViewerProps {
   images: string[];
   startIndex: number;
   onClose: () => void;
+  /** Panneau optionnel affiché sous les photos (titre, description, avis…). */
+  footer?: React.ReactNode;
 }
 
-export function ImageViewer({ images, startIndex, onClose }: ImageViewerProps) {
+export function ImageViewer({ images, startIndex, onClose, footer }: ImageViewerProps) {
   const [current, setCurrent] = useState(startIndex);
 
   useEffect(() => {
@@ -47,14 +49,14 @@ export function ImageViewer({ images, startIndex, onClose }: ImageViewerProps) {
 
       {/* Image principale */}
       <div
-        className="relative w-full h-full flex items-center justify-center px-14"
+        className={`relative w-full flex items-center justify-center px-14 ${footer ? "flex-1 min-h-0 pt-12" : "h-full"}`}
         onClick={(e) => e.stopPropagation()}
       >
         <img
           src={resolveImageUrl(images[current])}
           alt={`Photo ${current + 1}`}
           className="max-w-full max-h-full object-contain select-none"
-          style={{ maxHeight: "90vh" }}
+          style={{ maxHeight: footer ? undefined : "90vh" }}
         />
 
         {/* Navigation */}
@@ -79,7 +81,7 @@ export function ImageViewer({ images, startIndex, onClose }: ImageViewerProps) {
       {/* Miniatures */}
       {images.length > 1 && (
         <div
-          className="absolute bottom-4 flex gap-2 px-4"
+          className={`flex gap-2 px-4 ${footer ? "py-2 justify-center flex-shrink-0" : "absolute bottom-4"}`}
           onClick={(e) => e.stopPropagation()}
         >
           {images.map((img, i) => (
@@ -93,6 +95,16 @@ export function ImageViewer({ images, startIndex, onClose }: ImageViewerProps) {
               <img src={resolveImageUrl(img)} alt="" className="w-full h-full object-cover" />
             </button>
           ))}
+        </div>
+      )}
+
+      {/* Panneau bas : titre, description, avis… */}
+      {footer && (
+        <div
+          className="w-full max-h-[45vh] overflow-y-auto bg-black/80 border-t border-white/10 px-4 py-3 flex-shrink-0"
+          onClick={(e) => e.stopPropagation()}
+        >
+          <div className="max-w-2xl mx-auto">{footer}</div>
         </div>
       )}
     </div>,

@@ -56,6 +56,7 @@ export function PublishModal({ open, onOpenChange, vendor, vendorPassword, onNee
       .refine((val) => !PHONE_REGEX.test(val), { message: t.locationPhoneError }),
     country: z.string().min(2, t.countryRequired),
     sector: z.enum(["Tourisme", "AgriMarket", "Immobilier", "Automobile", "Repas", "Divers"]),
+    description: z.string().max(1000, "Description trop longue (1000 caractères max)").optional(),
   });
   type FormValues = z.infer<typeof formSchema>;
 
@@ -79,6 +80,7 @@ export function PublishModal({ open, onOpenChange, vendor, vendorPassword, onNee
       location: "",
       country: "Togo",
       sector: "Divers" as const,
+      description: "",
     },
   });
 
@@ -129,6 +131,7 @@ export function PublishModal({ open, onOpenChange, vendor, vendorPassword, onNee
           images: images.map((img) => img.objectPath),
           vendorPhone: vendor.phone,
           vendorPassword,
+          ...(data.description?.trim() ? { description: data.description.trim() } : {}),
         },
       },
       {
@@ -582,6 +585,25 @@ export function PublishModal({ open, onOpenChange, vendor, vendorPassword, onNee
                         <FormLabel>{t.countryLabel}</FormLabel>
                         <FormControl>
                           <Input placeholder="Togo" {...field} />
+                        </FormControl>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+                  <FormField
+                    control={form.control}
+                    name="description"
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel>{lang === "fr" ? "Description de l'article (facultatif)" : "Item description (optional)"}</FormLabel>
+                        <FormControl>
+                          <textarea
+                            {...field}
+                            placeholder={lang === "fr" ? "Décrivez votre article : état, caractéristiques, détails…" : "Describe your item: condition, features, details…"}
+                            rows={3}
+                            maxLength={1000}
+                            className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 resize-none"
+                          />
                         </FormControl>
                         <FormMessage />
                       </FormItem>

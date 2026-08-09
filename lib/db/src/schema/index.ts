@@ -8,4 +8,5 @@ export * from "./contact_requests";
 export * from "./services";
 export * from "./sellers";
 export * from "./chat";
+export * from "./reviews";
 

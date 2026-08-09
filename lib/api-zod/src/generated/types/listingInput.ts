@@ -17,4 +17,5 @@ export interface ListingInput {
   images: string[];
   vendorPhone: string;
   vendorPassword: string;
+  description?: string;
 }

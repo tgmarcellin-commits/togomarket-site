@@ -18,4 +18,13 @@ export interface Listing {
   /** @nullable */
   phone?: string | null;
   approved: boolean;
+  /** @nullable */
+  vendorId?: number | null;
+  /** @nullable */
+  promoPrice?: number | null;
+  /** @nullable */
+  description?: string | null;
+  /** @nullable */
+  avgRating?: number | null;
+  reviewCount?: number;
 }

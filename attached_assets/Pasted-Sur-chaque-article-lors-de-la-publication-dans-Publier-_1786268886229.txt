@@ -1,0 +1,20 @@
+Sur chaque article lors de la publication dans "Publier" on va ajouter une colonne de description de l'article, cette colonne doit être aussi figurant dans "Ma boutique" pour chaque vendeur permettant de modifier la description de son article publié,on a déjà la possibilité de modifier les prix des articles dans "Ma boutique", rajouter la possibilité d'ajouter les prix promotionnels en plus du prix réel, les deux prix doivent être affiché sur chaque article sur le Market place,une fois que le prix promotionnel est configuré depuis "Ma boutique". Sur le Market place quand on appuie sur article pour le voir en grand écran,le titre et la description écrite pour l'article doit être lire en bas des photos.
+Je souhaite ajouter un badge de commentaires/notes sur les cartes d'articles de TogoMarket. 
+
+Actuellement, 3 coins de l'image de la carte article sont occupés (le badge de catégorie en haut à gauche, le compteur de photos "+2" en haut à droite, et le bouton "Signaler cet article" au milieu/bas). Je veux placer le badge des commentaires et de la note sur le 4ème coin disponible de l'image (par exemple en bas à gauche de l'image).
+
+Voici les spécifications exactes à coder :
+
+1. Affichage sur la carte (Front-end) :
+- Ajouter un badge compact sur l'image de l'article affichant la note moyenne (ex: étoile ⭐ + note) et/ou le nombre total de commentaires (ex: bulle 💬 + nombre).
+- Si l'article n'a pas encore de commentaires, afficher soit un état neutre (ex: "0 avis" ou une étoile vide), soit masquer le badge selon la pertinence.
+
+2. Page de détails de l'article & Logique des Commentaires :
+- En bas de la page de détails (sous la description), créer une section "Avis et Commentaires" affichant la liste des retours des acheteurs (nom de l'utilisateur, note en étoiles, commentaire, et date).
+- Ajouter un formulaire permettant à un utilisateur connecté de rédiger et d'envoyer un nouveau commentaire avec une note.
+- Sécurité / Permissions : Seul l'auteur d'un commentaire spécifique doit avoir la possibilité de le modifier ou de le supprimer (ajouter un contrôle vérifiant que l'ID de l'utilisateur connecté correspond à l'auteur du commentaire). En plus l'administration aussi peut supprimer les commentaires et avis en passant par le mode des 5 clics sur le logo,le renseignement du code admin et la confirmation de la suppression qu'on avait configuré avant pour les 5 clics sur le logo.
+
+3. Base de données :
+- Mettre à jour le schéma (ex: table `comments` ou `reviews`) pour lier chaque commentaire à un `product_id`, un `user_id`, une note (`rating`), un texte (`comment`), et une date de création.
+
+Merci d'écrire le code propre (Backend et Front-end) pour intégrer cette fonctionnalité de bout en bout.

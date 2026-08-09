@@ -486,8 +486,11 @@ router.post("/vendors/listings", async (req, res) => {
     return res.json(
       listings.map((l) => ({
         id: l.id, name: l.name, price: parseFloat(l.price),
-        location: l.location, sector: l.sector, images: l.images,
+        promoPrice: l.promoPrice != null ? parseFloat(l.promoPrice) : null,
+        description: l.description ?? null,
+        location: l.location, country: l.country ?? "Togo", sector: l.sector, images: l.images,
         createdAt: l.createdAt.toISOString(), phone: l.phone, approved: l.approved,
+        vendorId: vendor.id, avgRating: null, reviewCount: 0,
       }))
     );
   } catch (err) {
