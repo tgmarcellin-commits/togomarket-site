@@ -226,9 +226,12 @@ export function AdminModal({
   const [allServices, setAllServices] = useState<Service[]>([]);
   const [servicesLoading, setServicesLoading] = useState(false);
   const [showServiceForm, setShowServiceForm] = useState(false);
-  const [serviceForm, setServiceForm] = useState({ type: "offer" as "offer" | "seeker" | "atelier", title: "", description: "", contact: "", quartier: "", ville: "", image: "", imagePreview: "" });
+  const [serviceForm, setServiceForm] = useState({ type: "offer" as "offer" | "seeker" | "atelier", title: "", description: "", contact: "", quartier: "", ville: "", image: "", imagePreview: "", videoPath: "" });
+  const [serviceVideoUploading, setServiceVideoUploading] = useState(false);
+  const [serviceVideoName, setServiceVideoName] = useState("");
   const [confirmDeleteServiceId, setConfirmDeleteServiceId] = useState<number | null>(null);
   const serviceImageRef = useRef<HTMLInputElement>(null);
+  const serviceVideoRef = useRef<HTMLInputElement>(null);
 
   const adminCreateService = useAdminCreateService();
   const adminGetAllServices = useAdminGetAllServices();
@@ -1324,7 +1327,7 @@ export function AdminModal({
                     </div>
                     <Input placeholder="WhatsApp contact *" value={serviceForm.contact} onChange={(e) => setServiceForm((f) => ({ ...f, contact: e.target.value }))} className="h-8 text-xs" />
                     <div className="space-y-1.5">
-                        <p className="text-xs text-muted-foreground">Photo (optionnel)</p>
+                        <p className="text-xs text-muted-foreground font-medium">Photo / Vidéo (optionnel)</p>
                         <input
                           ref={serviceImageRef}
                           type="file"
@@ -1333,29 +1336,74 @@ export function AdminModal({
                           onChange={async (e) => {
                             const file = e.target.files?.[0];
                             if (!file) return;
-                            const { resizeImageToBlob } = await import("@/lib/image");
-                            const { uploadImageFile } = await import("@/lib/upload");
-                            const { blob, dataUrl } = await resizeImageToBlob(file);
-                            const objectPath = await uploadImageFile(blob, file.name);
-                            setServiceForm((f) => ({ ...f, image: objectPath, imagePreview: dataUrl }));
+                            try {
+                              const { resizeImageToBlob } = await import("@/lib/image");
+                              const { uploadImageFile } = await import("@/lib/upload");
+                              const { blob, dataUrl } = await resizeImageToBlob(file);
+                              const objectPath = await uploadImageFile(blob, file.name);
+                              setServiceForm((f) => ({ ...f, image: objectPath, imagePreview: dataUrl }));
+                            } catch {
+                              toast({ title: "Échec de l'envoi de la photo", variant: "destructive" });
+                            }
                           }}
                         />
-                        {serviceForm.imagePreview ? (
-                          <div className="relative">
-                            <img src={serviceForm.imagePreview} alt="aperçu" className="w-full h-28 object-cover rounded-md" />
+                        <input
+                          ref={serviceVideoRef}
+                          type="file"
+                          accept="video/*"
+                          className="hidden"
+                          onChange={async (e) => {
+                            const file = e.target.files?.[0];
+                            if (!file) return;
+                            setServiceVideoUploading(true);
+                            try {
+                              const { uploadVideoFile } = await import("@/lib/upload");
+                              const objectPath = await uploadVideoFile(file);
+                              setServiceForm((f) => ({ ...f, videoPath: objectPath }));
+                              setServiceVideoName(file.name);
+                            } catch {
+                              toast({ title: "Échec de l'envoi de la vidéo", variant: "destructive" });
+                            } finally {
+                              setServiceVideoUploading(false);
+                            }
+                          }}
+                        />
+                        <div className="flex gap-2">
+                          {serviceForm.imagePreview ? (
+                            <div className="relative flex-1">
+                              <img src={serviceForm.imagePreview} alt="aperçu" className="w-full h-16 object-cover rounded-md" />
+                              <button
+                                className="absolute top-1 right-1 bg-black/60 text-white rounded-full w-4 h-4 flex items-center justify-center text-[10px]"
+                                onClick={() => setServiceForm((f) => ({ ...f, image: "", imagePreview: "" }))}
+                              >✕</button>
+                            </div>
+                          ) : (
                             <button
-                              className="absolute top-1 right-1 bg-black/60 text-white rounded-full w-5 h-5 flex items-center justify-center text-xs"
-                              onClick={() => setServiceForm((f) => ({ ...f, image: "", imagePreview: "" }))}
-                            >✕</button>
-                          </div>
-                        ) : (
-                          <button
-                            className="w-full h-16 border-2 border-dashed border-border rounded-md text-xs text-muted-foreground hover:bg-muted transition-colors"
-                            onClick={() => serviceImageRef.current?.click()}
-                          >
-                            + Ajouter un flyer
-                          </button>
-                        )}
+                              className="flex-1 h-16 border-2 border-dashed border-border rounded-md text-xs text-muted-foreground hover:bg-muted transition-colors"
+                              onClick={() => serviceImageRef.current?.click()}
+                            >
+                              📷 Photo
+                            </button>
+                          )}
+                          {serviceForm.videoPath ? (
+                            <div className="flex-1 h-16 border rounded-md bg-muted flex flex-col items-center justify-center gap-0.5 relative">
+                              <span className="text-xs text-green-600 font-medium">Vidéo ✓</span>
+                              <span className="text-[10px] text-muted-foreground truncate px-2 max-w-full">{serviceVideoName}</span>
+                              <button
+                                className="absolute top-1 right-1 bg-black/60 text-white rounded-full w-4 h-4 flex items-center justify-center text-[10px]"
+                                onClick={() => { setServiceForm((f) => ({ ...f, videoPath: "" })); setServiceVideoName(""); }}
+                              >✕</button>
+                            </div>
+                          ) : (
+                            <button
+                              className="flex-1 h-16 border-2 border-dashed border-border rounded-md text-xs text-muted-foreground hover:bg-muted transition-colors"
+                              onClick={() => serviceVideoRef.current?.click()}
+                              disabled={serviceVideoUploading}
+                            >
+                              {serviceVideoUploading ? "Envoi…" : "🎥 Vidéo"}
+                            </button>
+                          )}
+                        </div>
                       </div>
                     <Button
                       size="sm"
@@ -1365,11 +1413,12 @@ export function AdminModal({
                         const { type, title, description, contact, quartier, ville, image } = serviceForm;
                         if (!title || !description || !contact || !quartier || !ville) return;
                         adminCreateService.mutate(
-                          { data: { password: storedPassword, type, title, description, contact, quartier, ville, image: image || undefined } },
+                          { data: { password: storedPassword, type, title, description, contact, quartier, ville, image: image || undefined, videoPath: serviceForm.videoPath || undefined } },
                           {
                             onSuccess: () => {
                               toast({ title: "Service créé" });
-                              setServiceForm({ type: "offer", title: "", description: "", contact: "", quartier: "", ville: "", image: "", imagePreview: "" });
+                              setServiceForm({ type: "offer", title: "", description: "", contact: "", quartier: "", ville: "", image: "", imagePreview: "", videoPath: "" });
+                              setServiceVideoName("");
                               setShowServiceForm(false);
                               queryClient.invalidateQueries({ queryKey: getGetServicesQueryKey() });
                               refetchServices();

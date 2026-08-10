@@ -263,8 +263,11 @@ export function SubAdminModal({ section, open, onOpenChange }: SubAdminModalProp
   const [servicesLoading, setServicesLoading] = useState(false);
   const [confirmService, setConfirmService] = useState<number | null>(null);
   const [showServiceForm, setShowServiceForm] = useState(false);
-  const [serviceForm, setServiceForm] = useState({ type: "offer" as "offer" | "seeker" | "atelier", title: "", description: "", contact: "", quartier: "", ville: "", image: "", imagePreview: "" });
+  const [serviceForm, setServiceForm] = useState({ type: "offer" as "offer" | "seeker" | "atelier", title: "", description: "", contact: "", quartier: "", ville: "", image: "", imagePreview: "", videoPath: "" });
+  const [serviceVideoUploading, setServiceVideoUploading] = useState(false);
+  const [serviceVideoName, setServiceVideoName] = useState("");
   const serviceImageRef = useRef<HTMLInputElement>(null);
+  const serviceVideoRef = useRef<HTMLInputElement>(null);
 
   const getAllServices = useAdminGetAllServices();
   const deleteService = useAdminDeleteService();
@@ -282,22 +285,23 @@ export function SubAdminModal({ section, open, onOpenChange }: SubAdminModalProp
   };
 
   const handleCreateService = async () => {
-    const { type, title, description, contact, quartier, ville, image } = serviceForm;
+    const { type, title, description, contact, quartier, ville, image, videoPath } = serviceForm;
     if (!title.trim() || !description.trim() || !contact.trim() || !quartier.trim() || !ville.trim()) {
       toast({ title: "Tous les champs sont requis", variant: "destructive" });
       return;
     }
     createService.mutate(
-      { data: { password: storedPwd, type, title, description, contact, quartier, ville, image: image || undefined } },
+      { data: { password: storedPwd, type, title, description, contact, quartier, ville, image: image || undefined, videoPath: videoPath || undefined } },
       {
         onSuccess: () => {
           toast({ title: "Service créé ✓" });
-          setServiceForm({ type: "offer", title: "", description: "", contact: "", quartier: "", ville: "", image: "", imagePreview: "" });
+          setServiceForm({ type: "offer", title: "", description: "", contact: "", quartier: "", ville: "", image: "", imagePreview: "", videoPath: "" });
+          setServiceVideoName("");
           setShowServiceForm(false);
           queryClient.invalidateQueries({ queryKey: getGetServicesQueryKey() });
           refetchServices();
         },
-        onError: () => toast({ title: "Erreur", variant: "destructive" }),
+        onError: () => toast({ title: "Erreur lors de la création", variant: "destructive" }),
       }
     );
   };
@@ -602,42 +606,88 @@ export function SubAdminModal({ section, open, onOpenChange }: SubAdminModalProp
                   <Input placeholder="Ville *" value={serviceForm.ville} onChange={(e) => setServiceForm((f) => ({ ...f, ville: e.target.value }))} className="h-8 text-sm" />
                 </div>
                 <Input placeholder="WhatsApp contact *" value={serviceForm.contact} onChange={(e) => setServiceForm((f) => ({ ...f, contact: e.target.value }))} className="h-8 text-sm" />
-                {serviceForm.type === "atelier" && (
-                  <div className="space-y-1.5">
-                    <p className="text-xs text-muted-foreground">Photo / Flyer (optionnel)</p>
-                    <input
-                      ref={serviceImageRef}
-                      type="file"
-                      accept="image/*"
-                      className="hidden"
-                      onChange={async (e) => {
-                        const file = e.target.files?.[0];
-                        if (!file) return;
-                        const { resizeImageToBlob, resolveImageUrl: _r } = await import("@/lib/image");
+                {/* Photo & vidéo — disponibles pour tous les types, y compris Institut */}
+                <div className="space-y-1.5">
+                  <p className="text-xs text-muted-foreground font-medium">Photo / Vidéo (optionnel)</p>
+                  {/* Photo */}
+                  <input
+                    ref={serviceImageRef}
+                    type="file"
+                    accept="image/*"
+                    className="hidden"
+                    onChange={async (e) => {
+                      const file = e.target.files?.[0];
+                      if (!file) return;
+                      try {
+                        const { resizeImageToBlob } = await import("@/lib/image");
                         const { uploadImageFile } = await import("@/lib/upload");
                         const { blob, dataUrl } = await resizeImageToBlob(file);
                         const objectPath = await uploadImageFile(blob, file.name);
                         setServiceForm((f) => ({ ...f, image: objectPath, imagePreview: dataUrl }));
-                      }}
-                    />
+                      } catch {
+                        toast({ title: "Échec de l'envoi de la photo", variant: "destructive" });
+                      }
+                    }}
+                  />
+                  {/* Vidéo */}
+                  <input
+                    ref={serviceVideoRef}
+                    type="file"
+                    accept="video/*"
+                    className="hidden"
+                    onChange={async (e) => {
+                      const file = e.target.files?.[0];
+                      if (!file) return;
+                      setServiceVideoUploading(true);
+                      try {
+                        const { uploadVideoFile } = await import("@/lib/upload");
+                        const objectPath = await uploadVideoFile(file);
+                        setServiceForm((f) => ({ ...f, videoPath: objectPath }));
+                        setServiceVideoName(file.name);
+                      } catch {
+                        toast({ title: "Échec de l'envoi de la vidéo", variant: "destructive" });
+                      } finally {
+                        setServiceVideoUploading(false);
+                      }
+                    }}
+                  />
+                  <div className="flex gap-2">
                     {serviceForm.imagePreview ? (
-                      <div className="relative">
-                        <img src={serviceForm.imagePreview} alt="aperçu" className="w-full h-28 object-cover rounded-md" />
+                      <div className="relative flex-1">
+                        <img src={serviceForm.imagePreview} alt="aperçu" className="w-full h-16 object-cover rounded-md" />
                         <button
-                          className="absolute top-1 right-1 bg-black/60 text-white rounded-full w-5 h-5 flex items-center justify-center text-xs"
+                          className="absolute top-1 right-1 bg-black/60 text-white rounded-full w-4 h-4 flex items-center justify-center text-[10px]"
                           onClick={() => setServiceForm((f) => ({ ...f, image: "", imagePreview: "" }))}
                         >✕</button>
                       </div>
                     ) : (
                       <button
-                        className="w-full h-16 border-2 border-dashed border-border rounded-md text-xs text-muted-foreground hover:bg-muted transition-colors"
+                        className="flex-1 h-16 border-2 border-dashed border-border rounded-md text-xs text-muted-foreground hover:bg-muted transition-colors"
                         onClick={() => serviceImageRef.current?.click()}
                       >
-                        + Ajouter un flyer
+                        📷 Photo
+                      </button>
+                    )}
+                    {serviceForm.videoPath ? (
+                      <div className="flex-1 h-16 border rounded-md bg-muted flex flex-col items-center justify-center gap-0.5 relative">
+                        <span className="text-xs text-green-600 font-medium">Vidéo ✓</span>
+                        <span className="text-[10px] text-muted-foreground truncate px-2 max-w-full">{serviceVideoName}</span>
+                        <button
+                          className="absolute top-1 right-1 bg-black/60 text-white rounded-full w-4 h-4 flex items-center justify-center text-[10px]"
+                          onClick={() => { setServiceForm((f) => ({ ...f, videoPath: "" })); setServiceVideoName(""); }}
+                        >✕</button>
+                      </div>
+                    ) : (
+                      <button
+                        className="flex-1 h-16 border-2 border-dashed border-border rounded-md text-xs text-muted-foreground hover:bg-muted transition-colors"
+                        onClick={() => serviceVideoRef.current?.click()}
+                        disabled={serviceVideoUploading}
+                      >
+                        {serviceVideoUploading ? "Envoi…" : "🎥 Vidéo"}
                       </button>
                     )}
                   </div>
-                )}
+                </div>
                 <div className="flex gap-2">
                   <Button size="sm" className="flex-1 h-7 bg-violet-600 hover:bg-violet-700 text-white" onClick={handleCreateService} disabled={createService.isPending}>
                     {createService.isPending ? "Création..." : "Créer l'annonce"}
