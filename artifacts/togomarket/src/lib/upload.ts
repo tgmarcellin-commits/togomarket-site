@@ -25,22 +25,29 @@ export async function uploadVideoFile(
   file: File,
   onProgress?: (status: "compressing" | "uploading") => void,
 ): Promise<string> {
+  // For large videos, try server-side ffmpeg compression first.
+  // If the server can't compress (ffmpeg unavailable, timeout, etc.),
+  // fall back silently to a direct presigned-URL upload.
   if (file.size > VIDEO_COMPRESS_THRESHOLD) {
     onProgress?.("compressing");
-    const form = new FormData();
-    form.append("video", file);
-    const res = await fetch("/api/storage/uploads/video", {
-      method: "POST",
-      body: form,
-    });
-    if (!res.ok) {
-      const err = await res.json().catch(() => ({})) as { error?: string };
-      throw new Error(err.error ?? "Échec de la compression vidéo");
+    try {
+      const form = new FormData();
+      form.append("video", file);
+      const res = await fetch("/api/storage/uploads/video", {
+        method: "POST",
+        body: form,
+      });
+      if (res.ok) {
+        const { objectPath } = await res.json() as { objectPath: string };
+        return objectPath;
+      }
+      // Non-OK response → fall through to direct upload below
+    } catch {
+      // Network / timeout error → fall through
     }
-    const { objectPath } = await res.json() as { objectPath: string };
-    return objectPath;
   }
 
+  // Direct upload via presigned URL (small files, or fallback for large ones)
   onProgress?.("uploading");
   const { uploadURL, objectPath } = await requestUploadUrl(file);
   const putRes = await fetch(uploadURL, {

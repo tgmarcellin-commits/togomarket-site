@@ -2059,7 +2059,7 @@ export default function AdminDashboard() {
                   >
                     <option value="offer">Offre d'emploi</option>
                     <option value="seeker">Demande d'emploi</option>
-                    <option value="atelier">Atelier</option>
+                    <option value="atelier">Institut</option>
                   </select>
                   <Input placeholder="Titre *" value={serviceForm.title} onChange={(e) => setServiceForm((f) => ({ ...f, title: e.target.value }))} />
                   <Input placeholder="Contact *" value={serviceForm.contact} onChange={(e) => setServiceForm((f) => ({ ...f, contact: e.target.value }))} />
