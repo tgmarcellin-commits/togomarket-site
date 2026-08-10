@@ -38,7 +38,7 @@ const translations = {
     reportListing: "Signaler cet article",
     collapseTitle: "Cliquer pour réduire",
     expandTitle: "Cliquer pour voir le titre complet",
-    warningNoPay: "Attention : Ne payez jamais un article sans l'avoir inspecté physiquement.",
+    warningNoPay: "Veiller à vérifier chaque article à la livraison avant tout paiement.",
     notSpecified: "Non spécifié",
     delete: "Supprimer",
     contactVendor: "Discuter avec le vendeur",
