@@ -4,8 +4,9 @@ import { resolveImageUrl, isVideoMedia, resolveMediaUrl } from "@/lib/image";
 import type { Listing } from "@workspace/api-client-react";
 import { useAdminDeleteListing, getGetListingsQueryKey } from "@workspace/api-client-react";
 import { useQueryClient } from "@tanstack/react-query";
-import { MapPin, Phone, Trash2, Clock, ZoomIn, MessageCircle, Star } from "lucide-react";
+import { MapPin, Phone, Trash2, Clock, ZoomIn, MessageCircle, Star, Pin } from "lucide-react";
 import { ListingReviews } from "@/components/listing-reviews";
+import { useAdminPinListing } from "@workspace/api-client-react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { ImageViewer } from "@/components/image-viewer";
@@ -80,6 +81,8 @@ export function ListingCard({ listing, isAdmin, adminPassword, commissionRate, w
   const t = useT(lang);
   const queryClient = useQueryClient();
   const deleteMutation = useAdminDeleteListing();
+  const pinMutation = useAdminPinListing();
+  const [pinnedState, setPinnedState] = useState<boolean>(listing.pinned ?? false);
   const [viewerOpen, setViewerOpen] = useState(false);
   const [viewerIndex, setViewerIndex] = useState(0);
   const [titleExpanded, setTitleExpanded] = useState(false);
@@ -127,6 +130,25 @@ export function ListingCard({ listing, isAdmin, adminPassword, commissionRate, w
         }
       );
     }
+  };
+
+  const handlePin = () => {
+    if (!isAdmin) return;
+    let pwd = adminPassword;
+    if (!pwd) {
+      const entered = window.prompt("Mot de passe administrateur :");
+      if (!entered) return;
+      pwd = entered;
+    }
+    pinMutation.mutate(
+      { data: { id: listing.id, password: pwd } },
+      {
+        onSuccess: (updated) => {
+          setPinnedState(updated.pinned ?? false);
+          queryClient.invalidateQueries({ queryKey: getGetListingsQueryKey() });
+        },
+      }
+    );
   };
 
   const handleReport = () => {
@@ -245,10 +267,15 @@ export function ListingCard({ listing, isAdmin, adminPassword, commissionRate, w
         >
           {t.reportListing}
         </button>
+        {pinnedState && (
+          <div className="absolute top-2 left-2 z-10 bg-red-600 text-white rounded-full p-1 shadow-md" title="Annonce épinglée">
+            <Pin className="w-3.5 h-3.5 fill-white" />
+          </div>
+        )}
         {(reviewCount > 0) && (
           <button
             onClick={() => openViewer(0)}
-            className="absolute bottom-2 left-2 z-10 bg-black/60 hover:bg-black/75 text-white rounded-md px-1.5 py-0.5 text-[11px] font-medium flex items-center gap-1 transition-colors"
+            className={`absolute bottom-2 left-2 z-10 bg-black/60 hover:bg-black/75 text-white rounded-md px-1.5 py-0.5 text-[11px] font-medium flex items-center gap-1 transition-colors`}
             title="Voir les avis"
           >
             {avgRating != null && (
@@ -311,20 +338,32 @@ export function ListingCard({ listing, isAdmin, adminPassword, commissionRate, w
           </Button>
 
           {isAdmin && (
-            <div className="pt-3 mt-3 border-t border-border flex items-center justify-between">
+            <div className="pt-3 mt-3 border-t border-border space-y-2">
               <div className="flex items-center text-sm font-medium text-foreground">
                 <Phone className="w-4 h-4 mr-2 text-muted-foreground" />
                 {listing.phone || t.notSpecified}
               </div>
-              <Button
-                variant="destructive"
-                size="sm"
-                onClick={handleDelete}
-                disabled={deleteMutation.isPending}
-              >
-                <Trash2 className="w-4 h-4 mr-1" />
-                {t.delete}
-              </Button>
+              <div className="flex items-center gap-2">
+                <Button
+                  variant={pinnedState ? "default" : "outline"}
+                  size="sm"
+                  onClick={handlePin}
+                  disabled={pinMutation.isPending}
+                  className={pinnedState ? "bg-red-600 hover:bg-red-700 text-white border-0 flex-1" : "flex-1 border-red-300 text-red-600 hover:bg-red-50"}
+                >
+                  <Pin className={`w-4 h-4 mr-1 ${pinnedState ? "fill-white" : ""}`} />
+                  {pinnedState ? "Désépingler" : "Épingler en tête"}
+                </Button>
+                <Button
+                  variant="destructive"
+                  size="sm"
+                  onClick={handleDelete}
+                  disabled={deleteMutation.isPending}
+                >
+                  <Trash2 className="w-4 h-4 mr-1" />
+                  {t.delete}
+                </Button>
+              </div>
             </div>
           )}
         </div>

@@ -1,5 +1,5 @@
 import { Router, type IRouter } from "express";
-import { eq, ilike, and, desc, sql, gt, inArray, ne, type SQL } from "drizzle-orm";
+import { eq, ilike, and, desc, sql, gt, inArray, ne, type SQL, asc } from "drizzle-orm";
 import { normalizePhone, phoneEq } from "../lib/phone";
 import bcrypt from "bcryptjs";
 import { db, listingsTable, vendorsTable, reviewsTable } from "@workspace/db";
@@ -13,6 +13,7 @@ import {
   AdminGetPendingListingsBody,
   AdminGetPendingListingsResponse,
   AdminCreateListingBody,
+  AdminPinListingBody,
 } from "@workspace/api-zod";
 import { logger } from "../lib/logger";
 import { ObjectStorageService } from "../lib/objectStorage";
@@ -40,6 +41,7 @@ function mapListing(
     createdAt: l.createdAt.toISOString(),
     phone: l.phone,
     approved: l.approved,
+    pinned: l.pinned ?? false,
     vendorId: vendorId ?? null,
     avgRating: stats?.avgRating ?? null,
     reviewCount: stats?.reviewCount ?? 0,
@@ -102,7 +104,7 @@ router.get("/listings", async (req, res): Promise<void> => {
       .from(listingsTable)
       .leftJoin(vendorsTable, eq(vendorsTable.phone, listingsTable.phone))
       .where(and(...conditions))
-      .orderBy(desc(listingsTable.createdAt))
+      .orderBy(desc(listingsTable.pinned), desc(listingsTable.createdAt))
       .limit(limit)
       .offset(offset),
   ]);
@@ -459,6 +461,39 @@ router.post("/admin/listings/delete", async (req, res): Promise<void> => {
 
   req.log.info({ id: parsed.data.id }, "Listing deleted by admin");
   res.json(AdminDeleteListingResponse.parse({ success: true }));
+});
+
+/* ──────────────────────────────────────────────────────────────
+   POST /api/admin/listings/pin — épingle / désépingle une annonce
+   ────────────────────────────────────────────────────────────── */
+router.post("/admin/listings/pin", async (req, res): Promise<void> => {
+  const parsed = AdminPinListingBody.safeParse(req.body);
+  if (!parsed.success) {
+    res.status(400).json({ error: parsed.error.message });
+    return;
+  }
+
+  const isAdminOk = parsed.data.password === ADMIN_PASSWORD || (await isAdminAny(parsed.data.password));
+  if (!isAdminOk) {
+    res.status(403).json({ error: "Forbidden" });
+    return;
+  }
+
+  const rows = await db.select().from(listingsTable).where(eq(listingsTable.id, parsed.data.id)).limit(1);
+  if (rows.length === 0) {
+    res.status(404).json({ error: "Annonce introuvable." });
+    return;
+  }
+
+  const newPinned = !rows[0].pinned;
+  const [updated] = await db
+    .update(listingsTable)
+    .set({ pinned: newPinned })
+    .where(eq(listingsTable.id, parsed.data.id))
+    .returning();
+
+  req.log.info({ id: parsed.data.id, pinned: newPinned }, "Listing pin toggled by admin");
+  res.json(mapListing(updated));
 });
 
 /* ──────────────────────────────────────────────────────────────

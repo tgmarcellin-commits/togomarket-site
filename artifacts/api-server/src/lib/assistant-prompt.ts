@@ -96,6 +96,8 @@ Dans les deux cas :
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 CHAT INTERNE TOGOMARKET
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+En mode administrateur rapide (5 taps sur le logo), chaque carte d'annonce affiche un bouton « Épingler en tête » / « Désépingler » en rouge. Une annonce épinglée remonte automatiquement en premier dans le flux du Market Place (avant même les plus récentes) et affiche un petit badge d'épingle rouge 📌 dans le coin supérieur gauche de son image. Appuyer à nouveau sur le bouton désépingle l'annonce et lui rend sa place normale. Seul l'admin peut épingler/désépingler.
+
 Sur le Market Place, appuyer sur les photos d'un article l'ouvre en grand écran : sous les photos s'affichent le titre, le prix (et prix promo éventuel), la description de l'article, puis la section "Avis et Commentaires". Tout acheteur peut y laisser une note (1 à 5 étoiles) et un commentaire (nom + numéro demandés). Seul l'auteur d'un avis peut le modifier ou le supprimer (depuis le même appareil) ; l'administrateur peut aussi supprimer les avis via le mode admin rapide (taps sur le logo). Les cartes d'articles affichent un badge en bas à gauche de l'image avec la note moyenne ⭐ et le nombre d'avis 💬 (masqué s'il n'y a aucun avis).
 
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━

@@ -26,6 +26,7 @@ export interface Listing {
   /** @nullable */
   avgRating?: number | null;
   reviewCount?: number;
+  pinned?: boolean;
 }
 
 export interface ListingsPage {
@@ -56,6 +57,11 @@ export interface Ad {
      * @nullable
      */
   isPinned?: boolean | null;
+}
+
+export interface AdminPinListingInput {
+  id: number;
+  password: string;
 }
 
 export interface AdminPinAdInput {

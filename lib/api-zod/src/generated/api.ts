@@ -83,6 +83,7 @@ export const GetListingsQueryParams = zod.object({
 
 export const getListingsResponseItemsItemCountryDefault = `Togo`;
 export const getListingsResponseItemsItemReviewCountDefault = 0;
+export const getListingsResponseItemsItemPinnedDefault = false;
 
 export const GetListingsResponse = zod.object({
   "items": zod.array(zod.object({
@@ -100,7 +101,8 @@ export const GetListingsResponse = zod.object({
   "promoPrice": zod.number().nullish(),
   "description": zod.string().nullish(),
   "avgRating": zod.number().nullish(),
-  "reviewCount": zod.number().default(getListingsResponseItemsItemReviewCountDefault)
+  "reviewCount": zod.number().default(getListingsResponseItemsItemReviewCountDefault),
+  "pinned": zod.boolean().default(getListingsResponseItemsItemPinnedDefault)
 })),
   "total": zod.number(),
   "page": zod.number(),
@@ -143,6 +145,7 @@ export const VendorUpdateListingPriceBody = zod.object({
 
 export const vendorUpdateListingPriceResponseCountryDefault = `Togo`;
 export const vendorUpdateListingPriceResponseReviewCountDefault = 0;
+export const vendorUpdateListingPriceResponsePinnedDefault = false;
 
 export const VendorUpdateListingPriceResponse = zod.object({
   "id": zod.number(),
@@ -159,7 +162,8 @@ export const VendorUpdateListingPriceResponse = zod.object({
   "promoPrice": zod.number().nullish(),
   "description": zod.string().nullish(),
   "avgRating": zod.number().nullish(),
-  "reviewCount": zod.number().default(vendorUpdateListingPriceResponseReviewCountDefault)
+  "reviewCount": zod.number().default(vendorUpdateListingPriceResponseReviewCountDefault),
+  "pinned": zod.boolean().default(vendorUpdateListingPriceResponsePinnedDefault)
 })
 
 
@@ -331,6 +335,7 @@ export const AdminGetPendingListingsBody = zod.object({
 
 export const adminGetPendingListingsResponseCountryDefault = `Togo`;
 export const adminGetPendingListingsResponseReviewCountDefault = 0;
+export const adminGetPendingListingsResponsePinnedDefault = false;
 
 export const AdminGetPendingListingsResponseItem = zod.object({
   "id": zod.number(),
@@ -347,7 +352,8 @@ export const AdminGetPendingListingsResponseItem = zod.object({
   "promoPrice": zod.number().nullish(),
   "description": zod.string().nullish(),
   "avgRating": zod.number().nullish(),
-  "reviewCount": zod.number().default(adminGetPendingListingsResponseReviewCountDefault)
+  "reviewCount": zod.number().default(adminGetPendingListingsResponseReviewCountDefault),
+  "pinned": zod.boolean().default(adminGetPendingListingsResponsePinnedDefault)
 })
 export const AdminGetPendingListingsResponse = zod.array(AdminGetPendingListingsResponseItem)
 
@@ -466,6 +472,38 @@ export const AdminDeleteAdBody = zod.object({
 
 export const AdminDeleteAdResponse = zod.object({
   "success": zod.boolean()
+})
+
+
+/**
+ * @summary Toggle pin status of a listing (admin only) — pinned listings appear first
+ */
+export const AdminPinListingBody = zod.object({
+  "id": zod.number(),
+  "password": zod.string()
+})
+
+export const adminPinListingResponseCountryDefault = `Togo`;
+export const adminPinListingResponseReviewCountDefault = 0;
+export const adminPinListingResponsePinnedDefault = false;
+
+export const AdminPinListingResponse = zod.object({
+  "id": zod.number(),
+  "name": zod.string(),
+  "price": zod.number(),
+  "location": zod.string(),
+  "country": zod.string().default(adminPinListingResponseCountryDefault),
+  "sector": zod.string(),
+  "images": zod.array(zod.string()),
+  "createdAt": zod.string(),
+  "phone": zod.string().nullish(),
+  "approved": zod.boolean(),
+  "vendorId": zod.number().nullish(),
+  "promoPrice": zod.number().nullish(),
+  "description": zod.string().nullish(),
+  "avgRating": zod.number().nullish(),
+  "reviewCount": zod.number().default(adminPinListingResponseReviewCountDefault),
+  "pinned": zod.boolean().default(adminPinListingResponsePinnedDefault)
 })
 
 
@@ -728,6 +766,7 @@ export const VendorGetListingsBody = zod.object({
 
 export const vendorGetListingsResponseCountryDefault = `Togo`;
 export const vendorGetListingsResponseReviewCountDefault = 0;
+export const vendorGetListingsResponsePinnedDefault = false;
 
 export const VendorGetListingsResponseItem = zod.object({
   "id": zod.number(),
@@ -744,7 +783,8 @@ export const VendorGetListingsResponseItem = zod.object({
   "promoPrice": zod.number().nullish(),
   "description": zod.string().nullish(),
   "avgRating": zod.number().nullish(),
-  "reviewCount": zod.number().default(vendorGetListingsResponseReviewCountDefault)
+  "reviewCount": zod.number().default(vendorGetListingsResponseReviewCountDefault),
+  "pinned": zod.boolean().default(vendorGetListingsResponsePinnedDefault)
 })
 export const VendorGetListingsResponse = zod.array(VendorGetListingsResponseItem)
 

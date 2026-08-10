@@ -578,6 +578,29 @@ paths:
         "403":
           description: Forbidden
 
+  /admin/listings/pin:
+    post:
+      operationId: adminPinListing
+      tags: [admin, listings]
+      summary: Toggle pin status of a listing (admin only) — pinned listings appear first
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/AdminPinListingInput"
+      responses:
+        "200":
+          description: Updated listing pinned state
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Listing"
+        "403":
+          description: Forbidden
+        "404":
+          description: Listing not found
+
   /admin/ads/pin:
     post:
       operationId: adminPinAd
@@ -1269,6 +1292,15 @@ components:
           type: ["boolean", "null"]
           description: "Épinglée en haut de sa catégorie (max 5 par catégorie)"
 
+    AdminPinListingInput:
+      type: object
+      required: [id, password]
+      properties:
+        id:
+          type: integer
+        password:
+          type: string
+
     AdminPinAdInput:
       type: object
       required: [id, password]
@@ -1392,6 +1424,9 @@ components:
         reviewCount:
           type: integer
           default: 0
+        pinned:
+          type: boolean
+          default: false
 
     Review:
       type: object

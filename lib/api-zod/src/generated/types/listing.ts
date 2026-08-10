@@ -27,4 +27,5 @@ export interface Listing {
   /** @nullable */
   avgRating?: number | null;
   reviewCount?: number;
+  pinned?: boolean;
 }

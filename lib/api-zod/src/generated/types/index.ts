@@ -18,6 +18,7 @@ export * from './adminCreateServiceInput';
 export * from './adminDeleteInput';
 export * from './adminPasswordInput';
 export * from './adminPinAdInput';
+export * from './adminPinListingInput';
 export * from './adminResetVendorPasswordInput';
 export * from './adminVerifyInput';
 export * from './adminVerifyResult';

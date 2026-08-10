@@ -32,6 +32,7 @@ import type {
   AdminDeleteInput,
   AdminPasswordInput,
   AdminPinAdInput,
+  AdminPinListingInput,
   AdminResetVendorPasswordInput,
   AdminVerifyInput,
   AdminVerifyResult,
@@ -1916,6 +1917,77 @@ export const useAdminDeleteAd = <TError = ErrorType<void>,
         TContext
       > => {
       return useMutation(getAdminDeleteAdMutationOptions(options));
+    }
+
+export const getAdminPinListingUrl = () => {
+
+
+
+
+  return `/api/admin/listings/pin`
+}
+
+/**
+ * @summary Toggle pin status of a listing (admin only) — pinned listings appear first
+ */
+export const adminPinListing = async (adminPinListingInput: AdminPinListingInput, options?: RequestInit): Promise<Listing> => {
+
+  return customFetch<Listing>(getAdminPinListingUrl(),
+  {
+    ...options,
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...options?.headers },
+    body: JSON.stringify(
+      adminPinListingInput,)
+  }
+);}
+
+
+
+
+export const getAdminPinListingMutationOptions = <TError = ErrorType<void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof adminPinListing>>, TError,{data: BodyType<AdminPinListingInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof adminPinListing>>, TError,{data: BodyType<AdminPinListingInput>}, TContext> => {
+
+const mutationKey = ['adminPinListing'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof adminPinListing>>, {data: BodyType<AdminPinListingInput>}> = (props) => {
+          const {data} = props ?? {};
+
+          return  adminPinListing(data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type AdminPinListingMutationResult = NonNullable<Awaited<ReturnType<typeof adminPinListing>>>
+    export type AdminPinListingMutationBody = BodyType<AdminPinListingInput>
+    export type AdminPinListingMutationError = ErrorType<void>
+
+    /**
+ * @summary Toggle pin status of a listing (admin only) — pinned listings appear first
+ */
+export const useAdminPinListing = <TError = ErrorType<void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof adminPinListing>>, TError,{data: BodyType<AdminPinListingInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof adminPinListing>>,
+        TError,
+        {data: BodyType<AdminPinListingInput>},
+        TContext
+      > => {
+      return useMutation(getAdminPinListingMutationOptions(options));
     }
 
 export const getAdminPinAdUrl = () => {

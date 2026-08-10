@@ -14,6 +14,7 @@ export const listingsTable = pgTable("listings", {
   phone: text("phone").notNull(),
   images: text("images").array().notNull().default([]),
   approved: boolean("approved").notNull().default(false),
+  pinned: boolean("pinned").notNull().default(false),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
 });
 
