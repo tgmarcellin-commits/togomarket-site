@@ -581,7 +581,7 @@ export function SubAdminModal({ section, open, onOpenChange }: SubAdminModalProp
                     onClick={() => setServiceForm((f) => ({ ...f, type: "atelier" }))}
                     className={`py-1.5 text-xs rounded-md border font-medium transition-colors ${serviceForm.type === "atelier" ? "bg-purple-600 text-white border-purple-600" : "bg-background border-border"}`}
                   >
-                    Atelier
+                    Institut
                   </button>
                   <button
                     onClick={() => setServiceForm((f) => ({ ...f, type: "seeker" }))}
@@ -663,7 +663,7 @@ export function SubAdminModal({ section, open, onOpenChange }: SubAdminModalProp
                     <div key={svc.id} className={`border rounded-lg p-3 space-y-1.5 ${isExpired ? "opacity-60 bg-muted/30" : ""}`}>
                       <div className="flex items-start gap-2">
                         <span className={`text-[10px] px-1.5 py-0.5 rounded-full font-bold flex-shrink-0 mt-0.5 ${svc.type === "offer" ? "bg-blue-100 text-blue-700" : svc.type === "atelier" ? "bg-purple-100 text-purple-700" : "bg-orange-100 text-orange-700"}`}>
-                          {svc.type === "offer" ? "Offre" : svc.type === "atelier" ? "Atelier" : "Cherche"}
+                          {svc.type === "offer" ? "Offre" : svc.type === "atelier" ? "Institut" : "Cherche"}
                         </span>
                         <div className="flex-1 min-w-0">
                           <p className="text-sm font-semibold truncate">{svc.title}</p>

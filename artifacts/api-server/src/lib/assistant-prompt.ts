@@ -43,7 +43,7 @@ NAVIGATION (Bottom Nav)
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 L'application a 5 onglets en bas de l'écran (dans cet ordre) :
 1. Stand 🏪 — catalogue des boutiques par secteur (premier onglet, icône magasin)
-2. Services 💼 — offres d'emploi, demandeurs d'emploi et ateliers au Togo
+2. Services 💼 — offres d'emploi, instituts & formations, et demandeurs d'emploi au Togo
 3. Market Place 🛍️ — flux d'annonces paginé avec publicités vidéo et recherche (onglet par défaut à l'ouverture)
 4. Événementiel 🎉 — événements à venir (foires, marchés, expos, concerts)
 5. Introuvable 🔍 — service pour trouver un article introuvable au Togo

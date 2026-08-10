@@ -1,5 +1,5 @@
 import { Router, type IRouter } from "express";
-import { eq, ilike, and, desc, sql, gt, inArray, ne, type SQL, asc } from "drizzle-orm";
+import { eq, ilike, and, desc, sql, gt, inArray, ne, type SQL } from "drizzle-orm";
 import { normalizePhone, phoneEq } from "../lib/phone";
 import bcrypt from "bcryptjs";
 import { db, listingsTable, vendorsTable, reviewsTable } from "@workspace/db";

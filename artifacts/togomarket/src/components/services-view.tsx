@@ -57,11 +57,11 @@ function typeConfig(type: string, lang: string) {
     waLabel: lang === "fr" ? "Postuler via WhatsApp" : "Apply via WhatsApp",
   };
   if (type === "atelier") return {
-    label: lang === "fr" ? "Atelier" : "Workshop",
+    label: lang === "fr" ? "Institut" : "Institute",
     icon: Wrench,
     bg: "bg-purple-100 text-purple-600",
     badge: "bg-purple-100 text-purple-700",
-    waLabel: lang === "fr" ? "Contacter l'atelier" : "Contact workshop",
+    waLabel: lang === "fr" ? "Contacter l'institut" : "Contact institute",
   };
   return {
     label: lang === "fr" ? "Cherche emploi" : "Job seeker",
@@ -95,11 +95,11 @@ const SERVICE_CATEGORIES: {
   },
   {
     type: "atelier",
-    labelFr: "Atelier",
-    labelEn: "Workshop",
-    emoji: "🔧",
-    descFr: "Ateliers & formations",
-    descEn: "Workshops & training",
+    labelFr: "Institut",
+    labelEn: "Institute",
+    emoji: "🏛️",
+    descFr: "Instituts & formations",
+    descEn: "Institutes & training",
     colorBg: "bg-purple-50 hover:bg-purple-100 border-purple-200 hover:border-purple-400",
     colorText: "text-purple-700",
   },

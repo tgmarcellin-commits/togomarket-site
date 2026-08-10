@@ -1302,7 +1302,7 @@ export function AdminModal({
                         onClick={() => setServiceForm((f) => ({ ...f, type: "atelier" }))}
                         className={`py-1.5 text-xs rounded-md border font-medium transition-colors ${serviceForm.type === "atelier" ? "bg-purple-600 text-white border-purple-600" : "bg-background border-border"}`}
                       >
-                        Atelier
+                        Institut
                       </button>
                       <button
                         onClick={() => setServiceForm((f) => ({ ...f, type: "seeker" }))}
@@ -1400,7 +1400,7 @@ export function AdminModal({
                           <div className="flex items-start justify-between gap-2">
                             <div>
                               <span className={`text-[10px] font-bold px-1.5 py-0.5 rounded-full ${s.type === "offer" ? "bg-blue-100 text-blue-700" : s.type === "atelier" ? "bg-purple-100 text-purple-700" : "bg-orange-100 text-orange-700"}`}>
-                                {s.type === "offer" ? "Offre" : s.type === "atelier" ? "Atelier" : "Cherche"}
+                                {s.type === "offer" ? "Offre" : s.type === "atelier" ? "Institut" : "Cherche"}
                               </span>
                               <p className="text-xs font-semibold mt-1">{s.title}</p>
                               <p className="text-xs text-muted-foreground">{s.quartier}, {s.ville}</p>
