@@ -15,6 +15,7 @@ import { useT } from "@/lib/i18n";
 import { BuyerIdentityPrompt, loadBuyerIdentity, normalizePhone } from "@/components/buyer-identity-prompt";
 import { ChatWindow } from "@/components/chat-window";
 import type { BuyerIdentity } from "@/components/buyer-identity-prompt";
+import { storeBuyerSession, getBuyerSession } from "@/components/buyer-inbox";
 
 /** Slide dans le carrousel d'une annonce — vidéo avec controls si nécessaire, image sinon. */
 function ListingMediaSlide({ path, alt, onClick }: { path: string; alt: string; onClick?: () => void }) {
@@ -67,6 +68,8 @@ interface ListingCardProps {
   commissionRate: number;
   whatsappCommission: string;
   isOwn?: boolean;
+  /** When provided: redirect to Messages tab instead of opening floating ChatWindow */
+  onOpenInMessages?: (convId: number) => void;
 }
 
 const sectorColors: Record<string, string> = {
@@ -76,7 +79,7 @@ const sectorColors: Record<string, string> = {
   Divers: "bg-secondary text-secondary-foreground",
 };
 
-export function ListingCard({ listing, isAdmin, adminPassword, commissionRate, whatsappCommission, isOwn }: ListingCardProps) {
+export function ListingCard({ listing, isAdmin, adminPassword, commissionRate, whatsappCommission, isOwn, onOpenInMessages }: ListingCardProps) {
   const { lang } = useSiteSettings();
   const t = useT(lang);
   const queryClient = useQueryClient();
@@ -158,6 +161,7 @@ export function ListingCard({ listing, isAdmin, adminPassword, commissionRate, w
     openWhatsApp(`https://wa.me/${whatsappCommission}?text=${encodeURIComponent(message)}`);
   };
 
+  /** Create or resume a conversation then open it (floating window or redirect). */
   const startChat = async (identity: BuyerIdentity) => {
     setBuyerIdentity(identity);
 
@@ -171,9 +175,20 @@ export function ListingCard({ listing, isAdmin, adminPassword, commissionRate, w
       normalizePhone(storedIdentity.phone) === normalizePhone(identity.phone);
 
     if (samePhone && stored) {
-      setConversationId(stored.convId);
-      setBuyerToken(stored.buyerToken);
-      setChatOpen(true);
+      // Also ensure this session is in the new BuyerInbox store
+      if (vid) {
+        const inboxSession = getBuyerSession(vid, lid);
+        if (!inboxSession) {
+          storeBuyerSession({ convId: stored.convId, buyerToken: stored.buyerToken, vendorId: vid, listingId: lid, listingTitle: listing.name });
+        }
+      }
+      if (onOpenInMessages) {
+        onOpenInMessages(stored.convId);
+      } else {
+        setConversationId(stored.convId);
+        setBuyerToken(stored.buyerToken);
+        setChatOpen(true);
+      }
       return;
     }
 
@@ -193,10 +208,18 @@ export function ListingCard({ listing, isAdmin, adminPassword, commissionRate, w
       });
       if (res.ok) {
         const conv = await res.json() as { id: number; buyerToken: string };
+        // Store in both legacy key and new BuyerInbox store
         storeChatSession(vid, lid, conv.id, conv.buyerToken);
-        setConversationId(conv.id);
-        setBuyerToken(conv.buyerToken);
-        setChatOpen(true);
+        if (vid) {
+          storeBuyerSession({ convId: conv.id, buyerToken: conv.buyerToken, vendorId: vid, listingId: lid, listingTitle: listing.name });
+        }
+        if (onOpenInMessages) {
+          onOpenInMessages(conv.id);
+        } else {
+          setConversationId(conv.id);
+          setBuyerToken(conv.buyerToken);
+          setChatOpen(true);
+        }
       }
     } finally {
       setChatLoading(false);
@@ -204,9 +227,14 @@ export function ListingCard({ listing, isAdmin, adminPassword, commissionRate, w
   };
 
   const handleContactVendor = () => {
-    // Always show the identity form — buyer confirms who they are every time.
-    // The form is pre-filled with the last saved identity for convenience.
-    setIdentityPromptOpen(true);
+    const existingIdentity = loadBuyerIdentity();
+    // If buyer is already identified AND caller wants redirect → skip the prompt
+    if (existingIdentity && onOpenInMessages) {
+      startChat(existingIdentity);
+    } else {
+      // Show the identity form (pre-filled for returning buyers without redirect)
+      setIdentityPromptOpen(true);
+    }
   };
 
   const handleIdentityConfirm = (identity: BuyerIdentity) => {

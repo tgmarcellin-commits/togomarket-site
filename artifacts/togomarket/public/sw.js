@@ -23,7 +23,7 @@ self.addEventListener("push", (event) => {
 self.addEventListener("notificationclick", (event) => {
   event.notification.close();
   const convId = event.notification.data?.conversationId;
-  const url = self.location.origin + (convId ? `/?tab=boutique&conv=${convId}` : "/");
+  const url = self.location.origin + (convId ? `/?tab=messages&conv=${convId}` : "/");
   event.waitUntil(
     clients.matchAll({ type: "window", includeUncontrolled: true }).then((list) => {
       const existing = list.find((c) => c.url.startsWith(self.location.origin));

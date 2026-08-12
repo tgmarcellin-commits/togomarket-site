@@ -6,6 +6,7 @@ import {
   boolean,
   timestamp,
   jsonb,
+  unique,
 } from "drizzle-orm/pg-core";
 import { vendorsTable } from "./vendors";
 
@@ -26,6 +27,8 @@ export const conversationsTable = pgTable("conversations", {
     .notNull()
     .defaultNow(),
   vendorUnreadCount: integer("vendor_unread_count").notNull().default(0),
+  /** Messages vendor non lus par l'acheteur */
+  buyerUnreadCount: integer("buyer_unread_count").notNull().default(0),
   /** Replies from vendors to broadcast messages — unread count for admin inbox */
   adminUnreadCount: integer("admin_unread_count").notNull().default(0),
   /** Unguessable token returned to buyer at conversation creation; required for buyer reads/sends */
@@ -58,6 +61,25 @@ export const messagesTable = pgTable("messages", {
     .defaultNow(),
 });
 
+// Web Push subscriptions for buyers — un device (endpoint) peut être abonné à N conversations
+export const buyerPushSubscriptionsTable = pgTable(
+  "buyer_push_subscriptions",
+  {
+    id: serial("id").primaryKey(),
+    conversationId: integer("conversation_id")
+      .notNull()
+      .references(() => conversationsTable.id, { onDelete: "cascade" }),
+    endpoint: text("endpoint").notNull(),
+    keys: jsonb("keys").notNull(), // { auth: string, p256dh: string }
+    createdAt: timestamp("created_at", { withTimezone: true })
+      .notNull()
+      .defaultNow(),
+  },
+  (t) => ({
+    uniqueConvEndpoint: unique().on(t.conversationId, t.endpoint),
+  }),
+);
+
 // Web Push subscriptions for vendors
 export const pushSubscriptionsTable = pgTable("push_subscriptions", {
   id: serial("id").primaryKey(),
@@ -89,4 +111,5 @@ export const vendorNotificationsTable = pgTable("vendor_notifications", {
 export type Conversation = typeof conversationsTable.$inferSelect;
 export type Message = typeof messagesTable.$inferSelect;
 export type PushSubscription = typeof pushSubscriptionsTable.$inferSelect;
+export type BuyerPushSubscription = typeof buyerPushSubscriptionsTable.$inferSelect;
 export type VendorNotification = typeof vendorNotificationsTable.$inferSelect;

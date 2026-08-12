@@ -31,6 +31,8 @@ import { AiAssistant } from "@/components/ai-assistant";
 import { VendorConversations } from "@/components/vendor-conversations";
 import { PushActivationBanner } from "@/components/push-activation-banner";
 import { VendorSystemNotifications } from "@/components/vendor-system-notifications";
+import { BuyerInbox } from "@/components/buyer-inbox";
+import { loadBuyerIdentity } from "@/components/buyer-identity-prompt";
 import { useToast } from "@/hooks/use-toast";
 import { getSocket } from "@/lib/socket";
 
@@ -175,6 +177,49 @@ export default function Home() {
   const [convsUnread, setConvsUnread] = useState(0);
   const [systemNotifsUnread, setSystemNotifsUnread] = useState(0);
   const messagesUnread = convsUnread + systemNotifsUnread;
+
+  // Buyer inbox state
+  const [pendingConvId, setPendingConvId] = useState<number | null>(null);
+  const buyerIdentity = loadBuyerIdentity();
+
+  /** Redirect to Messages tab and auto-open a specific conversation */
+  const handleOpenInMessages = useCallback((convId: number) => {
+    sessionStorage.setItem("tm_active_tab", "messages");
+    setActiveTab("messages");
+    setPendingConvId(convId);
+  }, []);
+
+  // Deep-link depuis une notification push ──────────────────────────────────
+  // Chemin 1 : app fermée → SW ouvre /?tab=messages&conv=123 → parse l'URL au montage
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    const tabParam = params.get("tab");
+    const convParam = params.get("conv");
+    if (tabParam === "messages" && convParam) {
+      const convId = parseInt(convParam, 10);
+      if (!isNaN(convId)) {
+        handleOpenInMessages(convId);
+        // Nettoyer l'URL sans recharger la page
+        window.history.replaceState({}, "", window.location.pathname);
+      }
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []); // Une seule fois au montage
+
+  // Chemin 2 : app déjà ouverte → SW envoie un postMessage type="open_conversation"
+  useEffect(() => {
+    if (!("serviceWorker" in navigator)) return;
+    const handleSWMessage = (event: MessageEvent) => {
+      if (event.data?.type === "open_conversation") {
+        const convId = Number(event.data.conversationId);
+        if (convId) handleOpenInMessages(convId);
+      }
+    };
+    navigator.serviceWorker.addEventListener("message", handleSWMessage);
+    return () => {
+      navigator.serviceWorker.removeEventListener("message", handleSWMessage);
+    };
+  }, [handleOpenInMessages]);
 
   // ── Badge "Messages" : compter les non-lus dès l'arrivée sur la plateforme,
   //    sans attendre que l'onglet Messages soit ouvert ────────────────────────
@@ -583,7 +628,7 @@ export default function Home() {
                     <>
                       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
                         {sortedListings.map(listing => (
-                          <ListingCard key={listing.id} listing={listing} isAdmin={quickMode} adminPassword={quickMode ? (loadAdminSession()?.code ?? "") : ""} commissionRate={commissionRate} whatsappCommission={whatsappCommission} isOwn={vendor ? listing.phone === vendor.phone : false} />
+                          <ListingCard key={listing.id} listing={listing} isAdmin={quickMode} adminPassword={quickMode ? (loadAdminSession()?.code ?? "") : ""} commissionRate={commissionRate} whatsappCommission={whatsappCommission} isOwn={vendor ? listing.phone === vendor.phone : false} onOpenInMessages={handleOpenInMessages} />
                         ))}
                       </div>
                       {pageData?.hasMore && (
@@ -905,7 +950,7 @@ export default function Home() {
                 <>
                   <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
                     {sortedListings.map(listing => (
-                      <ListingCard key={listing.id} listing={listing} isAdmin={quickMode} adminPassword={quickMode ? (loadAdminSession()?.code ?? "") : ""} commissionRate={commissionRate} whatsappCommission={whatsappCommission} isOwn={vendor ? listing.phone === vendor.phone : false} />
+                      <ListingCard key={listing.id} listing={listing} isAdmin={quickMode} adminPassword={quickMode ? (loadAdminSession()?.code ?? "") : ""} commissionRate={commissionRate} whatsappCommission={whatsappCommission} isOwn={vendor ? listing.phone === vendor.phone : false} onOpenInMessages={handleOpenInMessages} />
                     ))}
                   </div>
                   {pageData?.hasMore && (
@@ -1089,6 +1134,7 @@ export default function Home() {
                     commissionRate={commissionRate}
                     whatsappCommission={whatsappCommission}
                     isOwn={vendor ? listing.phone === vendor.phone : false}
+                    onOpenInMessages={handleOpenInMessages}
                   />
                 ))}
               </div>
@@ -1148,6 +1194,7 @@ export default function Home() {
       {activeTab === "messages" && (
         <main className="container mx-auto px-4 py-6 flex-grow">
           {vendor && vendorPassword ? (
+            /* ── Onglet vendeur ─────────────────────────────────────── */
             <>
               <PushActivationBanner vendor={vendor} vendorPassword={vendorPassword} />
               <VendorSystemNotifications
@@ -1163,7 +1210,16 @@ export default function Home() {
                 onUnreadChange={setConvsUnread}
               />
             </>
+          ) : buyerIdentity ? (
+            /* ── Onglet acheteur identifié ──────────────────────────── */
+            <BuyerInbox
+              key={tabRefreshKey}
+              identity={buyerIdentity}
+              pendingConvId={pendingConvId}
+              onClearPending={() => setPendingConvId(null)}
+            />
           ) : (
+            /* ── Ni vendeur ni acheteur : inviter à s'identifier ─────── */
             <div className="flex flex-col items-center justify-center py-24 text-center gap-4">
               <MessageCircle className="w-14 h-14 text-muted-foreground/40" />
               <h3 className="text-lg font-semibold">
@@ -1171,8 +1227,8 @@ export default function Home() {
               </h3>
               <p className="text-sm text-muted-foreground max-w-xs">
                 {lang === "fr"
-                  ? "Connectez-vous à votre compte vendeur pour accéder à vos conversations."
-                  : "Log in to your vendor account to access your conversations."}
+                  ? "Cliquez sur « Discuter » sur n'importe quel article pour démarrer une conversation, ou connectez-vous à votre compte vendeur."
+                  : "Tap \"Contact seller\" on any listing to start a conversation, or log in to your vendor account."}
               </p>
               <Button
                 className="rounded-full px-8 mt-2"

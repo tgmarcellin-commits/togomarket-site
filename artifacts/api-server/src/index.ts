@@ -5,6 +5,8 @@ import app from "./app";
 import { logger } from "./lib/logger";
 import { startRenewalReminderCron } from "./lib/renewal-reminder";
 import { startListingsCleanupCron } from "./lib/listings-cleanup";
+// Note: startConversationsCleanupCron est défini dans conversations-cleanup.ts
+// mais n'est pas activé ici : la suppression auto des conversations n'est pas dans le scope actuel.
 import { setIo } from "./lib/socket-io";
 import { db, vendorsTable, conversationsTable } from "@workspace/db";
 import { eq } from "drizzle-orm";
@@ -103,4 +105,5 @@ httpServer.listen(port, (err?: Error) => {
   logger.info({ port }, "Server listening");
   startRenewalReminderCron();
   startListingsCleanupCron();
+  // startConversationsCleanupCron(); // activé ultérieurement (hors scope tâche actuelle)
 });

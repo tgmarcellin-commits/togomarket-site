@@ -6,6 +6,7 @@ import {
   messagesTable,
   vendorsTable,
   pushSubscriptionsTable,
+  buyerPushSubscriptionsTable,
   vendorNotificationsTable,
 } from "@workspace/db";
 import bcrypt from "bcryptjs";
@@ -18,7 +19,7 @@ import { sendWhatsAppNotifNudge, canSendNudge, markNudgeSent } from "../lib/what
 import { logger } from "../lib/logger";
 import { ObjectStorageService } from "../lib/objectStorage";
 
-const upload = multer({ dest: "/tmp", limits: { fileSize: 20 * 1024 * 1024 } }); // 20 MB max
+const upload = multer({ dest: "/tmp", limits: { fileSize: 20 * 1024 * 1024 } }); // 20 MB (audio may be large; images validated separately to 2 MB)
 const objectStorage = new ObjectStorageService();
 
 const router: IRouter = Router();
@@ -87,6 +88,98 @@ router.post("/conversations", async (req, res) => {
     .returning();
 
   res.status(201).json(conv);
+});
+
+/* ──────────────────────────────────────────────────────────────
+   POST /api/conversations/buyer-list
+   Body: { buyerTokens: string[] }
+   Returns conversations for all supplied tokens (without exposing other
+   buyers' data — each token is validated against its own conversation row).
+   ────────────────────────────────────────────────────────────── */
+router.post("/conversations/buyer-list", async (req, res) => {
+  const { buyerTokens } = req.body as { buyerTokens?: string[] };
+  if (!Array.isArray(buyerTokens) || buyerTokens.length === 0) {
+    res.json([]);
+    return;
+  }
+
+  // Cap at 100 tokens to prevent abuse
+  const tokens = buyerTokens.slice(0, 100);
+
+  // Fetch all matching conversations (each token is checked by the DB)
+  const convRows = await db
+    .select()
+    .from(conversationsTable)
+    .where(isNull(conversationsTable.buyerDeletedAt))
+    .orderBy(desc(conversationsTable.updatedAt));
+
+  // Keep only rows whose buyerToken is in the provided list
+  const tokenSet = new Set(tokens);
+  const matched = convRows.filter((c) => tokenSet.has(c.buyerToken));
+
+  // For each conversation, get the last message
+  const result = await Promise.all(
+    matched.map(async (conv) => {
+      const lastMsgs = await db
+        .select({ content: messagesTable.content, createdAt: messagesTable.createdAt, senderType: messagesTable.senderType })
+        .from(messagesTable)
+        .where(and(
+          eq(messagesTable.conversationId, conv.id),
+          isNull(messagesTable.deletedAt),
+          isNull(messagesTable.buyerDeletedAt),
+        ))
+        .orderBy(desc(messagesTable.createdAt))
+        .limit(1);
+
+      const last = lastMsgs[0];
+
+      // Count unread messages for buyer = vendor messages the buyer hasn't "read" yet
+      // We approximate this as vendor messages since the buyer's last fetch.
+      // For simplicity, we expose the field but the server doesn't track buyer reads.
+      // The client can mark conversations read by opening them.
+      return {
+        id: conv.id,
+        vendorId: conv.vendorId,
+        listingTitle: conv.listingTitle,
+        buyerName: conv.buyerName,
+        buyerPhone: conv.buyerPhone,
+        buyerToken: conv.buyerToken, // safe: only returned to the holder of this token
+        lastMessage: last?.content ?? null,
+        lastMessageAt: last?.createdAt ?? conv.updatedAt,
+        buyerUnreadCount: conv.buyerUnreadCount,
+      };
+    }),
+  );
+
+  res.json(result);
+});
+
+/* ──────────────────────────────────────────────────────────────
+   POST /api/conversations/:id/buyer-read
+   Marque toutes les réponses vendeur comme lues (reset buyerUnreadCount).
+   Auth: x-buyer-token
+   ────────────────────────────────────────────────────────────── */
+router.post("/conversations/:id/buyer-read", async (req, res) => {
+  const convId = parseInt(req.params["id"] ?? "", 10);
+  if (isNaN(convId)) { res.status(400).json({ error: "invalid id" }); return; }
+
+  const buyerToken = req.headers["x-buyer-token"] as string | undefined;
+  if (!buyerToken) { res.status(401).json({ error: "x-buyer-token required" }); return; }
+
+  const convRows = await db
+    .select({ buyerToken: conversationsTable.buyerToken })
+    .from(conversationsTable)
+    .where(eq(conversationsTable.id, convId))
+    .limit(1);
+  if (!convRows.length) { res.status(404).json({ error: "not found" }); return; }
+  if (convRows[0].buyerToken !== buyerToken) { res.status(401).json({ error: "unauthorized" }); return; }
+
+  await db
+    .update(conversationsTable)
+    .set({ buyerUnreadCount: 0 })
+    .where(eq(conversationsTable.id, convId));
+
+  res.json({ ok: true });
 });
 
 /* ──────────────────────────────────────────────────────────────
@@ -234,6 +327,9 @@ router.post("/conversations/:id/messages", async (req, res) => {
       vendorUnreadCount: senderType === "buyer"
         ? conv.vendorUnreadCount + 1
         : conv.vendorUnreadCount,
+      buyerUnreadCount: senderType === "vendor"
+        ? conv.buyerUnreadCount + 1
+        : conv.buyerUnreadCount,
       // Vendor replies to broadcast → admin inbox gets an unread increment
       adminUnreadCount: senderType === "vendor" && isBroadcastConv
         ? (conv.adminUnreadCount ?? 0) + 1
@@ -253,8 +349,9 @@ router.post("/conversations/:id/messages", async (req, res) => {
     // socket.io not yet ready – non-fatal
   }
 
-  // Notifications au vendeur quand c'est l'acheteur qui envoie
+  // ── Notifications selon l'expéditeur ──────────────────────────────────────
   if (senderType === "buyer") {
+    // Notifier le vendeur quand l'acheteur envoie
     try {
       const [subs, vendorRows] = await Promise.all([
         db.select().from(pushSubscriptionsTable).where(eq(pushSubscriptionsTable.vendorId, conv.vendorId)),
@@ -265,7 +362,6 @@ router.post("/conversations/:id/messages", async (req, res) => {
       const vendor = vendorRows[0];
 
       if (subs.length > 0 && vendor?.wantsNotifications && vapidReady) {
-        // ── A) Push Web si notifs activées ─────────────────────────────────
         const payload = JSON.stringify({
           title: `💬 ${conv.buyerName}`,
           body: content.length > 80 ? content.slice(0, 80) + "…" : content,
@@ -285,8 +381,6 @@ router.post("/conversations/:id/messages", async (req, res) => {
           ),
         );
       } else if (subs.length === 0 && vendor) {
-        // ── B) Pas de push activé → relance WhatsApp + notification in-app ─
-        // Notification in-app (toujours enregistrée)
         await db.insert(vendorNotificationsTable).values({
           vendorId: conv.vendorId,
           title: `💬 Nouveau message de ${conv.buyerName}`,
@@ -294,8 +388,6 @@ router.post("/conversations/:id/messages", async (req, res) => {
           url: null,
           notifType: "push_nudge",
         });
-
-        // WhatsApp rate-limité : 1 message max par heure par vendeur
         if (canSendNudge(conv.vendorId)) {
           markNudgeSent(conv.vendorId);
           sendWhatsAppNotifNudge(vendor.phone, vendor.firstName, conv.buyerName)
@@ -304,6 +396,50 @@ router.post("/conversations/:id/messages", async (req, res) => {
       }
     } catch (err) {
       logger.warn({ err }, "Notification vendeur : erreur non fatale");
+    }
+  } else if (senderType === "vendor") {
+    // Notifier l'acheteur quand le vendeur répond
+    try {
+      if (vapidReady) {
+        const buyerSubs = await db
+          .select()
+          .from(buyerPushSubscriptionsTable)
+          .where(eq(buyerPushSubscriptionsTable.conversationId, convId));
+
+        if (buyerSubs.length > 0) {
+          const vendorRows = await db
+            .select({ firstName: vendorsTable.firstName, shopName: vendorsTable.shopName })
+            .from(vendorsTable)
+            .where(eq(vendorsTable.id, conv.vendorId))
+            .limit(1);
+          const vendorName = vendorRows[0]?.shopName || vendorRows[0]?.firstName || "Vendeur";
+
+          const payload = JSON.stringify({
+            title: `💬 ${vendorName}`,
+            body: content.length > 80 ? content.slice(0, 80) + "…" : content,
+            conversationId: convId,
+          });
+
+          await Promise.allSettled(
+            buyerSubs.map((sub) =>
+              webpush.sendNotification(
+                { endpoint: sub.endpoint, keys: sub.keys as { auth: string; p256dh: string } },
+                payload,
+              ).catch((err: { statusCode?: number }) => {
+                if (err?.statusCode === 410) {
+                  return db.delete(buyerPushSubscriptionsTable).where(and(
+                    eq(buyerPushSubscriptionsTable.endpoint, sub.endpoint),
+                    eq(buyerPushSubscriptionsTable.conversationId, convId),
+                  ));
+                }
+                return undefined;
+              }),
+            ),
+          );
+        }
+      }
+    } catch (err) {
+      logger.warn({ err }, "Notification acheteur : erreur non fatale");
     }
   }
 
@@ -327,18 +463,23 @@ router.post(
     const file = req.file;
     if (!file) { res.status(400).json({ error: "file required" }); return; }
 
-    const allowed = [
-      "image/jpeg", "image/jpg", "image/png", "application/pdf",
-      "audio/webm", "audio/mp4", "audio/ogg", "audio/mpeg", "audio/wav", "audio/aac",
-    ];
-    if (!allowed.includes(file.mimetype)) {
-      res.status(400).json({ error: "only JPEG, PNG, PDF, or audio files allowed" });
+    const allowedImages = ["image/jpeg", "image/jpg", "image/png"];
+    const allowedAudio = ["audio/webm", "audio/mp4", "audio/ogg", "audio/mpeg", "audio/wav", "audio/aac"];
+    const isAudio = allowedAudio.includes(file.mimetype);
+    const isImage = allowedImages.includes(file.mimetype);
+    const isPdf = file.mimetype === "application/pdf";
+
+    if (!isImage && !isAudio && !isPdf) {
+      res.status(400).json({ error: "Seuls les fichiers JPEG, PNG, JPG, PDF ou audio sont acceptés" });
+      return;
+    }
+    // Images: enforce 2 MB max (audio and PDF have the higher multer limit)
+    if (isImage && file.size > 2 * 1024 * 1024) {
+      res.status(400).json({ error: "L'image dépasse la limite de 2 Mo" });
       return;
     }
 
-    const fileType = file.mimetype === "application/pdf" ? "pdf"
-      : file.mimetype.startsWith("audio/") ? "audio"
-      : "image";
+    const fileType = isAudio ? "audio" : isPdf ? "pdf" : "image";
 
     // Upload to Object Storage
     const fs = await import("node:fs/promises");
@@ -375,6 +516,7 @@ router.post(
       .set({
         updatedAt: new Date(),
         vendorUnreadCount: senderType === "buyer" ? conv.vendorUnreadCount + 1 : conv.vendorUnreadCount,
+        buyerUnreadCount: senderType === "vendor" ? conv.buyerUnreadCount + 1 : conv.buyerUnreadCount,
         vendorDeletedAt: senderType === "buyer" ? null : conv.vendorDeletedAt,
         buyerDeletedAt: senderType === "vendor" ? null : conv.buyerDeletedAt,
       })
@@ -385,6 +527,49 @@ router.post(
       io.to(`vendor:${conv.vendorId}`).emit("new_message", { conversationId: convId, message: msg });
       io.to(`conv:${convId}`).emit("new_message", { conversationId: convId, message: msg });
     } catch { /* non-fatal */ }
+
+    // Notifier l'acheteur par push quand le vendeur envoie un fichier
+    if (senderType === "vendor" && vapidReady) {
+      try {
+        const buyerSubs = await db
+          .select()
+          .from(buyerPushSubscriptionsTable)
+          .where(eq(buyerPushSubscriptionsTable.conversationId, convId));
+        if (buyerSubs.length > 0) {
+          const vRows = await db
+            .select({ firstName: vendorsTable.firstName, shopName: vendorsTable.shopName })
+            .from(vendorsTable)
+            .where(eq(vendorsTable.id, conv.vendorId))
+            .limit(1);
+          const vendorName = vRows[0]?.shopName || vRows[0]?.firstName || "Vendeur";
+          const body = fileType === "audio" ? "🎤 Message vocal" : "📷 Photo";
+          const payload = JSON.stringify({
+            title: `💬 ${vendorName}`,
+            body,
+            conversationId: convId,
+          });
+          await Promise.allSettled(
+            buyerSubs.map((sub) =>
+              webpush.sendNotification(
+                { endpoint: sub.endpoint, keys: sub.keys as { auth: string; p256dh: string } },
+                payload,
+              ).catch((err: { statusCode?: number }) => {
+                if (err?.statusCode === 410) {
+                  return db.delete(buyerPushSubscriptionsTable)
+                    .where(and(
+                      eq(buyerPushSubscriptionsTable.endpoint, sub.endpoint),
+                      eq(buyerPushSubscriptionsTable.conversationId, convId),
+                    ));
+                }
+                return undefined;
+              }),
+            ),
+          );
+        }
+      } catch (err) {
+        logger.warn({ err }, "Notification push acheteur (upload) : erreur non fatale");
+      }
+    }
 
     res.status(201).json(msg);
   },

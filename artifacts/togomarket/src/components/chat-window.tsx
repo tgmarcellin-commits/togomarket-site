@@ -103,6 +103,15 @@ export function ChatWindow({
   useEffect(() => {
     if (!open || !conversationId) return;
     fetchMessages();
+
+    // Marquer comme lu côté acheteur dès l'ouverture de la fenêtre
+    if (auth.kind === "buyer") {
+      fetch(`/api/conversations/${conversationId}/buyer-read`, {
+        method: "POST",
+        headers: { "x-buyer-token": auth.buyerToken },
+      }).catch(() => {}); // non-fatal
+    }
+
     const socket = getSocket();
     const joinPayload =
       auth.kind === "buyer"
@@ -258,9 +267,14 @@ export function ChatWindow({
     if (!file) return;
     e.target.value = "";
 
-    const allowed = ["image/jpeg", "image/jpg", "image/png", "application/pdf"];
+    const allowedImages = ["image/jpeg", "image/jpg", "image/png"];
+    const allowed = [...allowedImages, "application/pdf"];
     if (!allowed.includes(file.type)) {
-      alert(lang === "fr" ? "Format non supporté. Utilisez JPEG, PNG ou PDF." : "Unsupported format. Use JPEG, PNG or PDF.");
+      alert(lang === "fr" ? "Format non supporté. Utilisez JPEG, PNG, JPG ou PDF." : "Unsupported format. Use JPEG, PNG, JPG or PDF.");
+      return;
+    }
+    if (allowedImages.includes(file.type) && file.size > 2 * 1024 * 1024) {
+      alert(lang === "fr" ? "L'image dépasse 2 Mo. Choisissez une image plus légère." : "Image exceeds 2 MB. Choose a smaller image.");
       return;
     }
 
@@ -673,7 +687,7 @@ export function ChatWindow({
               <input
                 ref={fileInputRef}
                 type="file"
-                accept=".jpg,.jpeg,.png,.pdf,image/jpeg,image/png,application/pdf"
+                accept=".jpg,.jpeg,.png,.pdf,image/jpeg,image/jpg,image/png,application/pdf"
                 className="hidden"
                 onChange={handleFileChange}
               />
