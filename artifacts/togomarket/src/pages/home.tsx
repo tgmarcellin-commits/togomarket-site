@@ -539,15 +539,12 @@ export default function Home() {
             </button>
             {vendor ? (
               <>
-                {/* Bouton Publier : masqué si le compte vendeur est expiré */}
-                {!isVendorExpired && (
-                  <Button
-                    onClick={() => setIsPublishModalOpen(true)}
-                    className="bg-primary hover:bg-primary/90 rounded-full font-semibold px-3 sm:px-5 text-sm"
-                  >
-                    {t.publish}
-                  </Button>
-                )}
+                <Button
+                  onClick={() => setIsPublishModalOpen(true)}
+                  className="bg-primary hover:bg-primary/90 rounded-full font-semibold px-3 sm:px-5 text-sm"
+                >
+                  {t.publish}
+                </Button>
 
                 {/* Profile avatar → opens ProfileSettingsModal */}
                 <button

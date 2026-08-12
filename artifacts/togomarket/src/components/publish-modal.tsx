@@ -429,10 +429,37 @@ export function PublishModal({ open, onOpenChange, vendor, vendorPassword, onNee
           </div>
         </div>
 
-        <Button className="w-full" onClick={() => setScreen("form")}>
-          <Lock className="w-4 h-4 mr-2" />
-          {t.publishListing}
-        </Button>
+        {/* Publier une annonce : masqué si la boutique est expirée (isPublished=true mais expiryDate dépassée) */}
+        {vendor.expiryDate && new Date(vendor.expiryDate) <= new Date() ? (
+          <div className="rounded-lg border border-destructive/20 bg-destructive/5 p-4 text-center space-y-3">
+            <AlertCircle className="w-7 h-7 text-destructive/60 mx-auto" />
+            <p className="text-sm font-semibold text-foreground">
+              {lang === "fr" ? "Boutique expirée" : "Shop expired"}
+            </p>
+            <p className="text-xs text-muted-foreground leading-relaxed">
+              {lang === "fr"
+                ? "Votre abonnement a expiré. Renouvelez pour publier de nouvelles annonces."
+                : "Your subscription has expired. Renew to publish new listings."}
+            </p>
+            <Button
+              className="w-full bg-blue-600 hover:bg-blue-700 text-white"
+              onClick={handleFedapayPayment}
+              disabled={fedapayLoading}
+            >
+              {fedapayLoading ? (
+                <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+              ) : (
+                <CreditCard className="w-4 h-4 mr-2" />
+              )}
+              {lang === "fr" ? "Renouveler (1 000 FCFA)" : "Renew (1,000 FCFA)"}
+            </Button>
+          </div>
+        ) : (
+          <Button className="w-full" onClick={() => setScreen("form")}>
+            <Lock className="w-4 h-4 mr-2" />
+            {t.publishListing}
+          </Button>
+        )}
       </div>
     );
   };
