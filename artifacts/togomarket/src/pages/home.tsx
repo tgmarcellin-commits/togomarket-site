@@ -1194,7 +1194,7 @@ export default function Home() {
       {activeTab === "messages" && (
         <main className="container mx-auto px-4 py-6 flex-grow">
           {vendor && vendorPassword ? (
-            /* ── Onglet vendeur ─────────────────────────────────────── */
+            /* ── Onglet vendeur (+ section acheteur si identifié) ───── */
             <>
               <PushActivationBanner vendor={vendor} vendorPassword={vendorPassword} />
               <VendorSystemNotifications
@@ -1209,6 +1209,21 @@ export default function Home() {
                 vendorPassword={vendorPassword}
                 onUnreadChange={setConvsUnread}
               />
+              {/* ── Section acheteur : visible si ce vendeur a aussi
+                   des conversations en tant qu'acheteur chez d'autres vendeurs ── */}
+              {buyerIdentity && (
+                <div className="mt-8 pt-6 border-t">
+                  <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground mb-4">
+                    {lang === "fr" ? "Mes achats" : "My purchases"}
+                  </p>
+                  <BuyerInbox
+                    key={`buyer-${tabRefreshKey}`}
+                    identity={buyerIdentity}
+                    pendingConvId={pendingConvId}
+                    onClearPending={() => setPendingConvId(null)}
+                  />
+                </div>
+              )}
             </>
           ) : buyerIdentity ? (
             /* ── Onglet acheteur identifié ──────────────────────────── */
