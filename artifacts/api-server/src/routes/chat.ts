@@ -460,6 +460,43 @@ router.post(
     const identity = await resolveIdentity(req as Parameters<typeof resolveIdentity>[0], convId);
     if (!identity) { res.status(401).json({ error: "unauthorized" }); return; }
 
+    // ── Fetch conv tôt : permet de vérifier expiration AVANT de traiter le fichier ──
+    const senderType: "buyer" | "vendor" = identity.role === "vendor" ? "vendor" : "buyer";
+    const convRows = await db
+      .select()
+      .from(conversationsTable)
+      .where(eq(conversationsTable.id, convId))
+      .limit(1);
+    if (!convRows.length) { res.status(404).json({ error: "conversation not found" }); return; }
+    const conv = convRows[0];
+
+    // Conversation TogoMarket : lecture seule côté vendeur (pas d'envoi de fichiers)
+    if (conv.buyerPhone === "##007##" && senderType === "vendor") {
+      res.status(403).json({
+        error: "admin_conversation_readonly",
+        message: "Pour plus d'informations contactez l'administrateur par WhatsApp au +228 70 70 31 31.",
+      });
+      return;
+    }
+
+    // ── Vérification boutique active (même règle que la route texte) ─────────────
+    {
+      const now = new Date();
+      const [vendorRow] = await db
+        .select({ isPublished: vendorsTable.isPublished, expiryDate: vendorsTable.expiryDate })
+        .from(vendorsTable)
+        .where(eq(vendorsTable.id, conv.vendorId))
+        .limit(1);
+      if (vendorRow) {
+        const isActive = vendorRow.isPublished && (!vendorRow.expiryDate || vendorRow.expiryDate > now);
+        const isBroadcastSender = conv.buyerPhone === "##007##" && senderType === "buyer";
+        if (!isActive && !isBroadcastSender) {
+          res.status(403).json({ error: "shop_expired", message: "Votre boutique est expirée. Renouvelez votre abonnement pour envoyer ou recevoir des messages." });
+          return;
+        }
+      }
+    }
+
     const file = req.file;
     if (!file) { res.status(400).json({ error: "file required" }); return; }
 
@@ -487,24 +524,6 @@ router.post(
     await fs.unlink(file.path).catch(() => {});
 
     const objectPath = await objectStorage.uploadObjectEntity(buffer, file.mimetype);
-
-    const senderType: "buyer" | "vendor" = identity.role === "vendor" ? "vendor" : "buyer";
-    const convRows = await db
-      .select()
-      .from(conversationsTable)
-      .where(eq(conversationsTable.id, convId))
-      .limit(1);
-    if (!convRows.length) { res.status(404).json({ error: "conversation not found" }); return; }
-    const conv = convRows[0];
-
-    // Conversation TogoMarket : lecture seule côté vendeur (pas d'envoi de fichiers)
-    if (conv.buyerPhone === "##007##" && senderType === "vendor") {
-      res.status(403).json({
-        error: "admin_conversation_readonly",
-        message: "Pour plus d'informations contactez l'administrateur par WhatsApp au +228 70 70 31 31.",
-      });
-      return;
-    }
 
     const [msg] = await db
       .insert(messagesTable)

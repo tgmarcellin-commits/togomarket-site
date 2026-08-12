@@ -10,7 +10,7 @@ import {
   type VendorProfile,
   type Listing,
 } from "@workspace/api-client-react";
-import { Search, SearchIcon, LogIn, UserCircle2, Settings, Link2Off, MessageCircle } from "lucide-react";
+import { Search, SearchIcon, LogIn, UserCircle2, Settings, Link2Off, MessageCircle, AlertCircle } from "lucide-react";
 import { resolveImageUrl, isVideoMedia, resolveMediaUrl } from "@/lib/image";
 import { useSiteSettings } from "@/lib/site-settings";
 import { useT } from "@/lib/i18n";
@@ -181,6 +181,11 @@ export default function Home() {
   // Buyer inbox state
   const [pendingConvId, setPendingConvId] = useState<number | null>(null);
   const buyerIdentity = loadBuyerIdentity();
+
+  // Compte vendeur expiré : isPublished=false OU expiryDate dans le passé
+  const isVendorExpired = vendor
+    ? !(vendor.isPublished && (!vendor.expiryDate || new Date(vendor.expiryDate) > new Date()))
+    : false;
 
   /** Redirect to Messages tab and auto-open a specific conversation */
   const handleOpenInMessages = useCallback((convId: number) => {
@@ -534,12 +539,15 @@ export default function Home() {
             </button>
             {vendor ? (
               <>
-                <Button
-                  onClick={() => setIsPublishModalOpen(true)}
-                  className="bg-primary hover:bg-primary/90 rounded-full font-semibold px-3 sm:px-5 text-sm"
-                >
-                  {t.publish}
-                </Button>
+                {/* Bouton Publier : masqué si le compte vendeur est expiré */}
+                {!isVendorExpired && (
+                  <Button
+                    onClick={() => setIsPublishModalOpen(true)}
+                    className="bg-primary hover:bg-primary/90 rounded-full font-semibold px-3 sm:px-5 text-sm"
+                  >
+                    {t.publish}
+                  </Button>
+                )}
 
                 {/* Profile avatar → opens ProfileSettingsModal */}
                 <button
@@ -1196,21 +1204,37 @@ export default function Home() {
           {vendor && vendorPassword ? (
             /* ── Onglet vendeur (+ section acheteur si identifié) ───── */
             <>
-              <PushActivationBanner vendor={vendor} vendorPassword={vendorPassword} />
-              <VendorSystemNotifications
-                key={tabRefreshKey}
-                vendor={vendor}
-                vendorPassword={vendorPassword}
-                onUnreadChange={setSystemNotifsUnread}
-              />
-              <VendorConversations
-                key={tabRefreshKey}
-                vendor={vendor}
-                vendorPassword={vendorPassword}
-                onUnreadChange={setConvsUnread}
-              />
-              {/* ── Section acheteur : visible si ce vendeur a aussi
-                   des conversations en tant qu'acheteur chez d'autres vendeurs ── */}
+              {isVendorExpired ? (
+                /* Compte expiré : boîte de réception vendeur bloquée */
+                <div className="flex flex-col items-center justify-center py-16 text-center gap-4 rounded-2xl border border-destructive/20 bg-destructive/5 p-8 mb-6">
+                  <AlertCircle className="w-12 h-12 text-destructive/50" />
+                  <h3 className="text-base font-semibold text-foreground">
+                    {lang === "fr" ? "Compte expiré" : "Account expired"}
+                  </h3>
+                  <p className="text-sm text-muted-foreground max-w-xs leading-relaxed">
+                    {lang === "fr"
+                      ? "Votre boutique est expirée. Renouvelez votre abonnement pour accéder à vos messages et recevoir des clients."
+                      : "Your shop has expired. Renew your subscription to access messages and receive customers."}
+                  </p>
+                </div>
+              ) : (
+                <>
+                  <PushActivationBanner vendor={vendor} vendorPassword={vendorPassword} />
+                  <VendorSystemNotifications
+                    key={tabRefreshKey}
+                    vendor={vendor}
+                    vendorPassword={vendorPassword}
+                    onUnreadChange={setSystemNotifsUnread}
+                  />
+                  <VendorConversations
+                    key={tabRefreshKey}
+                    vendor={vendor}
+                    vendorPassword={vendorPassword}
+                    onUnreadChange={setConvsUnread}
+                  />
+                </>
+              )}
+              {/* ── Section acheteur : visible même si le compte vendeur est expiré ── */}
               {buyerIdentity && (
                 <div className="mt-8 pt-6 border-t">
                   <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground mb-4">
