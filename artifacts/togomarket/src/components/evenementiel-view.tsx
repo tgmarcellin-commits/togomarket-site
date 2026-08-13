@@ -49,18 +49,30 @@ function EventDetailModal({ event, open, onClose, locale, t }: {
   if (!event) return null;
 
   const eventDate = new Date(event.date);
-  const formattedDate = eventDate.toLocaleDateString(locale, {
-    weekday: "long",
-    day: "numeric",
-    month: "long",
-    year: "numeric",
-  });
-  const formattedTime = eventDate.toLocaleTimeString(locale, {
-    hour: "2-digit",
-    minute: "2-digit",
-  });
+  const endDateRaw = (event as typeof event & { endDate?: string | null }).endDate;
+  const endDateObj = endDateRaw ? new Date(endDateRaw) : null;
 
-  const shareText = `🎉 ${event.title}\n📅 ${formattedDate} ${t.at} ${formattedTime}\n📍 ${event.location}${event.ticketPrice ? `\n🎟️ ${t.entry} : ${event.ticketPrice}` : ""}\n\nDécouvrez cet événement sur TogoMarket : ${window.location.origin}`;
+  const hasTime = eventDate.getHours() !== 0 || eventDate.getMinutes() !== 0;
+  const formattedDate = eventDate.toLocaleDateString(locale, {
+    weekday: "long", day: "numeric", month: "long", year: "numeric",
+  });
+  const formattedTime = eventDate.toLocaleTimeString(locale, { hour: "2-digit", minute: "2-digit" });
+
+  const hasEndDate = endDateObj && endDateObj.toDateString() !== eventDate.toDateString();
+  const hasEndTime = endDateObj && (endDateObj.getHours() !== 0 || endDateObj.getMinutes() !== 0);
+  const formattedEndDate = endDateObj
+    ? endDateObj.toLocaleDateString(locale, { weekday: "long", day: "numeric", month: "long" })
+    : null;
+  const formattedEndTime = endDateObj
+    ? endDateObj.toLocaleTimeString(locale, { hour: "2-digit", minute: "2-digit" })
+    : null;
+
+  // Texte de date complet pour le partage
+  const dateLabel = hasTime ? `${formattedDate} ${t.at} ${formattedTime}` : formattedDate;
+  const endLabel = hasEndDate
+    ? ` → ${formattedEndDate}${hasEndTime ? ` ${t.at} ${formattedEndTime}` : ""}`
+    : "";
+  const shareText = `🎉 ${event.title}\n📅 ${dateLabel}${endLabel}\n📍 ${event.location}${event.ticketPrice ? `\n🎟️ ${t.entry} : ${event.ticketPrice}` : ""}\n\nDécouvrez cet événement sur TogoMarket : ${window.location.origin}`;
   const shareUrl = window.location.origin;
 
   return (
@@ -89,9 +101,14 @@ function EventDetailModal({ event, open, onClose, locale, t }: {
             />
           )}
           <div className="space-y-2">
-            <div className="flex items-center gap-2 text-sm">
-              <Calendar className="w-4 h-4 text-primary flex-shrink-0" />
-              <span>{formattedDate} {t.at} {formattedTime}</span>
+            <div className="flex items-start gap-2 text-sm">
+              <Calendar className="w-4 h-4 text-primary flex-shrink-0 mt-0.5" />
+              <span>
+                {formattedDate}{hasTime ? ` ${t.at} ${formattedTime}` : ""}
+                {hasEndDate && (
+                  <><br /><span className="text-muted-foreground">→ {formattedEndDate}{hasEndTime ? ` ${t.at} ${formattedEndTime}` : ""}</span></>
+                )}
+              </span>
             </div>
             <div className="flex items-center gap-2 text-sm">
               <MapPin className="w-4 h-4 text-primary flex-shrink-0" />
@@ -177,12 +194,22 @@ export function EvenementielView() {
       <div className="space-y-4">
         {events.map((event) => {
           const eventDate = new Date(event.date);
-          // Passé = expiré à 00h le lendemain du jour de la date de fin (ou de la date)
-          const endRef = new Date((event as typeof event & { endDate?: string | null }).endDate || event.date);
+          const eventEndRaw = (event as typeof event & { endDate?: string | null }).endDate;
+          const eventEndObj = eventEndRaw ? new Date(eventEndRaw) : null;
+          // Passé = expiré à 00h le lendemain du jour de la date de fin (ou de la date de début)
+          const endRef = eventEndObj ? new Date(eventEndObj) : new Date(eventDate);
           endRef.setHours(24, 0, 0, 0);
           const isPast = endRef.getTime() <= Date.now();
-          const formattedDate = eventDate.toLocaleDateString(locale, { day: "numeric", month: "long", year: "numeric" });
-          const shareText = `🎉 ${event.title}\n📅 ${formattedDate}\n📍 ${event.location}${event.ticketPrice ? `\n🎟️ ${t.entry} : ${event.ticketPrice}` : ""}\n\nDécouvrez sur TogoMarket : ${window.location.origin}`;
+
+          const cardHasTime = eventDate.getHours() !== 0 || eventDate.getMinutes() !== 0;
+          const cardFormattedDate = eventDate.toLocaleDateString(locale, { day: "numeric", month: "long", year: "numeric" });
+          const cardFormattedTime = cardHasTime ? eventDate.toLocaleTimeString(locale, { hour: "2-digit", minute: "2-digit" }) : null;
+          const cardHasEndDate = eventEndObj && eventEndObj.toDateString() !== eventDate.toDateString();
+          const cardFormattedEndDate = cardHasEndDate
+            ? eventEndObj!.toLocaleDateString(locale, { day: "numeric", month: "long" })
+            : null;
+
+          const shareText = `🎉 ${event.title}\n📅 ${cardFormattedDate}${cardFormattedTime ? ` ${t.at} ${cardFormattedTime}` : ""}${cardHasEndDate ? ` → ${cardFormattedEndDate}` : ""}\n📍 ${event.location}${event.ticketPrice ? `\n🎟️ ${t.entry} : ${event.ticketPrice}` : ""}\n\nDécouvrez sur TogoMarket : ${window.location.origin}`;
           const shareUrl = window.location.origin;
           return (
             <div key={event.id} className={`rounded-xl border bg-card overflow-hidden ${isPast ? "opacity-60" : ""}`}>
@@ -213,9 +240,12 @@ export function EvenementielView() {
                     <ShareButtons text={shareText} url={shareUrl} />
                   </div>
                 </div>
-                <div className="flex items-center gap-1.5 text-xs text-muted-foreground">
-                  <Calendar className="w-3.5 h-3.5" />
-                  <span>{formattedDate}</span>
+                <div className="flex items-start gap-1.5 text-xs text-muted-foreground">
+                  <Calendar className="w-3.5 h-3.5 mt-0.5 flex-shrink-0" />
+                  <span>
+                    {cardFormattedDate}{cardFormattedTime ? ` · ${cardFormattedTime}` : ""}
+                    {cardHasEndDate && <><br />→ {cardFormattedEndDate}</>}
+                  </span>
                 </div>
                 <div className="flex items-center gap-1.5 text-xs text-muted-foreground">
                   <MapPin className="w-3.5 h-3.5" />

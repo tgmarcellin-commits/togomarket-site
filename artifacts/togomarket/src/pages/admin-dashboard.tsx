@@ -497,7 +497,7 @@ export default function AdminDashboard() {
   const [allEvents, setAllEvents] = useState<ApiEvent[]>([]);
   const [eventsLoading, setEventsLoading] = useState(false);
   const [showEventForm, setShowEventForm] = useState(false);
-  const [eventForm, setEventForm] = useState({ title: "", description: "", date: "", location: "", ticketPrice: "", ticketLink: "", flyerImage: "", flyerPreview: "", videoPath: "", videoName: "" });
+  const [eventForm, setEventForm] = useState({ title: "", description: "", date: "", time: "", endDate: "", endTime: "", location: "", ticketPrice: "", ticketLink: "", flyerImage: "", flyerPreview: "", videoPath: "", videoName: "" });
   const eventFlyerRef = useRef<HTMLInputElement>(null);
   const eventVideoRef = useRef<HTMLInputElement>(null);
 
@@ -1007,13 +1007,20 @@ export default function AdminDashboard() {
       toast({ title: "Titre, description, date et lieu sont requis", variant: "destructive" });
       return;
     }
+    // Combine date + heure en ISO string (heure locale)
+    const startISO = eventForm.time ? `${eventForm.date}T${eventForm.time}` : eventForm.date;
+    const endISO = eventForm.endDate
+      ? eventForm.endTime ? `${eventForm.endDate}T${eventForm.endTime}` : eventForm.endDate
+      : undefined;
+
     createEvent.mutate(
       {
         data: {
           password,
           title: eventForm.title,
           description: eventForm.description,
-          date: eventForm.date,
+          date: startISO,
+          endDate: endISO,
           location: eventForm.location,
           ticketPrice: eventForm.ticketPrice || undefined,
           ticketLink: eventForm.ticketLink || undefined,
@@ -1025,7 +1032,7 @@ export default function AdminDashboard() {
         onSuccess: () => {
           toast({ title: "Événement créé !" });
           setShowEventForm(false);
-          setEventForm({ title: "", description: "", date: "", location: "", ticketPrice: "", ticketLink: "", flyerImage: "", flyerPreview: "", videoPath: "", videoName: "" });
+          setEventForm({ title: "", description: "", date: "", time: "", endDate: "", endTime: "", location: "", ticketPrice: "", ticketLink: "", flyerImage: "", flyerPreview: "", videoPath: "", videoName: "" });
           queryClient.invalidateQueries({ queryKey: getGetEventsQueryKey() });
           loadEvents();
         },
@@ -1950,8 +1957,21 @@ export default function AdminDashboard() {
               <div className="bg-card border rounded-xl p-4 space-y-3">
                 <h3 className="font-semibold text-sm">Nouvel événement</h3>
                 <div className="grid grid-cols-2 gap-3">
-                  <Input placeholder="Titre *" value={eventForm.title} onChange={(e) => setEventForm((f) => ({ ...f, title: e.target.value }))} />
-                  <Input type="date" placeholder="Date *" value={eventForm.date} onChange={(e) => setEventForm((f) => ({ ...f, date: e.target.value }))} />
+                  <Input placeholder="Titre *" value={eventForm.title} onChange={(e) => setEventForm((f) => ({ ...f, title: e.target.value }))} className="col-span-2" />
+                  <div className="col-span-2 space-y-1">
+                    <p className="text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">Début *</p>
+                    <div className="grid grid-cols-2 gap-3">
+                      <Input type="date" value={eventForm.date} onChange={(e) => setEventForm((f) => ({ ...f, date: e.target.value }))} />
+                      <Input type="time" value={eventForm.time} onChange={(e) => setEventForm((f) => ({ ...f, time: e.target.value }))} />
+                    </div>
+                  </div>
+                  <div className="col-span-2 space-y-1">
+                    <p className="text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">Fin <span className="font-normal normal-case">(si multi-jours)</span></p>
+                    <div className="grid grid-cols-2 gap-3">
+                      <Input type="date" value={eventForm.endDate} onChange={(e) => setEventForm((f) => ({ ...f, endDate: e.target.value }))} />
+                      <Input type="time" value={eventForm.endTime} onChange={(e) => setEventForm((f) => ({ ...f, endTime: e.target.value }))} />
+                    </div>
+                  </div>
                   <Input placeholder="Lieu *" value={eventForm.location} onChange={(e) => setEventForm((f) => ({ ...f, location: e.target.value }))} />
                   <Input placeholder="Prix billet" value={eventForm.ticketPrice} onChange={(e) => setEventForm((f) => ({ ...f, ticketPrice: e.target.value }))} />
                   <Input placeholder="Lien billets" value={eventForm.ticketLink} onChange={(e) => setEventForm((f) => ({ ...f, ticketLink: e.target.value }))} className="col-span-2" />
@@ -2010,7 +2030,12 @@ export default function AdminDashboard() {
                           ? <span className="text-[10px] bg-green-100 text-green-700 rounded-full px-2 py-0.5 font-semibold shrink-0">Publié</span>
                           : <span className="text-[10px] bg-yellow-100 text-yellow-700 rounded-full px-2 py-0.5 font-semibold shrink-0">En attente</span>}
                       </div>
-                      <p className="text-xs text-muted-foreground">{ev.location} · {new Date(ev.date).toLocaleDateString("fr-FR")}</p>
+                      <p className="text-xs text-muted-foreground">
+                        {ev.location} · {new Date(ev.date).toLocaleString("fr-FR", { day: "2-digit", month: "short", hour: "2-digit", minute: "2-digit" })}
+                        {(ev as ApiEvent & { endDate?: string | null }).endDate
+                          ? ` → ${new Date((ev as ApiEvent & { endDate?: string | null }).endDate!).toLocaleString("fr-FR", { day: "2-digit", month: "short", hour: "2-digit", minute: "2-digit" })}`
+                          : ""}
+                      </p>
                     </div>
                     <div className="flex gap-2 flex-shrink-0">
                       {!ev.isPublished && (
