@@ -1,7 +1,12 @@
 import { Router, type IRouter } from "express";
 import { gt, eq, and, count, desc, isNotNull } from "drizzle-orm";
 import { db, adsTable } from "@workspace/db";
-import { isAdminOrSubAdmin } from "../lib/auth-sub";
+import { getAdminRole } from "../lib/admin-auth";
+
+async function canManageAds(password: unknown): Promise<boolean> {
+  const role = await getAdminRole(String(password ?? ""));
+  return role === "superadmin" || role === "admin_pub";
+}
 
 const FEDAPAY_SECRET_KEY_ADS = process.env.FEDAPAY_SECRET_KEY ?? "";
 function getFedapayBaseUrlAds(): string {
@@ -116,7 +121,7 @@ router.get("/ads", async (req, res) => {
 
 router.post("/admin/ads", async (req, res) => {
   const { password, advertiserName, advertiserPhone, videoPath } = req.body;
-  if (!await isAdminOrSubAdmin(password)) {
+  if (!await canManageAds(password)) {
     return res.status(403).json({ error: "Forbidden" });
   }
   if (!advertiserPhone || !videoPath) {
@@ -151,7 +156,7 @@ router.post("/admin/ads", async (req, res) => {
 
 router.post("/admin/ads/all", async (req, res) => {
   const { password } = req.body;
-  if (!await isAdminOrSubAdmin(password)) {
+  if (!await canManageAds(password)) {
     return res.status(403).json({ error: "Forbidden" });
   }
   try {
@@ -165,7 +170,7 @@ router.post("/admin/ads/all", async (req, res) => {
 
 router.post("/admin/ads/delete", async (req, res) => {
   const { id, password } = req.body;
-  if (!await isAdminOrSubAdmin(password)) {
+  if (!await canManageAds(password)) {
     return res.status(403).json({ error: "Forbidden" });
   }
   try {
@@ -180,7 +185,7 @@ router.post("/admin/ads/delete", async (req, res) => {
 // POST /admin/ads/pin — toggle pin on an ad (max 5 pinned per category)
 router.post("/admin/ads/pin", async (req, res) => {
   const { id, password } = req.body;
-  if (!await isAdminOrSubAdmin(password)) {
+  if (!await canManageAds(password)) {
     return res.status(403).json({ error: "Forbidden" });
   }
   if (!id) {

@@ -365,9 +365,10 @@ export const GetAdminSettingsResponse = zod.object({
   "commissionRate": zod.number(),
   "whatsappCommission": zod.string(),
   "whatsappOrders": zod.string(),
-  "subAdminPassword": zod.string(),
   "whatsappAds": zod.string(),
-  "whatsappServices": zod.string()
+  "whatsappServices": zod.string(),
+  "otpProvider": zod.enum(['WHATSAPP', 'TECHSOFT', 'MANUAL']),
+  "whatsappValidation": zod.string()
 })
 
 
@@ -381,16 +382,19 @@ export const UpdateAdminSettingsBody = zod.object({
   "whatsappOrders": zod.string(),
   "subAdminPassword": zod.string().optional(),
   "whatsappAds": zod.string().optional(),
-  "whatsappServices": zod.string().optional()
+  "whatsappServices": zod.string().optional(),
+  "otpProvider": zod.enum(['WHATSAPP', 'TECHSOFT', 'MANUAL']).optional(),
+  "whatsappValidation": zod.string().optional()
 })
 
 export const UpdateAdminSettingsResponse = zod.object({
   "commissionRate": zod.number(),
   "whatsappCommission": zod.string(),
   "whatsappOrders": zod.string(),
-  "subAdminPassword": zod.string(),
   "whatsappAds": zod.string(),
-  "whatsappServices": zod.string()
+  "whatsappServices": zod.string(),
+  "otpProvider": zod.enum(['WHATSAPP', 'TECHSOFT', 'MANUAL']),
+  "whatsappValidation": zod.string()
 })
 
 
@@ -543,7 +547,7 @@ export const GetStatsResponse = zod.object({
 
 
 /**
- * @summary Register a new vendor account (sends OTP via WhatsApp)
+ * @summary Register a new vendor account (sends OTP through the configured provider)
  */
 export const VendorRegisterBody = zod.object({
   "firstName": zod.string(),
@@ -558,7 +562,7 @@ export const VendorRegisterBody = zod.object({
 
 
 /**
- * @summary Verify OTP received on WhatsApp to activate the account
+ * @summary Verify OTP to activate the account
  */
 export const VendorVerifyOtpBody = zod.object({
   "phone": zod.string(),
@@ -589,14 +593,16 @@ export const VendorVerifyOtpResponse = zod.object({
 
 
 /**
- * @summary Resend OTP to vendor's WhatsApp
+ * @summary Resend OTP through the configured provider
  */
 export const VendorResendOtpBody = zod.object({
   "phone": zod.string()
 })
 
 export const VendorResendOtpResponse = zod.object({
-  "success": zod.boolean()
+  "success": zod.boolean(),
+  "provider": zod.enum(['WHATSAPP', 'TECHSOFT', 'MANUAL']),
+  "sent": zod.boolean()
 })
 
 

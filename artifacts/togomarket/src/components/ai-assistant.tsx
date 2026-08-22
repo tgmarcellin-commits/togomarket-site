@@ -7,8 +7,6 @@ interface Message {
   content: string;
 }
 
-const WHATSAPP_NUMBER = "22870703131";
-
 const WELCOME_MESSAGES: Record<"fr" | "en", string> = {
   fr: "Bonjour ! 👋 Je suis l'assistante virtuelle de TogoMarket. Comment puis-je vous aider ?",
   en: "Hello! 👋 I'm TogoMarket's virtual assistant. How can I help you?",
@@ -41,9 +39,10 @@ const WHATSAPP_LABELS: Record<"fr" | "en", string> = {
 
 interface Props {
   lang: "fr" | "en";
+  supportWhatsApp?: string;
 }
 
-export function AiAssistant({ lang }: Props) {
+export function AiAssistant({ lang, supportWhatsApp = "22870703131" }: Props) {
   const [open, setOpen] = useState(false);
   const [messages, setMessages] = useState<Message[]>([]);
   const [input, setInput] = useState("");
@@ -163,7 +162,7 @@ export function AiAssistant({ lang }: Props) {
   );
 
   const openWhatsApp = () => {
-    window.open(`https://wa.me/${WHATSAPP_NUMBER}`, "_blank");
+    window.open(`https://wa.me/${supportWhatsApp}`, "_blank");
   };
 
   return (

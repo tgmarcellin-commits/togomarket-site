@@ -1,7 +1,12 @@
 import { Router, type IRouter } from "express";
 import { gt, eq, and } from "drizzle-orm";
 import { db, servicesTable } from "@workspace/db";
-import { isAdminOrSubAdmin } from "../lib/auth-sub";
+import { getAdminRole } from "../lib/admin-auth";
+
+async function canManageServices(password: unknown): Promise<boolean> {
+  const role = await getAdminRole(String(password ?? ""));
+  return role === "superadmin" || role === "admin_service";
+}
 
 const FEDAPAY_SECRET_KEY_SV = process.env.FEDAPAY_SECRET_KEY ?? "";
 function getFedapayBaseUrlSv(): string {
@@ -59,7 +64,7 @@ router.get("/services", async (req, res) => {
 
 router.post("/admin/services", async (req, res) => {
   const { password, type, title, description, contact, quartier, ville, image, videoPath } = req.body;
-  if (!await isAdminOrSubAdmin(password)) {
+  if (!await canManageServices(password)) {
     return res.status(403).json({ error: "Forbidden" });
   }
   if (!type || !title || !description || !contact || !quartier || !ville) {
@@ -93,7 +98,7 @@ router.post("/admin/services", async (req, res) => {
 
 router.post("/admin/services/all", async (req, res) => {
   const { password } = req.body;
-  if (!await isAdminOrSubAdmin(password)) {
+  if (!await canManageServices(password)) {
     return res.status(403).json({ error: "Forbidden" });
   }
   try {
@@ -107,7 +112,7 @@ router.post("/admin/services/all", async (req, res) => {
 
 router.post("/admin/services/delete", async (req, res) => {
   const { id, password } = req.body;
-  if (!await isAdminOrSubAdmin(password)) {
+  if (!await canManageServices(password)) {
     return res.status(403).json({ error: "Forbidden" });
   }
   try {

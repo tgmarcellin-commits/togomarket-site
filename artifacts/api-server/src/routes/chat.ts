@@ -454,7 +454,8 @@ router.post(
   "/conversations/:id/upload",
   upload.single("file"),
   async (req, res) => {
-    const convId = parseInt(req.params["id"] ?? "", 10);
+    const rawConversationId = req.params["id"];
+    const convId = parseInt(Array.isArray(rawConversationId) ? rawConversationId[0] ?? "" : rawConversationId ?? "", 10);
     if (isNaN(convId)) { res.status(400).json({ error: "invalid id" }); return; }
 
     const identity = await resolveIdentity(req as Parameters<typeof resolveIdentity>[0], convId);

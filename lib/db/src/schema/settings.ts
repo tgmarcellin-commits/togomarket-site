@@ -8,4 +8,6 @@ export const platformSettingsTable = pgTable("platform_settings", {
   subAdminPassword: text("sub_admin_password").notNull().default("0101"),
   whatsappAds: text("whatsapp_ads").notNull().default("22870703131"),
   whatsappServices: text("whatsapp_services").notNull().default("22870703131"),
+  otpProvider: text("otp_provider").notNull().default("WHATSAPP"),
+  whatsappValidation: text("whatsapp_validation").notNull().default("22870703131"),
 });

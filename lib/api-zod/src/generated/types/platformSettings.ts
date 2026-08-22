@@ -5,12 +5,14 @@
  * TogoMarket API
  * OpenAPI spec version: 0.1.0
  */
+import type { PlatformSettingsOtpProvider } from './platformSettingsOtpProvider';
 
 export interface PlatformSettings {
   commissionRate: number;
   whatsappCommission: string;
   whatsappOrders: string;
-  subAdminPassword: string;
   whatsappAds: string;
   whatsappServices: string;
+  otpProvider: PlatformSettingsOtpProvider;
+  whatsappValidation: string;
 }

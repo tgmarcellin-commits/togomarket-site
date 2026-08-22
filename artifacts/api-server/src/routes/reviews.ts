@@ -3,7 +3,7 @@ import { eq, desc, sql } from "drizzle-orm";
 import { randomBytes } from "node:crypto";
 import { db, reviewsTable, listingsTable } from "@workspace/db";
 import { normalizePhone } from "../lib/phone";
-import { ADMIN_PASSWORD, isAdminAny } from "../lib/admin-auth";
+import { isSuperAdmin } from "../lib/admin-auth";
 import { logger } from "../lib/logger";
 
 const router: IRouter = Router();
@@ -142,9 +142,7 @@ router.post("/reviews/delete", async (req, res): Promise<void> => {
   }
 
   const isAuthor = editToken.length > 0 && rows[0].editToken === editToken;
-  const isAdmin =
-    password.length > 0 &&
-    ((ADMIN_PASSWORD && password === ADMIN_PASSWORD) || (await isAdminAny(password)));
+  const isAdmin = password.length > 0 && await isSuperAdmin(password);
 
   if (!isAuthor && !isAdmin) {
     res.status(403).json({ error: "Vous ne pouvez pas supprimer cet avis." });

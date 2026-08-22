@@ -538,6 +538,8 @@ export default function AdminDashboard() {
     whatsappServices: "",
     commissionRate: "5",
     subAdminPwd: "",
+    otpProvider: "WHATSAPP" as "WHATSAPP" | "TECHSOFT" | "MANUAL",
+    whatsappValidation: "",
   });
 
   const pendingMutation = useAdminGetPendingListings();
@@ -571,6 +573,8 @@ export default function AdminDashboard() {
         whatsappAds: settingsData.whatsappAds ?? "",
         whatsappServices: settingsData.whatsappServices ?? "",
         commissionRate: String(settingsData.commissionRate ?? 5),
+        otpProvider: settingsData.otpProvider ?? "WHATSAPP",
+        whatsappValidation: settingsData.whatsappValidation ?? "",
       }));
     }
   }, [settingsData]);
@@ -1141,6 +1145,8 @@ export default function AdminDashboard() {
           whatsappAds: settingsForm.whatsappAds || undefined,
           whatsappServices: settingsForm.whatsappServices || undefined,
           subAdminPassword: settingsForm.subAdminPwd || undefined,
+          otpProvider: settingsForm.otpProvider,
+          whatsappValidation: settingsForm.whatsappValidation,
         }
       },
       {
@@ -1893,12 +1899,12 @@ export default function AdminDashboard() {
                         </p>
                       </div>
                       <div className="flex gap-2 flex-shrink-0 flex-wrap justify-end">
-                        {!active && (
+                        {isSuperAdmin && !active && (
                           <Button size="sm" variant="outline" className="h-7 text-xs border-orange-400 text-orange-700 hover:bg-orange-50" onClick={() => handleRenewAdFree(ad.id, ad.advertiserName)}>
                             🔄 Renouveler
                           </Button>
                         )}
-                        {!ad.isPublished && active && (
+                        {isSuperAdmin && !ad.isPublished && active && (
                           <Button size="sm" variant="outline" className="h-7 text-xs border-green-400 text-green-700 hover:bg-green-50" onClick={() => setConfirmPublishItem({ type: "ad", id: ad.id, title: ad.advertiserName })}>
                             <CheckCircle className="w-3 h-3 mr-1" />
                             Valider
@@ -2038,7 +2044,7 @@ export default function AdminDashboard() {
                       </p>
                     </div>
                     <div className="flex gap-2 flex-shrink-0">
-                      {!ev.isPublished && (
+                      {isSuperAdmin && !ev.isPublished && (
                         <Button size="sm" variant="outline" className="h-7 text-xs border-green-400 text-green-700 hover:bg-green-50" onClick={() => setConfirmPublishItem({ type: "event", id: ev.id, title: ev.title })}>
                           <CheckCircle className="w-3 h-3 mr-1" />
                           Valider
@@ -2155,7 +2161,7 @@ export default function AdminDashboard() {
                           🔄 Renouveler
                         </Button>
                       )}
-                      {!s.isPublished && !svcExpired && (
+                       {isSuperAdmin && !s.isPublished && !svcExpired && (
                         <Button size="sm" variant="outline" className="h-7 text-xs border-green-400 text-green-700 hover:bg-green-50" onClick={() => setConfirmPublishItem({ type: "service", id: s.id, title: s.title })}>
                           <CheckCircle className="w-3 h-3 mr-1" />
                           Valider
@@ -2212,6 +2218,24 @@ export default function AdminDashboard() {
               <div>
                 <label className="text-sm font-medium block mb-1.5">Mot de passe sous-admin</label>
                 <Input placeholder="Nouveau mot de passe sous-admin" value={settingsForm.subAdminPwd} onChange={(e) => setSettingsForm((f) => ({ ...f, subAdminPwd: e.target.value }))} />
+              </div>
+              <div>
+                <label className="text-sm font-medium block mb-1.5">Fournisseur OTP</label>
+                <select
+                  className="border rounded-md px-3 py-2 text-sm w-full"
+                  value={settingsForm.otpProvider}
+                  onChange={(e) => setSettingsForm((f) => ({ ...f, otpProvider: e.target.value as typeof f.otpProvider }))}
+                >
+                  <option value="WHATSAPP">WhatsApp Business</option>
+                  <option value="TECHSOFT">Techsoft (SMS)</option>
+                  <option value="MANUAL">Activation manuelle</option>
+                </select>
+                <p className="text-xs text-muted-foreground mt-1">Les identifiants Techsoft sont configurés dans les Secrets Replit.</p>
+              </div>
+              <div>
+                <label className="text-sm font-medium block mb-1.5">WhatsApp validations et support</label>
+                <Input placeholder="22870703131" value={settingsForm.whatsappValidation} onChange={(e) => setSettingsForm((f) => ({ ...f, whatsappValidation: e.target.value }))} />
+                <p className="text-xs text-muted-foreground mt-1">Reçoit les demandes d'activation manuelle et sert de contact support.</p>
               </div>
               <Button onClick={handleSaveSettings} disabled={updateSettings.isPending}>
                 {updateSettings.isPending ? "Sauvegarde…" : "Sauvegarder"}

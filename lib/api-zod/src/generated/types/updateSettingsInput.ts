@@ -5,6 +5,7 @@
  * TogoMarket API
  * OpenAPI spec version: 0.1.0
  */
+import type { UpdateSettingsInputOtpProvider } from './updateSettingsInputOtpProvider';
 
 export interface UpdateSettingsInput {
   password: string;
@@ -14,4 +15,6 @@ export interface UpdateSettingsInput {
   subAdminPassword?: string;
   whatsappAds?: string;
   whatsappServices?: string;
+  otpProvider?: UpdateSettingsInputOtpProvider;
+  whatsappValidation?: string;
 }

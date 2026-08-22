@@ -383,6 +383,7 @@ export default function Home() {
   const commissionRate = settings?.commissionRate ?? 2;
   const whatsappCommission = settings?.whatsappCommission ?? "22870703131";
   const whatsappOrders = settings?.whatsappOrders ?? "22870703131";
+  const whatsappValidation = settings?.whatsappValidation ?? "22870703131";
 
   useEffect(() => {
     setPage(1);
@@ -1278,7 +1279,7 @@ export default function Home() {
       )}
 
       {/* ── AI ASSISTANT ──────────────────────────────────────────────── */}
-      <AiAssistant lang={lang} />
+      <AiAssistant lang={lang} supportWhatsApp={whatsappValidation} />
 
       {/* ── BOTTOM NAVIGATION ─────────────────────────────────────────── */}
       <BottomNav

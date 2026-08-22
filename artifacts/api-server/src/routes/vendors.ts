@@ -4,7 +4,8 @@ import bcrypt from "bcryptjs";
 import { randomUUID } from "node:crypto";
 import multer from "multer";
 import { db, vendorsTable, publishCodesTable, otpCodesTable, listingsTable, conversationsTable, messagesTable } from "@workspace/db";
-import { sendWhatsAppOTP, sendWhatsAppText } from "../lib/whatsapp-api";
+import { sendWhatsAppText } from "../lib/whatsapp-api";
+import { dispatchVendorOTP, getOtpConfiguration } from "../lib/otp-provider";
 import { normalizePhone, phoneEq } from "../lib/phone";
 import { getIo } from "../lib/socket-io";
 import { ObjectStorageService } from "../lib/objectStorage";
@@ -36,7 +37,7 @@ import {
   AdminDeleteVendorBody,
   AdminResetVendorPasswordBody,
 } from "@workspace/api-zod";
-import { isSuperAdmin, isAdminAny } from "../lib/admin-auth";
+import { isSuperAdmin } from "../lib/admin-auth";
 
 const router: IRouter = Router();
 
@@ -123,12 +124,12 @@ router.post("/vendors/register", async (req, res) => {
     // Vendor exists but not yet verified — resend OTP
     try {
       const code = await generateAndStoreOTP(phone);
-      await sendWhatsAppOTP(phone, code, vendor.firstName);
-      req.log.info({ id: vendor.id }, "OTP resent to existing unverified vendor");
-      return res.status(201).json({ id: vendor.id, firstName: vendor.firstName, lastName: vendor.lastName, phone });
+      const delivery = await dispatchVendorOTP(phone, code, vendor.firstName);
+      req.log.info({ id: vendor.id, ...delivery }, "OTP resent to existing unverified vendor");
+      return res.status(201).json({ id: vendor.id, firstName: vendor.firstName, lastName: vendor.lastName, phone, ...delivery });
     } catch (err) {
       req.log.error({ err }, "Failed to resend OTP to existing vendor");
-      return res.status(500).json({ error: "Impossible d'envoyer le code WhatsApp. Réessayez." });
+      return res.status(500).json({ error: "Impossible de créer le code. Réessayez." });
     }
   }
 
@@ -159,7 +160,7 @@ router.post("/vendors/register", async (req, res) => {
     vendorId = vendor.id;
 
     const code = await generateAndStoreOTP(phone);
-    await sendWhatsAppOTP(phone, code, firstName);
+    const delivery = await dispatchVendorOTP(phone, code, firstName);
 
     if (referredBy) {
       const referrers = await db.select().from(vendorsTable).where(eq(vendorsTable.id, referredBy)).limit(1);
@@ -175,14 +176,14 @@ router.post("/vendors/register", async (req, res) => {
       }
     }
 
-    req.log.info({ id: vendor.id }, "Vendor registered, OTP sent via WhatsApp");
-    return res.status(201).json({ id: vendor.id, firstName, lastName, phone });
+    req.log.info({ id: vendor.id, ...delivery }, "Vendor registered");
+    return res.status(201).json({ id: vendor.id, firstName, lastName, phone, ...delivery });
   } catch (err) {
     req.log.error({ err }, "Failed to register vendor or send OTP");
     if (vendorId) {
       await db.delete(vendorsTable).where(eq(vendorsTable.id, vendorId)).catch(() => {});
     }
-    return res.status(500).json({ error: "Impossible d'envoyer le code WhatsApp. Vérifiez votre numéro et réessayez." });
+    return res.status(500).json({ error: "Impossible de créer le compte. Réessayez." });
   }
 });
 
@@ -272,7 +273,7 @@ router.post("/vendors/request-manual-activation", async (req, res) => {
 
   // Notifier l'admin via WhatsApp (non-fatal si échec)
   try {
-    const adminPhone = "22870703131";
+    const { whatsappValidation: adminPhone } = await getOtpConfiguration();
     const msg =
       `🔔 *Demande d'activation manuelle TogoMarket*\n\n` +
       `Vendeur : ${vendor.firstName} ${vendor.lastName}\n` +
@@ -319,12 +320,12 @@ router.post("/vendors/resend-otp", async (req, res) => {
 
   try {
     const code = await generateAndStoreOTP(phone);
-    await sendWhatsAppOTP(phone, code, vendor.firstName);
+    const delivery = await dispatchVendorOTP(phone, code, vendor.firstName);
     req.log.info({ id: vendor.id }, "OTP resent");
-    return res.json({ success: true });
+    return res.json({ success: true, ...delivery });
   } catch (err) {
     req.log.error({ err }, "Failed to resend OTP");
-    return res.status(500).json({ error: "Impossible d'envoyer le code WhatsApp. Réessayez." });
+    return res.status(500).json({ error: "Impossible de renvoyer le code. Réessayez." });
   }
 });
 
@@ -393,7 +394,7 @@ router.post("/vendors/profile/update", async (req, res) => {
 router.post("/admin/vendors", async (req, res) => {
   const parsed = AdminGetVendorsBody.safeParse(req.body);
   if (!parsed.success) return res.status(400).json({ error: parsed.error.message });
-  if (!await isAdminAny(parsed.data.password)) return res.status(403).json({ error: "Forbidden" });
+  if (!await isSuperAdmin(parsed.data.password)) return res.status(403).json({ error: "Forbidden" });
 
   try {
     const vendors = await db.select().from(vendorsTable).orderBy(desc(vendorsTable.createdAt));
@@ -413,7 +414,7 @@ router.post("/admin/vendors", async (req, res) => {
 router.post("/admin/vendors/activate", async (req, res) => {
   const parsed = AdminActivateVendorBody.safeParse(req.body);
   if (!parsed.success) return res.status(400).json({ error: parsed.error.message });
-  if (!await isAdminAny(parsed.data.password)) return res.status(403).json({ error: "Forbidden" });
+  if (!await isSuperAdmin(parsed.data.password)) return res.status(403).json({ error: "Forbidden" });
 
   try {
     const vendors = await db.select().from(vendorsTable).where(eq(vendorsTable.id, parsed.data.vendorId)).limit(1);
@@ -441,7 +442,7 @@ router.post("/admin/vendors/activate", async (req, res) => {
 router.post("/admin/vendors/generate-code", async (req, res) => {
   const parsed = AdminGenerateVendorCodeBody.safeParse(req.body);
   if (!parsed.success) return res.status(400).json({ error: parsed.error.message });
-  if (!await isAdminAny(parsed.data.password)) return res.status(403).json({ error: "Forbidden" });
+  if (!await isSuperAdmin(parsed.data.password)) return res.status(403).json({ error: "Forbidden" });
 
   try {
     const vendors = await db.select().from(vendorsTable).where(eq(vendorsTable.id, parsed.data.vendorId)).limit(1);
@@ -705,7 +706,7 @@ router.get("/vendors/sector/:sector", async (req, res) => {
 router.post("/admin/vendors/reset-password", async (req, res) => {
   const parsed = AdminResetVendorPasswordBody.safeParse(req.body);
   if (!parsed.success) return res.status(400).json({ error: parsed.error.message });
-  if (!await isAdminAny(parsed.data.password)) return res.status(403).json({ error: "Forbidden" });
+  if (!await isSuperAdmin(parsed.data.password)) return res.status(403).json({ error: "Forbidden" });
 
   const normalizedPhone = normalizePhone(parsed.data.vendorPhone);
   try {
@@ -726,7 +727,7 @@ router.post("/admin/vendors/reset-password", async (req, res) => {
 router.post("/admin/vendors/delete", async (req, res) => {
   const parsed = AdminDeleteVendorBody.safeParse(req.body);
   if (!parsed.success) return res.status(400).json({ error: parsed.error.message });
-  if (!await isAdminAny(parsed.data.password)) return res.status(403).json({ error: "Forbidden" });
+  if (!await isSuperAdmin(parsed.data.password)) return res.status(403).json({ error: "Forbidden" });
 
   try {
     const existing = await db.select({ id: vendorsTable.id }).from(vendorsTable).where(eq(vendorsTable.id, parsed.data.vendorId)).limit(1);
@@ -866,7 +867,8 @@ router.post(
     const { password } = req.body as { password?: string };
     if (!await isSuperAdmin(password ?? "")) return res.status(403).json({ error: "superadmin only" });
 
-    const convId = parseInt(req.params["id"] ?? "", 10);
+    const rawConversationId = req.params["id"];
+    const convId = parseInt(Array.isArray(rawConversationId) ? rawConversationId[0] ?? "" : rawConversationId ?? "", 10);
     if (isNaN(convId)) return res.status(400).json({ error: "invalid id" });
 
     const file = req.file;

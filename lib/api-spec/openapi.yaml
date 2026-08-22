@@ -647,7 +647,7 @@ paths:
     post:
       operationId: vendorRegister
       tags: [vendors]
-      summary: Register a new vendor account (sends OTP via WhatsApp)
+      summary: Register a new vendor account (sends OTP through the configured provider)
       requestBody:
         required: true
         content:
@@ -656,7 +656,7 @@ paths:
               $ref: "#/components/schemas/VendorRegisterInput"
       responses:
         "201":
-          description: Vendor registered, OTP sent to WhatsApp
+          description: Vendor registered, OTP delivery status
           content:
             application/json:
               schema:
@@ -668,7 +668,7 @@ paths:
     post:
       operationId: vendorVerifyOtp
       tags: [vendors]
-      summary: Verify OTP received on WhatsApp to activate the account
+      summary: Verify OTP to activate the account
       requestBody:
         required: true
         content:
@@ -691,7 +691,7 @@ paths:
     post:
       operationId: vendorResendOtp
       tags: [vendors]
-      summary: Resend OTP to vendor's WhatsApp
+      summary: Resend OTP through the configured provider
       requestBody:
         required: true
         content:
@@ -704,7 +704,7 @@ paths:
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/SuccessResult"
+                $ref: "#/components/schemas/VendorResendOtpResult"
         "404":
           description: Vendor not found
         "429":
@@ -1699,7 +1699,7 @@ components:
 
     PlatformSettings:
       type: object
-      required: [commissionRate, whatsappCommission, whatsappOrders, subAdminPassword, whatsappAds, whatsappServices]
+      required: [commissionRate, whatsappCommission, whatsappOrders, whatsappAds, whatsappServices, otpProvider, whatsappValidation]
       properties:
         commissionRate:
           type: integer
@@ -1707,11 +1707,14 @@ components:
           type: string
         whatsappOrders:
           type: string
-        subAdminPassword:
-          type: string
         whatsappAds:
           type: string
         whatsappServices:
+          type: string
+        otpProvider:
+          type: string
+          enum: [WHATSAPP, TECHSOFT, MANUAL]
+        whatsappValidation:
           type: string
 
     UpdateSettingsInput:
@@ -1731,6 +1734,11 @@ components:
         whatsappAds:
           type: string
         whatsappServices:
+          type: string
+        otpProvider:
+          type: string
+          enum: [WHATSAPP, TECHSOFT, MANUAL]
+        whatsappValidation:
           type: string
 
     Service:
@@ -1913,7 +1921,7 @@ components:
 
     VendorRegisterResult:
       type: object
-      required: [id, firstName, lastName, phone]
+      required: [id, firstName, lastName, phone, provider, sent]
       properties:
         id:
           type: integer
@@ -1923,6 +1931,11 @@ components:
           type: string
         phone:
           type: string
+        provider:
+          type: string
+          enum: [WHATSAPP, TECHSOFT, MANUAL]
+        sent:
+          type: boolean
 
     VendorVerifyOtpInput:
       type: object
@@ -1939,6 +1952,18 @@ components:
       properties:
         phone:
           type: string
+
+    VendorResendOtpResult:
+      type: object
+      required: [success, provider, sent]
+      properties:
+        success:
+          type: boolean
+        provider:
+          type: string
+          enum: [WHATSAPP, TECHSOFT, MANUAL]
+        sent:
+          type: boolean
 
     VendorRequestManualActivationInput:
       type: object

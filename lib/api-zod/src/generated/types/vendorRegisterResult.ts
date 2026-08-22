@@ -5,10 +5,13 @@
  * TogoMarket API
  * OpenAPI spec version: 0.1.0
  */
+import type { VendorRegisterResultProvider } from './vendorRegisterResultProvider';
 
 export interface VendorRegisterResult {
   id: number;
   firstName: string;
   lastName: string;
   phone: string;
+  provider: VendorRegisterResultProvider;
+  sent: boolean;
 }

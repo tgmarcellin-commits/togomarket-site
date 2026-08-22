@@ -7,7 +7,7 @@ import {
   VerifySubAdminBody,
   VerifySubAdminResponse,
 } from "@workspace/api-zod";
-import { ADMIN_PASSWORD, SUB_ADMIN_PASSWORD_DEFAULT } from "../lib/admin-auth";
+import { SUB_ADMIN_PASSWORD_DEFAULT, isSuperAdmin } from "../lib/admin-auth";
 
 const router: IRouter = Router();
 
@@ -16,7 +16,16 @@ async function getSettings() {
   if (rows.length === 0) {
     const [row] = await db
       .insert(platformSettingsTable)
-      .values({ commissionRate: 2, whatsappCommission: "22870703131", whatsappOrders: "22870703131", subAdminPassword: SUB_ADMIN_PASSWORD_DEFAULT, whatsappAds: "22870703131", whatsappServices: "22870703131" })
+      .values({
+        commissionRate: 2,
+        whatsappCommission: "22870703131",
+        whatsappOrders: "22870703131",
+        subAdminPassword: SUB_ADMIN_PASSWORD_DEFAULT,
+        whatsappAds: "22870703131",
+        whatsappServices: "22870703131",
+        otpProvider: "WHATSAPP",
+        whatsappValidation: "22870703131",
+      })
       .returning();
     return row;
   }
@@ -29,9 +38,10 @@ router.get("/admin/settings", async (_req, res): Promise<void> => {
     commissionRate: settings.commissionRate,
     whatsappCommission: settings.whatsappCommission,
     whatsappOrders: settings.whatsappOrders,
-    subAdminPassword: settings.subAdminPassword,
     whatsappAds: settings.whatsappAds ?? "22870703131",
     whatsappServices: settings.whatsappServices ?? "22870703131",
+    otpProvider: settings.otpProvider ?? "WHATSAPP",
+    whatsappValidation: settings.whatsappValidation ?? "22870703131",
   }));
 });
 
@@ -42,7 +52,7 @@ router.post("/admin/settings", async (req, res): Promise<void> => {
     return;
   }
 
-  if (parsed.data.password !== ADMIN_PASSWORD) {
+  if (!await isSuperAdmin(parsed.data.password)) {
     res.status(403).json({ error: "Forbidden" });
     return;
   }
@@ -63,6 +73,12 @@ router.post("/admin/settings", async (req, res): Promise<void> => {
       ...(parsed.data.whatsappServices !== undefined
         ? { whatsappServices: parsed.data.whatsappServices }
         : {}),
+      ...(parsed.data.otpProvider !== undefined
+        ? { otpProvider: parsed.data.otpProvider }
+        : {}),
+      ...(parsed.data.whatsappValidation !== undefined
+        ? { whatsappValidation: parsed.data.whatsappValidation }
+        : {}),
     })
     .returning();
 
@@ -75,9 +91,10 @@ router.post("/admin/settings", async (req, res): Promise<void> => {
     commissionRate: updated.commissionRate,
     whatsappCommission: updated.whatsappCommission,
     whatsappOrders: updated.whatsappOrders,
-    subAdminPassword: updated.subAdminPassword,
     whatsappAds: updated.whatsappAds ?? "22870703131",
     whatsappServices: updated.whatsappServices ?? "22870703131",
+    otpProvider: updated.otpProvider ?? "WHATSAPP",
+    whatsappValidation: updated.whatsappValidation ?? "22870703131",
   }));
 });
 

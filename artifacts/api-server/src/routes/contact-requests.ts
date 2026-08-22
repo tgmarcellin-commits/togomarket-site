@@ -3,7 +3,7 @@ import { eq, sql } from "drizzle-orm";
 import { db, contactRequestsTable, listingsTable, vendorsTable } from "@workspace/db";
 import bcrypt from "bcryptjs";
 import { normalizePhone, phoneEq } from "../lib/phone";
-import { ADMIN_PASSWORD } from "../lib/admin-auth";
+import { isSuperAdmin } from "../lib/admin-auth";
 
 const router: IRouter = Router();
 
@@ -65,7 +65,7 @@ router.post("/vendor/contact-requests", async (req, res) => {
 
 router.post("/admin/contact-requests/stats", async (req, res) => {
   const { password } = req.body;
-  if (password !== ADMIN_PASSWORD) return res.status(403).json({ error: "Forbidden" });
+  if (!await isSuperAdmin(password)) return res.status(403).json({ error: "Forbidden" });
   try {
     const stats = await db
       .select({

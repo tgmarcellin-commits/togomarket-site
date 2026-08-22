@@ -2,7 +2,7 @@ import { Router, type IRouter } from "express";
 import bcrypt from "bcryptjs";
 import { db, adminAccountsTable, vendorsTable, adsTable, eventsTable, servicesTable, publishCodesTable } from "@workspace/db";
 import { eq, and, lt, gte, lte, sql, count } from "drizzle-orm";
-import { isSuperAdmin, verifyAdminCode, getAdminRole, initDefaultSuperAdmin } from "../lib/admin-auth";
+import { isSuperAdmin, verifyAdminCode, initDefaultSuperAdmin } from "../lib/admin-auth";
 import { isAdminOrSubAdmin } from "../lib/auth-sub";
 
 const router: IRouter = Router();
@@ -206,8 +206,7 @@ router.post("/admin/vendors/force-publish", async (req, res): Promise<void> => {
 
 router.post("/admin/ads/force-publish", async (req, res): Promise<void> => {
   const { code, id } = req.body;
-  const role = await getAdminRole(String(code ?? ""));
-  if (!role || (role !== "superadmin" && role !== "admin_pub")) {
+  if (!await isSuperAdmin(String(code ?? ""))) {
     res.status(403).json({ error: "Accès refusé" });
     return;
   }
@@ -222,8 +221,7 @@ router.post("/admin/ads/force-publish", async (req, res): Promise<void> => {
 
 router.post("/admin/events/force-publish", async (req, res): Promise<void> => {
   const { code, id } = req.body;
-  const role = await getAdminRole(String(code ?? ""));
-  if (!role || (role !== "superadmin" && role !== "admin_event")) {
+  if (!await isSuperAdmin(String(code ?? ""))) {
     res.status(403).json({ error: "Accès refusé" });
     return;
   }
@@ -238,8 +236,7 @@ router.post("/admin/events/force-publish", async (req, res): Promise<void> => {
 
 router.post("/admin/services/force-publish", async (req, res): Promise<void> => {
   const { code, id } = req.body;
-  const role = await getAdminRole(String(code ?? ""));
-  if (!role || (role !== "superadmin" && role !== "admin_service")) {
+  if (!await isSuperAdmin(String(code ?? ""))) {
     res.status(403).json({ error: "Accès refusé" });
     return;
   }

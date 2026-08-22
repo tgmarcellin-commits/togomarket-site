@@ -2,6 +2,17 @@ import bcrypt from "bcryptjs";
 import { db, adminAccountsTable } from "@workspace/db";
 import { eq } from "drizzle-orm";
 
+function requiredSecret(name: "ADMIN_PASSWORD" | "SUB_ADMIN_PASSWORD"): string {
+  const value = process.env[name]?.trim();
+  if (!value) {
+    throw new Error(`${name} must be configured as a Replit Secret`);
+  }
+  return value;
+}
+
+export const ADMIN_PASSWORD = requiredSecret("ADMIN_PASSWORD");
+export const SUB_ADMIN_PASSWORD_DEFAULT = requiredSecret("SUB_ADMIN_PASSWORD");
+
 export async function verifyAdminCode(code: string): Promise<{ role: string; username: string } | null> {
   const accounts = await db.select().from(adminAccountsTable);
   for (const account of accounts) {
@@ -36,8 +47,7 @@ export async function initDefaultSuperAdmin() {
     .limit(1);
 
   if (existing.length === 0) {
-    const defaultCode = process.env.ADMIN_PASSWORD ?? "17210";
-    const codeHash = await bcrypt.hash(defaultCode, 10);
+    const codeHash = await bcrypt.hash(ADMIN_PASSWORD, 10);
     await db.insert(adminAccountsTable).values({
       username: "superadmin",
       role: "superadmin",
@@ -45,6 +55,3 @@ export async function initDefaultSuperAdmin() {
     });
   }
 }
-
-export const ADMIN_PASSWORD = process.env.ADMIN_PASSWORD ?? "17210";
-export const SUB_ADMIN_PASSWORD_DEFAULT = process.env.SUB_ADMIN_PASSWORD ?? "1234";

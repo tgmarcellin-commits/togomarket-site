@@ -1,7 +1,7 @@
 import { Router, type IRouter } from "express";
 import { eq, and } from "drizzle-orm";
 import { db, sellersTable, listingsTable } from "@workspace/db";
-import { ADMIN_PASSWORD } from "../lib/admin-auth";
+import { isSuperAdmin } from "../lib/admin-auth";
 
 const router: IRouter = Router();
 
@@ -54,7 +54,7 @@ router.get("/sellers/:id", async (req, res): Promise<void> => {
 router.post("/admin/sellers", async (req, res): Promise<void> => {
   const { password, firstName, phone } = req.body;
 
-  if (!password || password !== ADMIN_PASSWORD) {
+  if (!password || !await isSuperAdmin(password)) {
     res.status(403).json({ error: "Forbidden" });
     return;
   }
@@ -80,7 +80,7 @@ router.post("/admin/sellers", async (req, res): Promise<void> => {
 router.post("/admin/sellers/list", async (req, res): Promise<void> => {
   const { password } = req.body;
 
-  if (!password || password !== ADMIN_PASSWORD) {
+  if (!password || !await isSuperAdmin(password)) {
     res.status(403).json({ error: "Forbidden" });
     return;
   }
@@ -96,7 +96,7 @@ router.post("/admin/sellers/list", async (req, res): Promise<void> => {
 router.post("/admin/sellers/delete", async (req, res): Promise<void> => {
   const { password, id } = req.body;
 
-  if (!password || password !== ADMIN_PASSWORD) {
+  if (!password || !await isSuperAdmin(password)) {
     res.status(403).json({ error: "Forbidden" });
     return;
   }

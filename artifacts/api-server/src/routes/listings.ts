@@ -17,7 +17,7 @@ import {
 } from "@workspace/api-zod";
 import { logger } from "../lib/logger";
 import { ObjectStorageService } from "../lib/objectStorage";
-import { ADMIN_PASSWORD, isAdminAny } from "../lib/admin-auth";
+import { isSuperAdmin } from "../lib/admin-auth";
 
 const objectStorage = new ObjectStorageService();
 
@@ -366,7 +366,7 @@ router.post("/admin/listings/create", async (req, res) => {
   if (!parsed.success) {
     return res.status(400).json({ error: parsed.error.message });
   }
-  if (parsed.data.password !== ADMIN_PASSWORD) {
+  if (!await isSuperAdmin(parsed.data.password)) {
     return res.status(403).json({ error: "Forbidden" });
   }
 
@@ -394,7 +394,7 @@ router.post("/admin/listings/pending", async (req, res): Promise<void> => {
     res.status(400).json({ error: parsed.error.message });
     return;
   }
-  if (parsed.data.password !== ADMIN_PASSWORD) {
+  if (!await isSuperAdmin(parsed.data.password)) {
     res.status(403).json({ error: "Forbidden" });
     return;
   }
@@ -414,7 +414,7 @@ router.post("/admin/listings/approve", async (req, res): Promise<void> => {
     res.status(400).json({ error: parsed.error.message });
     return;
   }
-  if (parsed.data.password !== ADMIN_PASSWORD) {
+  if (!await isSuperAdmin(parsed.data.password)) {
     res.status(403).json({ error: "Forbidden" });
     return;
   }
@@ -441,8 +441,7 @@ router.post("/admin/listings/delete", async (req, res): Promise<void> => {
     return;
   }
 
-  const isAdmin = parsed.data.password === ADMIN_PASSWORD || (await isAdminAny(parsed.data.password));
-  if (!isAdmin) {
+  if (!await isSuperAdmin(parsed.data.password)) {
     res.status(403).json({ error: "Forbidden" });
     return;
   }
@@ -473,8 +472,7 @@ router.post("/admin/listings/pin", async (req, res): Promise<void> => {
     return;
   }
 
-  const isAdminOk = parsed.data.password === ADMIN_PASSWORD || (await isAdminAny(parsed.data.password));
-  if (!isAdminOk) {
+  if (!await isSuperAdmin(parsed.data.password)) {
     res.status(403).json({ error: "Forbidden" });
     return;
   }
@@ -509,8 +507,7 @@ router.post("/admin/tourisme/delete", async (req, res): Promise<void> => {
     return;
   }
 
-  const isAdmin = password === ADMIN_PASSWORD || (await isAdminAny(password));
-  if (!isAdmin) {
+  if (!await isSuperAdmin(password)) {
     res.status(403).json({ error: "Forbidden" });
     return;
   }

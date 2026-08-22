@@ -12,7 +12,7 @@ import {
 } from "@workspace/api-zod";
 import { ObjectStorageService, ObjectNotFoundError } from "../lib/objectStorage";
 import { db, listingsTable, adsTable } from "@workspace/db";
-import { isAdminOrSubAdmin } from "../lib/auth-sub";
+import { isSuperAdmin } from "../lib/admin-auth";
 
 const upload = multer({
   dest: "/tmp",
@@ -221,7 +221,7 @@ router.post("/admin/storage/cleanup", async (req: Request, res: Response) => {
     res.status(400).json({ error: "Champs invalides" });
     return;
   }
-  if (!await isAdminOrSubAdmin(parsed.data.password)) {
+  if (!await isSuperAdmin(parsed.data.password)) {
     res.status(403).json({ error: "Forbidden" });
     return;
   }

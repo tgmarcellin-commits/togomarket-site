@@ -105,7 +105,6 @@ export interface AdminCreateEventInput {
   flyerImage?: string;
   videoPath?: string;
   date: string;
-  endDate?: string;
   location: string;
   ticketLink?: string;
   ticketPrice?: string;
@@ -280,14 +279,33 @@ export interface AdminPasswordInput {
   password: string;
 }
 
+export type PlatformSettingsOtpProvider = typeof PlatformSettingsOtpProvider[keyof typeof PlatformSettingsOtpProvider];
+
+
+export const PlatformSettingsOtpProvider = {
+  WHATSAPP: 'WHATSAPP',
+  TECHSOFT: 'TECHSOFT',
+  MANUAL: 'MANUAL',
+} as const;
+
 export interface PlatformSettings {
   commissionRate: number;
   whatsappCommission: string;
   whatsappOrders: string;
-  subAdminPassword: string;
   whatsappAds: string;
   whatsappServices: string;
+  otpProvider: PlatformSettingsOtpProvider;
+  whatsappValidation: string;
 }
+
+export type UpdateSettingsInputOtpProvider = typeof UpdateSettingsInputOtpProvider[keyof typeof UpdateSettingsInputOtpProvider];
+
+
+export const UpdateSettingsInputOtpProvider = {
+  WHATSAPP: 'WHATSAPP',
+  TECHSOFT: 'TECHSOFT',
+  MANUAL: 'MANUAL',
+} as const;
 
 export interface UpdateSettingsInput {
   password: string;
@@ -297,6 +315,8 @@ export interface UpdateSettingsInput {
   subAdminPassword?: string;
   whatsappAds?: string;
   whatsappServices?: string;
+  otpProvider?: UpdateSettingsInputOtpProvider;
+  whatsappValidation?: string;
 }
 
 export interface Service {
@@ -402,11 +422,22 @@ export interface VendorInSector {
   profilePhoto?: string | null;
 }
 
+export type VendorRegisterResultProvider = typeof VendorRegisterResultProvider[keyof typeof VendorRegisterResultProvider];
+
+
+export const VendorRegisterResultProvider = {
+  WHATSAPP: 'WHATSAPP',
+  TECHSOFT: 'TECHSOFT',
+  MANUAL: 'MANUAL',
+} as const;
+
 export interface VendorRegisterResult {
   id: number;
   firstName: string;
   lastName: string;
   phone: string;
+  provider: VendorRegisterResultProvider;
+  sent: boolean;
 }
 
 export interface VendorVerifyOtpInput {
@@ -416,6 +447,21 @@ export interface VendorVerifyOtpInput {
 
 export interface VendorResendOtpInput {
   phone: string;
+}
+
+export type VendorResendOtpResultProvider = typeof VendorResendOtpResultProvider[keyof typeof VendorResendOtpResultProvider];
+
+
+export const VendorResendOtpResultProvider = {
+  WHATSAPP: 'WHATSAPP',
+  TECHSOFT: 'TECHSOFT',
+  MANUAL: 'MANUAL',
+} as const;
+
+export interface VendorResendOtpResult {
+  success: boolean;
+  provider: VendorResendOtpResultProvider;
+  sent: boolean;
 }
 
 export interface VendorRequestManualActivationInput {

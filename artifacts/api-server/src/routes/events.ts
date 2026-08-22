@@ -1,7 +1,12 @@
 import { Router, type IRouter } from "express";
 import { eq, desc, and, sql } from "drizzle-orm";
 import { db, eventsTable } from "@workspace/db";
-import { isAdminOrSubAdmin } from "../lib/auth-sub";
+import { getAdminRole } from "../lib/admin-auth";
+
+async function canManageEvents(password: unknown): Promise<boolean> {
+  const role = await getAdminRole(String(password ?? ""));
+  return role === "superadmin" || role === "admin_event";
+}
 
 const router: IRouter = Router();
 
@@ -46,7 +51,7 @@ router.get("/events", async (req, res) => {
 
 router.post("/admin/events", async (req, res) => {
   const { password, title, description, flyerImage, videoPath, date, endDate, location, ticketLink, ticketPrice } = req.body;
-  if (!await isAdminOrSubAdmin(password)) {
+  if (!await canManageEvents(password)) {
     return res.status(403).json({ error: "Forbidden" });
   }
   if (!title?.trim() || !description?.trim() || !date || !location?.trim()) {
@@ -80,7 +85,7 @@ router.post("/admin/events", async (req, res) => {
 
 router.post("/admin/events/all", async (req, res) => {
   const { password } = req.body;
-  if (!await isAdminOrSubAdmin(password)) {
+  if (!await canManageEvents(password)) {
     return res.status(403).json({ error: "Forbidden" });
   }
   try {
@@ -94,7 +99,7 @@ router.post("/admin/events/all", async (req, res) => {
 
 router.post("/admin/events/delete", async (req, res) => {
   const { id, password } = req.body;
-  if (!await isAdminOrSubAdmin(password)) {
+  if (!await canManageEvents(password)) {
     return res.status(403).json({ error: "Forbidden" });
   }
   try {
