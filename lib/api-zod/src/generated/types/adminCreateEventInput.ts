@@ -13,6 +13,7 @@ export interface AdminCreateEventInput {
   flyerImage?: string;
   videoPath?: string;
   date: string;
+  endDate?: string;
   location: string;
   ticketLink?: string;
   ticketPrice?: string;

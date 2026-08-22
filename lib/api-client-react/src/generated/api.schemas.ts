@@ -88,6 +88,8 @@ export interface Event {
   /** @nullable */
   videoPath?: string | null;
   date: string;
+  /** @nullable */
+  endDate: string | null;
   location: string;
   /** @nullable */
   ticketLink?: string | null;
@@ -105,6 +107,7 @@ export interface AdminCreateEventInput {
   flyerImage?: string;
   videoPath?: string;
   date: string;
+  endDate?: string;
   location: string;
   ticketLink?: string;
   ticketPrice?: string;

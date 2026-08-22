@@ -1,11 +1,14 @@
 import { useEffect, useState, useRef, useCallback, useMemo } from "react";
-import { useGetActiveAds, type Ad } from "@workspace/api-client-react";
+import { getGetActiveAdsQueryKey, useGetActiveAds, type Ad } from "@workspace/api-client-react";
 import { Volume2, VolumeX, Play, Pause } from "lucide-react";
 import { resolveImageUrl } from "@/lib/image";
 
 export function AdBanner() {
   const { data: ads } = useGetActiveAds({
-    query: { refetchInterval: 5 * 60 * 1000 }, // re-fetch toutes les 5 min pour suivre la rotation serveur
+    query: {
+      queryKey: getGetActiveAdsQueryKey(),
+      refetchInterval: 5 * 60 * 1000,
+    }, // re-fetch toutes les 5 min pour suivre la rotation serveur
   });
 
   // Uniquement les publicités avec vidéo

@@ -1331,7 +1331,7 @@ components:
 
     Event:
       type: object
-      required: [id, title, description, date, location, createdAt]
+      required: [id, title, description, date, endDate, location, createdAt]
       properties:
         id:
           type: integer
@@ -1345,6 +1345,8 @@ components:
           type: ["string", "null"]
         date:
           type: string
+        endDate:
+          type: ["string", "null"]
         location:
           type: string
         ticketLink:
@@ -1371,6 +1373,8 @@ components:
         videoPath:
           type: string
         date:
+          type: string
+        endDate:
           type: string
         location:
           type: string

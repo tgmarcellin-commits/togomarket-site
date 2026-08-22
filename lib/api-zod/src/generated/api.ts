@@ -909,6 +909,7 @@ export const GetEventsResponseItem = zod.object({
   "flyerImage": zod.string().nullish(),
   "videoPath": zod.string().nullish(),
   "date": zod.string(),
+  "endDate": zod.string().nullable(),
   "location": zod.string(),
   "ticketLink": zod.string().nullish(),
   "ticketPrice": zod.string().nullish(),
@@ -928,6 +929,7 @@ export const AdminCreateEventBody = zod.object({
   "flyerImage": zod.string().optional(),
   "videoPath": zod.string().optional(),
   "date": zod.string(),
+  "endDate": zod.string().optional(),
   "location": zod.string(),
   "ticketLink": zod.string().optional(),
   "ticketPrice": zod.string().optional()

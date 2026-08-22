@@ -15,6 +15,8 @@ export interface Event {
   /** @nullable */
   videoPath?: string | null;
   date: string;
+  /** @nullable */
+  endDate: string | null;
   location: string;
   /** @nullable */
   ticketLink?: string | null;
