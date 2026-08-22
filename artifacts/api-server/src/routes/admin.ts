@@ -240,13 +240,22 @@ router.post("/admin/services/force-publish", async (req, res): Promise<void> => 
     res.status(403).json({ error: "Accès refusé" });
     return;
   }
+
+  const service = await db.select().from(servicesTable).where(eq(servicesTable.id, id)).limit(1);
+  if (!service[0]) {
+    res.status(404).json({ error: "Service introuvable" });
+    return;
+  }
+
   const now = new Date();
-  const thirtyDays = new Date(now.getTime() + 30 * 24 * 60 * 60 * 1000);
+  const currentExpiry = service[0].expiresAt;
+  const renewalBase = currentExpiry > now ? currentExpiry : now;
+  const thirtyDays = new Date(renewalBase.getTime() + 30 * 24 * 60 * 60 * 1000);
   await db
     .update(servicesTable)
     .set({ isPublished: true, validationMethod: "admin", expiresAt: thirtyDays })
     .where(eq(servicesTable.id, id));
-  res.json({ success: true });
+  res.json({ success: true, expiresAt: thirtyDays.toISOString() });
 });
 
 export { verifyAdminCode };

@@ -520,7 +520,12 @@ export default function AdminDashboard() {
 
   const [confirm30Vendor, setConfirm30Vendor] = useState<{ id: number; name: string } | null>(null);
   const [confirm30Loading, setConfirm30Loading] = useState(false);
-  const [confirmPublishItem, setConfirmPublishItem] = useState<{ type: "ad" | "event" | "service"; id: number; title: string } | null>(null);
+  const [confirmPublishItem, setConfirmPublishItem] = useState<{
+    type: "ad" | "event" | "service";
+    id: number;
+    title: string;
+    action?: "publish" | "renew";
+  } | null>(null);
   const [confirmPublishLoading, setConfirmPublishLoading] = useState(false);
 
   const [paymentLinkDialog, setPaymentLinkDialog] = useState<{
@@ -537,7 +542,6 @@ export default function AdminDashboard() {
     whatsappAds: "",
     whatsappServices: "",
     commissionRate: "5",
-    subAdminPwd: "",
     otpProvider: "WHATSAPP" as "WHATSAPP" | "TECHSOFT" | "MANUAL",
     whatsappValidation: "",
   });
@@ -795,26 +799,39 @@ export default function AdminDashboard() {
 
   const handleForcePublishItem = () => {
     if (!confirmPublishItem) return;
+    const item = confirmPublishItem;
     setConfirmPublishLoading(true);
-    const endpoint = confirmPublishItem.type === "ad"
+    const endpoint = item.type === "ad"
       ? "/api/admin/ads/force-publish"
-      : confirmPublishItem.type === "event"
+      : item.type === "event"
       ? "/api/admin/events/force-publish"
       : "/api/admin/services/force-publish";
     fetch(endpoint, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ code: password, id: confirmPublishItem.id }),
+      body: JSON.stringify({ code: password, id: item.id }),
     })
-      .then((r) => r.json())
+      .then(async (r) => {
+        const result = await r.json().catch(() => ({})) as { error?: string };
+        if (!r.ok) throw new Error(result.error || "Opération refusée");
+        return result;
+      })
       .then(() => {
-        toast({ title: "Publié avec succès" });
+        toast({
+          title: item.action === "renew"
+            ? "Service renouvelé gratuitement pour 30 jours ✅"
+            : "Publié avec succès",
+        });
         setConfirmPublishItem(null);
-        if (confirmPublishItem.type === "ad") loadAds();
-        else if (confirmPublishItem.type === "event") loadEvents();
+        if (item.type === "ad") loadAds();
+        else if (item.type === "event") loadEvents();
         else loadServices();
       })
-      .catch(() => toast({ title: "Erreur", variant: "destructive" }))
+      .catch((err: unknown) => toast({
+        title: "Opération impossible",
+        description: err instanceof Error ? err.message : "Opération refusée",
+        variant: "destructive",
+      }))
       .finally(() => setConfirmPublishLoading(false));
   };
 
@@ -1144,7 +1161,6 @@ export default function AdminDashboard() {
           whatsappOrders: settingsForm.whatsappOrders,
           whatsappAds: settingsForm.whatsappAds || undefined,
           whatsappServices: settingsForm.whatsappServices || undefined,
-          subAdminPassword: settingsForm.subAdminPwd || undefined,
           otpProvider: settingsForm.otpProvider,
           whatsappValidation: settingsForm.whatsappValidation,
         }
@@ -2156,11 +2172,20 @@ export default function AdminDashboard() {
                       <p className="text-xs text-muted-foreground">Exp. : {new Date(s.expiresAt).toLocaleDateString("fr-FR")}</p>
                     </div>
                     <div className="flex gap-2 flex-shrink-0 flex-wrap justify-end">
-                      {svcExpired && (
+                      {svcExpired && (isSuperAdmin ? (
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          className="h-7 text-xs border-green-400 text-green-700 hover:bg-green-50"
+                          onClick={() => setConfirmPublishItem({ type: "service", id: s.id, title: s.title, action: "renew" })}
+                        >
+                          🔄 +30 jours
+                        </Button>
+                      ) : (
                         <Button size="sm" variant="outline" className="h-7 text-xs border-orange-400 text-orange-700 hover:bg-orange-50" onClick={() => handleSendRenewalWhatsApp("service", s.id, s.title, s.contact ?? "")}>
                           🔄 Renouveler
                         </Button>
-                      )}
+                      ))}
                        {isSuperAdmin && !s.isPublished && !svcExpired && (
                         <Button size="sm" variant="outline" className="h-7 text-xs border-green-400 text-green-700 hover:bg-green-50" onClick={() => setConfirmPublishItem({ type: "service", id: s.id, title: s.title })}>
                           <CheckCircle className="w-3 h-3 mr-1" />
@@ -2214,10 +2239,6 @@ export default function AdminDashboard() {
               <div>
                 <label className="text-sm font-medium block mb-1.5">WhatsApp services</label>
                 <Input placeholder="22870703131" value={settingsForm.whatsappServices} onChange={(e) => setSettingsForm((f) => ({ ...f, whatsappServices: e.target.value }))} />
-              </div>
-              <div>
-                <label className="text-sm font-medium block mb-1.5">Mot de passe sous-admin</label>
-                <Input placeholder="Nouveau mot de passe sous-admin" value={settingsForm.subAdminPwd} onChange={(e) => setSettingsForm((f) => ({ ...f, subAdminPwd: e.target.value }))} />
               </div>
               <div>
                 <label className="text-sm font-medium block mb-1.5">Fournisseur OTP</label>
@@ -2714,19 +2735,31 @@ export default function AdminDashboard() {
       <Dialog open={!!confirmPublishItem} onOpenChange={(v) => { if (!v) setConfirmPublishItem(null); }}>
         <DialogContent className="sm:max-w-[380px]">
           <DialogHeader>
-            <DialogTitle>Confirmer la publication</DialogTitle>
+            <DialogTitle>
+              {confirmPublishItem?.action === "renew"
+                ? "Confirmer le renouvellement gratuit"
+                : "Confirmer la publication"}
+            </DialogTitle>
           </DialogHeader>
           <p className="text-sm text-muted-foreground">
-            Valider et publier <strong>« {confirmPublishItem?.title} »</strong> ?
-            {confirmPublishItem?.type === "ad" && " La publicité sera active 30 jours."}
-            {confirmPublishItem?.type === "service" && " Le service sera actif 30 jours."}
+            {confirmPublishItem?.action === "renew" ? (
+              <>Ajouter gratuitement 30 jours au service <strong>« {confirmPublishItem.title} »</strong>, sans paiement FedaPay ?</>
+            ) : (
+              <>
+                Valider et publier <strong>« {confirmPublishItem?.title} »</strong> ?
+                {confirmPublishItem?.type === "ad" && " La publicité sera active 30 jours."}
+                {confirmPublishItem?.type === "service" && " Le service sera actif 30 jours."}
+              </>
+            )}
           </p>
           <DialogFooter className="gap-2">
             <Button variant="outline" onClick={() => setConfirmPublishItem(null)} disabled={confirmPublishLoading}>
               Annuler
             </Button>
             <Button onClick={handleForcePublishItem} disabled={confirmPublishLoading} className="bg-green-600 hover:bg-green-700 text-white">
-              {confirmPublishLoading ? "Publication…" : "Valider et publier"}
+              {confirmPublishLoading
+                ? confirmPublishItem?.action === "renew" ? "Renouvellement…" : "Publication…"
+                : confirmPublishItem?.action === "renew" ? "Ajouter 30 jours" : "Valider et publier"}
             </Button>
           </DialogFooter>
         </DialogContent>
