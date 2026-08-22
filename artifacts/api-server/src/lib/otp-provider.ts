@@ -53,9 +53,11 @@ async function sendTechsoftOTP(phone: string, code: string, firstName: string): 
       "api-key": apiKey,
     },
     body: JSON.stringify({
+      recipient: normalizePhone(phone),
       to: normalizePhone(phone),
       phone: normalizePhone(phone),
       message,
+      sender: senderId,
       senderId,
       sender_id: senderId,
       from: senderId,

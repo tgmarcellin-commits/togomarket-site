@@ -5,3 +5,4 @@
 - [Format des numéros béninois](benin-phone-format.md) — le 0 de « 01 » fait partie du numéro ; toujours passer par normalizePhone/phoneEq, jamais retirer les zéros de tête pour +229.
 - [Dérive spec OpenAPI](openapi-spec-drift.md) — après chaque codegen orval, des champs utilisés mais absents du YAML cassent le build ; corriger le spec, pas le code appelant.
 - [Admin password secrets](admin-password-secrets.md) — ADMIN_PASSWORD et SUB_ADMIN_PASSWORD sont des secrets requis (pas de fallback en dur) lus via `artifacts/api-server/src/lib/admin-auth.ts`.
+- [Contrat SMS Techsoft](techsoft-sms-contract.md) — l’endpoint Techsoft exige un champ `recipient` pour accepter l’envoi d’un OTP.
