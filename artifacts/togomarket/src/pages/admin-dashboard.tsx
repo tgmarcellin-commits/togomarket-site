@@ -139,6 +139,24 @@ interface AdminStats {
   expiringSoon: Array<{ id: number; firstName: string; lastName: string; phone: string; expiryDate: string | null }>;
 }
 
+function isStatsSection(value: unknown): value is { total: number; paid: number; admin: number } {
+  if (!value || typeof value !== "object") return false;
+  const section = value as Record<string, unknown>;
+  return ["total", "paid", "admin"].every((key) => typeof section[key] === "number");
+}
+
+function isAdminStats(value: unknown): value is AdminStats {
+  if (!value || typeof value !== "object") return false;
+  const data = value as Record<string, unknown>;
+  return (
+    isStatsSection(data.vendors) &&
+    isStatsSection(data.ads) &&
+    isStatsSection(data.events) &&
+    isStatsSection(data.services) &&
+    Array.isArray(data.expiringSoon)
+  );
+}
+
 /** Thumbnail (h-20 w-20) — détecte automatiquement les vidéos.
  *  Pour les vidéos, appelle onVideoClick(resolvedUrl) au lieu de onClick. */
 function AdminMediaThumb({
@@ -475,6 +493,7 @@ export default function AdminDashboard() {
 
   const [stats, setStats] = useState<AdminStats | null>(null);
   const [statsLoading, setStatsLoading] = useState(false);
+  const [statsError, setStatsError] = useState<string | null>(null);
   const [statsDateFrom, setStatsDateFrom] = useState("");
   const [statsDateTo, setStatsDateTo] = useState("");
 
@@ -585,6 +604,7 @@ export default function AdminDashboard() {
 
   const loadStats = (from?: string, to?: string) => {
     setStatsLoading(true);
+    setStatsError(null);
     const dateFrom = from !== undefined ? from : statsDateFrom;
     const dateTo = to !== undefined ? to : statsDateTo;
     fetch("/api/admin/stats", {
@@ -592,9 +612,32 @@ export default function AdminDashboard() {
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ code: password, dateFrom: dateFrom || undefined, dateTo: dateTo || undefined }),
     })
-      .then((r) => r.json())
-      .then((d) => { setStats(d); setStatsLoading(false); })
-      .catch(() => setStatsLoading(false));
+      .then(async (r) => {
+        const data = await r.json().catch(() => null);
+        if (r.status === 401 || r.status === 403) {
+          clearAdminSession();
+          setStats(null);
+          toast({
+            title: "Session admin expirée",
+            description: "Veuillez vous reconnecter pour continuer.",
+            variant: "destructive",
+          });
+          navigate("/admin-login");
+          return null;
+        }
+        if (!r.ok || !isAdminStats(data)) {
+          throw new Error("Les statistiques sont momentanément indisponibles.");
+        }
+        return data;
+      })
+      .then((data) => {
+        if (data) setStats(data);
+      })
+      .catch((err: unknown) => {
+        setStats(null);
+        setStatsError(err instanceof Error ? err.message : "Les statistiques sont momentanément indisponibles.");
+      })
+      .finally(() => setStatsLoading(false));
   };
 
   const applyQuickRange = (preset: "today" | "week" | "month" | "year" | "all") => {
@@ -1434,7 +1477,9 @@ export default function AdminDashboard() {
                 <RefreshCw className="w-6 h-6 animate-spin text-muted-foreground" />
               </div>
             ) : (
-              <p className="text-center text-muted-foreground py-10">Cliquez sur Actualiser pour charger les stats.</p>
+              <p className="text-center text-muted-foreground py-10">
+                {statsError ?? "Cliquez sur Actualiser pour charger les stats."}
+              </p>
             )}
           </div>
         )}
