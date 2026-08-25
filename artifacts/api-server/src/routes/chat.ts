@@ -1,5 +1,5 @@
 import { Router, type IRouter } from "express";
-import { eq, desc, and, isNull, or } from "drizzle-orm";
+import { eq, desc, and, isNull, or, inArray } from "drizzle-orm";
 import { db } from "@workspace/db";
 import {
   conversationsTable,
@@ -24,6 +24,80 @@ const upload = multer({ dest: "/tmp", limits: { fileSize: 20 * 1024 * 1024 } });
 const objectStorage = new ObjectStorageService();
 
 const router: IRouter = Router();
+
+function firstValidListingImage(images: string[]): string | null {
+  return images.find(
+    (image) =>
+      !image.startsWith("data:") &&
+      !image.startsWith("v:") &&
+      !/\.(mp4|webm|mov|avi|mkv|m4v)$/i.test(image),
+  ) ?? null;
+}
+
+type ConversationImageContext = {
+  vendorId: number;
+  listingId: number | null;
+  listingImage: string | null;
+};
+
+/**
+ * Older conversations predate listingImage. Resolve their thumbnail at read
+ * time from the linked, vendor-owned listing while preserving saved snapshots.
+ */
+async function addListingImageFallback<T extends ConversationImageContext>(
+  conversations: T[],
+): Promise<Array<T & { listingImage: string | null }>> {
+  const missingImageConversations = conversations.filter(
+    (conversation) => !conversation.listingImage?.trim() && conversation.listingId,
+  );
+  if (missingImageConversations.length === 0) {
+    return conversations.map((conversation) => ({
+      ...conversation,
+      listingImage: conversation.listingImage?.trim() || null,
+    }));
+  }
+
+  const listingIds = [...new Set(
+    missingImageConversations
+      .map((conversation) => conversation.listingId)
+      .filter((id): id is number => id !== null),
+  )];
+  const vendorIds = [...new Set(missingImageConversations.map((conversation) => conversation.vendorId))];
+
+  const [listingRows, vendorRows] = await Promise.all([
+    db
+      .select({ id: listingsTable.id, phone: listingsTable.phone, images: listingsTable.images })
+      .from(listingsTable)
+      .where(inArray(listingsTable.id, listingIds)),
+    db
+      .select({ id: vendorsTable.id, phone: vendorsTable.phone })
+      .from(vendorsTable)
+      .where(inArray(vendorsTable.id, vendorIds)),
+  ]);
+
+  const vendorPhones = new Map(vendorRows.map((vendor) => [vendor.id, normalizePhone(vendor.phone)]));
+  const listingImages = new Map(
+    listingRows.map((listing) => [listing.id, {
+      vendorPhone: normalizePhone(listing.phone),
+      image: firstValidListingImage(listing.images),
+    }]),
+  );
+
+  return conversations.map((conversation) => {
+    const savedImage = conversation.listingImage?.trim();
+    if (savedImage || !conversation.listingId) {
+      return { ...conversation, listingImage: savedImage || null };
+    }
+
+    const listing = listingImages.get(conversation.listingId);
+    const vendorPhone = vendorPhones.get(conversation.vendorId);
+    const fallbackImage =
+      listing && vendorPhone === listing.vendorPhone
+        ? listing.image
+        : null;
+    return { ...conversation, listingImage: fallbackImage };
+  });
+}
 
 /* ──────────────────────────────────────────────────────────────
    Helper: authenticate vendor by phone + password
@@ -90,9 +164,7 @@ router.post("/conversations", async (req, res) => {
     const listing = listingRows[0];
     if (listing) {
       resolvedListingTitle = listing.name;
-      listingImage = listing.images.find(
-        (image) => !image.startsWith("data:") && !image.startsWith("v:") && !/\.(mp4|webm|mov|avi|mkv|m4v)$/i.test(image),
-      ) ?? null;
+      listingImage = firstValidListingImage(listing.images);
     }
   }
 
@@ -136,16 +208,15 @@ router.post("/conversations/buyer-list", async (req, res) => {
   const convRows = await db
     .select()
     .from(conversationsTable)
-    .where(isNull(conversationsTable.buyerDeletedAt))
+    .where(and(
+      isNull(conversationsTable.buyerDeletedAt),
+      inArray(conversationsTable.buyerToken, tokens),
+    ))
     .orderBy(desc(conversationsTable.updatedAt));
-
-  // Keep only rows whose buyerToken is in the provided list
-  const tokenSet = new Set(tokens);
-  const matched = convRows.filter((c) => tokenSet.has(c.buyerToken));
 
   // For each conversation, get the last message
   const result = await Promise.all(
-    matched.map(async (conv) => {
+    convRows.map(async (conv) => {
       const lastMsgs = await db
         .select({ content: messagesTable.content, createdAt: messagesTable.createdAt, senderType: messagesTable.senderType })
         .from(messagesTable)
@@ -167,6 +238,7 @@ router.post("/conversations/buyer-list", async (req, res) => {
         id: conv.id,
         vendorId: conv.vendorId,
         listingTitle: conv.listingTitle,
+        listingId: conv.listingId,
         listingImage: conv.listingImage,
         buyerName: conv.buyerName,
         buyerPhone: conv.buyerPhone,
@@ -178,7 +250,7 @@ router.post("/conversations/buyer-list", async (req, res) => {
     }),
   );
 
-  res.json(result);
+  res.json(await addListingImageFallback(result));
 });
 
 /* ──────────────────────────────────────────────────────────────
@@ -771,7 +843,7 @@ router.get("/vendor/conversations", async (req, res) => {
     ))
     .orderBy(desc(conversationsTable.updatedAt));
 
-  res.json(convs);
+  res.json(await addListingImageFallback(convs));
 });
 
 /* ──────────────────────────────────────────────────────────────
