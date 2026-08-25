@@ -5,6 +5,7 @@ import { Button } from "@/components/ui/button";
 import { ChatWindow } from "@/components/chat-window";
 import { useSiteSettings } from "@/lib/site-settings";
 import { getSocket } from "@/lib/socket";
+import { resolveImageUrl } from "@/lib/image";
 import type { BuyerIdentity } from "@/components/buyer-identity-prompt";
 
 /* ── Types ───────────────────────────────────────────────────── */
@@ -12,6 +13,7 @@ interface BuyerConversation {
   id: number;
   vendorId: number;
   listingTitle: string | null;
+  listingImage: string | null;
   buyerName: string;
   buyerPhone: string;
   lastMessage: string | null;
@@ -393,8 +395,16 @@ export function BuyerInbox({ identity, pendingConvId, onClearPending }: BuyerInb
               onClick={() => setOpenConv(conv)}
               className="w-full text-left rounded-xl border bg-card p-3 flex items-start gap-3 hover:bg-muted/50 transition-colors"
             >
-              <div className="w-9 h-9 rounded-full bg-primary/10 flex items-center justify-center flex-shrink-0 mt-0.5">
+              <div className="w-9 h-9 rounded-lg bg-primary/10 overflow-hidden flex items-center justify-center flex-shrink-0 mt-0.5 relative">
                 <ShoppingBag className="w-4 h-4 text-primary" />
+                {conv.listingImage && (
+                  <img
+                    src={resolveImageUrl(conv.listingImage)}
+                    alt=""
+                    className="absolute inset-0 w-full h-full object-cover"
+                    onError={(event) => { event.currentTarget.style.display = "none"; }}
+                  />
+                )}
               </div>
               <div className="flex-1 min-w-0">
                 <div className="flex items-center justify-between gap-1">
@@ -436,6 +446,7 @@ export function BuyerInbox({ identity, pendingConvId, onClearPending }: BuyerInb
           buyerIdentity={{ name: identity.name, phone: identity.phone }}
           vendorName={openConv.listingTitle ?? "Vendeur"}
           listingTitle={openConv.listingTitle}
+          listingImage={openConv.listingImage}
           auth={{ kind: "buyer", buyerToken: openConv.buyerToken }}
           onConversationDeleted={() => {
             // Remove from local sessions

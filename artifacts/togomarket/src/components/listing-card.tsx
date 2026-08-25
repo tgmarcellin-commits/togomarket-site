@@ -243,6 +243,7 @@ export function ListingCard({ listing, isAdmin, adminPassword, commissionRate, w
   };
 
   const vendorDisplayName = listing.sector || "Vendeur";
+  const listingImage = listing.images?.find((image) => !isVideoMedia(image)) ?? null;
 
   return (
     <>
@@ -454,6 +455,7 @@ export function ListingCard({ listing, isAdmin, adminPassword, commissionRate, w
         buyerIdentity={buyerIdentity}
         vendorName={vendorDisplayName}
         listingTitle={listing.name}
+        listingImage={listingImage}
         auth={{ kind: "buyer", buyerToken }}
         onConversationDeleted={() => {
           // Clear the stored session so the buyer won't re-open this deleted conversation

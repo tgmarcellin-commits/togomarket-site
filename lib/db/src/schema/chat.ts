@@ -20,6 +20,8 @@ export const conversationsTable = pgTable("conversations", {
   buyerPhone: text("buyer_phone").notNull(),
   listingTitle: text("listing_title"),
   listingId: integer("listing_id"),
+  /** Snapshot reference to the selected listing's first image, when available */
+  listingImage: text("listing_image"),
   createdAt: timestamp("created_at", { withTimezone: true })
     .notNull()
     .defaultNow(),

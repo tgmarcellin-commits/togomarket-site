@@ -34,6 +34,7 @@ interface ChatWindowProps {
   buyerIdentity: BuyerIdentity;
   vendorName: string;
   listingTitle?: string | null;
+  listingImage?: string | null;
   auth: ChatAuth;
   /** Called after the current user successfully deletes their copy of the conversation */
   onConversationDeleted?: () => void;
@@ -49,7 +50,7 @@ function canEditOrDelete(msg: ChatMessage): boolean {
 }
 
 export function ChatWindow({
-  open, onOpenChange, conversationId, buyerIdentity, vendorName, listingTitle, auth,
+  open, onOpenChange, conversationId, buyerIdentity, vendorName, listingTitle, listingImage, auth,
   onConversationDeleted,
 }: ChatWindowProps) {
   const { lang } = useSiteSettings();
@@ -529,15 +530,25 @@ export function ChatWindow({
               </div>
             )}
           </SheetTitle>
-          {listingTitle && (
+          {(listingTitle || listingImage) && (
             <div className="flex items-center gap-2 mt-1.5 bg-primary/10 border border-primary/20 rounded-lg px-3 py-2">
-              <ShoppingBag className="w-4 h-4 text-primary flex-shrink-0" />
+              <div className="w-11 h-11 rounded-md bg-primary/15 overflow-hidden flex-shrink-0 relative flex items-center justify-center">
+                <ShoppingBag className="w-4 h-4 text-primary" />
+                {listingImage && (
+                  <img
+                    src={resolveImageUrl(listingImage)}
+                    alt=""
+                    className="absolute inset-0 w-full h-full object-cover"
+                    onError={(event) => { event.currentTarget.style.display = "none"; }}
+                  />
+                )}
+              </div>
               <div className="min-w-0">
                 <p className="text-[10px] font-medium text-primary/70 uppercase tracking-wide leading-none mb-0.5">
                   {lang === "fr" ? "Article concerné" : "Item"}
                 </p>
                 <p className="text-sm font-semibold text-foreground leading-tight line-clamp-2">
-                  {listingTitle}
+                  {listingTitle ?? (lang === "fr" ? "Article sélectionné" : "Selected item")}
                 </p>
               </div>
             </div>

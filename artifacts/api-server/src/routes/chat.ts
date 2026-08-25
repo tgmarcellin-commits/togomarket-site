@@ -5,6 +5,7 @@ import {
   conversationsTable,
   messagesTable,
   vendorsTable,
+  listingsTable,
   pushSubscriptionsTable,
   buyerPushSubscriptionsTable,
   vendorNotificationsTable,
@@ -62,13 +63,37 @@ router.post("/conversations", async (req, res) => {
 
   // Validate vendor exists
   const vendorRows = await db
-    .select({ id: vendorsTable.id })
+    .select({ id: vendorsTable.id, phone: vendorsTable.phone })
     .from(vendorsTable)
     .where(eq(vendorsTable.id, Number(vendorId)))
     .limit(1);
   if (!vendorRows.length) {
     res.status(404).json({ error: "vendor not found" });
     return;
+  }
+
+  const parsedListingId = Number(listingId);
+  let resolvedListingTitle = listingTitle?.trim() ?? null;
+  let listingImage: string | null = null;
+
+  // The listing context comes from the server-owned listing record rather than
+  // a client supplied URL. This ensures the displayed image belongs to this vendor.
+  if (Number.isInteger(parsedListingId) && parsedListingId > 0) {
+    const listingRows = await db
+      .select({ name: listingsTable.name, images: listingsTable.images })
+      .from(listingsTable)
+      .where(and(
+        eq(listingsTable.id, parsedListingId),
+        phoneEq(listingsTable.phone, vendorRows[0].phone),
+      ))
+      .limit(1);
+    const listing = listingRows[0];
+    if (listing) {
+      resolvedListingTitle = listing.name;
+      listingImage = listing.images.find(
+        (image) => !image.startsWith("data:") && !image.startsWith("v:") && !/\.(mp4|webm|mov|avi|mkv|m4v)$/i.test(image),
+      ) ?? null;
+    }
   }
 
   // Always create a new conversation — no deduplication by PII.
@@ -81,8 +106,9 @@ router.post("/conversations", async (req, res) => {
       vendorId: Number(vendorId),
       buyerName: buyerName.trim(),
       buyerPhone: buyerPhone.trim(),
-      listingTitle: listingTitle?.trim() ?? null,
-      listingId: listingId ?? null,
+      listingTitle: resolvedListingTitle,
+      listingId: Number.isInteger(parsedListingId) && parsedListingId > 0 ? parsedListingId : null,
+      listingImage,
       buyerToken,
     })
     .returning();
@@ -141,6 +167,7 @@ router.post("/conversations/buyer-list", async (req, res) => {
         id: conv.id,
         vendorId: conv.vendorId,
         listingTitle: conv.listingTitle,
+        listingImage: conv.listingImage,
         buyerName: conv.buyerName,
         buyerPhone: conv.buyerPhone,
         buyerToken: conv.buyerToken, // safe: only returned to the holder of this token
@@ -732,6 +759,7 @@ router.get("/vendor/conversations", async (req, res) => {
       buyerPhone: conversationsTable.buyerPhone,
       listingTitle: conversationsTable.listingTitle,
       listingId: conversationsTable.listingId,
+      listingImage: conversationsTable.listingImage,
       createdAt: conversationsTable.createdAt,
       updatedAt: conversationsTable.updatedAt,
       vendorUnreadCount: conversationsTable.vendorUnreadCount,

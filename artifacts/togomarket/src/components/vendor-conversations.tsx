@@ -1,5 +1,6 @@
 import { useState, useEffect, useCallback, useRef } from "react";
-import { MessageCircle, RefreshCw, Trash2 } from "lucide-react";
+import { MessageCircle, RefreshCw, ShoppingBag, Trash2 } from "lucide-react";
+import { resolveImageUrl } from "@/lib/image";
 import { Badge } from "@/components/ui/badge";
 import { ChatWindow } from "@/components/chat-window";
 import { useSiteSettings } from "@/lib/site-settings";
@@ -13,6 +14,7 @@ interface Conversation {
   buyerPhone: string;
   listingTitle: string | null;
   listingId: number | null;
+  listingImage: string | null;
   createdAt: string;
   updatedAt: string;
   vendorUnreadCount: number;
@@ -169,10 +171,20 @@ export function VendorConversations({ vendor, vendorPassword, onUnreadChange }: 
                 ) : (
                   /* ── Carte normale ── */
                   <>
-                    <div className="w-9 h-9 rounded-full bg-primary/10 flex items-center justify-center flex-shrink-0 mt-0.5">
-                      <span className="text-primary font-semibold text-sm">
-                        {conv.buyerName.charAt(0).toUpperCase()}
-                      </span>
+                    <div className="w-9 h-9 rounded-lg bg-primary/10 overflow-hidden flex items-center justify-center flex-shrink-0 mt-0.5 relative">
+                      <ShoppingBag className="w-4 h-4 text-primary" />
+                      {conv.listingImage ? (
+                        <img
+                          src={resolveImageUrl(conv.listingImage)}
+                          alt=""
+                          className="absolute inset-0 w-full h-full object-cover"
+                          onError={(event) => { event.currentTarget.style.display = "none"; }}
+                        />
+                      ) : (
+                        <span className="absolute inset-0 flex items-center justify-center text-primary font-semibold text-sm bg-primary/10">
+                          {conv.buyerName.charAt(0).toUpperCase()}
+                        </span>
+                      )}
                     </div>
                     <div className="flex-1 min-w-0">
                       <div className="flex items-center justify-between gap-1">
@@ -208,6 +220,7 @@ export function VendorConversations({ vendor, vendorPassword, onUnreadChange }: 
           buyerIdentity={{ name: openConv.buyerName, phone: openConv.buyerPhone }}
           vendorName={openConv.buyerName}
           listingTitle={openConv.listingTitle}
+          listingImage={openConv.listingImage}
           auth={{ kind: "vendor", phone: vendor.phone, password: vendorPassword }}
         />
       )}
