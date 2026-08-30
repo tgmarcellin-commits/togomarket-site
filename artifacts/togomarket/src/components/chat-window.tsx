@@ -234,6 +234,7 @@ export function ChatWindow({
   const recordingTimerRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
   const selfType = auth.kind === "vendor" ? "vendor" : "buyer";
+  const isAdminConversation = auth.kind === "vendor" && buyerIdentity.phone === "##007##";
 
   const scrollToBottom = () => endRef.current?.scrollIntoView({ behavior: "smooth" });
 
@@ -846,25 +847,7 @@ export function ChatWindow({
         </div>
 
         {/* Input bar */}
-        {conversationUnavailable ? null : auth.kind === "vendor" && buyerIdentity.phone === "##007##" ? (
-          /* Conversation TogoMarket : lecture seule, contact via WhatsApp */
-          <div className="px-4 py-4 border-t bg-muted/40 flex-shrink-0 text-center">
-            <p className="text-sm text-muted-foreground">
-              {lang === "fr"
-                ? "Pour plus d'informations :"
-                : "For more information:"}
-            </p>
-            <a
-              href="https://wa.me/22870703131"
-              target="_blank"
-              rel="noopener noreferrer"
-              className="inline-flex items-center gap-1.5 mt-1 font-semibold text-green-600 hover:text-green-700 underline underline-offset-2"
-            >
-              <MessageCircle className="w-4 h-4" />
-              {lang === "fr" ? "Contacter l'administrateur" : "Contact the administrator"}
-            </a>
-          </div>
-        ) : editingId ? (
+        {conversationUnavailable ? null : editingId ? (
           /* Edit mode */
           <div className="flex flex-col gap-2 px-4 py-3 border-t bg-amber-50/50 flex-shrink-0">
             <div className="flex items-center gap-1 text-xs text-amber-700 font-medium">
@@ -902,24 +885,28 @@ export function ChatWindow({
               </div>
             )}
             <div className="flex items-center gap-2 px-4 py-3 border-t bg-card flex-shrink-0">
-              {/* File attachment */}
-              <button
-                onClick={() => fileInputRef.current?.click()}
-                disabled={uploading || isRecording}
-                className="flex-shrink-0 w-9 h-9 rounded-full flex items-center justify-center text-muted-foreground hover:bg-muted hover:text-foreground transition-colors disabled:opacity-50"
-                title={lang === "fr" ? "Joindre un fichier" : "Attach a file"}
-              >
-                {uploading
-                  ? <div className="w-4 h-4 border-2 border-primary border-t-transparent rounded-full animate-spin" />
-                  : <Paperclip className="w-5 h-5" />}
-              </button>
-              <input
-                ref={fileInputRef}
-                type="file"
-                accept=".jpg,.jpeg,.png,.pdf,image/jpeg,image/jpg,image/png,application/pdf"
-                className="hidden"
-                onChange={handleFileChange}
-              />
+              {!isAdminConversation && (
+                <>
+                  {/* File attachment */}
+                  <button
+                    onClick={() => fileInputRef.current?.click()}
+                    disabled={uploading || isRecording}
+                    className="flex-shrink-0 w-9 h-9 rounded-full flex items-center justify-center text-muted-foreground hover:bg-muted hover:text-foreground transition-colors disabled:opacity-50"
+                    title={lang === "fr" ? "Joindre un fichier" : "Attach a file"}
+                  >
+                    {uploading
+                      ? <div className="w-4 h-4 border-2 border-primary border-t-transparent rounded-full animate-spin" />
+                      : <Paperclip className="w-5 h-5" />}
+                  </button>
+                  <input
+                    ref={fileInputRef}
+                    type="file"
+                    accept=".jpg,.jpeg,.png,.pdf,image/jpeg,image/jpg,image/png,application/pdf"
+                    className="hidden"
+                    onChange={handleFileChange}
+                  />
+                </>
+              )}
               <Input
                 className="flex-1 rounded-full"
                 placeholder={lang === "fr" ? "Votre message…" : "Your message…"}
@@ -929,22 +916,24 @@ export function ChatWindow({
                 onFocus={handleInputFocus}
                 disabled={sending || isRecording}
               />
-              {/* Voice message button */}
-              <button
-                type="button"
-                onClick={isRecording ? stopRecording : startRecording}
-                disabled={uploading || sending}
-                className={`flex-shrink-0 w-9 h-9 rounded-full flex items-center justify-center transition-colors disabled:opacity-50 ${
-                  isRecording
-                    ? "bg-red-500 text-white hover:bg-red-600"
-                    : "bg-muted text-muted-foreground hover:text-foreground"
-                }`}
-                title={isRecording
-                  ? (lang === "fr" ? "Arrêter l'enregistrement" : "Stop recording")
-                  : (lang === "fr" ? "Message vocal" : "Voice message")}
-              >
-                {isRecording ? <StopCircle className="w-5 h-5" /> : <Mic className="w-5 h-5" />}
-              </button>
+              {!isAdminConversation && (
+                /* Voice message button */
+                <button
+                  type="button"
+                  onClick={isRecording ? stopRecording : startRecording}
+                  disabled={uploading || sending}
+                  className={`flex-shrink-0 w-9 h-9 rounded-full flex items-center justify-center transition-colors disabled:opacity-50 ${
+                    isRecording
+                      ? "bg-red-500 text-white hover:bg-red-600"
+                      : "bg-muted text-muted-foreground hover:text-foreground"
+                  }`}
+                  title={isRecording
+                    ? (lang === "fr" ? "Arrêter l'enregistrement" : "Stop recording")
+                    : (lang === "fr" ? "Message vocal" : "Voice message")}
+                >
+                  {isRecording ? <StopCircle className="w-5 h-5" /> : <Mic className="w-5 h-5" />}
+                </button>
+              )}
               <Button
                 size="icon"
                 className="rounded-full flex-shrink-0"

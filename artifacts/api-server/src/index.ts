@@ -7,11 +7,12 @@ import { startRenewalReminderCron } from "./lib/renewal-reminder";
 import { startListingsCleanupCron } from "./lib/listings-cleanup";
 // Note: startConversationsCleanupCron est défini dans conversations-cleanup.ts
 // mais n'est pas activé ici : la suppression auto des conversations n'est pas dans le scope actuel.
-import { setIo } from "./lib/socket-io";
+import { ADMIN_ROOM, setIo } from "./lib/socket-io";
 import { db, vendorsTable } from "@workspace/db";
 import { normalizePhone, phoneEq } from "./lib/phone";
 import { lookupVendorSessionDetails } from "./lib/vendor-auth";
 import { resolveBuyerConversationId } from "./lib/conversation-access";
+import { isSuperAdmin } from "./lib/admin-auth";
 
 const rawPort = process.env["PORT"];
 
@@ -43,6 +44,8 @@ io.on("connection", (socket) => {
   logger.debug({ id: socket.id }, "socket connected");
   let expiryTimer: ReturnType<typeof setTimeout> | undefined;
   const assignVendor = (vendorId: number, expiresAt?: Date) => {
+    socket.leave(ADMIN_ROOM);
+    socket.data.admin = false;
     for (const room of socket.rooms) {
       if (room.startsWith("vendor:") && room !== `vendor:${vendorId}`) socket.leave(room);
     }
@@ -93,6 +96,32 @@ io.on("connection", (socket) => {
     } catch (err) {
       logger.error({ err }, "socket auth error");
     }
+  });
+
+  // The admin dashboard authenticates separately because its session is kept
+  // in memory in the browser rather than in the vendor cookie.
+  socket.on("admin_auth", async ({ password }: { password?: string }) => {
+    if (!password) return;
+    try {
+      if (!await isSuperAdmin(password)) return;
+      await cookieAuth;
+
+      // Never keep a socket authenticated as both a vendor and an admin.
+      for (const room of socket.rooms) {
+        if (room.startsWith("vendor:")) socket.leave(room);
+      }
+      socket.join(ADMIN_ROOM);
+      socket.data.admin = true;
+      socket.emit("admin_auth_ok");
+      logger.debug({ id: socket.id }, "admin socket authed");
+    } catch (err) {
+      logger.warn({ err }, "admin socket authentication error");
+    }
+  });
+
+  socket.on("admin_leave", () => {
+    socket.leave(ADMIN_ROOM);
+    socket.data.admin = false;
   });
 
   socket.on("disconnect", () => {

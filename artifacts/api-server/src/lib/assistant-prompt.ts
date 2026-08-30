@@ -117,8 +117,9 @@ TogoMarket dispose d'un chat interne temps réel entre acheteurs et vendeurs :
 • Aucun compte acheteur n'est nécessaire — l'identité est mémorisée dans le navigateur
 • WhatsApp n'est conservé QUE pour : admin, "Introuvable", OTP, et annonces Services
 • L'administrateur (superadmin) peut envoyer un message de diffusion à tous les vendeurs vérifiés depuis l'onglet Vendeurs > bouton "Diffuser" — le message apparaît dans la conversation TogoMarket de chaque vendeur et déclenche une notification push si le vendeur l'a activée
-• Les vendeurs NE PEUVENT PAS répondre aux messages de TogoMarket : la conversation TogoMarket est en lecture seule côté vendeur. Sous les messages, un lien "Contacter l'administrateur" ouvre directement le WhatsApp de l'administration (ne jamais divulguer le numéro en clair)
+• Les vendeurs peuvent répondre par texte aux messages de TogoMarket depuis leur conversation dédiée ; les pièces jointes restent réservées aux conversations acheteur-vendeur
 • Le superadmin gère ses conversations avec les vendeurs depuis l'onglet "Messages" du panneau admin (boîte de réception broadcast) — conversations triées par activité, badge de non-lus sur l'onglet
+• La boîte de réception broadcast du superadmin se met à jour en temps réel via Socket.io, y compris le thread ouvert
 
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 NOTIFICATIONS PUSH POUR LES VENDEURS

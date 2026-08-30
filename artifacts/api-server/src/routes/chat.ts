@@ -1,5 +1,5 @@
 import { Router, type IRouter, type Request } from "express";
-import { eq, desc, and, isNull, or, inArray, gt, lt } from "drizzle-orm";
+import { eq, desc, and, isNull, or, inArray, gt, lt, sql } from "drizzle-orm";
 import { db } from "@workspace/db";
 import {
   conversationsTable,
@@ -12,7 +12,7 @@ import {
 } from "@workspace/db";
 import { randomUUID } from "node:crypto";
 import multer from "multer";
-import { getIo } from "../lib/socket-io";
+import { emitToAdmin, getIo } from "../lib/socket-io";
 import { webpush, vapidReady } from "../lib/webpush";
 import { normalizePhone, phoneEq } from "../lib/phone";
 import { sendWhatsAppNotifNudge, canSendNudge, markNudgeSent } from "../lib/whatsapp-api";
@@ -697,17 +697,7 @@ router.post("/conversations/:id/messages", async (req, res) => {
     }
   }
 
-  // ── Conversation TogoMarket (broadcast/admin) : lecture seule côté vendeur ──
-  // Les vendeurs ne peuvent pas répondre aux messages de TogoMarket ;
-  // ils sont invités à contacter l'administration par WhatsApp.
   const isBroadcastConv = conv.buyerPhone === "##007##";
-  if (isBroadcastConv && senderType === "vendor") {
-    res.status(403).json({
-      error: "admin_conversation_readonly",
-      message: "Pour plus d'informations contactez l'administrateur par WhatsApp au +228 70 70 31 31.",
-    });
-    return;
-  }
 
   const [msg] = await db
     .insert(messagesTable)
@@ -727,8 +717,8 @@ router.post("/conversations/:id/messages", async (req, res) => {
         : conv.buyerUnreadCount,
       // Vendor replies to broadcast → admin inbox gets an unread increment
       adminUnreadCount: senderType === "vendor" && isBroadcastConv
-        ? (conv.adminUnreadCount ?? 0) + 1
-        : (conv.adminUnreadCount ?? 0),
+        ? sql`${conversationsTable.adminUnreadCount} + 1`
+        : conversationsTable.adminUnreadCount,
       // Sending a message to someone who deleted it from their side brings it back for them
       vendorDeletedAt: senderType === "buyer" ? null : conv.vendorDeletedAt,
       buyerDeletedAt: senderType === "vendor" ? null : conv.buyerDeletedAt,
@@ -740,6 +730,9 @@ router.post("/conversations/:id/messages", async (req, res) => {
     const io = getIo();
     io.to(`vendor:${conv.vendorId}`).emit("new_message", { conversationId: convId, message: msg });
     io.to(`conv:${convId}`).emit("new_message", { conversationId: convId, message: msg });
+    if (senderType === "vendor" && isBroadcastConv) {
+      emitToAdmin("new_message", { conversationId: convId, message: secureMessageFileUrl(msg) });
+    }
   } catch {
     // socket.io not yet ready – non-fatal
   }
@@ -944,6 +937,9 @@ router.post(
       const secureMsg = secureMessageFileUrl(msg);
       io.to(`vendor:${conv.vendorId}`).emit("new_message", { conversationId: convId, message: secureMsg });
       io.to(`conv:${convId}`).emit("new_message", { conversationId: convId, message: secureMsg });
+      if (senderType === "vendor" && conv.buyerPhone === "##007##") {
+        emitToAdmin("new_message", { conversationId: convId, message: secureMsg });
+      }
     } catch { /* non-fatal */ }
 
     // Notifier l'acheteur par push quand le vendeur envoie un fichier

@@ -38,6 +38,7 @@ import { loadAdminSession, clearAdminSession } from "./admin-login";
 import { resolveImageUrl, resizeImageToBlob, isVideoMedia, resolveMediaUrl } from "@/lib/image";
 import { uploadImageFile, uploadVideoFile } from "@/lib/upload";
 import { openWhatsApp } from "@/lib/whatsapp";
+import { getSocket } from "@/lib/socket";
 import { ImageViewer } from "@/components/image-viewer";
 import { SmartVideo } from "@/components/smart-video";
 import { Button } from "@/components/ui/button";
@@ -289,6 +290,10 @@ export default function AdminDashboard() {
   const [inboxIsRecording, setInboxIsRecording] = useState(false);
   const [inboxRecordingDuration, setInboxRecordingDuration] = useState(0);
   const inboxBottomRef = useRef<HTMLDivElement>(null);
+  const selectedInboxConvIdRef = useRef<number | null>(null);
+  const adminTabRef = useRef<DashTab>(tab);
+  const inboxListRequestRef = useRef(0);
+  const inboxThreadRequestRef = useRef(0);
   const inboxFileInputRef = useRef<HTMLInputElement>(null);
   const inboxMediaRecorderRef = useRef<MediaRecorder | null>(null);
   const inboxAudioChunksRef = useRef<Blob[]>([]);
@@ -296,9 +301,12 @@ export default function AdminDashboard() {
   const longPressTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const totalInboxUnread = inboxConvs.reduce((s, c) => s + c.adminUnreadCount, 0);
+  selectedInboxConvIdRef.current = selectedInboxConv?.id ?? null;
+  adminTabRef.current = tab;
 
-  async function loadInbox() {
-    setInboxLoading(true);
+  async function loadInbox(showLoading = true) {
+    const requestId = ++inboxListRequestRef.current;
+    if (showLoading) setInboxLoading(true);
     try {
       const res = await fetch("/api/admin/broadcast-inbox", {
         method: "POST",
@@ -307,9 +315,27 @@ export default function AdminDashboard() {
       });
       if (!res.ok) return;
       const data = await res.json() as { conversations: InboxConv[] };
-      setInboxConvs(data.conversations ?? []);
+      if (requestId === inboxListRequestRef.current) {
+        setInboxConvs(data.conversations ?? []);
+      }
     } finally {
-      setInboxLoading(false);
+      if (requestId === inboxListRequestRef.current) {
+        setInboxLoading(false);
+      }
+    }
+  }
+
+  async function loadInboxMessages(convId: number) {
+    const requestId = ++inboxThreadRequestRef.current;
+    const res = await fetch(`/api/admin/broadcast-inbox/${convId}/messages`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ password }),
+    });
+    if (!res.ok) return;
+    const data = await res.json() as { messages: InboxMessage[] };
+    if (requestId === inboxThreadRequestRef.current) {
+      setInboxMessages(data.messages ?? []);
     }
   }
 
@@ -322,12 +348,8 @@ export default function AdminDashboard() {
     setInboxMessages([]);
     setInboxHiddenMsgIds(new Set());
     try {
-      const [msgsRes] = await Promise.all([
-        fetch(`/api/admin/broadcast-inbox/${conv.id}/messages`, {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ password }),
-        }),
+      await Promise.all([
+        loadInboxMessages(conv.id),
         // Mark as read
         fetch(`/api/admin/broadcast-inbox/${conv.id}/read`, {
           method: "POST",
@@ -335,10 +357,6 @@ export default function AdminDashboard() {
           body: JSON.stringify({ password }),
         }),
       ]);
-      if (msgsRes.ok) {
-        const data = await msgsRes.json() as { messages: InboxMessage[] };
-        setInboxMessages(data.messages ?? []);
-      }
       // Update local unread count to 0
       setInboxConvs(prev => prev.map(c => c.id === conv.id ? { ...c, adminUnreadCount: 0 } : c));
     } finally {
@@ -473,6 +491,60 @@ export default function AdminDashboard() {
       loadInbox();
     }
   }, [tab]);
+
+  // Keep the broadcast inbox fresh while the admin dashboard is open.
+  // Re-authenticate after every reconnect so the server can restore the room.
+  useEffect(() => {
+    if (!isSuperAdmin) return;
+
+    const socket = getSocket();
+    const authenticate = () => socket.emit("admin_auth", { password });
+    const handleAdminAuth = () => {
+      if (adminTabRef.current === "inbox") void loadInbox(false);
+    };
+    const handleNewMessage = async (payload: { conversationId?: number }) => {
+      const conversationId = payload?.conversationId;
+      if (!conversationId) return;
+
+      if (adminTabRef.current === "inbox" && selectedInboxConvIdRef.current === conversationId) {
+        await Promise.all([
+          loadInbox(false),
+          loadInboxMessages(conversationId),
+        ]);
+        if (adminTabRef.current !== "inbox" || selectedInboxConvIdRef.current !== conversationId) {
+          return;
+        }
+        const readRes = await fetch(`/api/admin/broadcast-inbox/${conversationId}/read`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ password }),
+        });
+        if (readRes.ok) {
+          setInboxConvs((prev) => prev.map((conv) => conv.id === conversationId
+            ? { ...conv, adminUnreadCount: 0 }
+            : conv));
+        }
+        setTimeout(() => inboxBottomRef.current?.scrollIntoView({ behavior: "smooth" }), 100);
+        return;
+      }
+      await loadInbox(false);
+    };
+    const handleNewMessageEvent = (payload: { conversationId?: number }) => {
+      void handleNewMessage(payload);
+    };
+
+    socket.on("connect", authenticate);
+    socket.on("admin_auth_ok", handleAdminAuth);
+    socket.on("new_message", handleNewMessageEvent);
+    if (socket.connected) authenticate();
+
+    return () => {
+      socket.off("connect", authenticate);
+      socket.off("admin_auth_ok", handleAdminAuth);
+      socket.off("new_message", handleNewMessageEvent);
+      if (socket.connected) socket.emit("admin_leave");
+    };
+  }, [isSuperAdmin, password]);
 
   // ── Bouton ← Android dans la vue thread inbox ─────────────────
   // Quand l'admin ouvre un thread, openInboxConv() pousse une entrée
@@ -2636,7 +2708,7 @@ export default function AdminDashboard() {
                     <h2 className="text-lg font-bold">Boîte de réception</h2>
                     <p className="text-xs text-muted-foreground mt-0.5">Réponses des vendeurs aux messages de diffusion</p>
                   </div>
-                  <Button variant="outline" size="sm" onClick={loadInbox} disabled={inboxLoading}>
+                  <Button variant="outline" size="sm" onClick={() => { void loadInbox(); }} disabled={inboxLoading}>
                     <RefreshCw className={`w-3.5 h-3.5 mr-1.5 ${inboxLoading ? "animate-spin" : ""}`} />
                     Actualiser
                   </Button>
