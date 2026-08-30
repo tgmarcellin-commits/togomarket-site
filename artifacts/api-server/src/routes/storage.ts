@@ -1,23 +1,32 @@
-import { Router, type IRouter, type Request, type Response } from "express";
+import { Router, type IRouter, type Request, type Response, type NextFunction } from "express";
 import { Readable } from "stream";
 import { spawn } from "child_process";
 import { createReadStream, statSync } from "fs";
+import { readFile } from "fs/promises";
 import { unlink } from "fs/promises";
 import multer from "multer";
 import {
-  RequestUploadUrlBody,
-  RequestUploadUrlResponse,
   AdminStorageCleanupBody,
   AdminStorageCleanupResponse,
 } from "@workspace/api-zod";
 import { ObjectStorageService, ObjectNotFoundError } from "../lib/objectStorage";
-import { db, listingsTable, adsTable } from "@workspace/db";
-import { isSuperAdmin } from "../lib/admin-auth";
+import { db, listingsTable, adsTable, messagesTable, vendorsTable } from "@workspace/db";
+import { eq } from "drizzle-orm";
+import { isAdminAny, isSuperAdmin } from "../lib/admin-auth";
+import { validateFileBytes } from "../lib/file-security";
+import { getObjectAclPolicy } from "../lib/objectAcl";
+import bcrypt from "bcryptjs";
+import { normalizePhone, phoneEq } from "../lib/phone";
 
-const upload = multer({
+const videoUpload = multer({
   dest: "/tmp",
-  limits: { fileSize: 500 * 1024 * 1024 }, // 500 MB max
+  limits: { fileSize: 100 * 1024 * 1024, files: 1, fields: 2 },
 });
+const imageUpload = multer({
+  dest: "/tmp",
+  limits: { fileSize: 5 * 1024 * 1024, files: 1, fields: 2 },
+});
+let activeVideoJobs = 0;
 
 /** Run ffmpeg to compress a video file. Returns path to compressed output. */
 function compressVideo(inputPath: string, outputPath: string): Promise<{ originalSize: number; compressedSize: number }> {
@@ -27,6 +36,7 @@ function compressVideo(inputPath: string, outputPath: string): Promise<{ origina
     const args = [
       "-y",
       "-i", inputPath,
+      "-t", "300",
       "-vf", "scale=-2:min(720\\,ih)",
       "-c:v", "libx264",
       "-crf", "26",
@@ -39,11 +49,13 @@ function compressVideo(inputPath: string, outputPath: string): Promise<{ origina
     ];
 
     const ffmpeg = spawn("ffmpeg", args, { stdio: ["ignore", "ignore", "pipe"] });
+    const timeout = setTimeout(() => ffmpeg.kill("SIGKILL"), 120_000);
 
     let stderr = "";
     ffmpeg.stderr.on("data", (d: Buffer) => { stderr += d.toString(); });
 
     ffmpeg.on("close", (code) => {
+      clearTimeout(timeout);
       if (code !== 0) {
         reject(new Error(`ffmpeg exited with code ${code}: ${stderr.slice(-300)}`));
         return;
@@ -56,12 +68,47 @@ function compressVideo(inputPath: string, outputPath: string): Promise<{ origina
       }
     });
 
-    ffmpeg.on("error", reject);
+    ffmpeg.on("error", (error) => {
+      clearTimeout(timeout);
+      reject(error);
+    });
   });
 }
 
 const router: IRouter = Router();
 const objectStorageService = new ObjectStorageService();
+
+async function requireUploadActor(req: Request, res: Response, next: NextFunction): Promise<void> {
+  const adminCode = req.headers["x-admin-code"];
+  if (typeof adminCode === "string" && await isAdminAny(adminCode)) {
+    next();
+    return;
+  }
+  const vendorPhone = req.headers["x-vendor-phone"];
+  const vendorPassword = req.headers["x-vendor-password"];
+  if (typeof vendorPhone === "string" && typeof vendorPassword === "string") {
+    const [vendor] = await db.select({
+      passwordHash: vendorsTable.passwordHash,
+      verified: vendorsTable.verified,
+      isPublished: vendorsTable.isPublished,
+      expiryDate: vendorsTable.expiryDate,
+    })
+      .from(vendorsTable)
+      .where(phoneEq(vendorsTable.phone, normalizePhone(vendorPhone)))
+      .limit(1);
+    if (
+      vendor?.verified &&
+      vendor.isPublished &&
+      vendor.expiryDate &&
+      vendor.expiryDate.getTime() > Date.now() &&
+      await bcrypt.compare(vendorPassword, vendor.passwordHash)
+    ) {
+      next();
+      return;
+    }
+  }
+  res.status(401).json({ error: "Authentification requise pour envoyer un fichier" });
+}
 
 /**
  * POST /storage/uploads/video
@@ -72,7 +119,8 @@ const objectStorageService = new ObjectStorageService();
  */
 router.post(
   "/storage/uploads/video",
-  upload.single("video"),
+  requireUploadActor,
+  videoUpload.single("video"),
   async (req: Request, res: Response) => {
     const file = req.file;
     if (!file) {
@@ -80,11 +128,22 @@ router.post(
       return;
     }
 
+    if (activeVideoJobs >= 2) {
+      await unlink(file.path).catch(() => {});
+      res.status(503).json({ error: "Le traitement vidéo est occupé. Réessayez plus tard." });
+      return;
+    }
     const inputPath = file.path;
     const outputPath = `${file.path}_compressed.mp4`;
 
     try {
+      const inputBuffer = await readFile(inputPath);
+      validateFileBytes(inputBuffer, file.mimetype, ["video"]);
+      activeVideoJobs += 1;
       const { originalSize, compressedSize } = await compressVideo(inputPath, outputPath);
+      if (compressedSize > 50 * 1024 * 1024) {
+        throw new Error("compressed_video_too_large");
+      }
 
       // Read compressed file into a buffer and upload to object storage
       const chunks: Buffer[] = [];
@@ -95,16 +154,21 @@ router.post(
         stream.on("error", reject);
       });
       const buffer = Buffer.concat(chunks);
+      validateFileBytes(buffer, "video/mp4", ["video"]);
 
-      const objectPath = await objectStorageService.uploadObjectEntity(buffer, "video/mp4");
+      const objectPath = await objectStorageService.uploadObjectEntity(buffer, "video/mp4", {
+        owner: "public-media",
+        visibility: "public",
+      });
 
       req.log.info({ originalSize, compressedSize, objectPath }, "Video compressed and uploaded");
 
       res.json({ objectPath, originalSize, compressedSize });
     } catch (err) {
-      req.log.error({ err }, "Video compression failed");
-      res.status(500).json({ error: "Échec de la compression vidéo" });
+      req.log.warn({ err }, "Video rejected or compression failed");
+      res.status(400).json({ error: "Vidéo invalide, trop volumineuse ou non prise en charge" });
     } finally {
+      activeVideoJobs = Math.max(0, activeVideoJobs - 1);
       // Clean up temp files
       await Promise.allSettled([
         unlink(inputPath).catch(() => {}),
@@ -115,36 +179,33 @@ router.post(
 );
 
 /**
- * POST /storage/uploads/request-url
- *
- * Request a presigned URL for file upload.
- * The client sends JSON metadata (name, size, contentType) — NOT the file.
- * Then uploads the file directly to the returned presigned URL.
+ * Images are uploaded through the API so the server can validate the real
+ * signature and dimensions before any bytes reach persistent storage.
  */
-router.post("/storage/uploads/request-url", async (req: Request, res: Response) => {
-  const parsed = RequestUploadUrlBody.safeParse(req.body);
-  if (!parsed.success) {
-    res.status(400).json({ error: "Missing or invalid required fields" });
+router.post("/storage/uploads/image", requireUploadActor, imageUpload.single("image"), async (req: Request, res: Response) => {
+  const file = req.file;
+  if (!file) {
+    res.status(400).json({ error: "Aucune image reçue" });
     return;
   }
-
   try {
-    const { name, size, contentType } = parsed.data;
-
-    const uploadURL = await objectStorageService.getObjectEntityUploadURL();
-    const objectPath = objectStorageService.normalizeObjectEntityPath(uploadURL);
-
-    res.json(
-      RequestUploadUrlResponse.parse({
-        uploadURL,
-        objectPath,
-        metadata: { name, size, contentType },
-      }),
-    );
+    const buffer = await readFile(file.path);
+    const safeFile = validateFileBytes(buffer, file.mimetype, ["image"]);
+    const objectPath = await objectStorageService.uploadObjectEntity(buffer, safeFile.contentType, {
+      owner: "public-media",
+      visibility: "public",
+    });
+    res.status(201).json({ objectPath });
   } catch (error) {
-    req.log.error({ err: error }, "Error generating upload URL");
-    res.status(500).json({ error: "Failed to generate upload URL" });
+    req.log.warn({ err: error }, "Image upload rejected");
+    res.status(400).json({ error: "Image invalide ou format non pris en charge" });
+  } finally {
+    await unlink(file.path).catch(() => {});
   }
+});
+
+router.post("/storage/uploads/request-url", (_req: Request, res: Response) => {
+  res.status(410).json({ error: "Les uploads directs sont désactivés pour des raisons de sécurité" });
 });
 
 /**
@@ -195,9 +256,27 @@ router.get("/storage/objects/*path", async (req: Request, res: Response) => {
     const wildcardPath = Array.isArray(raw) ? raw.join("/") : raw;
     const objectPath = `/objects/${wildcardPath}`;
 
-    const signedUrl = await objectStorageService.signObjectEntityReadURL(objectPath, 3600);
+    const objectFile = await objectStorageService.getObjectEntityFile(objectPath);
+    const policy = await getObjectAclPolicy(objectFile);
+    if (policy?.visibility !== "public") {
+      if (policy) {
+        res.status(403).json({ error: "Accès privé refusé" });
+        return;
+      }
+      // Legacy objects have no ACL metadata. Preserve public marketplace media,
+      // but never expose legacy chat attachments through the generic route.
+      const [privateMessage] = await db.select({ id: messagesTable.id })
+        .from(messagesTable)
+        .where(eq(messagesTable.fileUrl, objectPath))
+        .limit(1);
+      if (privateMessage) {
+        res.status(403).json({ error: "Accès privé refusé" });
+        return;
+      }
+    }
+    const signedUrl = await objectStorageService.signObjectEntityReadURL(objectPath, 600);
 
-    res.setHeader("Cache-Control", "private, max-age=3600");
+    res.setHeader("Cache-Control", "private, max-age=600");
     res.redirect(302, signedUrl);
   } catch (error) {
     if (error instanceof ObjectNotFoundError) {

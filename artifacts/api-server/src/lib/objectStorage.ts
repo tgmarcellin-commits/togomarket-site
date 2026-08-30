@@ -222,7 +222,11 @@ export class ObjectStorageService {
     await Promise.allSettled(storagePaths.map((p) => this.deleteObjectEntity(p)));
   }
 
-  async uploadObjectEntity(buffer: Buffer, contentType: string): Promise<string> {
+  async uploadObjectEntity(
+    buffer: Buffer,
+    contentType: string,
+    aclPolicy?: ObjectAclPolicy,
+  ): Promise<string> {
     const privateObjectDir = this.getPrivateObjectDir();
     const objectId = randomUUID();
     const fullPath = `${privateObjectDir}/uploads/${objectId}`;
@@ -230,6 +234,7 @@ export class ObjectStorageService {
     const bucket = objectStorageClient.bucket(bucketName);
     const file = bucket.file(objectName);
     await file.save(buffer, { contentType, resumable: false });
+    if (aclPolicy) await setObjectAclPolicy(file, aclPolicy);
     return `/objects/uploads/${objectId}`;
   }
 

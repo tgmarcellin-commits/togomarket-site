@@ -18,6 +18,7 @@ import { db, vendorsTable, pushSubscriptionsTable, vendorNotificationsTable } fr
 import { and, gt, gte, lte, eq, desc } from "drizzle-orm";
 import { webpush, vapidReady } from "./webpush";
 import { logger } from "./logger";
+import { createVendorRenewalToken } from "./vendor-renewal-token";
 
 const DAY_MS = 24 * 60 * 60 * 1000;
 
@@ -121,7 +122,7 @@ export async function checkAndSendRenewalReminders(): Promise<void> {
         vendor.id,
         `⏰ Votre boutique expire dans ${dayWord}`,
         `Bonjour ${vendor.firstName}, renouvelez votre abonnement pour éviter toute interruption de votre boutique.`,
-        `/api/vendors/renewal-link/${vendor.id}`,
+        `/api/vendors/renewal-link/${vendor.id}?token=${encodeURIComponent(createVendorRenewalToken(vendor.id))}`,
         "renewal",
       );
     } catch (err) {
@@ -170,7 +171,7 @@ export async function checkAndSendRenewalReminders(): Promise<void> {
         vendor.id,
         "🔴 Votre boutique a expiré",
         `Bonjour ${vendor.firstName}, votre boutique est maintenant expirée et n'est plus visible. Renouvelez votre abonnement pour la réactiver.`,
-        `/api/vendors/renewal-link/${vendor.id}`,
+        `/api/vendors/renewal-link/${vendor.id}?token=${encodeURIComponent(createVendorRenewalToken(vendor.id))}`,
         "expired",
       );
     } catch (err) {

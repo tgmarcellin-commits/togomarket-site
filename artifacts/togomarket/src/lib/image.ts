@@ -1,7 +1,7 @@
 export function resolveImageUrl(img: string): string {
   // Retirer le préfixe vidéo v: s'il est présent (les chemins vidéo Tourisme)
   if (img.startsWith("v:")) img = img.slice(2);
-  if (img.startsWith("data:") || img.startsWith("http") || img.startsWith("blob:")) return img;
+  if (img.startsWith("data:") || img.startsWith("http") || img.startsWith("blob:") || img.startsWith("/api/")) return img;
   return `/api/storage${img}`;
 }
 

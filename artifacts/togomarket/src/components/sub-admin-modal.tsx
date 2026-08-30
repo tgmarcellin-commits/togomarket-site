@@ -125,7 +125,7 @@ export function SubAdminModal({ section, open, onOpenChange }: SubAdminModalProp
     if (!file) return;
     try {
       const { blob, dataUrl } = await resizeImageToBlob(file);
-      const objectPath = await uploadImageFile(blob, file.name);
+      const objectPath = await uploadImageFile(blob, file.name, { adminCode: storedPwd });
       setAdForm((f) => ({ ...f, image: objectPath, imagePreview: dataUrl }));
     } catch {
       setAdForm((f) => ({ ...f, image: "", imagePreview: "" }));
@@ -140,7 +140,7 @@ export function SubAdminModal({ section, open, onOpenChange }: SubAdminModalProp
     setAdVideoName(file.name);
     setAdVideoStatus("uploading");
     try {
-      const objectPath = await uploadVideoFile(file, (s) => setAdVideoStatus(s));
+      const objectPath = await uploadVideoFile(file, { adminCode: storedPwd }, (s) => setAdVideoStatus(s));
       setAdForm((f) => ({ ...f, videoPath: objectPath }));
     } catch {
       toast({ title: "Erreur vidéo", variant: "destructive" });
@@ -205,7 +205,7 @@ export function SubAdminModal({ section, open, onOpenChange }: SubAdminModalProp
     if (!file) return;
     try {
       const { blob, dataUrl } = await resizeImageToBlob(file);
-      const objectPath = await uploadImageFile(blob, file.name);
+      const objectPath = await uploadImageFile(blob, file.name, { adminCode: storedPwd });
       setEventForm((f) => ({ ...f, flyerImage: objectPath, flyerPreview: dataUrl }));
     } catch {
       setEventForm((f) => ({ ...f, flyerImage: "", flyerPreview: "" }));
@@ -622,7 +622,7 @@ export function SubAdminModal({ section, open, onOpenChange }: SubAdminModalProp
                         const { resizeImageToBlob } = await import("@/lib/image");
                         const { uploadImageFile } = await import("@/lib/upload");
                         const { blob, dataUrl } = await resizeImageToBlob(file);
-                        const objectPath = await uploadImageFile(blob, file.name);
+                        const objectPath = await uploadImageFile(blob, file.name, { adminCode: storedPwd });
                         setServiceForm((f) => ({ ...f, image: objectPath, imagePreview: dataUrl }));
                       } catch {
                         toast({ title: "Échec de l'envoi de la photo", variant: "destructive" });
@@ -641,7 +641,7 @@ export function SubAdminModal({ section, open, onOpenChange }: SubAdminModalProp
                       setServiceVideoUploading(true);
                       try {
                         const { uploadVideoFile } = await import("@/lib/upload");
-                        const objectPath = await uploadVideoFile(file);
+                        const objectPath = await uploadVideoFile(file, { adminCode: storedPwd });
                         setServiceForm((f) => ({ ...f, videoPath: objectPath }));
                         setServiceVideoName(file.name);
                       } catch {

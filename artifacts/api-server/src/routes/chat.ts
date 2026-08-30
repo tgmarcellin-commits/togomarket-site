@@ -19,8 +19,13 @@ import { normalizePhone, phoneEq } from "../lib/phone";
 import { sendWhatsAppNotifNudge, canSendNudge, markNudgeSent } from "../lib/whatsapp-api";
 import { logger } from "../lib/logger";
 import { ObjectStorageService } from "../lib/objectStorage";
+import { validateFileBytes } from "../lib/file-security";
+import { secureMessageFileUrl, verifyMessageFileAccess } from "../lib/message-file-access";
 
-const upload = multer({ dest: "/tmp", limits: { fileSize: 20 * 1024 * 1024 } }); // 20 MB (audio may be large; images validated separately to 2 MB)
+const upload = multer({
+  storage: multer.memoryStorage(),
+  limits: { fileSize: 12 * 1024 * 1024, files: 1, fields: 2 },
+});
 const objectStorage = new ObjectStorageService();
 
 const router: IRouter = Router();
@@ -350,7 +355,32 @@ router.get("/conversations/:id/messages", async (req, res) => {
     ))
     .orderBy(messagesTable.createdAt);
 
-  res.json(msgs);
+  res.json(msgs.map(secureMessageFileUrl));
+});
+
+router.get("/conversations/:id/files/:messageId", async (req, res) => {
+  const convId = Number(req.params["id"]);
+  const messageId = Number(req.params["messageId"]);
+  const access = String(req.query["access"] ?? "");
+  if (
+    !Number.isInteger(convId) ||
+    !Number.isInteger(messageId) ||
+    !verifyMessageFileAccess(convId, messageId, access)
+  ) {
+    res.status(403).json({ error: "Lien de fichier invalide ou expiré" });
+    return;
+  }
+  const [message] = await db.select({ fileUrl: messagesTable.fileUrl })
+    .from(messagesTable)
+    .where(and(eq(messagesTable.id, messageId), eq(messagesTable.conversationId, convId)))
+    .limit(1);
+  if (!message?.fileUrl?.startsWith("/objects/")) {
+    res.status(404).json({ error: "Fichier introuvable" });
+    return;
+  }
+  const signedUrl = await objectStorage.signObjectEntityReadURL(message.fileUrl, 300);
+  res.setHeader("Cache-Control", "private, max-age=300");
+  res.redirect(302, signedUrl);
 });
 
 /* ──────────────────────────────────────────────────────────────
@@ -600,35 +630,37 @@ router.post(
     const file = req.file;
     if (!file) { res.status(400).json({ error: "file required" }); return; }
 
-    const allowedImages = ["image/jpeg", "image/jpg", "image/png"];
-    const allowedAudio = ["audio/webm", "audio/mp4", "audio/ogg", "audio/mpeg", "audio/wav", "audio/aac"];
-    const isAudio = allowedAudio.includes(file.mimetype);
-    const isImage = allowedImages.includes(file.mimetype);
-    const isPdf = file.mimetype === "application/pdf";
-
-    if (!isImage && !isAudio && !isPdf) {
-      res.status(400).json({ error: "Seuls les fichiers JPEG, PNG, JPG, PDF ou audio sont acceptés" });
+    let safeFile;
+    try {
+      safeFile = validateFileBytes(file.buffer, file.mimetype, ["image", "audio", "pdf"]);
+    } catch {
+      res.status(400).json({ error: "Le contenu réel du fichier ne correspond pas à un format autorisé" });
       return;
     }
-    // Images: enforce 2 MB max (audio and PDF have the higher multer limit)
-    if (isImage && file.size > 2 * 1024 * 1024) {
+    if (safeFile.kind === "image" && file.size > 2 * 1024 * 1024) {
       res.status(400).json({ error: "L'image dépasse la limite de 2 Mo" });
       return;
     }
+    if (safeFile.kind === "pdf" && file.size > 10 * 1024 * 1024) {
+      res.status(400).json({ error: "Le document dépasse la limite de 10 Mo" });
+      return;
+    }
 
-    const fileType = isAudio ? "audio" : isPdf ? "pdf" : "image";
-
-    // Upload to Object Storage
-    const fs = await import("node:fs/promises");
-    const buffer = await fs.readFile(file.path);
-    await fs.unlink(file.path).catch(() => {});
-
-    const objectPath = await objectStorage.uploadObjectEntity(buffer, file.mimetype);
-
-    const [msg] = await db
-      .insert(messagesTable)
-      .values({ conversationId: convId, senderType, fileUrl: objectPath, fileType, content: null })
-      .returning();
+    const fileType = safeFile.kind;
+    const objectPath = await objectStorage.uploadObjectEntity(file.buffer, safeFile.contentType, {
+      owner: `conversation:${convId}`,
+      visibility: "private",
+    });
+    let msg;
+    try {
+      [msg] = await db
+        .insert(messagesTable)
+        .values({ conversationId: convId, senderType, fileUrl: objectPath, fileType, content: null })
+        .returning();
+    } catch (error) {
+      await objectStorage.deleteObjectEntity(objectPath).catch(() => {});
+      throw error;
+    }
 
     await db
       .update(conversationsTable)
@@ -643,8 +675,9 @@ router.post(
 
     try {
       const io = getIo();
-      io.to(`vendor:${conv.vendorId}`).emit("new_message", { conversationId: convId, message: msg });
-      io.to(`conv:${convId}`).emit("new_message", { conversationId: convId, message: msg });
+      const secureMsg = secureMessageFileUrl(msg);
+      io.to(`vendor:${conv.vendorId}`).emit("new_message", { conversationId: convId, message: secureMsg });
+      io.to(`conv:${convId}`).emit("new_message", { conversationId: convId, message: secureMsg });
     } catch { /* non-fatal */ }
 
     // Notifier l'acheteur par push quand le vendeur envoie un fichier
@@ -690,7 +723,7 @@ router.post(
       }
     }
 
-    res.status(201).json(msg);
+    res.status(201).json(secureMessageFileUrl(msg));
   },
 );
 

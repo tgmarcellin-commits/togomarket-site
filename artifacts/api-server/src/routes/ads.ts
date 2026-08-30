@@ -228,6 +228,8 @@ router.post("/admin/ads/pin", async (req, res) => {
 // GET /api/ads/renewal-link/:adId
 // Crée une transaction FedaPay de renouvellement et redirige vers la page de paiement
 router.get("/ads/renewal-link/:adId", async (req, res) => {
+  return res.status(410).send("Ce lien de renouvellement a été remplacé. Demandez un nouveau lien sécurisé à TogoMarket.");
+  /*
   const adId = parseInt(req.params.adId, 10);
   if (isNaN(adId) || adId <= 0) {
     return res.status(400).send("Identifiant publicité invalide");
@@ -272,6 +274,7 @@ router.get("/ads/renewal-link/:adId", async (req, res) => {
     req.log.error({ err, adId }, "Ads renewal-link: unexpected error");
     return res.redirect("https://togomarket.site");
   }
+  */
 });
 
 export default router;

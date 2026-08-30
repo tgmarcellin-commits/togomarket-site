@@ -12,6 +12,7 @@ export const vendorsTable = pgTable("vendors", {
   expiryDate: timestamp("expiry_date", { withTimezone: true }),
   isPublished: boolean("is_published").notNull().default(false),
   paymentStatus: text("payment_status").notNull().default("unpaid"),
+  fedapayTransactionId: text("fedapay_transaction_id"),
   validationMethod: text("validation_method").notNull().default("pending"),
   referralDaysEarned: integer("referral_days_earned").notNull().default(0),
   referredBy: integer("referred_by"),

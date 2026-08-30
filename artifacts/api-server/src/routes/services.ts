@@ -126,6 +126,8 @@ router.post("/admin/services/delete", async (req, res) => {
 
 // GET /api/services/renewal-link/:serviceId
 router.get("/services/renewal-link/:serviceId", async (req, res) => {
+  return res.status(410).send("Ce lien de renouvellement a été remplacé. Demandez un nouveau lien sécurisé à TogoMarket.");
+  /*
   const serviceId = parseInt(req.params.serviceId, 10);
   if (isNaN(serviceId) || serviceId <= 0) {
     return res.status(400).send("Identifiant service invalide");
@@ -170,6 +172,7 @@ router.get("/services/renewal-link/:serviceId", async (req, res) => {
     req.log.error({ err, serviceId }, "Services renewal-link: unexpected error");
     return res.redirect("https://togomarket.site");
   }
+  */
 });
 
 export default router;

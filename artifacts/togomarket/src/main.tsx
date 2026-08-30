@@ -1,15 +1,20 @@
 import { createRoot } from "react-dom/client";
 import App from "./App";
 import "./index.css";
+import { installSecureFetch } from "./lib/secure-fetch";
+
+installSecureFetch();
 
 // ── localStorage buyer-identity reset ────────────────────────────────────────
 // Increment LS_VERSION to wipe all saved buyer names/phones and chat sessions
 // for all users on next page load. Safe to bump whenever a clean slate is needed.
-const LS_VERSION = "2";
+const LS_VERSION = "3";
 const LS_VERSION_KEY = "tm_ls_v";
 if (localStorage.getItem(LS_VERSION_KEY) !== LS_VERSION) {
   // Remove buyer identity
   localStorage.removeItem("tm_buyer");
+  localStorage.removeItem("togomarket_vendor_session");
+  localStorage.removeItem("togomarket_admin_session");
   // Remove all per-listing chat sessions (keys starting with tm_chat_)
   Object.keys(localStorage)
     .filter((k) => k.startsWith("tm_chat_"))

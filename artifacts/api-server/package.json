@@ -19,7 +19,6 @@
     "cors": "^2.8.6",
     "drizzle-orm": "catalog:",
     "express": "^5.2.1",
-    "fedapay": "^1.2.5",
     "google-auth-library": "^10.6.2",
     "multer": "^2.2.0",
     "openai": "^4.98.0",

@@ -9,8 +9,14 @@ import { dispatchVendorOTP, getOtpConfiguration } from "../lib/otp-provider";
 import { normalizePhone, phoneEq } from "../lib/phone";
 import { getIo } from "../lib/socket-io";
 import { ObjectStorageService } from "../lib/objectStorage";
+import { validateFileBytes } from "../lib/file-security";
+import { secureMessageFileUrl } from "../lib/message-file-access";
+import { verifyVendorRenewalToken } from "../lib/vendor-renewal-token";
 
-const adminUpload = multer({ dest: "/tmp", limits: { fileSize: 20 * 1024 * 1024 } });
+const adminUpload = multer({
+  storage: multer.memoryStorage(),
+  limits: { fileSize: 12 * 1024 * 1024, files: 1, fields: 3 },
+});
 const adminObjectStorage = new ObjectStorageService();
 
 function getPhoneCountry(phone: string): string {
@@ -585,6 +591,9 @@ router.get("/vendors/renewal-link/:vendorId", async (req, res) => {
   if (isNaN(vendorId) || vendorId <= 0) {
     return res.status(400).send("Identifiant vendeur invalide");
   }
+  if (!verifyVendorRenewalToken(vendorId, String(req.query.token ?? ""))) {
+    return res.status(403).send("Lien de renouvellement invalide ou expiré");
+  }
 
   const vendors = await db.select().from(vendorsTable).where(eq(vendorsTable.id, vendorId)).limit(1);
   if (vendors.length === 0) {
@@ -628,11 +637,16 @@ router.get("/vendors/renewal-link/:vendorId", async (req, res) => {
       json["transaction"] ?? json
     ) as Record<string, unknown>;
     const paymentUrl = String(txRaw["payment_url"] ?? "");
+    const transactionId = String(txRaw["id"] ?? "");
 
-    if (!paymentUrl) {
+    if (!paymentUrl || !transactionId) {
       req.log.error({ vendorId, json }, "Renewal link: no payment_url in FedaPay response");
       return res.redirect("https://togomarket.site");
     }
+    await db
+      .update(vendorsTable)
+      .set({ fedapayTransactionId: transactionId })
+      .where(eq(vendorsTable.id, vendor.id));
 
     req.log.info({ vendorId }, "Renewal link: redirecting to FedaPay payment page");
     return res.redirect(302, paymentUrl);
@@ -821,7 +835,7 @@ router.post("/admin/broadcast-inbox/:id/messages", async (req, res) => {
     .where(and(eq(messagesTable.conversationId, convId), isNull(messagesTable.deletedAt)))
     .orderBy(messagesTable.createdAt);
 
-  return res.json({ messages: msgs });
+  return res.json({ messages: msgs.map(secureMessageFileUrl) });
 });
 
 // POST /api/admin/broadcast-inbox/:id/reply  — admin répond en tant que TogoMarket
@@ -874,17 +888,16 @@ router.post(
     const file = req.file;
     if (!file) return res.status(400).json({ error: "file required" });
 
-    const allowed = [
-      "image/jpeg", "image/jpg", "image/png", "application/pdf",
-      "audio/webm", "audio/mp4", "audio/ogg", "audio/mpeg", "audio/wav", "audio/aac",
-    ];
-    if (!allowed.includes(file.mimetype)) {
-      return res.status(400).json({ error: "only JPEG, PNG, PDF, or audio files allowed" });
+    let safeFile;
+    try {
+      safeFile = validateFileBytes(file.buffer, file.mimetype, ["image", "audio", "pdf"]);
+    } catch {
+      return res.status(400).json({ error: "Le contenu réel du fichier n'est pas autorisé" });
     }
-
-    const fileType = file.mimetype === "application/pdf" ? "pdf"
-      : file.mimetype.startsWith("audio/") ? "audio"
-      : "image";
+    if (safeFile.kind === "image" && file.size > 2 * 1024 * 1024) {
+      return res.status(400).json({ error: "L'image dépasse la limite de 2 Mo" });
+    }
+    const fileType = safeFile.kind;
 
     const [conv] = await db.select()
       .from(conversationsTable)
@@ -892,19 +905,23 @@ router.post(
       .limit(1);
     if (!conv) return res.status(404).json({ error: "conversation not found" });
 
-    const fs = await import("node:fs/promises");
-    const buffer = await fs.readFile(file.path);
-    await fs.unlink(file.path).catch(() => {});
-
-    const objectPath = await adminObjectStorage.uploadObjectEntity(buffer, file.mimetype);
-
-    const [msg] = await db.insert(messagesTable).values({
-      conversationId: convId,
-      senderType: "buyer",
-      fileUrl: objectPath,
-      fileType,
-      content: null,
-    }).returning();
+    const objectPath = await adminObjectStorage.uploadObjectEntity(file.buffer, safeFile.contentType, {
+      owner: `conversation:${convId}`,
+      visibility: "private",
+    });
+    let msg;
+    try {
+      [msg] = await db.insert(messagesTable).values({
+        conversationId: convId,
+        senderType: "buyer",
+        fileUrl: objectPath,
+        fileType,
+        content: null,
+      }).returning();
+    } catch (error) {
+      await adminObjectStorage.deleteObjectEntity(objectPath).catch(() => {});
+      throw error;
+    }
 
     await db.update(conversationsTable).set({
       updatedAt: new Date(),
@@ -914,10 +931,10 @@ router.post(
 
     try {
       const io = getIo();
-      io.to(`vendor:${conv.vendorId}`).emit("new_message", { conversationId: convId, message: msg });
+      io.to(`vendor:${conv.vendorId}`).emit("new_message", { conversationId: convId, message: secureMessageFileUrl(msg) });
     } catch { /* non-fatal */ }
 
-    return res.status(201).json({ message: msg });
+    return res.status(201).json({ message: secureMessageFileUrl(msg) });
   },
 );
 

@@ -37,24 +37,22 @@ import { useToast } from "@/hooks/use-toast";
 import { getSocket } from "@/lib/socket";
 
 const STORAGE_KEY = "togomarket_vendor_session";
+let activeVendorSession: { vendor: VendorProfile; password: string } | null = null;
 
 function loadSession(): { vendor: VendorProfile; password: string } | null {
-  try {
-    const raw = localStorage.getItem(STORAGE_KEY);
-    if (!raw) return null;
-    return JSON.parse(raw);
-  } catch {
-    return null;
-  }
+  // Credentials intentionally live only in memory. A reload requires login,
+  // preventing XSS or a shared device from recovering the vendor password.
+  try { localStorage.removeItem(STORAGE_KEY); } catch {}
+  return activeVendorSession;
 }
 
 function saveSession(vendor: VendorProfile, password: string) {
-  try {
-    localStorage.setItem(STORAGE_KEY, JSON.stringify({ vendor, password }));
-  } catch {}
+  activeVendorSession = { vendor, password };
+  try { localStorage.removeItem(STORAGE_KEY); } catch {}
 }
 
 function clearSession() {
+  activeVendorSession = null;
   try {
     localStorage.removeItem(STORAGE_KEY);
   } catch {}

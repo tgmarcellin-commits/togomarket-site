@@ -111,11 +111,19 @@ router.post("/push/subscribe", async (req, res) => {
    Body: { endpoint }
 */
 router.post("/push/unsubscribe", async (req, res) => {
+  const phone = req.headers["x-vendor-phone"] as string;
+  const password = req.headers["x-vendor-password"] as string;
+  if (!phone || !password) { res.status(401).json({ error: "auth required" }); return; }
+  const vendor = await authenticateVendor(phone, password);
+  if (!vendor) { res.status(401).json({ error: "invalid credentials" }); return; }
   const { endpoint } = req.body as { endpoint: string };
-  if (!endpoint) { res.status(400).json({ error: "endpoint required" }); return; }
+  if (!endpoint || !isValidPushEndpoint(endpoint)) { res.status(400).json({ error: "endpoint invalid" }); return; }
   await db
     .delete(pushSubscriptionsTable)
-    .where(eq(pushSubscriptionsTable.endpoint, endpoint));
+    .where(and(
+      eq(pushSubscriptionsTable.endpoint, endpoint),
+      eq(pushSubscriptionsTable.vendorId, vendor.id),
+    ));
   res.json({ ok: true });
 });
 
@@ -179,11 +187,29 @@ router.post("/push/buyer-subscribe", async (req, res) => {
    Body: { endpoint }
 */
 router.post("/push/buyer-unsubscribe", async (req, res) => {
+  const buyerToken = req.headers["x-buyer-token"] as string | undefined;
+  const convId = Number(req.headers["x-conversation-id"]);
+  if (!buyerToken || !Number.isInteger(convId) || convId <= 0) {
+    res.status(401).json({ error: "buyer auth required" });
+    return;
+  }
+  const [conversation] = await db
+    .select({ buyerToken: conversationsTable.buyerToken })
+    .from(conversationsTable)
+    .where(eq(conversationsTable.id, convId))
+    .limit(1);
+  if (!conversation || conversation.buyerToken !== buyerToken) {
+    res.status(401).json({ error: "unauthorized" });
+    return;
+  }
   const { endpoint } = req.body as { endpoint: string };
-  if (!endpoint) { res.status(400).json({ error: "endpoint required" }); return; }
+  if (!endpoint || !isValidPushEndpoint(endpoint)) { res.status(400).json({ error: "endpoint invalid" }); return; }
   await db
     .delete(buyerPushSubscriptionsTable)
-    .where(eq(buyerPushSubscriptionsTable.endpoint, endpoint));
+    .where(and(
+      eq(buyerPushSubscriptionsTable.endpoint, endpoint),
+      eq(buyerPushSubscriptionsTable.conversationId, convId),
+    ));
   res.json({ ok: true });
 });
 

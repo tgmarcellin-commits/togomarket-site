@@ -1,77 +1,48 @@
-interface UploadResponse {
-  uploadURL: string;
-  objectPath: string;
-}
+export type UploadAuth =
+  | { adminCode: string }
+  | { vendorPhone: string; vendorPassword: string };
 
-async function requestUploadUrl(file: File | { name: string; size: number; type: string }): Promise<UploadResponse> {
-  const metaRes = await fetch("/api/storage/uploads/request-url", {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ name: file.name, size: file.size, contentType: file.type || "application/octet-stream" }),
-  });
-  if (!metaRes.ok) throw new Error("Impossible d'obtenir l'URL d'upload");
-  return metaRes.json() as Promise<UploadResponse>;
+function uploadHeaders(auth: UploadAuth): HeadersInit {
+  if ("adminCode" in auth) return { "X-Admin-Code": auth.adminCode };
+  return {
+    "X-Vendor-Phone": auth.vendorPhone,
+    "X-Vendor-Password": auth.vendorPassword,
+  };
 }
-
-const VIDEO_COMPRESS_THRESHOLD = 30 * 1024 * 1024; // 30 MB
 
 /**
  * Upload a video file.
- * - If the file is larger than 30 MB, it goes through the server-side
- *   compression endpoint (ffmpeg 720p, CRF 26) before being stored.
- * - Smaller files are uploaded directly to object storage via a presigned URL.
+ * Every video goes through server-side signature checks and bounded ffmpeg
+ * transcoding. There is deliberately no direct-upload fallback.
  */
 export async function uploadVideoFile(
   file: File,
+  auth: UploadAuth,
   onProgress?: (status: "compressing" | "uploading") => void,
 ): Promise<string> {
-  // For large videos, try server-side ffmpeg compression first.
-  // If the server can't compress (ffmpeg unavailable, timeout, etc.),
-  // fall back silently to a direct presigned-URL upload.
-  if (file.size > VIDEO_COMPRESS_THRESHOLD) {
-    onProgress?.("compressing");
-    try {
-      const form = new FormData();
-      form.append("video", file);
-      const res = await fetch("/api/storage/uploads/video", {
-        method: "POST",
-        body: form,
-      });
-      if (res.ok) {
-        const { objectPath } = await res.json() as { objectPath: string };
-        return objectPath;
-      }
-      // Non-OK response → fall through to direct upload below
-    } catch {
-      // Network / timeout error → fall through
-    }
-  }
-
-  // Direct upload via presigned URL (small files, or fallback for large ones)
-  onProgress?.("uploading");
-  const { uploadURL, objectPath } = await requestUploadUrl(file);
-  const putRes = await fetch(uploadURL, {
-    method: "PUT",
-    body: file,
-    headers: { "Content-Type": file.type || "video/mp4" },
+  onProgress?.("compressing");
+  const form = new FormData();
+  form.append("video", file);
+  const response = await fetch("/api/storage/uploads/video", {
+    method: "POST",
+    headers: uploadHeaders(auth),
+    body: form,
   });
-  if (!putRes.ok) throw new Error("Échec de l'envoi de la vidéo");
+  if (!response.ok) throw new Error("Vidéo invalide, trop volumineuse ou non prise en charge");
+  const { objectPath } = await response.json() as { objectPath: string };
+  onProgress?.("uploading");
   return objectPath;
 }
 
-export async function uploadImageFile(blob: Blob, filename: string): Promise<string> {
-  const { uploadURL, objectPath } = await requestUploadUrl({
-    name: filename,
-    size: blob.size,
-    type: blob.type || "image/jpeg",
+export async function uploadImageFile(blob: Blob, filename: string, auth: UploadAuth): Promise<string> {
+  const form = new FormData();
+  form.append("image", blob, filename);
+  const response = await fetch("/api/storage/uploads/image", {
+    method: "POST",
+    headers: uploadHeaders(auth),
+    body: form,
   });
-
-  const putRes = await fetch(uploadURL, {
-    method: "PUT",
-    body: blob,
-    headers: { "Content-Type": blob.type || "image/jpeg" },
-  });
-  if (!putRes.ok) throw new Error("Échec de l'envoi de l'image");
-
+  if (!response.ok) throw new Error("Image invalide ou trop volumineuse");
+  const { objectPath } = await response.json() as { objectPath: string };
   return objectPath;
 }

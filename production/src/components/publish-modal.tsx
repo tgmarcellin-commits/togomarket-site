@@ -35,27 +35,18 @@ interface SavedCode {
   code: string;
   endDate: string;
 }
+const activePublishCodes = new Map<string, SavedCode>();
 
 function getSavedCode(vendorPhone: string): SavedCode | null {
-  try {
-    const raw = localStorage.getItem(`togomarket_pub_${vendorPhone}`);
-    if (!raw) return null;
-    return JSON.parse(raw) as SavedCode;
-  } catch {
-    return null;
-  }
+  return activePublishCodes.get(vendorPhone) ?? null;
 }
 
 function saveCode(vendorPhone: string, code: string, endDate: string) {
-  try {
-    localStorage.setItem(`togomarket_pub_${vendorPhone}`, JSON.stringify({ code, endDate }));
-  } catch {}
+  activePublishCodes.set(vendorPhone, { code, endDate });
 }
 
 function clearSavedCode(vendorPhone: string) {
-  try {
-    localStorage.removeItem(`togomarket_pub_${vendorPhone}`);
-  } catch {}
+  activePublishCodes.delete(vendorPhone);
 }
 
 function isCodeStillValid(saved: SavedCode, publishCode: NonNullable<VendorProfile["publishCode"]>): boolean {

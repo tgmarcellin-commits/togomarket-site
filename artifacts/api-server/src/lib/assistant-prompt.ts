@@ -206,6 +206,8 @@ SÉCURITÉ ET CONSEILS
 • Toujours rencontrer le vendeur dans un lieu public sûr
 • Signaler toute annonce suspecte avec le bouton "Signaler"
 • TogoMarket n'est pas responsable des transactions entre acheteurs et vendeurs
+• Les fichiers envoyés sont contrôlés côté serveur avant stockage ; les pièces jointes des conversations restent privées et leurs liens expirent rapidement
+• Les paiements FedaPay sont vérifiés directement auprès de FedaPay avant toute activation ; ne jamais demander à un utilisateur de transmettre un secret, un mot de passe ou un code admin dans une conversation
 
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 ACCÈS AUX ANNONCES EN TEMPS RÉEL
@@ -259,9 +261,9 @@ AUTOMATISATION DES CODES OTP
 • Les publicités, événements et services ont une durée de 30 jours — après expiration, ils disparaissent automatiquement de l'affichage public et un badge "Expiré" apparaît dans le panneau admin
 • Les évènements passés (date de fin ou date dépassée) disparaissent complètement de la liste publique des évènements ; dans le panneau admin ils affichent un badge gris "Passé"
 • Pour renouveler une publicité expirée : l'admin clique sur "🔄 Renouveler" dans la carte de la pub expirée puis confirme — le renouvellement est gratuit et immédiat (30 jours), sans paiement FedaPay
-• Pour renouveler un événement ou un service expiré : l'admin clique sur "🔄 Renouveler" — cela ouvre WhatsApp avec un lien de paiement stable (togomarket.site/api/events/renewal-link/{id} ou /services/) ; dès que le propriétaire paie via FedaPay, l'abonnement est relancé pour 30 jours automatiquement
+• Pour renouveler un événement ou un service expiré : l'admin clique sur "🔄 Renouveler" — un nouveau lien FedaPay sécurisé est créé puis envoyé sur WhatsApp ; dès que le propriétaire paie, l'abonnement est relancé pour 30 jours automatiquement
 • Après renouvellement, l'admin peut aussi valider manuellement sans paiement en cliquant "Valider" sur la carte (réservé aux superadmins)
-• Les vidéos > 30 Mo sont automatiquement compressées côté serveur (ffmpeg, 720p max, H.264/AAC) avant d'être stockées — sans perte visible de qualité ; les petites vidéos sont uploadées directement via URL signée
+• Toutes les vidéos passent par le serveur pour validation ; elles sont limitées à 100 Mo et 5 minutes, puis compressées si nécessaire (720p max, H.264/AAC), sans upload direct non contrôlé
 • Après un paiement FedaPay, la boutique/annonce est activée automatiquement dès que le vendeur revient sur l'application (redirection via callback FedaPay) ; si ce n'est pas le cas, l'admin peut activer manuellement via le panneau admin > onglet Vendeurs
 
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━

@@ -102,7 +102,10 @@ export function PublishModal({ open, onOpenChange, vendor, vendorPassword, onNee
       const entries = await Promise.all(
         files.map(async (file) => {
           const { blob, dataUrl } = await resizeImageToBlob(file);
-          const objectPath = await uploadImageFile(blob, file.name);
+          const objectPath = await uploadImageFile(blob, file.name, {
+            vendorPhone: vendor?.phone ?? "",
+            vendorPassword,
+          });
           return { dataUrl, objectPath };
         })
       );
@@ -171,11 +174,17 @@ export function PublishModal({ open, onOpenChange, vendor, vendorPassword, onNee
         files.map(async (file) => {
           const isVideoFile = file.type.startsWith("video/");
           if (isVideoFile) {
-            const objectPath = await uploadVideoFile(file);
+            const objectPath = await uploadVideoFile(file, {
+              vendorPhone: vendor?.phone ?? "",
+              vendorPassword,
+            });
             return { dataUrl: URL.createObjectURL(file), objectPath, isVideo: true };
           } else {
             const { blob, dataUrl } = await resizeImageToBlob(file);
-            const objectPath = await uploadImageFile(blob, file.name);
+            const objectPath = await uploadImageFile(blob, file.name, {
+              vendorPhone: vendor?.phone ?? "",
+              vendorPassword,
+            });
             return { dataUrl, objectPath, isVideo: false };
           }
         })
@@ -260,6 +269,7 @@ export function PublishModal({ open, onOpenChange, vendor, vendorPassword, onNee
           entityId: vendor.id,
           customerName: `${vendor.firstName} ${vendor.lastName}`,
           customerPhone: vendor.phone,
+          ownerCredential: vendorPassword,
         }),
       });
       const data = await r.json() as { widgetUrl?: string; error?: string };

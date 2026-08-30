@@ -3,8 +3,18 @@ import cors from "cors";
 import pinoHttp from "pino-http";
 import router from "./routes";
 import { logger } from "./lib/logger";
+import {
+  apiRateLimit,
+  corsOptions,
+  csrfProtection,
+  issueCsrfToken,
+  sanitizedErrorHandler,
+  securityHeaders,
+} from "./lib/http-security";
 
 const app: Express = express();
+app.disable("x-powered-by");
+app.set("trust proxy", 1);
 
 app.use(
   pinoHttp({
@@ -25,10 +35,21 @@ app.use(
     },
   }),
 );
-app.use(cors());
-app.use(express.json({ limit: "20mb" }));
-app.use(express.urlencoded({ extended: true, limit: "20mb" }));
+app.use(securityHeaders);
+app.use(cors(corsOptions));
+app.use(express.json({
+  limit: "2mb",
+  strict: true,
+  verify(req, _res, buffer) {
+    (req as typeof req & { rawBody?: Buffer }).rawBody = Buffer.from(buffer);
+  },
+}));
+app.use(express.urlencoded({ extended: false, limit: "256kb", parameterLimit: 100 }));
 
+app.get("/api/security/csrf-token", issueCsrfToken);
+app.use("/api", apiRateLimit);
+app.use("/api", csrfProtection);
 app.use("/api", router);
+app.use(sanitizedErrorHandler);
 
 export default app;

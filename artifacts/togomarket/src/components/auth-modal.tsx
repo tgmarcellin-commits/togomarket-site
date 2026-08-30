@@ -101,6 +101,7 @@ export function AuthModal({ open, onOpenChange, onLoginSuccess, referredBy }: Au
   const [regShopName, setRegShopName] = useState("");
   const [regProfilePhotoPath, setRegProfilePhotoPath] = useState<string | null>(null);
   const [regProfilePhotoPreview, setRegProfilePhotoPreview] = useState<string | null>(null);
+  const [regProfilePhotoFile, setRegProfilePhotoFile] = useState<File | null>(null);
   const [profilePhotoUploading, setProfilePhotoUploading] = useState(false);
   const [regDialCode, setRegDialCode] = useState("228");
   const [regLocalPhone, setRegLocalPhone] = useState("");
@@ -133,6 +134,7 @@ export function AuthModal({ open, onOpenChange, onLoginSuccess, referredBy }: Au
     setRegShopName("");
     setRegProfilePhotoPath(null);
     setRegProfilePhotoPreview(null);
+    setRegProfilePhotoFile(null);
     setProfilePhotoUploading(false);
     setRegDialCode("228");
     setRegLocalPhone("");
@@ -146,25 +148,18 @@ export function AuthModal({ open, onOpenChange, onLoginSuccess, referredBy }: Au
     setResendCooldown(0);
   };
 
-  const handleProfilePhotoChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
+  const handleProfilePhotoChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
     // Preview immédiat
     const preview = URL.createObjectURL(file);
     setRegProfilePhotoPreview(preview);
     setRegProfilePhotoPath(null);
-    setProfilePhotoUploading(true);
-    try {
-      const objectPath = await uploadImageFile(file, file.name);
-      setRegProfilePhotoPath(objectPath);
-    } catch {
-      toast({ title: "Échec de l'envoi de la photo. Réessayez.", variant: "destructive" });
-      setRegProfilePhotoPreview(null);
-    } finally {
-      setProfilePhotoUploading(false);
-      // Réinitialiser l'input pour permettre de re-sélectionner le même fichier
-      e.target.value = "";
-    }
+    // The upload is deferred until the account exists, so anonymous visitors
+    // cannot consume persistent storage.
+    setRegProfilePhotoFile(file);
+    setProfilePhotoUploading(false);
+    e.target.value = "";
   };
 
   const handleOpenChange = (val: boolean) => {
@@ -227,7 +222,7 @@ export function AuthModal({ open, onOpenChange, onLoginSuccess, referredBy }: Au
       phone: fullPhone,
       password: regPassword,
       referredBy,
-      profilePhoto: regProfilePhotoPath ?? null,
+      profilePhoto: null,
       wantsNotifications,
     });
     setScreen("privacy");
@@ -269,9 +264,33 @@ export function AuthModal({ open, onOpenChange, onLoginSuccess, referredBy }: Au
     verifyOtpMutation.mutate(
       { data: { phone: verifyInfo.phone, code: otpCode.trim() } },
       {
-        onSuccess: (vendor) => {
+        onSuccess: async (vendor) => {
+          let activatedVendor = vendor;
+          if (regProfilePhotoFile && pendingRegister?.password) {
+            try {
+              setProfilePhotoUploading(true);
+              const objectPath = await uploadImageFile(regProfilePhotoFile, regProfilePhotoFile.name, {
+                vendorPhone: vendor.phone,
+                vendorPassword: pendingRegister.password,
+              });
+              const response = await fetch("/api/vendors/profile/update", {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({
+                  phone: vendor.phone,
+                  password: pendingRegister.password,
+                  profilePhoto: objectPath,
+                }),
+              });
+              if (response.ok) activatedVendor = await response.json();
+            } catch {
+              toast({ title: "Compte activé, mais la photo n'a pas pu être enregistrée.", variant: "destructive" });
+            } finally {
+              setProfilePhotoUploading(false);
+            }
+          }
           toast({ title: `Bienvenue ${vendor.firstName} ! 🎉`, description: "Votre compte est activé." });
-          onLoginSuccess(vendor, pendingRegister?.password ?? "");
+          onLoginSuccess(activatedVendor, pendingRegister?.password ?? "");
           resetAll();
           onOpenChange(false);
         },

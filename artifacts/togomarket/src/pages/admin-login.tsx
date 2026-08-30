@@ -5,30 +5,26 @@ import { Input } from "@/components/ui/input";
 import { Shield, Eye, EyeOff, Lock } from "lucide-react";
 
 const STORAGE_KEY = "togomarket_admin_session";
+let activeAdminSession: { role: string; code: string; at: number } | null = null;
 
 export function saveAdminSession(role: string, code: string) {
-  try {
-    localStorage.setItem(STORAGE_KEY, JSON.stringify({ role, code, at: Date.now() }));
-  } catch {}
+  activeAdminSession = { role, code, at: Date.now() };
+  try { localStorage.removeItem(STORAGE_KEY); } catch {}
 }
 
 export function loadAdminSession(): { role: string; code: string } | null {
-  try {
-    const raw = localStorage.getItem(STORAGE_KEY);
-    if (!raw) return null;
-    const parsed = JSON.parse(raw);
-    const age = Date.now() - (parsed.at ?? 0);
-    if (age > 8 * 60 * 60 * 1000) {
-      localStorage.removeItem(STORAGE_KEY);
-      return null;
-    }
-    return parsed;
-  } catch {
+  try { localStorage.removeItem(STORAGE_KEY); } catch {}
+  if (!activeAdminSession) return null;
+  const age = Date.now() - activeAdminSession.at;
+  if (age > 8 * 60 * 60 * 1000) {
+    activeAdminSession = null;
     return null;
   }
+  return activeAdminSession;
 }
 
 export function clearAdminSession() {
+  activeAdminSession = null;
   try { localStorage.removeItem(STORAGE_KEY); } catch {}
 }
 

@@ -337,7 +337,7 @@ export function AdminModal({
     e.target.value = "";
     try {
       const { blob, dataUrl } = await resizeImageToBlob(file);
-      const objectPath = await uploadImageFile(blob, file.name);
+      const objectPath = await uploadImageFile(blob, file.name, { adminCode: storedPassword });
       setEventForm((f) => ({ ...f, flyerImage: objectPath, flyerPreview: dataUrl }));
     } catch {
       toast({ title: "Impossible de lire l'image", variant: "destructive" });
@@ -460,7 +460,7 @@ export function AdminModal({
       const entries = await Promise.all(
         files.map(async (f) => {
           const { blob, dataUrl } = await resizeImageToBlob(f);
-          const objectPath = await uploadImageFile(blob, f.name);
+          const objectPath = await uploadImageFile(blob, f.name, { adminCode: storedPassword });
           return { dataUrl, objectPath };
         })
       );
@@ -500,7 +500,7 @@ export function AdminModal({
     if (!file) return;
     try {
       const { blob, dataUrl } = await resizeImageToBlob(file);
-      const objectPath = await uploadImageFile(blob, file.name);
+      const objectPath = await uploadImageFile(blob, file.name, { adminCode: storedPassword });
       setAdForm((f) => ({ ...f, image: objectPath, imagePreview: dataUrl }));
     } catch {
       setAdForm((f) => ({ ...f, image: "", imagePreview: "" }));
@@ -515,7 +515,7 @@ export function AdminModal({
     setAdVideoName(file.name);
     setAdVideoStatus("uploading");
     try {
-      const objectPath = await uploadVideoFile(file, (s) => setAdVideoStatus(s));
+      const objectPath = await uploadVideoFile(file, { adminCode: storedPassword }, (s) => setAdVideoStatus(s));
       setAdForm((f) => ({ ...f, videoPath: objectPath }));
       toast({ title: "Vidéo envoyée ✓" });
     } catch {
@@ -1340,7 +1340,7 @@ export function AdminModal({
                               const { resizeImageToBlob } = await import("@/lib/image");
                               const { uploadImageFile } = await import("@/lib/upload");
                               const { blob, dataUrl } = await resizeImageToBlob(file);
-                              const objectPath = await uploadImageFile(blob, file.name);
+                              const objectPath = await uploadImageFile(blob, file.name, { adminCode: storedPassword });
                               setServiceForm((f) => ({ ...f, image: objectPath, imagePreview: dataUrl }));
                             } catch {
                               toast({ title: "Échec de l'envoi de la photo", variant: "destructive" });
@@ -1358,7 +1358,7 @@ export function AdminModal({
                             setServiceVideoUploading(true);
                             try {
                               const { uploadVideoFile } = await import("@/lib/upload");
-                              const objectPath = await uploadVideoFile(file);
+                              const objectPath = await uploadVideoFile(file, { adminCode: storedPassword });
                               setServiceForm((f) => ({ ...f, videoPath: objectPath }));
                               setServiceVideoName(file.name);
                             } catch {

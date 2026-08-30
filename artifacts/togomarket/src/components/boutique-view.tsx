@@ -126,6 +126,7 @@ function PaymentButton({
           entityId: vendor.id,
           customerName: `${vendor.firstName} ${vendor.lastName}`,
           customerPhone: vendor.phone,
+          ownerCredential: vendorPassword,
         }),
       });
       const data = await res.json();

@@ -889,6 +889,8 @@ export default function AdminDashboard() {
           entityId: vendorId,
           customerName: firstName,
           customerPhone: phone,
+          ownerCredential: password,
+          actor: "admin",
         }),
       });
       const data = await r.json() as { widgetUrl?: string; error?: string };
@@ -906,14 +908,30 @@ export default function AdminDashboard() {
   };
 
   // Envoie un lien de renouvellement WhatsApp (URL stable qui crée la transaction FedaPay au clic)
-  const handleSendRenewalWhatsApp = (
+  const handleSendRenewalWhatsApp = async (
     entityType: "ad" | "event" | "service",
     entityId: number,
     name: string,
     phone: string,
   ) => {
-    const renewalUrl = `https://togomarket.site/api/${entityType}s/renewal-link/${entityId}`;
     const entityLabel = entityType === "ad" ? "publicité" : entityType === "event" ? "événement" : "service";
+    const response = await fetch("/api/fedapay/create-transaction", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        entityType,
+        entityId,
+        customerName: name,
+        customerPhone: phone,
+        ownerCredential: password,
+      }),
+    });
+    const data = await response.json() as { widgetUrl?: string; error?: string };
+    if (!response.ok || !data.widgetUrl) {
+      toast({ title: "Lien non créé", description: data.error ?? "Impossible de créer le paiement", variant: "destructive" });
+      return;
+    }
+    const renewalUrl = data.widgetUrl;
     const msg = `Bonjour ${name} ! 👋\n\nVotre ${entityLabel} TogoMarket a expiré.\n\nRenouvelez facilement pour 1 000 FCFA/mois en cliquant sur ce lien :\n${renewalUrl}\n\nMerci de votre confiance ! 🙏`;
     const waNumber = waPhone(phone);
     if (waNumber.length >= 8) {
@@ -937,6 +955,7 @@ export default function AdminDashboard() {
           entityId: paymentLinkDialog.entityId,
           customerName: paymentLinkDialog.customerName,
           customerPhone: paymentLinkDialog.customerPhone,
+          ownerCredential: password,
         }),
       });
       if (!res.ok) {
@@ -968,7 +987,7 @@ export default function AdminDashboard() {
     e.target.value = "";
     setAdVideoStatus("uploading");
     try {
-      const objectPath = await uploadVideoFile(file, (s) => setAdVideoStatus(s));
+      const objectPath = await uploadVideoFile(file, { adminCode: password }, (s) => setAdVideoStatus(s));
       setAdForm((f) => ({ ...f, videoPath: objectPath, videoName: file.name }));
     } catch {
       toast({ title: "Erreur vidéo", variant: "destructive" });
@@ -1043,7 +1062,7 @@ export default function AdminDashboard() {
     e.target.value = "";
     try {
       const { blob, dataUrl } = await resizeImageToBlob(file);
-      const objectPath = await uploadImageFile(blob, file.name);
+      const objectPath = await uploadImageFile(blob, file.name, { adminCode: password });
       setEventForm((f) => ({ ...f, flyerImage: objectPath, flyerPreview: dataUrl }));
     } catch {
       toast({ title: "Impossible de lire l'image", variant: "destructive" });
@@ -1057,7 +1076,7 @@ export default function AdminDashboard() {
     e.target.value = "";
     setEventVideoStatus("uploading");
     try {
-      const objectPath = await uploadVideoFile(file, (s) => setEventVideoStatus(s));
+      const objectPath = await uploadVideoFile(file, { adminCode: password }, (s) => setEventVideoStatus(s));
       setEventForm((f) => ({ ...f, videoPath: objectPath, videoName: file.name }));
     } catch {
       toast({ title: "Erreur vidéo", variant: "destructive" });
@@ -1125,7 +1144,7 @@ export default function AdminDashboard() {
     e.target.value = "";
     try {
       const { blob, dataUrl } = await resizeImageToBlob(file);
-      const objectPath = await uploadImageFile(blob, file.name);
+      const objectPath = await uploadImageFile(blob, file.name, { adminCode: password });
       setServiceForm((f) => ({ ...f, image: objectPath, imagePreview: dataUrl }));
     } catch {
       toast({ title: "Erreur image", variant: "destructive" });
@@ -1139,7 +1158,7 @@ export default function AdminDashboard() {
     e.target.value = "";
     setServiceVideoStatus("uploading");
     try {
-      const objectPath = await uploadVideoFile(file, (s) => setServiceVideoStatus(s));
+      const objectPath = await uploadVideoFile(file, { adminCode: password }, (s) => setServiceVideoStatus(s));
       setServiceForm((f) => ({ ...f, videoPath: objectPath, videoName: file.name }));
     } catch {
       toast({ title: "Erreur vidéo", variant: "destructive" });
