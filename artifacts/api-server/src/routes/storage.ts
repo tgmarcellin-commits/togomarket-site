@@ -15,6 +15,7 @@ import { eq } from "drizzle-orm";
 import { isAdminAny, isSuperAdmin } from "../lib/admin-auth";
 import { validateFileBytes } from "../lib/file-security";
 import { getObjectAclPolicy } from "../lib/objectAcl";
+import { collectReferencedObjectPaths } from "../lib/storageCleanup";
 import bcrypt from "bcryptjs";
 import { normalizePhone, phoneEq } from "../lib/phone";
 
@@ -308,21 +309,13 @@ router.post("/admin/storage/cleanup", async (req: Request, res: Response) => {
   try {
     const allPaths = await objectStorageService.listAllObjectEntityPaths();
 
-    const [listings, ads] = await Promise.all([
+    const [listings, ads, vendors] = await Promise.all([
       db.select({ images: listingsTable.images }).from(listingsTable),
       db.select({ image: adsTable.image, videoPath: adsTable.videoPath }).from(adsTable),
+      db.select({ profilePhoto: vendorsTable.profilePhoto }).from(vendorsTable),
     ]);
 
-    const usedPaths = new Set<string>();
-    for (const l of listings) {
-      for (const img of l.images ?? []) {
-        if (img.startsWith("/objects/")) usedPaths.add(img);
-      }
-    }
-    for (const a of ads) {
-      if (a.image?.startsWith("/objects/")) usedPaths.add(a.image);
-      if (a.videoPath?.startsWith("/objects/")) usedPaths.add(a.videoPath);
-    }
+    const usedPaths = collectReferencedObjectPaths({ listings, ads, vendors });
 
     const orphans = allPaths.filter((p) => !usedPaths.has(p));
     await Promise.allSettled(orphans.map((p) => objectStorageService.deleteObjectEntity(p)));

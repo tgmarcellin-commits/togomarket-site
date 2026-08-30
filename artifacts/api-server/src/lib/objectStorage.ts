@@ -244,10 +244,9 @@ export class ObjectStorageService {
     const prefix = objectName.endsWith("/") ? objectName : objectName + "/";
     const bucket = objectStorageClient.bucket(bucketName);
     const [files] = await bucket.getFiles({ prefix });
-    return files.map((f) => {
-      const entityId = f.name.slice(prefix.length - "uploads/".length);
-      return `/objects/${entityId}`;
-    });
+    return files
+      .map((file) => objectNameToEntityPath(file.name, prefix))
+      .filter((path): path is string => path !== null);
   }
 
   async canAccessObjectEntity({
@@ -265,6 +264,16 @@ export class ObjectStorageService {
       requestedPermission: requestedPermission ?? ObjectPermission.READ,
     });
   }
+}
+
+export function objectNameToEntityPath(fileName: string, prefix: string): string | null {
+  const normalizedPrefix = prefix.endsWith("/") ? prefix : `${prefix}/`;
+  if (!fileName.startsWith(normalizedPrefix)) {
+    return null;
+  }
+
+  const entityName = fileName.slice(normalizedPrefix.length).replace(/^\/+/, "");
+  return entityName ? `/objects/${entityName}` : null;
 }
 
 function parseObjectPath(path: string): {

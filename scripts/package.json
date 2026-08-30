@@ -6,6 +6,7 @@
   "scripts": {
     "hello": "tsx ./src/hello.ts",
     "migrate-images": "tsx ./src/migrateImages.ts",
+    "migrate-profile-photos": "tsx ./src/migrate-profile-photos.ts",
     "typecheck": "tsc -p tsconfig.json --noEmit"
   },
   "dependencies": {
