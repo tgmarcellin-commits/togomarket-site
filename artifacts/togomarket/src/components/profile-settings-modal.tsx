@@ -14,7 +14,8 @@ import {
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { useToast } from "@/hooks/use-toast";
-import { resizeImage, resolveImageUrl } from "@/lib/image";
+import { resizeImageToBlob, resolveImageUrl } from "@/lib/image";
+import { uploadImageFile } from "@/lib/upload";
 import {
   UserCircle2,
   Camera,
@@ -96,9 +97,13 @@ export function ProfileSettingsModal({
     e.target.value = "";
     setIsUploadingPhoto(true);
     try {
-      const resized = await resizeImage(file);
+      const { blob } = await resizeImageToBlob(file);
+      const objectPath = await uploadImageFile(blob, file.name, {
+        vendorPhone: vendor.phone,
+        vendorPassword,
+      });
       updateProfile.mutate(
-        { data: { phone: vendor.phone, password: vendorPassword, profilePhoto: resized } },
+        { data: { phone: vendor.phone, password: vendorPassword, profilePhoto: objectPath } },
         {
           onSuccess: (updated) => {
             onVendorUpdate(updated);

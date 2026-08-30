@@ -23,7 +23,7 @@ async function obtainCsrfToken(originalFetch: typeof window.fetch, force = false
 
   csrfRequest = originalFetch("/api/security/csrf-token", {
     method: "GET",
-    credentials: "same-origin",
+    credentials: "include",
     headers: { Accept: "application/json" },
   }).then(async (response) => {
     if (!response.ok) throw new Error("Impossible d'initialiser la protection CSRF");
@@ -56,7 +56,7 @@ export function installSecureFetch(): void {
         ...init,
         method,
         headers,
-        credentials: init?.credentials ?? "same-origin",
+        credentials: init?.credentials ?? "include",
       });
     };
 

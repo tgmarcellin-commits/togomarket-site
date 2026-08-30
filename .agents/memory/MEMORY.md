@@ -7,3 +7,4 @@
 - [Admin password secrets](admin-password-secrets.md) — ADMIN_PASSWORD et SUB_ADMIN_PASSWORD sont des secrets requis (pas de fallback en dur) lus via `artifacts/api-server/src/lib/admin-auth.ts`.
 - [Contrat SMS Techsoft](techsoft-sms-contract.md) — l’endpoint Techsoft exige un champ `recipient` pour accepter l’envoi d’un OTP.
 - [Intégrité des paiements FedaPay](fedapay-payment-integrity.md) — toute activation doit correspondre à une transaction persistée ; les liens de rappel doivent être signés et expirants.
+- [CSRF sur clients intégrés](csrf-embedded-clients.md) — valider le jeton HMAC en en-tête et l’origine sans rendre les mutations dépendantes d’un cookie parfois bloqué.

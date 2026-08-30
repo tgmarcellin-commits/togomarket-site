@@ -375,6 +375,9 @@ router.post("/vendors/profile/update", async (req, res) => {
   }
   const phone = normalizePhone(parsed.data.phone);
   const { password, profilePhoto } = parsed.data;
+  if (profilePhoto && !profilePhoto.startsWith("/objects/uploads/")) {
+    return res.status(400).json({ error: "Chemin de photo de profil invalide." });
+  }
 
   const vendors = await db.select().from(vendorsTable).where(phoneEq(vendorsTable.phone, phone)).limit(1);
   if (vendors.length === 0) return res.status(401).json({ error: "Compte introuvable." });

@@ -80,19 +80,6 @@ export const securityHeaders: RequestHandler = (_req, res, next) => {
   next();
 };
 
-function parseCookie(req: Request, name: string): string | null {
-  const raw = req.headers.cookie;
-  if (!raw) return null;
-  for (const pair of raw.split(";")) {
-    const separator = pair.indexOf("=");
-    if (separator < 0) continue;
-    if (pair.slice(0, separator).trim() === name) {
-      return decodeURIComponent(pair.slice(separator + 1).trim());
-    }
-  }
-  return null;
-}
-
 function signToken(payload: string): string {
   return createHmac("sha256", sessionSecret()).update(payload).digest("base64url");
 }
@@ -135,6 +122,17 @@ function requestOrigin(req: Request): string | null {
   }
 }
 
+function isSameRequestOrigin(req: Request, origin: string): boolean {
+  try {
+    const originUrl = new URL(origin);
+    const requestHost = req.get("host");
+    if (!requestHost) return false;
+    return originUrl.origin === `${req.protocol}://${requestHost}`;
+  } catch {
+    return false;
+  }
+}
+
 export const csrfProtection: RequestHandler = (req, res, next) => {
   if (!UNSAFE_METHODS.has(req.method) || WEBHOOK_PATHS.has(req.originalUrl.split("?")[0])) {
     next();
@@ -142,19 +140,13 @@ export const csrfProtection: RequestHandler = (req, res, next) => {
   }
 
   const origin = requestOrigin(req);
-  if (origin && !isAllowedOrigin(origin)) {
+  if (origin && !isSameRequestOrigin(req, origin) && !isAllowedOrigin(origin)) {
     res.status(403).json({ error: "Origine de requête non autorisée" });
     return;
   }
 
-  const cookieToken = parseCookie(req, CSRF_COOKIE);
   const headerToken = req.headers[CSRF_HEADER];
-  if (
-    !cookieToken ||
-    typeof headerToken !== "string" ||
-    cookieToken !== headerToken ||
-    !validSignature(cookieToken)
-  ) {
+  if (typeof headerToken !== "string" || !validSignature(headerToken)) {
     res.status(403).json({ error: "Jeton CSRF manquant ou invalide", code: "csrf_invalid" });
     return;
   }
