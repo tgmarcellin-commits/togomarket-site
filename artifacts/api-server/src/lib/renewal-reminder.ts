@@ -22,6 +22,12 @@ import { createVendorRenewalToken } from "./vendor-renewal-token";
 
 const DAY_MS = 24 * 60 * 60 * 1000;
 
+function isExpiredPushError(err: unknown): boolean {
+  if (!err || typeof err !== "object") return false;
+  const statusCode = (err as { statusCode?: unknown }).statusCode;
+  return statusCode === 404 || statusCode === 410;
+}
+
 // ─────────────────────────────────────────────────────────────────────────────
 // Anti-doublon : une notification du même type a-t-elle été envoyée récemment ?
 // ─────────────────────────────────────────────────────────────────────────────
@@ -70,10 +76,13 @@ async function notifyVendor(
         payload,
       ).catch(async (err: { statusCode?: number }) => {
         // Abonnement expiré → le supprimer proprement
-        if (err?.statusCode === 410) {
+        if (isExpiredPushError(err)) {
           await db
             .delete(pushSubscriptionsTable)
-            .where(eq(pushSubscriptionsTable.endpoint, sub.endpoint));
+            .where(and(
+              eq(pushSubscriptionsTable.endpoint, sub.endpoint),
+              eq(pushSubscriptionsTable.vendorId, vendorId),
+            ));
         }
         throw err;
       })

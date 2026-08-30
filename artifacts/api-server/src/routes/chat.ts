@@ -30,6 +30,32 @@ const objectStorage = new ObjectStorageService();
 
 const router: IRouter = Router();
 
+function isExpiredPushError(err: unknown): boolean {
+  if (!err || typeof err !== "object") return false;
+  const statusCode = (err as { statusCode?: unknown }).statusCode;
+  return statusCode === 404 || statusCode === 410;
+}
+
+async function notifyVendorWithoutPush(
+  vendorId: number,
+  vendor: { firstName: string; phone: string },
+  buyerName: string,
+): Promise<void> {
+  await db.insert(vendorNotificationsTable).values({
+    vendorId,
+    title: `💬 Nouveau message de ${buyerName}`,
+    body: `Vous avez reçu un message mais vos notifications sont désactivées. Activez-les dans l'onglet Messages pour ne plus rien manquer.`,
+    url: null,
+    notifType: "push_nudge",
+  });
+
+  if (canSendNudge(vendorId)) {
+    markNudgeSent(vendorId);
+    sendWhatsAppNotifNudge(vendor.phone, vendor.firstName, buyerName)
+      .catch((err) => logger.warn({ err, vendorId }, "WhatsApp notif nudge failed"));
+  }
+}
+
 function firstValidListingImage(images: string[]): string | null {
   return images.find(
     (image) =>
@@ -634,26 +660,25 @@ router.post("/conversations/:id/messages", async (req, res) => {
               { endpoint: sub.endpoint, keys: sub.keys as { auth: string; p256dh: string } },
               payload,
             ).catch((err: { statusCode?: number }) => {
-              if (err?.statusCode === 410) {
-                return db.delete(pushSubscriptionsTable).where(eq(pushSubscriptionsTable.endpoint, sub.endpoint));
+              if (isExpiredPushError(err)) {
+                return db.delete(pushSubscriptionsTable).where(and(
+                  eq(pushSubscriptionsTable.endpoint, sub.endpoint),
+                  eq(pushSubscriptionsTable.vendorId, conv.vendorId),
+                ));
               }
               return undefined;
             }),
           ),
         );
-      } else if (subs.length === 0 && vendor) {
-        await db.insert(vendorNotificationsTable).values({
-          vendorId: conv.vendorId,
-          title: `💬 Nouveau message de ${conv.buyerName}`,
-          body: `Vous avez reçu un message mais vos notifications sont désactivées. Activez-les dans l'onglet Messages pour ne plus rien manquer.`,
-          url: null,
-          notifType: "push_nudge",
-        });
-        if (canSendNudge(conv.vendorId)) {
-          markNudgeSent(conv.vendorId);
-          sendWhatsAppNotifNudge(vendor.phone, vendor.firstName, conv.buyerName)
-            .catch((err) => logger.warn({ err, vendorId: conv.vendorId }, "WhatsApp notif nudge failed"));
+        const remainingSubs = await db
+          .select({ id: pushSubscriptionsTable.id })
+          .from(pushSubscriptionsTable)
+          .where(eq(pushSubscriptionsTable.vendorId, conv.vendorId));
+        if (remainingSubs.length === 0 && vendor) {
+          await notifyVendorWithoutPush(conv.vendorId, vendor, conv.buyerName);
         }
+      } else if (subs.length === 0 && vendor) {
+        await notifyVendorWithoutPush(conv.vendorId, vendor, conv.buyerName);
       }
     } catch (err) {
       logger.warn({ err }, "Notification vendeur : erreur non fatale");
@@ -687,7 +712,7 @@ router.post("/conversations/:id/messages", async (req, res) => {
                 { endpoint: sub.endpoint, keys: sub.keys as { auth: string; p256dh: string } },
                 payload,
               ).catch((err: { statusCode?: number }) => {
-                if (err?.statusCode === 410) {
+                if (isExpiredPushError(err)) {
                   return db.delete(buyerPushSubscriptionsTable).where(and(
                     eq(buyerPushSubscriptionsTable.endpoint, sub.endpoint),
                     eq(buyerPushSubscriptionsTable.conversationId, convId),
@@ -838,7 +863,7 @@ router.post(
                 { endpoint: sub.endpoint, keys: sub.keys as { auth: string; p256dh: string } },
                 payload,
               ).catch((err: { statusCode?: number }) => {
-                if (err?.statusCode === 410) {
+                if (isExpiredPushError(err)) {
                   return db.delete(buyerPushSubscriptionsTable)
                     .where(and(
                       eq(buyerPushSubscriptionsTable.endpoint, sub.endpoint),
