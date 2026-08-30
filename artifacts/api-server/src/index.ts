@@ -11,6 +11,7 @@ import { setIo } from "./lib/socket-io";
 import { db, vendorsTable, conversationsTable } from "@workspace/db";
 import { eq } from "drizzle-orm";
 import { normalizePhone, phoneEq } from "./lib/phone";
+import { lookupVendorSessionDetails } from "./lib/vendor-auth";
 
 const rawPort = process.env["PORT"];
 
@@ -40,11 +41,42 @@ setIo(io);
 // Vendor socket authentication
 io.on("connection", (socket) => {
   logger.debug({ id: socket.id }, "socket connected");
+  let expiryTimer: ReturnType<typeof setTimeout> | undefined;
+  const assignVendor = (vendorId: number, expiresAt?: Date) => {
+    for (const room of socket.rooms) {
+      if (room.startsWith("vendor:") && room !== `vendor:${vendorId}`) socket.leave(room);
+    }
+    socket.join(`vendor:${vendorId}`);
+    socket.data.vendorId = vendorId;
+    if (expiryTimer) clearTimeout(expiryTimer);
+    if (expiresAt) {
+      const delay = Math.max(0, Math.min(expiresAt.getTime() - Date.now(), 2_147_483_647));
+      expiryTimer = setTimeout(() => socket.disconnect(true), delay);
+    }
+    socket.emit("auth_ok", { vendorId });
+  };
+
+  // Resolve cookie auth once and make it authoritative for this connection.
+  // Legacy auth waits for this promise, preventing dual-vendor room races.
+  const cookieAuth = lookupVendorSessionDetails(socket.handshake.headers.cookie)
+    .then((session) => {
+      if (session) assignVendor(session.vendor.id, session.expiresAt);
+      return session;
+    })
+    .catch((err) => {
+      logger.warn({ err }, "socket session authentication error");
+      return null;
+    });
 
   // Vendor authenticates: emit "auth" { phone, password }
   socket.on("auth", async ({ phone, password }: { phone: string; password: string }) => {
     if (!phone || !password) return;
     try {
+      const session = await cookieAuth;
+      if (session) {
+        assignVendor(session.vendor.id, session.expiresAt);
+        return;
+      }
       const norm = normalizePhone(phone);
       // Use phoneEq inside Drizzle .where() — correct usage as a SQL predicate
       const vendors = await db
@@ -56,19 +88,15 @@ io.on("connection", (socket) => {
       const vendor = vendors[0];
       const ok = await bcrypt.compare(password, vendor.passwordHash);
       if (!ok) return;
-      // Un socket ne doit appartenir qu'à un seul vendeur à la fois :
-      // quitter toute room vendeur précédente (changement de compte sur la même page)
-      for (const room of socket.rooms) {
-        if (room.startsWith("vendor:") && room !== `vendor:${vendor.id}`) {
-          socket.leave(room);
-        }
-      }
-      socket.join(`vendor:${vendor.id}`);
-      socket.emit("auth_ok", { vendorId: vendor.id });
+      assignVendor(vendor.id);
       logger.debug({ vendorId: vendor.id }, "vendor socket authed");
     } catch (err) {
       logger.error({ err }, "socket auth error");
     }
+  });
+
+  socket.on("disconnect", () => {
+    if (expiryTimer) clearTimeout(expiryTimer);
   });
 
   // Buyer joins a conversation room: emit "join_conv" { conversationId, buyerToken }

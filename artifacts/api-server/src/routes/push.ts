@@ -1,9 +1,8 @@
 import { Router, type IRouter } from "express";
 import { eq, and } from "drizzle-orm";
-import { db, pushSubscriptionsTable, buyerPushSubscriptionsTable, vendorsTable, conversationsTable } from "@workspace/db";
-import bcrypt from "bcryptjs";
+import { db, pushSubscriptionsTable, buyerPushSubscriptionsTable, conversationsTable } from "@workspace/db";
 import { vapidPublicKey } from "../lib/webpush";
-import { normalizePhone, phoneEq } from "../lib/phone";
+import { authenticateVendorRequest } from "../lib/vendor-auth";
 
 const router: IRouter = Router();
 
@@ -45,26 +44,35 @@ function isValidPushEndpoint(endpoint: string): boolean {
   }
 }
 
-/**
- * Authenticate a vendor by phone + password.
- * Uses phoneEq() inside Drizzle .where() — correct SQL predicate usage.
- */
-async function authenticateVendor(phone: string, password: string) {
-  const norm = normalizePhone(phone);
-  const vendors = await db
-    .select()
-    .from(vendorsTable)
-    .where(phoneEq(vendorsTable.phone, norm))
-    .limit(1);
-  if (!vendors.length) return null;
-  const v = vendors[0];
-  const ok = await bcrypt.compare(password, v.passwordHash);
-  return ok ? v : null;
-}
-
 /* GET /api/push/vapid-public-key */
 router.get("/push/vapid-public-key", (_req, res) => {
   res.json({ key: vapidPublicKey });
+});
+
+/* POST /api/push/status
+   Confirme que l'endpoint push du navigateur appartient au vendeur connecté.
+   Body: { endpoint }
+*/
+router.post("/push/status", async (req, res) => {
+  const vendor = await authenticateVendorRequest(req);
+  if (!vendor) { res.status(401).json({ error: "invalid credentials" }); return; }
+
+  const { endpoint } = req.body as { endpoint?: string };
+  if (!endpoint || !isValidPushEndpoint(endpoint)) {
+    res.status(400).json({ error: "endpoint invalid" });
+    return;
+  }
+
+  const [subscription] = await db
+    .select({ id: pushSubscriptionsTable.id })
+    .from(pushSubscriptionsTable)
+    .where(and(
+      eq(pushSubscriptionsTable.endpoint, endpoint),
+      eq(pushSubscriptionsTable.vendorId, vendor.id),
+    ))
+    .limit(1);
+
+  res.json({ active: Boolean(subscription) });
 });
 
 /* POST /api/push/subscribe
@@ -72,11 +80,7 @@ router.get("/push/vapid-public-key", (_req, res) => {
    Headers: x-vendor-phone, x-vendor-password
 */
 router.post("/push/subscribe", async (req, res) => {
-  const phone = req.headers["x-vendor-phone"] as string;
-  const password = req.headers["x-vendor-password"] as string;
-  if (!phone || !password) { res.status(401).json({ error: "auth required" }); return; }
-
-  const vendor = await authenticateVendor(phone, password);
+  const vendor = await authenticateVendorRequest(req);
   if (!vendor) { res.status(401).json({ error: "invalid credentials" }); return; }
 
   const { endpoint, keys } = req.body as {
@@ -93,15 +97,17 @@ router.post("/push/subscribe", async (req, res) => {
     return;
   }
 
-  // Upsert subscription (delete old entry for this endpoint first)
-  await db
-    .delete(pushSubscriptionsTable)
-    .where(eq(pushSubscriptionsTable.endpoint, endpoint));
+  // Un endpoint navigateur ne peut appartenir qu'au vendeur actuellement connecté.
+  await db.transaction(async (tx) => {
+    await tx
+      .delete(pushSubscriptionsTable)
+      .where(eq(pushSubscriptionsTable.endpoint, endpoint));
 
-  await db.insert(pushSubscriptionsTable).values({
-    vendorId: vendor.id,
-    endpoint,
-    keys,
+    await tx.insert(pushSubscriptionsTable).values({
+      vendorId: vendor.id,
+      endpoint,
+      keys,
+    });
   });
 
   res.json({ ok: true });
@@ -111,10 +117,7 @@ router.post("/push/subscribe", async (req, res) => {
    Body: { endpoint }
 */
 router.post("/push/unsubscribe", async (req, res) => {
-  const phone = req.headers["x-vendor-phone"] as string;
-  const password = req.headers["x-vendor-password"] as string;
-  if (!phone || !password) { res.status(401).json({ error: "auth required" }); return; }
-  const vendor = await authenticateVendor(phone, password);
+  const vendor = await authenticateVendorRequest(req);
   if (!vendor) { res.status(401).json({ error: "invalid credentials" }); return; }
   const { endpoint } = req.body as { endpoint: string };
   if (!endpoint || !isValidPushEndpoint(endpoint)) { res.status(400).json({ error: "endpoint invalid" }); return; }

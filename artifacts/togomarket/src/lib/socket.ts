@@ -13,6 +13,7 @@ export function getSocket(): Socket {
       path: "/api/socket.io",
       transports: ["polling", "websocket"],
       autoConnect: true,
+      withCredentials: true,
     });
   }
   return _socket;

@@ -13,7 +13,6 @@ const LS_VERSION_KEY = "tm_ls_v";
 if (localStorage.getItem(LS_VERSION_KEY) !== LS_VERSION) {
   // Remove buyer identity
   localStorage.removeItem("tm_buyer");
-  localStorage.removeItem("togomarket_vendor_session");
   localStorage.removeItem("togomarket_admin_session");
   // Remove all per-listing chat sessions (keys starting with tm_chat_)
   Object.keys(localStorage)

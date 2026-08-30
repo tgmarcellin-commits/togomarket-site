@@ -1,5 +1,5 @@
-import { Router, type IRouter } from "express";
-import { eq, desc, and, isNull, or, inArray } from "drizzle-orm";
+import { Router, type IRouter, type Request } from "express";
+import { eq, desc, and, isNull, or, inArray, gt, lt } from "drizzle-orm";
 import { db } from "@workspace/db";
 import {
   conversationsTable,
@@ -10,7 +10,6 @@ import {
   buyerPushSubscriptionsTable,
   vendorNotificationsTable,
 } from "@workspace/db";
-import bcrypt from "bcryptjs";
 import { randomUUID } from "node:crypto";
 import multer from "multer";
 import { getIo } from "../lib/socket-io";
@@ -21,6 +20,7 @@ import { logger } from "../lib/logger";
 import { ObjectStorageService } from "../lib/objectStorage";
 import { validateFileBytes } from "../lib/file-security";
 import { secureMessageFileUrl, verifyMessageFileAccess } from "../lib/message-file-access";
+import { authenticateVendorRequest } from "../lib/vendor-auth";
 
 const upload = multer({
   storage: multer.memoryStorage(),
@@ -41,18 +41,44 @@ async function notifyVendorWithoutPush(
   vendor: { firstName: string; phone: string },
   buyerName: string,
 ): Promise<void> {
-  await db.insert(vendorNotificationsTable).values({
-    vendorId,
-    title: `💬 Nouveau message de ${buyerName}`,
-    body: `Vous avez reçu un message mais vos notifications sont désactivées. Activez-les dans l'onglet Messages pour ne plus rien manquer.`,
-    url: null,
-    notifType: "push_nudge",
+  const now = new Date();
+  const since = new Date(Date.now() - 24 * 60 * 60 * 1000);
+  const created = await db.transaction(async (tx) => {
+    const [claimed] = await tx.update(vendorsTable)
+      .set({ lastPushNudgeAt: now })
+      .where(and(
+        eq(vendorsTable.id, vendorId),
+        or(isNull(vendorsTable.lastPushNudgeAt), lt(vendorsTable.lastPushNudgeAt, since)),
+      ))
+      .returning({ id: vendorsTable.id });
+    if (!claimed) return null;
+    const title = `💬 Nouveau message de ${buyerName}`;
+    const body = `Vous avez reçu un message mais vos notifications sont désactivées. Activez-les dans l'onglet Messages pour ne plus rien manquer.`;
+    const [notification] = await tx.insert(vendorNotificationsTable).values({
+      vendorId,
+      title,
+      body,
+      url: null,
+      notifType: "push_nudge",
+    }).returning({ id: vendorNotificationsTable.id });
+    return { ...notification, title, body };
   });
 
-  if (canSendNudge(vendorId)) {
-    markNudgeSent(vendorId);
-    sendWhatsAppNotifNudge(vendor.phone, vendor.firstName, buyerName)
-      .catch((err) => logger.warn({ err, vendorId }, "WhatsApp notif nudge failed"));
+  if (created) {
+    try {
+      getIo().to(`vendor:${vendorId}`).emit("vendor_system_notification", {
+        notificationId: created.id,
+        notifType: "push_nudge",
+        title: created.title,
+        body: created.body,
+      });
+    } catch { /* persisted notification is still available after reconnect */ }
+
+    if (canSendNudge(vendorId)) {
+      markNudgeSent(vendorId);
+      sendWhatsAppNotifNudge(vendor.phone, vendor.firstName, buyerName)
+        .catch((err) => logger.warn({ err, vendorId }, "WhatsApp notif nudge failed"));
+    }
   }
 }
 
@@ -134,19 +160,6 @@ async function addListingImageFallback<T extends ConversationImageContext>(
    Helper: authenticate vendor by phone + password
    Uses phoneEq() only inside Drizzle .where() — never as a JS boolean.
    ────────────────────────────────────────────────────────────── */
-async function authenticateVendor(phone: string, password: string) {
-  const norm = normalizePhone(phone);
-  const vendors = await db
-    .select()
-    .from(vendorsTable)
-    .where(phoneEq(vendorsTable.phone, norm))
-    .limit(1);
-  if (!vendors.length) return null;
-  const v = vendors[0];
-  const ok = await bcrypt.compare(password, v.passwordHash);
-  return ok ? v : null;
-}
-
 /* ──────────────────────────────────────────────────────────────
    POST /api/conversations
    Body: { vendorId, buyerName, buyerPhone, listingTitle?, listingId? }
@@ -366,17 +379,18 @@ async function resolveIdentity(
   const vendorPassword = req.headers["x-vendor-password"] as string | undefined;
   const buyerToken = req.headers["x-buyer-token"] as string | undefined;
 
-  if (vendorPhone && vendorPassword) {
-    const v = await authenticateVendor(vendorPhone, vendorPassword);
-    if (!v) return null;
-    // Make sure this vendor actually owns the conversation
-    const convRows = await db
-      .select({ vendorId: conversationsTable.vendorId })
-      .from(conversationsTable)
-      .where(and(eq(conversationsTable.id, convId), eq(conversationsTable.vendorId, v.id)))
-      .limit(1);
-    if (!convRows.length) return null;
-    return { role: "vendor", vendorId: v.id };
+  {
+    const v = await authenticateVendorRequest(req as Request, { phone: vendorPhone, password: vendorPassword });
+    if (v) {
+      // Make sure this vendor actually owns the conversation
+      const convRows = await db
+        .select({ vendorId: conversationsTable.vendorId })
+        .from(conversationsTable)
+        .where(and(eq(conversationsTable.id, convId), eq(conversationsTable.vendorId, v.id)))
+        .limit(1);
+      if (!convRows.length) return null;
+      return { role: "vendor", vendorId: v.id };
+    }
   }
 
   if (buyerToken) {
@@ -1004,11 +1018,7 @@ router.patch("/messages/:id", async (req, res) => {
    GET /api/vendor/conversations
    ────────────────────────────────────────────────────────────── */
 router.get("/vendor/conversations", async (req, res) => {
-  const phone = req.headers["x-vendor-phone"] as string;
-  const password = req.headers["x-vendor-password"] as string;
-  if (!phone || !password) { res.status(401).json({ error: "auth required" }); return; }
-
-  const vendor = await authenticateVendor(phone, password);
+  const vendor = await authenticateVendorRequest(req);
   if (!vendor) { res.status(401).json({ error: "invalid credentials" }); return; }
 
   // Return conversations without buyerToken (not needed by vendor)
@@ -1040,11 +1050,7 @@ router.get("/vendor/conversations", async (req, res) => {
    POST /api/vendor/conversations/:id/read
    ────────────────────────────────────────────────────────────── */
 router.post("/vendor/conversations/:id/read", async (req, res) => {
-  const phone = req.headers["x-vendor-phone"] as string;
-  const password = req.headers["x-vendor-password"] as string;
-  if (!phone || !password) { res.status(401).json({ error: "auth required" }); return; }
-
-  const vendor = await authenticateVendor(phone, password);
+  const vendor = await authenticateVendorRequest(req);
   if (!vendor) { res.status(401).json({ error: "invalid credentials" }); return; }
 
   const convId = parseInt(req.params["id"] ?? "", 10);
@@ -1066,11 +1072,7 @@ router.post("/vendor/conversations/:id/read", async (req, res) => {
 /*  DELETE /api/vendor/conversations/:id
     ────────────────────────────────────────────────────────────── */
 router.delete("/vendor/conversations/:id", async (req, res) => {
-  const phone = req.headers["x-vendor-phone"] as string;
-  const password = req.headers["x-vendor-password"] as string;
-  if (!phone || !password) { res.status(401).json({ error: "auth required" }); return; }
-
-  const vendor = await authenticateVendor(phone, password);
+  const vendor = await authenticateVendorRequest(req);
   if (!vendor) { res.status(401).json({ error: "invalid credentials" }); return; }
 
   const convId = parseInt(req.params["id"] ?? "", 10);

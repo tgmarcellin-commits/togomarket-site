@@ -122,10 +122,11 @@ TogoMarket dispose d'un chat interne temps réel entre acheteurs et vendeurs :
 NOTIFICATIONS PUSH POUR LES VENDEURS
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 • Les vendeurs peuvent activer des notifications push pour être alertés quand un acheteur leur envoie un message
-• Une bannière d'invitation apparaît dans l'onglet Stand si les notifications ne sont pas encore activées
+• Une bannière d'invitation et un rappel dans Messages apparaissent si aucun abonnement push réel confirmé côté serveur pour ce vendeur n'est actif ; le rappel n'est pas répété en boucle
 • L'activation se fait en un clic (permission navigateur + enregistrement automatique)
 • Le vendeur peut aussi activer les notifications à l'inscription (case cochée par défaut)
 • Fonctionne même si le navigateur est en arrière-plan (via Service Worker)
+• La connexion vendeur reste active après une actualisation sécurisée du site ; une déconnexion volontaire ferme cette session
 
 NOTIFICATIONS PUSH POUR LES ACHETEURS
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━

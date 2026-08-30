@@ -4,6 +4,9 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { useSiteSettings } from "@/lib/site-settings";
 import type { VendorProfile } from "@workspace/api-client-react";
+import { getSocket } from "@/lib/socket";
+import { vendorAuthHeaders } from "@/lib/vendor-auth";
+import { confirmOrRepairVendorPush } from "@/lib/vendor-push";
 
 interface SystemNotification {
   id: number;
@@ -27,17 +30,15 @@ export function VendorSystemNotifications({ vendor, vendorPassword, onUnreadChan
   const [notifs, setNotifs] = useState<SystemNotification[]>([]);
   const [loading, setLoading] = useState(false);
   const [deletingId, setDeletingId] = useState<number | null>(null);
+  const [pushSubscribed, setPushSubscribed] = useState(false);
   const longPressTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
-  const authHeaders = {
-    "x-vendor-phone": vendor.phone,
-    "x-vendor-password": vendorPassword,
-  };
+  const authHeaders = vendorAuthHeaders(vendor.phone, vendorPassword);
 
   const fetchNotifs = useCallback(async () => {
     setLoading(true);
     try {
-      const res = await fetch("/api/vendor/notifications", { headers: authHeaders });
+      const res = await fetch("/api/vendor/notifications", { headers: authHeaders, credentials: "include" });
       if (res.ok) {
         const data = await res.json() as SystemNotification[];
         setNotifs(data);
@@ -49,7 +50,29 @@ export function VendorSystemNotifications({ vendor, vendorPassword, onUnreadChan
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [vendor.phone, vendorPassword]);
 
-  useEffect(() => { fetchNotifs(); }, [fetchNotifs]);
+  useEffect(() => {
+    fetchNotifs();
+    const socket = getSocket();
+    const sync = () => { fetchNotifs(); };
+    socket.on("vendor_system_notification", sync);
+    socket.on("auth_ok", sync);
+    socket.on("connect", sync);
+    socket.on("reconnect", sync);
+    return () => {
+      socket.off("vendor_system_notification", sync);
+      socket.off("auth_ok", sync);
+      socket.off("connect", sync);
+      socket.off("reconnect", sync);
+    };
+  }, [fetchNotifs]);
+
+  useEffect(() => {
+    let cancelled = false;
+    confirmOrRepairVendorPush({ phone: vendor.phone, password: vendorPassword })
+      .then((active) => { if (!cancelled) setPushSubscribed(active); })
+      .catch(() => {});
+    return () => { cancelled = true; };
+  }, [vendor.phone, vendorPassword]);
 
   // Si des notifications non lues existent, on réinitialise le flag de dismiss
   // de la bannière push pour qu'elle réapparaisse.
@@ -59,7 +82,7 @@ export function VendorSystemNotifications({ vendor, vendorPassword, onUnreadChan
   }, [notifs]);
 
   const markRead = async (id: number) => {
-    await fetch(`/api/vendor/notifications/${id}/read`, { method: "POST", headers: authHeaders });
+    await fetch(`/api/vendor/notifications/${id}/read`, { method: "POST", headers: authHeaders, credentials: "include" });
     setNotifs((prev) =>
       prev.map((n) => (n.id === id ? { ...n, isRead: true } : n))
     );
@@ -67,14 +90,14 @@ export function VendorSystemNotifications({ vendor, vendorPassword, onUnreadChan
   };
 
   const markAllRead = async () => {
-    await fetch("/api/vendor/notifications/read-all", { method: "POST", headers: authHeaders });
+    await fetch("/api/vendor/notifications/read-all", { method: "POST", headers: authHeaders, credentials: "include" });
     setNotifs((prev) => prev.map((n) => ({ ...n, isRead: true })));
     onUnreadChange?.(0);
   };
 
   const deleteNotif = async (id: number) => {
     setDeletingId(null);
-    await fetch(`/api/vendor/notifications/${id}`, { method: "DELETE", headers: authHeaders });
+    await fetch(`/api/vendor/notifications/${id}`, { method: "DELETE", headers: authHeaders, credentials: "include" });
     setNotifs((prev) => {
       const next = prev.filter((n) => n.id !== id);
       onUnreadChange?.(next.filter((n) => !n.isRead).length);
@@ -89,10 +112,8 @@ export function VendorSystemNotifications({ vendor, vendorPassword, onUnreadChan
     if (longPressTimer.current) clearTimeout(longPressTimer.current);
   };
 
-  // Masquer les nudges push si push est déjà activé sur cet appareil
-  const pushGranted =
-    typeof Notification !== "undefined" && Notification.permission === "granted";
-  const visibleNotifs = pushGranted
+  // Masquer les nudges uniquement après confirmation serveur pour ce vendeur.
+  const visibleNotifs = pushSubscribed
     ? notifs.filter((n) => n.notifType !== "push_nudge")
     : notifs;
 

@@ -1,7 +1,6 @@
 import { Router, type IRouter } from "express";
 import { eq, ilike, and, desc, sql, gt, inArray, ne, type SQL } from "drizzle-orm";
 import { normalizePhone, phoneEq } from "../lib/phone";
-import bcrypt from "bcryptjs";
 import { db, listingsTable, vendorsTable, reviewsTable } from "@workspace/db";
 import {
   CreateListingBody,
@@ -18,6 +17,7 @@ import {
 import { logger } from "../lib/logger";
 import { ObjectStorageService } from "../lib/objectStorage";
 import { isSuperAdmin } from "../lib/admin-auth";
+import { authenticateVendorRequest } from "../lib/vendor-auth";
 
 const objectStorage = new ObjectStorageService();
 
@@ -186,21 +186,9 @@ router.post("/listings", async (req, res): Promise<void> => {
   const vendorPhone = normalizePhone(parsed.data.vendorPhone);
   const { vendorPassword } = parsed.data;
 
-  const vendors = await db
-    .select()
-    .from(vendorsTable)
-    .where(phoneEq(vendorsTable.phone, vendorPhone))
-    .limit(1);
-
-  if (vendors.length === 0) {
+  const vendor = await authenticateVendorRequest(req, { phone: vendorPhone, password: vendorPassword });
+  if (!vendor) {
     res.status(403).json({ error: "Compte vendeur introuvable." });
-    return;
-  }
-
-  const vendor = vendors[0];
-  const passwordMatch = await bcrypt.compare(vendorPassword, vendor.passwordHash);
-  if (!passwordMatch) {
-    res.status(403).json({ error: "Mot de passe incorrect." });
     return;
   }
 
@@ -241,20 +229,8 @@ router.post("/listings/update-price", async (req, res): Promise<void> => {
     return;
   }
 
-  const vendors = await db
-    .select()
-    .from(vendorsTable)
-    .where(phoneEq(vendorsTable.phone, phone))
-    .limit(1);
-
-  if (vendors.length === 0) {
-    res.status(401).json({ error: "Compte introuvable." });
-    return;
-  }
-
-  const vendor = vendors[0];
-  const match = await bcrypt.compare(password, vendor.passwordHash);
-  if (!match) {
+  const vendor = await authenticateVendorRequest(req, { phone, password });
+  if (!vendor) {
     res.status(401).json({ error: "Mot de passe incorrect." });
     return;
   }
@@ -317,20 +293,8 @@ router.post("/listings/vendor-delete", async (req, res): Promise<void> => {
     return;
   }
 
-  const vendors = await db
-    .select()
-    .from(vendorsTable)
-    .where(phoneEq(vendorsTable.phone, phone))
-    .limit(1);
-
-  if (vendors.length === 0) {
-    res.status(401).json({ error: "Compte introuvable." });
-    return;
-  }
-
-  const vendor = vendors[0];
-  const match = await bcrypt.compare(password, vendor.passwordHash);
-  if (!match) {
+  const vendor = await authenticateVendorRequest(req, { phone, password });
+  if (!vendor) {
     res.status(401).json({ error: "Mot de passe incorrect." });
     return;
   }

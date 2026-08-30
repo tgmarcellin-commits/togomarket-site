@@ -3,20 +3,20 @@ import { Bell, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { useSiteSettings } from "@/lib/site-settings";
 import type { VendorProfile } from "@workspace/api-client-react";
+import { vendorAuthHeaders } from "@/lib/vendor-auth";
+import {
+  activateVendorPush,
+  confirmOrRepairVendorPush,
+  supportsVendorPush,
+} from "@/lib/vendor-push";
 
 interface PushActivationBannerProps {
   vendor: VendorProfile;
   vendorPassword: string;
+  onActivated?: () => void;
 }
 
-function urlBase64ToUint8Array(base64String: string): Uint8Array {
-  const padding = "=".repeat((4 - (base64String.length % 4)) % 4);
-  const base64 = (base64String + padding).replace(/-/g, "+").replace(/_/g, "/");
-  const rawData = window.atob(base64);
-  return Uint8Array.from([...rawData].map((char) => char.charCodeAt(0)));
-}
-
-export function PushActivationBanner({ vendor, vendorPassword }: PushActivationBannerProps) {
+export function PushActivationBanner({ vendor, vendorPassword, onActivated }: PushActivationBannerProps) {
   const { lang } = useSiteSettings();
   const [show, setShow] = useState(false);
   const [loading, setLoading] = useState(false);
@@ -27,11 +27,29 @@ export function PushActivationBanner({ vendor, vendorPassword }: PushActivationB
 
   useEffect(() => {
     if (dismissed) return;
-    if (!("serviceWorker" in navigator) || !("PushManager" in window)) return;
-    const perm = Notification.permission;
-    if (perm === "granted") return; // already subscribed
-    setShow(true);
-  }, [dismissed]);
+    if (!supportsVendorPush()) {
+      setError(lang === "fr" ? "Les notifications push ne sont pas prises en charge par ce navigateur." : "Push notifications are not supported by this browser.");
+      setShow(true);
+      return;
+    }
+    if (Notification.permission === "denied") {
+      setError(lang === "fr" ? "Notifications bloquées. Autorisez-les dans les paramètres du navigateur." : "Notifications are blocked. Allow them in your browser settings.");
+      setShow(true);
+      return;
+    }
+    let cancelled = false;
+    confirmOrRepairVendorPush({ phone: vendor.phone, password: vendorPassword })
+      .then((active) => {
+        if (!cancelled) setShow(!active);
+      })
+      .catch(() => {
+        if (!cancelled) {
+          setError(lang === "fr" ? "Impossible de vérifier les notifications push." : "Unable to check push notifications.");
+          setShow(true);
+        }
+      });
+    return () => { cancelled = true; };
+  }, [dismissed, lang, vendor.phone, vendorPassword]);
 
   if (!show || dismissed) return null;
 
@@ -39,64 +57,21 @@ export function PushActivationBanner({ vendor, vendorPassword }: PushActivationB
     setLoading(true);
     setError(null);
     try {
-      // Register service worker and wait for it to become active
-      await navigator.serviceWorker.register("/sw.js");
-      const activeReg = await navigator.serviceWorker.ready;
-
-      // Request permission (no-op if already granted)
-      const perm = await Notification.requestPermission();
-      if (perm === "denied") {
-        setError(lang === "fr"
-          ? "Notifications bloquées. Autorisez-les dans les paramètres du navigateur."
-          : "Notifications blocked. Allow them in your browser settings.");
-        setLoading(false);
-        return;
-      }
-      if (perm !== "granted") {
-        setShow(false);
-        setLoading(false);
-        return;
-      }
-
-      // Fetch VAPID public key
-      const keyRes = await fetch("/api/push/vapid-public-key");
-      if (!keyRes.ok) throw new Error("vapid-key-fetch-failed");
-      const { key } = await keyRes.json() as { key: string };
-      if (!key) throw new Error("vapid-key-empty");
-
-      // Subscribe — pass Uint8Array directly (not .buffer) for mobile Chrome compatibility
-      const keyBytes = urlBase64ToUint8Array(key);
-      const sub = await activeReg.pushManager.subscribe({
-        userVisibleOnly: true,
-        applicationServerKey: keyBytes.buffer as ArrayBuffer,
-      });
-
-      const subJson = sub.toJSON() as {
-        endpoint: string;
-        keys: { auth: string; p256dh: string };
-      };
-
-      const saveRes = await fetch("/api/push/subscribe", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          "x-vendor-phone": vendor.phone,
-          "x-vendor-password": vendorPassword,
-        },
-        body: JSON.stringify({ endpoint: subJson.endpoint, keys: subJson.keys }),
-      });
-      if (!saveRes.ok) throw new Error("subscribe-save-failed");
+      await activateVendorPush({ phone: vendor.phone, password: vendorPassword });
 
       // Marquer les nudges push comme lus côté serveur (ils seront masqués visuellement)
       fetch("/api/vendor/notifications/read-all", {
         method: "POST",
         headers: {
-          "x-vendor-phone": vendor.phone,
-          "x-vendor-password": vendorPassword,
+          ...vendorAuthHeaders(vendor.phone, vendorPassword),
         },
+        credentials: "include",
       }).catch(() => {/* non-fatal */});
 
       setShow(false);
+      setDismissed(false);
+      sessionStorage.removeItem("tm_push_dismissed");
+      onActivated?.();
     } catch (err) {
       const msg = err instanceof Error ? err.message : String(err);
       setError(lang === "fr"

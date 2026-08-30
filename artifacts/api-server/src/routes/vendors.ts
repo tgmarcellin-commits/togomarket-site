@@ -12,6 +12,7 @@ import { ObjectStorageService } from "../lib/objectStorage";
 import { validateFileBytes } from "../lib/file-security";
 import { secureMessageFileUrl } from "../lib/message-file-access";
 import { verifyVendorRenewalToken } from "../lib/vendor-renewal-token";
+import { authenticateVendorRequest, issueVendorSession, revokeAllVendorSessions, revokeVendorSession } from "../lib/vendor-auth";
 
 const adminUpload = multer({
   storage: multer.memoryStorage(),
@@ -207,9 +208,7 @@ router.post("/vendors/verify-otp", async (req, res) => {
   const vendor = vendors[0];
 
   if (vendor.verified) {
-    // Already verified, just log them in
-    const publishCode = await getActivePublishCode(vendor.id);
-    return res.json(VendorLoginResponse.parse(mapVendor(vendor, publishCode)));
+    return res.status(409).json({ error: "Compte déjà vérifié. Connectez-vous avec votre mot de passe." });
   }
 
   const now = new Date();
@@ -250,6 +249,7 @@ router.post("/vendors/verify-otp", async (req, res) => {
 
   req.log.info({ id: vendor.id }, "Vendor OTP verified, account activated");
   const publishCode = await getActivePublishCode(updated.id);
+  await issueVendorSession(res, updated.id);
   return res.json(VendorLoginResponse.parse(mapVendor(updated, publishCode)));
 });
 
@@ -361,11 +361,24 @@ router.post("/vendors/login", async (req, res) => {
 
   try {
     const publishCode = await getActivePublishCode(vendor.id);
+    await issueVendorSession(res, vendor.id);
     return res.json(VendorLoginResponse.parse(mapVendor(vendor, publishCode)));
   } catch (err) {
     req.log.error({ err }, "Failed to login vendor");
     return res.status(500).json({ error: "Erreur interne" });
   }
+});
+
+router.get("/vendors/session", async (req, res) => {
+  const vendor = await authenticateVendorRequest(req);
+  if (!vendor) return res.status(401).json({ error: "Session invalide ou expirée." });
+  const publishCode = await getActivePublishCode(vendor.id);
+  return res.json(VendorLoginResponse.parse(mapVendor(vendor, publishCode)));
+});
+
+router.post("/vendors/logout", async (req, res) => {
+  await revokeVendorSession(req, res);
+  return res.json({ success: true });
 });
 
 router.post("/vendors/profile/update", async (req, res) => {
@@ -379,12 +392,8 @@ router.post("/vendors/profile/update", async (req, res) => {
     return res.status(400).json({ error: "Chemin de photo de profil invalide." });
   }
 
-  const vendors = await db.select().from(vendorsTable).where(phoneEq(vendorsTable.phone, phone)).limit(1);
-  if (vendors.length === 0) return res.status(401).json({ error: "Compte introuvable." });
-
-  const vendor = vendors[0];
-  const match = await bcrypt.compare(password, vendor.passwordHash);
-  if (!match) return res.status(401).json({ error: "Mot de passe incorrect." });
+  const vendor = await authenticateVendorRequest(req, { phone, password });
+  if (!vendor) return res.status(401).json({ error: "Mot de passe incorrect." });
 
   try {
     const [updated] = await db
@@ -477,12 +486,8 @@ router.post("/vendors/listings", async (req, res) => {
   const phone = normalizePhone(String(req.body.phone ?? ""));
   if (!phone || !password) return res.status(400).json({ error: "Champs requis manquants" });
 
-  const vendors = await db.select().from(vendorsTable).where(phoneEq(vendorsTable.phone, phone)).limit(1);
-  if (vendors.length === 0) return res.status(401).json({ error: "Compte introuvable." });
-
-  const vendor = vendors[0];
-  const match = await bcrypt.compare(password, vendor.passwordHash);
-  if (!match) return res.status(401).json({ error: "Mot de passe incorrect." });
+  const vendor = await authenticateVendorRequest(req, { phone, password });
+  if (!vendor) return res.status(401).json({ error: "Mot de passe incorrect." });
 
   try {
     const { listingsTable } = await import("@workspace/db");
@@ -517,12 +522,8 @@ router.post("/vendors/profile/update-name", async (req, res) => {
     return res.status(400).json({ error: "Champs requis manquants" });
   }
 
-  const vendors = await db.select().from(vendorsTable).where(phoneEq(vendorsTable.phone, phone)).limit(1);
-  if (vendors.length === 0) return res.status(401).json({ error: "Compte introuvable." });
-
-  const vendor = vendors[0];
-  const match = await bcrypt.compare(password, vendor.passwordHash);
-  if (!match) return res.status(401).json({ error: "Mot de passe incorrect." });
+  const vendor = await authenticateVendorRequest(req, { phone, password });
+  if (!vendor) return res.status(401).json({ error: "Mot de passe incorrect." });
 
   const newShopName = shopNameRaw !== undefined
     ? (String(shopNameRaw).trim() || null)
@@ -545,24 +546,24 @@ router.post("/vendors/profile/update-name", async (req, res) => {
 
 router.post("/vendors/profile/change-password", async (req, res) => {
   const { oldPassword, newPassword } = req.body;
-  const phone = normalizePhone(String(req.body.phone ?? ""));
-  if (!phone || !oldPassword || !newPassword) {
+  if (!newPassword) {
     return res.status(400).json({ error: "Champs requis manquants" });
   }
   if (newPassword.length < 6) {
     return res.status(400).json({ error: "Le nouveau mot de passe doit faire au moins 6 caractères." });
   }
 
-  const vendors = await db.select().from(vendorsTable).where(phoneEq(vendorsTable.phone, phone)).limit(1);
-  if (vendors.length === 0) return res.status(401).json({ error: "Compte introuvable." });
-
-  const vendor = vendors[0];
-  const match = await bcrypt.compare(oldPassword, vendor.passwordHash);
-  if (!match) return res.status(401).json({ error: "Ancien mot de passe incorrect." });
+  const vendor = await authenticateVendorRequest(req, {
+    phone: typeof req.body.phone === "string" ? req.body.phone : undefined,
+    password: typeof oldPassword === "string" ? oldPassword : undefined,
+  });
+  if (!vendor) return res.status(401).json({ error: "Ancien mot de passe incorrect." });
 
   try {
     const newHash = await bcrypt.hash(newPassword, 10);
     await db.update(vendorsTable).set({ passwordHash: newHash }).where(eq(vendorsTable.id, vendor.id));
+    await revokeAllVendorSessions(vendor.id);
+    await issueVendorSession(res, vendor.id);
     req.log.info({ id: vendor.id }, "Vendor password changed");
     return res.json({ success: true });
   } catch (err) {

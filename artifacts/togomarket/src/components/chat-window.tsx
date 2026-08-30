@@ -9,6 +9,7 @@ import {
 import { useSiteSettings } from "@/lib/site-settings";
 import { getSocket } from "@/lib/socket";
 import { resolveImageUrl } from "@/lib/image";
+import { vendorAuthHeaders } from "@/lib/vendor-auth";
 import type { BuyerIdentity } from "./buyer-identity-prompt";
 
 interface ChatMessage {
@@ -45,7 +46,7 @@ interface ChatWindowProps {
 
 function authHeaders(auth: ChatAuth): Record<string, string> {
   if (auth.kind === "buyer") return { "x-buyer-token": auth.buyerToken };
-  return { "x-vendor-phone": auth.phone, "x-vendor-password": auth.password };
+  return vendorAuthHeaders(auth.phone, auth.password);
 }
 
 function canEditOrDelete(msg: ChatMessage): boolean {

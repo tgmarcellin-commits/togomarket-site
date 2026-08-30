@@ -1,30 +1,13 @@
 import { Router, type IRouter } from "express";
 import { eq, and, desc } from "drizzle-orm";
-import { db, vendorNotificationsTable, vendorsTable } from "@workspace/db";
-import bcrypt from "bcryptjs";
-import { normalizePhone, phoneEq } from "../lib/phone";
+import { db, vendorNotificationsTable } from "@workspace/db";
+import { authenticateVendorRequest } from "../lib/vendor-auth";
 
 const router: IRouter = Router();
 
-async function authenticateVendor(phone: string, password: string) {
-  const norm = normalizePhone(phone);
-  const vendors = await db
-    .select()
-    .from(vendorsTable)
-    .where(phoneEq(vendorsTable.phone, norm))
-    .limit(1);
-  if (!vendors.length) return null;
-  const v = vendors[0];
-  const ok = await bcrypt.compare(password, v.passwordHash);
-  return ok ? v : null;
-}
-
 /* GET /api/vendor/notifications */
 router.get("/vendor/notifications", async (req, res) => {
-  const phone = req.headers["x-vendor-phone"] as string;
-  const password = req.headers["x-vendor-password"] as string;
-  if (!phone || !password) { res.status(401).json({ error: "auth required" }); return; }
-  const vendor = await authenticateVendor(phone, password);
+  const vendor = await authenticateVendorRequest(req);
   if (!vendor) { res.status(401).json({ error: "invalid credentials" }); return; }
 
   const notifs = await db
@@ -39,10 +22,7 @@ router.get("/vendor/notifications", async (req, res) => {
 
 /* POST /api/vendor/notifications/:id/read */
 router.post("/vendor/notifications/:id/read", async (req, res) => {
-  const phone = req.headers["x-vendor-phone"] as string;
-  const password = req.headers["x-vendor-password"] as string;
-  if (!phone || !password) { res.status(401).json({ error: "auth required" }); return; }
-  const vendor = await authenticateVendor(phone, password);
+  const vendor = await authenticateVendorRequest(req);
   if (!vendor) { res.status(401).json({ error: "invalid credentials" }); return; }
 
   const id = parseInt(req.params["id"] ?? "", 10);
@@ -58,10 +38,7 @@ router.post("/vendor/notifications/:id/read", async (req, res) => {
 
 /* POST /api/vendor/notifications/read-all */
 router.post("/vendor/notifications/read-all", async (req, res) => {
-  const phone = req.headers["x-vendor-phone"] as string;
-  const password = req.headers["x-vendor-password"] as string;
-  if (!phone || !password) { res.status(401).json({ error: "auth required" }); return; }
-  const vendor = await authenticateVendor(phone, password);
+  const vendor = await authenticateVendorRequest(req);
   if (!vendor) { res.status(401).json({ error: "invalid credentials" }); return; }
 
   await db
@@ -74,10 +51,7 @@ router.post("/vendor/notifications/read-all", async (req, res) => {
 
 /* DELETE /api/vendor/notifications/:id */
 router.delete("/vendor/notifications/:id", async (req, res) => {
-  const phone = req.headers["x-vendor-phone"] as string;
-  const password = req.headers["x-vendor-password"] as string;
-  if (!phone || !password) { res.status(401).json({ error: "auth required" }); return; }
-  const vendor = await authenticateVendor(phone, password);
+  const vendor = await authenticateVendorRequest(req);
   if (!vendor) { res.status(401).json({ error: "invalid credentials" }); return; }
 
   const id = parseInt(req.params["id"] ?? "", 10);

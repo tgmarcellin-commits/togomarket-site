@@ -6,7 +6,6 @@ import {
   getGetListingsQueryKey,
   useGetStats,
   useGetAdminSettings,
-  useVendorLogin,
   type VendorProfile,
   type Listing,
 } from "@workspace/api-client-react";
@@ -31,32 +30,12 @@ import { AiAssistant } from "@/components/ai-assistant";
 import { VendorConversations } from "@/components/vendor-conversations";
 import { PushActivationBanner } from "@/components/push-activation-banner";
 import { VendorSystemNotifications } from "@/components/vendor-system-notifications";
+import { confirmOrRepairVendorPush, supportsVendorPush } from "@/lib/vendor-push";
 import { BuyerInbox } from "@/components/buyer-inbox";
 import { loadBuyerIdentity } from "@/components/buyer-identity-prompt";
 import { useToast } from "@/hooks/use-toast";
 import { getSocket } from "@/lib/socket";
-
-const STORAGE_KEY = "togomarket_vendor_session";
-let activeVendorSession: { vendor: VendorProfile; password: string } | null = null;
-
-function loadSession(): { vendor: VendorProfile; password: string } | null {
-  // Credentials intentionally live only in memory. A reload requires login,
-  // preventing XSS or a shared device from recovering the vendor password.
-  try { localStorage.removeItem(STORAGE_KEY); } catch {}
-  return activeVendorSession;
-}
-
-function saveSession(vendor: VendorProfile, password: string) {
-  activeVendorSession = { vendor, password };
-  try { localStorage.removeItem(STORAGE_KEY); } catch {}
-}
-
-function clearSession() {
-  activeVendorSession = null;
-  try {
-    localStorage.removeItem(STORAGE_KEY);
-  } catch {}
-}
+import { SESSION_COOKIE_PASSWORD, vendorAuthHeaders } from "@/lib/vendor-auth";
 
 interface VendorInSector {
   id: number;
@@ -174,6 +153,7 @@ export default function Home() {
   const [vendorPassword, setVendorPassword] = useState("");
   const [convsUnread, setConvsUnread] = useState(0);
   const [systemNotifsUnread, setSystemNotifsUnread] = useState(0);
+  const pushNudgeCheckInFlight = useRef(false);
   const messagesUnread = convsUnread + systemNotifsUnread;
 
   // Buyer inbox state
@@ -227,21 +207,18 @@ export default function Home() {
   // ── Badge "Messages" : compter les non-lus dès l'arrivée sur la plateforme,
   //    sans attendre que l'onglet Messages soit ouvert ────────────────────────
   useEffect(() => {
-    if (!vendor || !vendorPassword) {
+    if (!vendor) {
       setConvsUnread(0);
       setSystemNotifsUnread(0);
       return;
     }
-    const headers = {
-      "x-vendor-phone": vendor.phone,
-      "x-vendor-password": vendorPassword,
-    };
+    const headers = vendorAuthHeaders(vendor.phone, vendorPassword);
     let cancelled = false;
     const fetchUnreadCounts = async () => {
       try {
         const [convRes, notifRes] = await Promise.all([
-          fetch("/api/vendor/conversations", { headers }),
-          fetch("/api/vendor/notifications", { headers }),
+          fetch("/api/vendor/conversations", { headers, credentials: "include" }),
+          fetch("/api/vendor/notifications", { headers, credentials: "include" }),
         ]);
         if (cancelled) return;
         if (convRes.ok) {
@@ -258,40 +235,84 @@ export default function Home() {
         // silencieux : le badge se mettra à jour à la prochaine occasion
       }
     };
-    fetchUnreadCounts();
     // Mise à jour en temps réel quand un nouveau message arrive
     const socket = getSocket();
-    socket.emit("auth", { phone: vendor.phone, password: vendorPassword });
-    const handler = () => { fetchUnreadCounts(); };
+    socket.connect();
+    const showPushNudgeIfNeeded = async (notification?: { title?: string; body?: string }) => {
+      if (pushNudgeCheckInFlight.current) return;
+      if (!supportsVendorPush()) return;
+      const lastShownAt = Number(sessionStorage.getItem("tm_push_nudge_toast_at") ?? "0");
+      if (Date.now() - lastShownAt < 24 * 60 * 60 * 1000) return;
+      pushNudgeCheckInFlight.current = true;
+      try {
+        const active = await confirmOrRepairVendorPush({
+          phone: vendor.phone,
+          password: vendorPassword,
+        });
+        if (active) return;
+        sessionStorage.setItem("tm_push_nudge_toast_at", String(Date.now()));
+        toast({
+          title: notification?.title ?? (lang === "fr" ? "Activez les notifications" : "Activate notifications"),
+          description: notification?.body ?? (lang === "fr"
+            ? "Un client vient de vous écrire. Ouvrez Messages pour activer les notifications instantanées."
+            : "A customer just messaged you. Open Messages to enable instant notifications."),
+        });
+      } catch {
+        // The persistent reminder remains available in Messages.
+      } finally {
+        pushNudgeCheckInFlight.current = false;
+      }
+    };
+    const authenticate = () => {
+      if (vendorPassword !== SESSION_COOKIE_PASSWORD) {
+        socket.emit("auth", { phone: vendor.phone, password: vendorPassword });
+      }
+      fetchUnreadCounts();
+    };
+    authenticate();
+    const handler = () => {
+      fetchUnreadCounts();
+      void showPushNudgeIfNeeded();
+    };
+    const systemNotificationHandler = (notification?: { title?: string; body?: string }) => {
+      fetchUnreadCounts();
+      void showPushNudgeIfNeeded(notification);
+    };
     socket.on("new_message", handler);
+    socket.on("vendor_system_notification", systemNotificationHandler);
+    socket.on("auth_ok", fetchUnreadCounts);
+    socket.on("connect", authenticate);
+    socket.on("reconnect", authenticate);
     return () => {
       cancelled = true;
       socket.off("new_message", handler);
+      socket.off("vendor_system_notification", systemNotificationHandler);
+      socket.off("auth_ok", fetchUnreadCounts);
+      socket.off("connect", authenticate);
+      socket.off("reconnect", authenticate);
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [vendor?.phone, vendorPassword]);
+  }, [vendor?.phone, vendorPassword, lang, toast]);
 
   const [page, setPage] = useState(1);
   const [loadedListings, setLoadedListings] = useState<Listing[]>([]);
   const seenDataRef = useRef<typeof pageData>(undefined);
 
-  const refreshVendorMutation = useVendorLogin();
-
   useEffect(() => {
-    const session = loadSession();
-    if (session) {
-      setVendor(session.vendor);
-      setVendorPassword(session.password);
-      refreshVendorMutation.mutate(
-        { data: { phone: session.vendor.phone, password: session.password } },
-        {
-          onSuccess: (fresh) => {
-            setVendor(fresh);
-            saveSession(fresh, session.password);
-          },
+    let cancelled = false;
+    fetch("/api/vendors/session", { credentials: "include" })
+      .then(async (res) => {
+        if (res.status === 401 || !res.ok) return null;
+        return res.json() as Promise<VendorProfile>;
+      })
+      .then((restored) => {
+        if (!cancelled && restored) {
+          setVendor(restored);
+          setVendorPassword(SESSION_COOKIE_PASSWORD);
         }
-      );
-    }
+      })
+      .catch(() => {});
+    return () => { cancelled = true; };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
@@ -484,22 +505,33 @@ export default function Home() {
   const handleLoginSuccess = (v: VendorProfile, pwd: string) => {
     setVendor(v);
     setVendorPassword(pwd);
-    saveSession(v, pwd);
   };
 
-  const handleLogout = () => {
+  const handleLogout = async () => {
+    try {
+      await fetch("/api/vendors/logout", { method: "POST", credentials: "include" });
+    } catch {
+      // Clear local UI even when the network is unavailable.
+    } finally {
     setVendor(null);
     setVendorPassword("");
-    clearSession();
+    setConvsUnread(0);
+    setSystemNotifsUnread(0);
+    getSocket().disconnect();
     toast({ title: "Déconnecté", description: "À bientôt !" });
     setActiveTab("stand");
+    }
   };
 
   const handleVendorUpdate = (updated: VendorProfile, newPassword?: string) => {
     setVendor(updated);
     const pwd = newPassword ?? vendorPassword;
     setVendorPassword(pwd);
-    saveSession(updated, pwd);
+    if (newPassword) {
+      const socket = getSocket();
+      socket.disconnect();
+      socket.connect();
+    }
   };
 
   return (
@@ -1197,7 +1229,7 @@ export default function Home() {
       {/* ── MESSAGES TAB ──────────────────────────────────────────────── */}
       {activeTab === "messages" && (
         <main className="container mx-auto px-4 py-6 flex-grow">
-          {vendor && vendorPassword ? (
+          {vendor ? (
             /* ── Onglet vendeur (+ section acheteur si identifié) ───── */
             <>
               {isVendorExpired ? (
@@ -1215,7 +1247,11 @@ export default function Home() {
                 </div>
               ) : (
                 <>
-                  <PushActivationBanner vendor={vendor} vendorPassword={vendorPassword} />
+                  <PushActivationBanner
+                    vendor={vendor}
+                    vendorPassword={vendorPassword}
+                    onActivated={() => setTabRefreshKey((key) => key + 1)}
+                  />
                   <VendorSystemNotifications
                     key={tabRefreshKey}
                     vendor={vendor}
@@ -1303,7 +1339,6 @@ export default function Home() {
         onNeedLogin={() => setIsAuthModalOpen(true)}
         onVendorRefresh={(updated) => {
           setVendor(updated);
-          saveSession(updated, vendorPassword);
         }}
       />
       <OrderModal open={isOrderModalOpen} onOpenChange={setIsOrderModalOpen} whatsappOrders={whatsappOrders} />

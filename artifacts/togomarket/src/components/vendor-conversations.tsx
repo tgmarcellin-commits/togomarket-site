@@ -5,6 +5,7 @@ import { Badge } from "@/components/ui/badge";
 import { ChatWindow } from "@/components/chat-window";
 import { useSiteSettings } from "@/lib/site-settings";
 import { getSocket } from "@/lib/socket";
+import { SESSION_COOKIE_PASSWORD, vendorAuthHeaders } from "@/lib/vendor-auth";
 import type { VendorProfile } from "@workspace/api-client-react";
 
 interface Conversation {
@@ -34,15 +35,12 @@ export function VendorConversations({ vendor, vendorPassword, onUnreadChange }: 
   const [deletingId, setDeletingId] = useState<number | null>(null);
   const longPressTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
-  const authHeaders = {
-    "x-vendor-phone": vendor.phone,
-    "x-vendor-password": vendorPassword,
-  };
+  const authHeaders = vendorAuthHeaders(vendor.phone, vendorPassword);
 
   const fetchConversations = useCallback(async () => {
     setLoading(true);
     try {
-      const res = await fetch("/api/vendor/conversations", { headers: authHeaders });
+      const res = await fetch("/api/vendor/conversations", { headers: authHeaders, credentials: "include" });
       if (res.ok) {
         const data = await res.json() as Conversation[];
         setConversations(data);
@@ -56,17 +54,32 @@ export function VendorConversations({ vendor, vendorPassword, onUnreadChange }: 
   useEffect(() => {
     fetchConversations();
     const socket = getSocket();
-    socket.emit("auth", { phone: vendor.phone, password: vendorPassword });
+    socket.connect();
+    const sync = () => {
+      if (vendorPassword !== SESSION_COOKIE_PASSWORD) {
+        socket.emit("auth", { phone: vendor.phone, password: vendorPassword });
+      }
+      fetchConversations();
+    };
+    sync();
     const handler = () => { fetchConversations(); };
     socket.on("new_message", handler);
-    return () => { socket.off("new_message", handler); };
+    socket.on("auth_ok", fetchConversations);
+    socket.on("connect", sync);
+    socket.on("reconnect", sync);
+    return () => {
+      socket.off("new_message", handler);
+      socket.off("auth_ok", fetchConversations);
+      socket.off("connect", sync);
+      socket.off("reconnect", sync);
+    };
   }, [fetchConversations, vendor.phone, vendorPassword]);
 
   const handleOpenConv = async (conv: Conversation) => {
     if (deletingId !== null) return; // don't open while confirming delete
     setOpenConv(conv);
     await fetch(`/api/vendor/conversations/${conv.id}/read`, {
-      method: "POST", headers: authHeaders,
+      method: "POST", headers: authHeaders, credentials: "include",
     }).catch(() => {});
     setConversations((prev) => {
       const next = prev.map((c) => (c.id === conv.id ? { ...c, vendorUnreadCount: 0 } : c));
@@ -78,7 +91,7 @@ export function VendorConversations({ vendor, vendorPassword, onUnreadChange }: 
   const deleteConversation = async (id: number) => {
     setDeletingId(null);
     await fetch(`/api/vendor/conversations/${id}`, {
-      method: "DELETE", headers: authHeaders,
+      method: "DELETE", headers: authHeaders, credentials: "include",
     });
     setConversations((prev) => {
       const next = prev.filter((c) => c.id !== id);

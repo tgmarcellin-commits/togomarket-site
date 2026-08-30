@@ -8,3 +8,4 @@
 - [Contrat SMS Techsoft](techsoft-sms-contract.md) — l’endpoint Techsoft exige un champ `recipient` pour accepter l’envoi d’un OTP.
 - [Intégrité des paiements FedaPay](fedapay-payment-integrity.md) — toute activation doit correspondre à une transaction persistée ; les liens de rappel doivent être signés et expirants.
 - [CSRF sur clients intégrés](csrf-embedded-clients.md) — valider le jeton HMAC en en-tête et l’origine sans rendre les mutations dépendantes d’un cookie parfois bloqué.
+- [Sessions vendeur et sockets](vendor-session-sockets.md) — les sessions opaques pilotent aussi l’identité Socket.io ; resynchroniser seulement après l’accusé `auth_ok`.

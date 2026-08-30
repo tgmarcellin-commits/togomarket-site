@@ -18,6 +18,7 @@ export const vendorsTable = pgTable("vendors", {
   referredBy: integer("referred_by"),
   shopName: text("shop_name"),
   wantsNotifications: boolean("wants_notifications").notNull().default(true),
+  lastPushNudgeAt: timestamp("last_push_nudge_at", { withTimezone: true }),
 });
 
 export const publishCodesTable = pgTable("publish_codes", {
@@ -29,6 +30,18 @@ export const publishCodesTable = pgTable("publish_codes", {
   startDate: timestamp("start_date", { withTimezone: true }).notNull(),
   endDate: timestamp("end_date", { withTimezone: true }).notNull(),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+});
+
+/** Opaque vendor browser sessions. Tokens themselves are never persisted. */
+export const vendorSessionsTable = pgTable("vendor_sessions", {
+  id: serial("id").primaryKey(),
+  tokenHash: text("token_hash").notNull().unique(),
+  vendorId: integer("vendor_id")
+    .notNull()
+    .references(() => vendorsTable.id, { onDelete: "cascade" }),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  expiresAt: timestamp("expires_at", { withTimezone: true }).notNull(),
+  lastUsedAt: timestamp("last_used_at", { withTimezone: true }).notNull().defaultNow(),
 });
 
 export const adminAccountsTable = pgTable("admin_accounts", {
@@ -51,5 +64,6 @@ export const otpCodesTable = pgTable("otp_codes", {
 
 export type Vendor = typeof vendorsTable.$inferSelect;
 export type PublishCode = typeof publishCodesTable.$inferSelect;
+export type VendorSession = typeof vendorSessionsTable.$inferSelect;
 export type AdminAccount = typeof adminAccountsTable.$inferSelect;
 export type OtpCode = typeof otpCodesTable.$inferSelect;

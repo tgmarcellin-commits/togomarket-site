@@ -16,8 +16,7 @@ import { isAdminAny, isSuperAdmin } from "../lib/admin-auth";
 import { validateFileBytes } from "../lib/file-security";
 import { getObjectAclPolicy } from "../lib/objectAcl";
 import { collectReferencedObjectPaths } from "../lib/storageCleanup";
-import bcrypt from "bcryptjs";
-import { normalizePhone, phoneEq } from "../lib/phone";
+import { authenticateVendorRequest } from "../lib/vendor-auth";
 
 const videoUpload = multer({
   dest: "/tmp",
@@ -85,28 +84,15 @@ async function requireUploadActor(req: Request, res: Response, next: NextFunctio
     next();
     return;
   }
-  const vendorPhone = req.headers["x-vendor-phone"];
-  const vendorPassword = req.headers["x-vendor-password"];
-  if (typeof vendorPhone === "string" && typeof vendorPassword === "string") {
-    const [vendor] = await db.select({
-      passwordHash: vendorsTable.passwordHash,
-      verified: vendorsTable.verified,
-      isPublished: vendorsTable.isPublished,
-      expiryDate: vendorsTable.expiryDate,
-    })
-      .from(vendorsTable)
-      .where(phoneEq(vendorsTable.phone, normalizePhone(vendorPhone)))
-      .limit(1);
-    if (
-      vendor?.verified &&
-      vendor.isPublished &&
-      vendor.expiryDate &&
-      vendor.expiryDate.getTime() > Date.now() &&
-      await bcrypt.compare(vendorPassword, vendor.passwordHash)
-    ) {
-      next();
-      return;
-    }
+  const vendor = await authenticateVendorRequest(req);
+  if (
+    vendor?.verified &&
+    vendor.isPublished &&
+    vendor.expiryDate &&
+    vendor.expiryDate.getTime() > Date.now()
+  ) {
+    next();
+    return;
   }
   res.status(401).json({ error: "Authentification requise pour envoyer un fichier" });
 }
