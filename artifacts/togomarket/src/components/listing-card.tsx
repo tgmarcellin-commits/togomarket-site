@@ -12,10 +12,17 @@ import { Button } from "@/components/ui/button";
 import { ImageViewer } from "@/components/image-viewer";
 import { useSiteSettings } from "@/lib/site-settings";
 import { useT } from "@/lib/i18n";
-import { BuyerIdentityPrompt, loadBuyerIdentity, normalizePhone } from "@/components/buyer-identity-prompt";
+import { BuyerIdentityPrompt, loadBuyerIdentity } from "@/components/buyer-identity-prompt";
 import { ChatWindow } from "@/components/chat-window";
 import type { BuyerIdentity } from "@/components/buyer-identity-prompt";
-import { storeBuyerSession, getBuyerSession, removeBuyerSession, BUYER_SESSION_TTL_MS } from "@/components/buyer-inbox";
+import {
+  storeBuyerSession,
+  getBuyerSession,
+  getAllBuyerSessions,
+  getOrCreateBuyerKey,
+  removeBuyerSession,
+  BUYER_SESSION_TTL_MS,
+} from "@/components/buyer-inbox";
 
 /** Slide dans le carrousel d'une annonce — vidéo avec controls si nécessaire, image sinon. */
 function ListingMediaSlide({ path, alt, onClick }: { path: string; alt: string; onClick?: () => void }) {
@@ -112,6 +119,7 @@ export function ListingCard({ listing, isAdmin, adminPassword, commissionRate, w
   const [buyerIdentity, setBuyerIdentity] = useState<BuyerIdentity | null>(null);
   const [buyerToken, setBuyerToken] = useState<string | null>(null);
   const [chatLoading, setChatLoading] = useState(false);
+  const [chatError, setChatError] = useState<string | null>(null);
   const [avgRating, setAvgRating] = useState<number | null>(listing.avgRating ?? null);
   const [reviewCount, setReviewCount] = useState<number>(listing.reviewCount ?? 0);
 
@@ -179,83 +187,74 @@ export function ListingCard({ listing, isAdmin, adminPassword, commissionRate, w
   };
 
   /** Create or resume a conversation then open it (floating window or redirect). */
-  const startChat = async (identity: BuyerIdentity) => {
+  const startChat = async (identity: BuyerIdentity | null) => {
+    if (chatLoading) return;
     setBuyerIdentity(identity);
     setChatLoading(true);
+    setChatError(null);
 
     const vid = listing.vendorId ?? 0;
     const lid = listing.id;
-    const stored = vid ? loadChatSession(vid, lid) : null;
-
-    // Resume previous session only if the phone matches the stored buyer
-    const storedIdentity = loadBuyerIdentity();
-    const samePhone = stored && storedIdentity &&
-      normalizePhone(storedIdentity.phone) === normalizePhone(identity.phone);
+    const stored = vid ? getBuyerSession(vid, lid) ?? loadChatSession(vid, lid) : null;
 
     try {
-      if (samePhone && stored) {
-        // Verify the conversation still exists before reopening a saved session.
-        const check = await fetch(`/api/conversations/${stored.convId}`, {
-          headers: { "x-buyer-token": stored.buyerToken },
-        });
-        if (check.ok) {
-          // Also ensure this session is in the new BuyerInbox store
-          if (vid) {
-            const inboxSession = getBuyerSession(vid, lid);
-            if (!inboxSession) {
-              storeBuyerSession({
-                convId: stored.convId,
-                buyerToken: stored.buyerToken,
-                vendorId: vid,
-                listingId: lid,
-                listingTitle: listing.name,
-              });
-            }
-          }
-          if (onOpenInMessages) {
-            onOpenInMessages(stored.convId);
-          } else {
-            setConversationId(stored.convId);
-            setBuyerToken(stored.buyerToken);
-            setChatOpen(true);
-          }
-          return;
-        }
-        if (check.status !== 404) return;
-
-        // The seller account may have been deleted: discard both local copies
-        // and create a fresh conversation for the next step.
-        try { localStorage.removeItem(chatSessionKey(vid, lid)); } catch {}
-        removeBuyerSession(stored.convId);
-      }
-
-      // Different person, expired session, or deleted conversation → create a new one.
       const res = await fetch("/api/conversations", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
+        credentials: "include",
         body: JSON.stringify({
           vendorId: vid,
-          buyerName: identity.name,
-          buyerPhone: identity.phone,
+          buyerName: identity?.name,
+          buyerPhone: identity?.phone,
+          buyerKey: identity ? getOrCreateBuyerKey(identity) : undefined,
+          conversationId: stored?.convId,
+          resumeBuyerToken: stored?.buyerToken,
+          knownBuyerTokens: getAllBuyerSessions()
+            .filter((session) => session.vendorId === vid)
+            .map((session) => session.buyerToken),
           listingTitle: listing.name,
           listingId: lid,
         }),
       });
-      if (res.ok) {
-        const conv = await res.json() as { id: number; buyerToken: string };
-        // Store in both legacy key and new BuyerInbox store
-        storeChatSession(vid, lid, conv.id, conv.buyerToken);
-        if (vid) {
-          storeBuyerSession({ convId: conv.id, buyerToken: conv.buyerToken, vendorId: vid, listingId: lid, listingTitle: listing.name });
+      const payload = await res.json().catch(() => null) as {
+        id?: number;
+        buyerToken?: string;
+        error?: string;
+        message?: string;
+      } | null;
+      if (!res.ok || !payload?.id || !payload.buyerToken) {
+        if (!identity && payload?.error === "buyer identity required") {
+          setIdentityPromptOpen(true);
+          return;
         }
-        if (onOpenInMessages) {
-          onOpenInMessages(conv.id);
-        } else {
-          setConversationId(conv.id);
-          setBuyerToken(conv.buyerToken);
-          setChatOpen(true);
-        }
+        const fallback = lang === "fr"
+          ? "Impossible d’ouvrir la discussion. Réessayez."
+          : "Unable to open the conversation. Please try again.";
+        setChatError(payload?.message ?? fallback);
+        return;
       }
+
+      const conv = { id: payload.id, buyerToken: payload.buyerToken };
+      if (vid) {
+        storeBuyerSession({
+          convId: conv.id,
+          buyerToken: conv.buyerToken,
+          vendorId: vid,
+          listingId: lid,
+          listingTitle: listing.name,
+        });
+      }
+      if (onOpenInMessages) {
+        onOpenInMessages(conv.id);
+      } else {
+        setConversationId(conv.id);
+        setBuyerToken(conv.buyerToken);
+        setChatOpen(true);
+      }
+    } catch {
+      setChatError(lang === "fr"
+        ? "La connexion a échoué. Vérifiez votre réseau puis réessayez."
+        : "Connection failed. Check your network and try again.");
     } finally {
       setChatLoading(false);
     }
@@ -263,11 +262,14 @@ export function ListingCard({ listing, isAdmin, adminPassword, commissionRate, w
 
   const handleContactVendor = () => {
     const existingIdentity = loadBuyerIdentity();
-    // If buyer is already identified AND caller wants redirect → skip the prompt
-    if (existingIdentity && onOpenInMessages) {
+    if (existingIdentity) {
       startChat(existingIdentity);
+    } else if (onOpenInMessages) {
+      // A connected vendor can use the authenticated account as buyer without
+      // maintaining a second local identity. Guests are prompted after the API
+      // reports that buyer identity is required.
+      startChat(null);
     } else {
-      // Show the identity form (pre-filled for returning buyers without redirect)
       setIdentityPromptOpen(true);
     }
   };
@@ -400,6 +402,11 @@ export function ListingCard({ listing, isAdmin, adminPassword, commissionRate, w
             <MessageCircle className="w-4 h-4" />
             {chatLoading ? (lang === "fr" ? "Ouverture…" : "Opening…") : t.contactVendor}
           </Button>
+          {chatError && (
+            <p role="alert" className="text-xs text-destructive text-center">
+              {chatError}
+            </p>
+          )}
 
           {isAdmin && (
             <div className="pt-3 mt-3 border-t border-border space-y-2">

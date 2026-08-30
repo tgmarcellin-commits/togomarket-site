@@ -21,6 +21,14 @@ import { ObjectStorageService } from "../lib/objectStorage";
 import { validateFileBytes } from "../lib/file-security";
 import { secureMessageFileUrl, verifyMessageFileAccess } from "../lib/message-file-access";
 import { authenticateVendorRequest } from "../lib/vendor-auth";
+import {
+  findConversationsForBuyerTokens,
+  hashBuyerKey,
+  isValidBuyerKey,
+  resolveBuyerConversationId,
+  resolveVendorConversationId,
+} from "../lib/conversation-access";
+import { mergeAuthorizedBuyerConversations } from "../lib/conversation-merge";
 
 const upload = multer({
   storage: multer.memoryStorage(),
@@ -162,20 +170,37 @@ async function addListingImageFallback<T extends ConversationImageContext>(
    ────────────────────────────────────────────────────────────── */
 /* ──────────────────────────────────────────────────────────────
    POST /api/conversations
-   Body: { vendorId, buyerName, buyerPhone, listingTitle?, listingId? }
+   Body: { vendorId, buyerName, buyerPhone, buyerKey, resumeBuyerToken?, listingTitle?, listingId? }
    Returns: conversation + buyerToken (store in client, required for reads/sends)
    ────────────────────────────────────────────────────────────── */
 router.post("/conversations", async (req, res) => {
-  const { vendorId, buyerName, buyerPhone, listingTitle, listingId } = req.body as {
+  const { vendorId, buyerName, buyerPhone, buyerKey, resumeBuyerToken, knownBuyerTokens, conversationId, listingTitle, listingId } = req.body as {
     vendorId: number;
     buyerName: string;
     buyerPhone: string;
+    buyerKey?: string;
+    resumeBuyerToken?: string;
+    knownBuyerTokens?: string[];
+    conversationId?: number;
     listingTitle?: string;
     listingId?: number;
   };
 
-  if (!vendorId || !buyerName?.trim() || !buyerPhone?.trim()) {
-    res.status(400).json({ error: "vendorId, buyerName, buyerPhone required" });
+  const vendorBuyer = await authenticateVendorRequest(req);
+  const resolvedBuyerName = vendorBuyer
+    ? `${vendorBuyer.firstName} ${vendorBuyer.lastName}`.trim()
+    : buyerName?.trim();
+  const resolvedBuyerPhone = vendorBuyer?.phone ?? buyerPhone?.trim();
+  if (!vendorId || !resolvedBuyerName || !resolvedBuyerPhone) {
+    res.status(400).json({ error: "vendorId and buyer identity required" });
+    return;
+  }
+  if (vendorBuyer?.id === Number(vendorId)) {
+    res.status(400).json({ error: "cannot_contact_own_shop" });
+    return;
+  }
+  if (!vendorBuyer && !isValidBuyerKey(buyerKey)) {
+    res.status(400).json({ error: "buyerKey required" });
     return;
   }
 
@@ -212,24 +237,101 @@ router.post("/conversations", async (req, res) => {
     }
   }
 
-  // Always create a new conversation — no deduplication by PII.
-  // Clients that need to resume an existing session must use the buyerToken
-  // stored locally at creation time; they must NOT re-derive it from phone + vendorId.
+  const buyerKeyHash = hashBuyerKey(
+    vendorBuyer ? `vendor-account:${vendorBuyer.id}` : `guest:${buyerKey}`,
+  );
   const buyerToken = randomUUID();
+  let existingByKey = await db
+    .select()
+    .from(conversationsTable)
+    .where(and(
+      eq(conversationsTable.vendorId, Number(vendorId)),
+      eq(conversationsTable.buyerKeyHash, buyerKeyHash),
+    ))
+    .limit(1);
+
+  const proofTokens = [...new Set([
+    ...(Array.isArray(knownBuyerTokens) ? knownBuyerTokens : []),
+    ...(resumeBuyerToken ? [resumeBuyerToken] : []),
+  ].filter((token): token is string => typeof token === "string" && token.length > 0))].slice(0, 100);
+  const authorizedRows = await findConversationsForBuyerTokens(proofTokens);
+  const authorizedIds = authorizedRows
+    .filter((row) => row.conversation.vendorId === Number(vendorId))
+    .map((row) => row.conversation.id);
+  if (existingByKey[0]) authorizedIds.push(existingByKey[0].id);
+  await mergeAuthorizedBuyerConversations(authorizedIds);
+  existingByKey = await db
+    .select()
+    .from(conversationsTable)
+    .where(and(
+      eq(conversationsTable.vendorId, Number(vendorId)),
+      eq(conversationsTable.buyerKeyHash, buyerKeyHash),
+    ))
+    .limit(1);
+
+  let existing = existingByKey[0];
+  if (!existing && resumeBuyerToken) {
+    const requestedConversationId = Number(conversationId);
+    if (Number.isInteger(requestedConversationId) && requestedConversationId > 0) {
+      const canonicalId = await resolveBuyerConversationId(requestedConversationId, resumeBuyerToken);
+      if (canonicalId) {
+        const [candidate] = await db
+          .select()
+          .from(conversationsTable)
+          .where(and(
+            eq(conversationsTable.id, canonicalId),
+            eq(conversationsTable.vendorId, Number(vendorId)),
+          ))
+          .limit(1);
+        existing = candidate;
+      }
+    }
+  }
+
+  if (existing) {
+    const [updated] = await db
+      .update(conversationsTable)
+      .set({
+        buyerKeyHash,
+        buyerName: resolvedBuyerName,
+        buyerPhone: resolvedBuyerPhone,
+        listingTitle: resolvedListingTitle,
+        listingId: Number.isInteger(parsedListingId) && parsedListingId > 0 ? parsedListingId : null,
+        listingImage,
+        buyerDeletedAt: null,
+      })
+      .where(eq(conversationsTable.id, existing.id))
+      .returning();
+    res.json(updated);
+    return;
+  }
+
   const [conv] = await db
     .insert(conversationsTable)
     .values({
       vendorId: Number(vendorId),
-      buyerName: buyerName.trim(),
-      buyerPhone: buyerPhone.trim(),
+      buyerName: resolvedBuyerName,
+      buyerPhone: resolvedBuyerPhone,
+      buyerKeyHash,
       listingTitle: resolvedListingTitle,
       listingId: Number.isInteger(parsedListingId) && parsedListingId > 0 ? parsedListingId : null,
       listingImage,
       buyerToken,
     })
+    .onConflictDoUpdate({
+      target: [conversationsTable.vendorId, conversationsTable.buyerKeyHash],
+      set: {
+        buyerName: resolvedBuyerName,
+        buyerPhone: resolvedBuyerPhone,
+        listingTitle: resolvedListingTitle,
+        listingId: Number.isInteger(parsedListingId) && parsedListingId > 0 ? parsedListingId : null,
+        listingImage,
+        buyerDeletedAt: null,
+      },
+    })
     .returning();
 
-  res.status(201).json(conv);
+  res.status(conv.buyerToken === buyerToken ? 201 : 200).json(conv);
 });
 
 /* ──────────────────────────────────────────────────────────────
@@ -246,21 +348,25 @@ router.post("/conversations/buyer-list", async (req, res) => {
   }
 
   // Cap at 100 tokens to prevent abuse
-  const tokens = buyerTokens.slice(0, 100);
-
-  // Fetch all matching conversations (each token is checked by the DB)
-  const convRows = await db
-    .select()
-    .from(conversationsTable)
-    .where(and(
-      isNull(conversationsTable.buyerDeletedAt),
-      inArray(conversationsTable.buyerToken, tokens),
-    ))
-    .orderBy(desc(conversationsTable.updatedAt));
+  const tokens = [...new Set(
+    buyerTokens.filter((token): token is string => typeof token === "string" && token.length > 0),
+  )].slice(0, 100);
+  let authorizedRows = await findConversationsForBuyerTokens(tokens);
+  const idsByVendor = new Map<number, number[]>();
+  for (const row of authorizedRows) {
+    const ids = idsByVendor.get(row.conversation.vendorId) ?? [];
+    ids.push(row.conversation.id);
+    idsByVendor.set(row.conversation.vendorId, ids);
+  }
+  await Promise.all([...idsByVendor.values()].map(mergeAuthorizedBuyerConversations));
+  authorizedRows = await findConversationsForBuyerTokens(tokens);
+  const convRows = authorizedRows
+    .filter((row) => row.conversation.buyerDeletedAt === null)
+    .sort((a, b) => b.conversation.updatedAt.getTime() - a.conversation.updatedAt.getTime());
 
   // For each conversation, get the last message
   const result = await Promise.all(
-    convRows.map(async (conv) => {
+    convRows.map(async ({ conversation: conv, accessToken }) => {
       const lastMsgs = await db
         .select({ content: messagesTable.content, createdAt: messagesTable.createdAt, senderType: messagesTable.senderType })
         .from(messagesTable)
@@ -286,7 +392,7 @@ router.post("/conversations/buyer-list", async (req, res) => {
         listingImage: conv.listingImage,
         buyerName: conv.buyerName,
         buyerPhone: conv.buyerPhone,
-        buyerToken: conv.buyerToken, // safe: only returned to the holder of this token
+        buyerToken: accessToken,
         lastMessage: last?.content ?? null,
         lastMessageAt: last?.createdAt ?? conv.updatedAt,
         buyerUnreadCount: conv.buyerUnreadCount,
@@ -303,10 +409,10 @@ router.post("/conversations/buyer-list", async (req, res) => {
    Used by clients to avoid opening a conversation that was deleted.
    ────────────────────────────────────────────────────────────── */
 router.get("/conversations/:id", async (req, res) => {
-  const convId = parseInt(req.params["id"] ?? "", 10);
-  if (isNaN(convId)) { res.status(400).json({ error: "invalid id" }); return; }
+  const requestedConvId = parseInt(req.params["id"] ?? "", 10);
+  if (isNaN(requestedConvId)) { res.status(400).json({ error: "invalid id" }); return; }
 
-  const identity = await resolveIdentity(req as Parameters<typeof resolveIdentity>[0], convId);
+  const identity = await resolveIdentity(req as Parameters<typeof resolveIdentity>[0], requestedConvId);
   if (!identity) {
     const suppliedCredentials =
       Boolean(req.headers["x-buyer-token"]) ||
@@ -316,6 +422,7 @@ router.get("/conversations/:id", async (req, res) => {
     });
     return;
   }
+  const convId = identity.conversationId;
 
   const convRows = await db
     .select({
@@ -341,19 +448,13 @@ router.get("/conversations/:id", async (req, res) => {
    Auth: x-buyer-token
    ────────────────────────────────────────────────────────────── */
 router.post("/conversations/:id/buyer-read", async (req, res) => {
-  const convId = parseInt(req.params["id"] ?? "", 10);
-  if (isNaN(convId)) { res.status(400).json({ error: "invalid id" }); return; }
+  const requestedConvId = parseInt(req.params["id"] ?? "", 10);
+  if (isNaN(requestedConvId)) { res.status(400).json({ error: "invalid id" }); return; }
 
   const buyerToken = req.headers["x-buyer-token"] as string | undefined;
   if (!buyerToken) { res.status(401).json({ error: "x-buyer-token required" }); return; }
-
-  const convRows = await db
-    .select({ buyerToken: conversationsTable.buyerToken })
-    .from(conversationsTable)
-    .where(eq(conversationsTable.id, convId))
-    .limit(1);
-  if (!convRows.length) { res.status(404).json({ error: "not found" }); return; }
-  if (convRows[0].buyerToken !== buyerToken) { res.status(401).json({ error: "unauthorized" }); return; }
+  const convId = await resolveBuyerConversationId(requestedConvId, buyerToken);
+  if (!convId) { res.status(401).json({ error: "unauthorized" }); return; }
 
   await db
     .update(conversationsTable)
@@ -371,37 +472,27 @@ async function resolveIdentity(
   req: { headers: Record<string, string | string[] | undefined> },
   convId: number,
 ): Promise<
-  | { role: "vendor"; vendorId: number }
-  | { role: "buyer" }
+  | { role: "buyer"; conversationId: number }
+  | { role: "vendor"; vendorId: number; conversationId: number }
   | null
 > {
   const vendorPhone = req.headers["x-vendor-phone"] as string | undefined;
   const vendorPassword = req.headers["x-vendor-password"] as string | undefined;
   const buyerToken = req.headers["x-buyer-token"] as string | undefined;
 
+  if (buyerToken) {
+    const canonicalId = await resolveBuyerConversationId(convId, buyerToken);
+    if (!canonicalId) return null;
+    return { role: "buyer", conversationId: canonicalId };
+  }
+
   {
     const v = await authenticateVendorRequest(req as Request, { phone: vendorPhone, password: vendorPassword });
     if (v) {
-      // Make sure this vendor actually owns the conversation
-      const convRows = await db
-        .select({ vendorId: conversationsTable.vendorId })
-        .from(conversationsTable)
-        .where(and(eq(conversationsTable.id, convId), eq(conversationsTable.vendorId, v.id)))
-        .limit(1);
-      if (!convRows.length) return null;
-      return { role: "vendor", vendorId: v.id };
+      const canonicalId = await resolveVendorConversationId(convId, v.id);
+      if (!canonicalId) return null;
+      return { role: "vendor", vendorId: v.id, conversationId: canonicalId };
     }
-  }
-
-  if (buyerToken) {
-    const convRows = await db
-      .select({ buyerToken: conversationsTable.buyerToken })
-      .from(conversationsTable)
-      .where(eq(conversationsTable.id, convId))
-      .limit(1);
-    if (!convRows.length) return null;
-    if (convRows[0].buyerToken !== buyerToken) return null;
-    return { role: "buyer" };
   }
 
   return null;
@@ -412,10 +503,10 @@ async function resolveIdentity(
    Auth: x-buyer-token OR (x-vendor-phone + x-vendor-password)
    ────────────────────────────────────────────────────────────── */
 router.get("/conversations/:id/messages", async (req, res) => {
-  const convId = parseInt(req.params["id"] ?? "", 10);
-  if (isNaN(convId)) { res.status(400).json({ error: "invalid id" }); return; }
+  const requestedConvId = parseInt(req.params["id"] ?? "", 10);
+  if (isNaN(requestedConvId)) { res.status(400).json({ error: "invalid id" }); return; }
 
-  const identity = await resolveIdentity(req as Parameters<typeof resolveIdentity>[0], convId);
+  const identity = await resolveIdentity(req as Parameters<typeof resolveIdentity>[0], requestedConvId);
   if (!identity) {
     const suppliedCredentials =
       Boolean(req.headers["x-buyer-token"]) ||
@@ -425,6 +516,7 @@ router.get("/conversations/:id/messages", async (req, res) => {
     });
     return;
   }
+  const convId = identity.conversationId;
 
   const convRows = await db
     .select({
@@ -465,14 +557,15 @@ router.get("/conversations/:id/messages", async (req, res) => {
    Auth: x-buyer-token OR (x-vendor-phone + x-vendor-password)
    ────────────────────────────────────────────────────────────── */
 router.patch("/conversations/:id/read-messages", async (req, res) => {
-  const convId = parseInt(req.params["id"] ?? "", 10);
-  if (isNaN(convId)) { res.status(400).json({ error: "invalid id" }); return; }
+  const requestedConvId = parseInt(req.params["id"] ?? "", 10);
+  if (isNaN(requestedConvId)) { res.status(400).json({ error: "invalid id" }); return; }
 
-  const identity = await resolveIdentity(req as Parameters<typeof resolveIdentity>[0], convId);
+  const identity = await resolveIdentity(req as Parameters<typeof resolveIdentity>[0], requestedConvId);
   if (!identity) {
     res.status(401).json({ error: "unauthorized" });
     return;
   }
+  const convId = identity.conversationId;
 
   const convRows = await db
     .select({
@@ -561,8 +654,8 @@ router.get("/conversations/:id/files/:messageId", async (req, res) => {
    Body: { content }
    ────────────────────────────────────────────────────────────── */
 router.post("/conversations/:id/messages", async (req, res) => {
-  const convId = parseInt(req.params["id"] ?? "", 10);
-  if (isNaN(convId)) { res.status(400).json({ error: "invalid id" }); return; }
+  const requestedConvId = parseInt(req.params["id"] ?? "", 10);
+  if (isNaN(requestedConvId)) { res.status(400).json({ error: "invalid id" }); return; }
 
   const { content } = req.body as { content: string };
   if (!content?.trim()) {
@@ -570,8 +663,9 @@ router.post("/conversations/:id/messages", async (req, res) => {
     return;
   }
 
-  const identity = await resolveIdentity(req as Parameters<typeof resolveIdentity>[0], convId);
+  const identity = await resolveIdentity(req as Parameters<typeof resolveIdentity>[0], requestedConvId);
   if (!identity) { res.status(401).json({ error: "unauthorized" }); return; }
+  const convId = identity.conversationId;
 
   // senderType is determined by server-side authentication — never from client
   const senderType: "buyer" | "vendor" = identity.role === "vendor" ? "vendor" : "buyer";
@@ -755,11 +849,12 @@ router.post(
   upload.single("file"),
   async (req, res) => {
     const rawConversationId = req.params["id"];
-    const convId = parseInt(Array.isArray(rawConversationId) ? rawConversationId[0] ?? "" : rawConversationId ?? "", 10);
-    if (isNaN(convId)) { res.status(400).json({ error: "invalid id" }); return; }
+    const requestedConvId = parseInt(Array.isArray(rawConversationId) ? rawConversationId[0] ?? "" : rawConversationId ?? "", 10);
+    if (isNaN(requestedConvId)) { res.status(400).json({ error: "invalid id" }); return; }
 
-    const identity = await resolveIdentity(req as Parameters<typeof resolveIdentity>[0], convId);
+    const identity = await resolveIdentity(req as Parameters<typeof resolveIdentity>[0], requestedConvId);
     if (!identity) { res.status(401).json({ error: "unauthorized" }); return; }
+    const convId = identity.conversationId;
 
     // ── Fetch conv tôt : permet de vérifier expiration AVANT de traiter le fichier ──
     const senderType: "buyer" | "vendor" = identity.role === "vendor" ? "vendor" : "buyer";
@@ -1053,8 +1148,10 @@ router.post("/vendor/conversations/:id/read", async (req, res) => {
   const vendor = await authenticateVendorRequest(req);
   if (!vendor) { res.status(401).json({ error: "invalid credentials" }); return; }
 
-  const convId = parseInt(req.params["id"] ?? "", 10);
-  if (isNaN(convId)) { res.status(400).json({ error: "invalid id" }); return; }
+  const requestedConvId = parseInt(req.params["id"] ?? "", 10);
+  if (isNaN(requestedConvId)) { res.status(400).json({ error: "invalid id" }); return; }
+  const convId = await resolveVendorConversationId(requestedConvId, vendor.id);
+  if (!convId) { res.status(404).json({ error: "not found" }); return; }
 
   await db
     .update(conversationsTable)
@@ -1075,8 +1172,10 @@ router.delete("/vendor/conversations/:id", async (req, res) => {
   const vendor = await authenticateVendorRequest(req);
   if (!vendor) { res.status(401).json({ error: "invalid credentials" }); return; }
 
-  const convId = parseInt(req.params["id"] ?? "", 10);
-  if (isNaN(convId)) { res.status(400).json({ error: "invalid id" }); return; }
+  const requestedConvId = parseInt(req.params["id"] ?? "", 10);
+  if (isNaN(requestedConvId)) { res.status(400).json({ error: "invalid id" }); return; }
+  const convId = await resolveVendorConversationId(requestedConvId, vendor.id);
+  if (!convId) { res.status(404).json({ error: "not found" }); return; }
 
   // Soft-delete: mark deleted only for the vendor — buyer's view is unaffected
   await db
@@ -1098,20 +1197,14 @@ router.delete("/vendor/conversations/:id", async (req, res) => {
    Auth: x-buyer-token
    ────────────────────────────────────────────────────────────── */
 router.delete("/conversations/:id", async (req, res) => {
-  const convId = parseInt(req.params["id"] ?? "", 10);
-  if (isNaN(convId)) { res.status(400).json({ error: "invalid id" }); return; }
+  const requestedConvId = parseInt(req.params["id"] ?? "", 10);
+  if (isNaN(requestedConvId)) { res.status(400).json({ error: "invalid id" }); return; }
 
   const buyerToken = req.headers["x-buyer-token"] as string | undefined;
   if (!buyerToken) { res.status(401).json({ error: "x-buyer-token required" }); return; }
 
-  // Verify token matches this conversation
-  const convRows = await db
-    .select({ id: conversationsTable.id, buyerToken: conversationsTable.buyerToken })
-    .from(conversationsTable)
-    .where(eq(conversationsTable.id, convId))
-    .limit(1);
-  if (!convRows.length) { res.status(404).json({ error: "not found" }); return; }
-  if (convRows[0].buyerToken !== buyerToken) { res.status(401).json({ error: "unauthorized" }); return; }
+  const convId = await resolveBuyerConversationId(requestedConvId, buyerToken);
+  if (!convId) { res.status(401).json({ error: "unauthorized" }); return; }
 
   // Soft-delete: mark deleted only for the buyer — vendor's view is unaffected
   await db

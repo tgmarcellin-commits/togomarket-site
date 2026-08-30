@@ -7,39 +7,75 @@ import {
   timestamp,
   jsonb,
   unique,
+  uniqueIndex,
 } from "drizzle-orm/pg-core";
 import { vendorsTable } from "./vendors";
 
 // A conversation is initiated by a buyer interested in a specific vendor
-export const conversationsTable = pgTable("conversations", {
-  id: serial("id").primaryKey(),
-  vendorId: integer("vendor_id")
-    .notNull()
-    .references(() => vendorsTable.id, { onDelete: "cascade" }),
-  buyerName: text("buyer_name").notNull(),
-  buyerPhone: text("buyer_phone").notNull(),
-  listingTitle: text("listing_title"),
-  listingId: integer("listing_id"),
-  /** Snapshot reference to the selected listing's first image, when available */
-  listingImage: text("listing_image"),
-  createdAt: timestamp("created_at", { withTimezone: true })
-    .notNull()
-    .defaultNow(),
-  updatedAt: timestamp("updated_at", { withTimezone: true })
-    .notNull()
-    .defaultNow(),
-  vendorUnreadCount: integer("vendor_unread_count").notNull().default(0),
-  /** Messages vendor non lus par l'acheteur */
-  buyerUnreadCount: integer("buyer_unread_count").notNull().default(0),
-  /** Replies from vendors to broadcast messages — unread count for admin inbox */
-  adminUnreadCount: integer("admin_unread_count").notNull().default(0),
-  /** Unguessable token returned to buyer at conversation creation; required for buyer reads/sends */
-  buyerToken: text("buyer_token").notNull(),
-  /** Set when the vendor soft-deletes the conversation from their side only */
-  vendorDeletedAt: timestamp("vendor_deleted_at", { withTimezone: true }),
-  /** Set when the buyer soft-deletes the conversation from their side only */
-  buyerDeletedAt: timestamp("buyer_deleted_at", { withTimezone: true }),
-});
+export const conversationsTable = pgTable(
+  "conversations",
+  {
+    id: serial("id").primaryKey(),
+    vendorId: integer("vendor_id")
+      .notNull()
+      .references(() => vendorsTable.id, { onDelete: "cascade" }),
+    buyerName: text("buyer_name").notNull(),
+    buyerPhone: text("buyer_phone").notNull(),
+    /**
+     * SHA-256 of an opaque buyer account key. The raw key is browser-held for
+     * guests and derived from the authenticated vendor id for vendor-buyers.
+     */
+    buyerKeyHash: text("buyer_key_hash"),
+    listingTitle: text("listing_title"),
+    listingId: integer("listing_id"),
+    /** Snapshot reference to the selected listing's first image, when available */
+    listingImage: text("listing_image"),
+    createdAt: timestamp("created_at", { withTimezone: true })
+      .notNull()
+      .defaultNow(),
+    updatedAt: timestamp("updated_at", { withTimezone: true })
+      .notNull()
+      .defaultNow(),
+    vendorUnreadCount: integer("vendor_unread_count").notNull().default(0),
+    /** Messages vendor non lus par l'acheteur */
+    buyerUnreadCount: integer("buyer_unread_count").notNull().default(0),
+    /** Replies from vendors to broadcast messages — unread count for admin inbox */
+    adminUnreadCount: integer("admin_unread_count").notNull().default(0),
+    /** Unguessable token returned to buyer at conversation creation; required for buyer reads/sends */
+    buyerToken: text("buyer_token").notNull(),
+    /** Set when the vendor soft-deletes the conversation from their side only */
+    vendorDeletedAt: timestamp("vendor_deleted_at", { withTimezone: true }),
+    /** Set when the buyer soft-deletes the conversation from their side only */
+    buyerDeletedAt: timestamp("buyer_deleted_at", { withTimezone: true }),
+  },
+  (t) => ({
+    uniqueVendorBuyerKey: uniqueIndex("conversations_vendor_buyer_key_unique")
+      .on(t.vendorId, t.buyerKeyHash),
+  }),
+);
+
+/**
+ * Keeps access working after duplicate conversations are consolidated.
+ * legacyConversationId is intentionally not a FK because that row is removed.
+ */
+export const conversationBuyerTokensTable = pgTable(
+  "conversation_buyer_tokens",
+  {
+    id: serial("id").primaryKey(),
+    conversationId: integer("conversation_id")
+      .notNull()
+      .references(() => conversationsTable.id, { onDelete: "cascade" }),
+    token: text("token").notNull(),
+    legacyConversationId: integer("legacy_conversation_id"),
+    createdAt: timestamp("created_at", { withTimezone: true })
+      .notNull()
+      .defaultNow(),
+  },
+  (t) => ({
+    uniqueToken: unique().on(t.token),
+    uniqueLegacyConversation: unique().on(t.legacyConversationId),
+  }),
+);
 
 // Messages within a conversation
 export const messagesTable = pgTable("messages", {
@@ -113,6 +149,7 @@ export const vendorNotificationsTable = pgTable("vendor_notifications", {
 });
 
 export type Conversation = typeof conversationsTable.$inferSelect;
+export type ConversationBuyerToken = typeof conversationBuyerTokensTable.$inferSelect;
 export type Message = typeof messagesTable.$inferSelect;
 export type PushSubscription = typeof pushSubscriptionsTable.$inferSelect;
 export type BuyerPushSubscription = typeof buyerPushSubscriptionsTable.$inferSelect;

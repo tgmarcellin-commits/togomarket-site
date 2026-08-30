@@ -8,10 +8,10 @@ import { startListingsCleanupCron } from "./lib/listings-cleanup";
 // Note: startConversationsCleanupCron est défini dans conversations-cleanup.ts
 // mais n'est pas activé ici : la suppression auto des conversations n'est pas dans le scope actuel.
 import { setIo } from "./lib/socket-io";
-import { db, vendorsTable, conversationsTable } from "@workspace/db";
-import { eq } from "drizzle-orm";
+import { db, vendorsTable } from "@workspace/db";
 import { normalizePhone, phoneEq } from "./lib/phone";
 import { lookupVendorSessionDetails } from "./lib/vendor-auth";
+import { resolveBuyerConversationId } from "./lib/conversation-access";
 
 const rawPort = process.env["PORT"];
 
@@ -104,16 +104,13 @@ io.on("connection", (socket) => {
   socket.on("join_conv", async ({ conversationId, buyerToken }: { conversationId: number; buyerToken: string }) => {
     if (!conversationId || !buyerToken) return;
     try {
-      const rows = await db
-        .select({ buyerToken: conversationsTable.buyerToken })
-        .from(conversationsTable)
-        .where(eq(conversationsTable.id, conversationId))
-        .limit(1);
-      if (!rows.length || rows[0].buyerToken !== buyerToken) {
+      const canonicalId = await resolveBuyerConversationId(conversationId, buyerToken);
+      if (!canonicalId) {
         logger.warn({ conversationId }, "socket join_conv rejected: invalid token");
         return;
       }
-      socket.join(`conv:${conversationId}`);
+      socket.join(`conv:${canonicalId}`);
+      socket.emit("join_conv_ok", { requestedConversationId: conversationId, conversationId: canonicalId });
     } catch (err) {
       logger.error({ err }, "socket join_conv error");
     }

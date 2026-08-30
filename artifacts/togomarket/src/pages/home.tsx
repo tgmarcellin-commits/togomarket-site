@@ -152,13 +152,20 @@ export default function Home() {
   const [vendor, setVendor] = useState<VendorProfile | null>(null);
   const [vendorPassword, setVendorPassword] = useState("");
   const [convsUnread, setConvsUnread] = useState(0);
+  const [buyerConvsUnread, setBuyerConvsUnread] = useState(0);
   const [systemNotifsUnread, setSystemNotifsUnread] = useState(0);
   const pushNudgeCheckInFlight = useRef(false);
-  const messagesUnread = convsUnread + systemNotifsUnread;
+  const messagesUnread = convsUnread + buyerConvsUnread + systemNotifsUnread;
 
   // Buyer inbox state
   const [pendingConvId, setPendingConvId] = useState<number | null>(null);
   const buyerIdentity = loadBuyerIdentity();
+  const activeBuyerIdentity = buyerIdentity ?? (vendor
+    ? {
+        name: `${vendor.firstName} ${vendor.lastName}`.trim() || vendor.shopName || "Vendeur",
+        phone: vendor.phone,
+      }
+    : null);
 
   // Compte vendeur expiré : isPublished=false OU expiryDate dans le passé
   const isVendorExpired = vendor
@@ -1267,16 +1274,17 @@ export default function Home() {
                 </>
               )}
               {/* ── Section acheteur : visible même si le compte vendeur est expiré ── */}
-              {buyerIdentity && (
+              {activeBuyerIdentity && (
                 <div className="mt-8 pt-6 border-t">
                   <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground mb-4">
                     {lang === "fr" ? "Mes achats" : "My purchases"}
                   </p>
                   <BuyerInbox
                     key={`buyer-${tabRefreshKey}`}
-                    identity={buyerIdentity}
+                    identity={activeBuyerIdentity}
                     pendingConvId={pendingConvId}
                     onClearPending={() => setPendingConvId(null)}
+                    onUnreadChange={setBuyerConvsUnread}
                   />
                 </div>
               )}
@@ -1288,6 +1296,7 @@ export default function Home() {
               identity={buyerIdentity}
               pendingConvId={pendingConvId}
               onClearPending={() => setPendingConvId(null)}
+              onUnreadChange={setBuyerConvsUnread}
             />
           ) : (
             /* ── Ni vendeur ni acheteur : inviter à s'identifier ─────── */

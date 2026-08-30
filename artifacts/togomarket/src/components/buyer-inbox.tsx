@@ -24,6 +24,7 @@ interface BuyerConversation {
 
 /* ── localStorage helpers ────────────────────────────────────── */
 const BUYER_TOKENS_KEY = "tm_buyer_tokens";
+const BUYER_KEY_KEY = "tm_buyer_key";
 export const BUYER_SESSION_TTL_MS = 30 * 24 * 60 * 60 * 1000;
 
 interface StoredSession {
@@ -141,9 +142,9 @@ export function migrateLegacySessions(): void {
 export function storeBuyerSession(session: StoredSession) {
   try {
     const existing = getAllBuyerSessions();
-    // Replace if same vendorId + listingId, otherwise append
+    // One buyer/vendor thread: changing listings updates the same session.
     const filtered = existing.filter(
-      (s) => !(s.vendorId === session.vendorId && s.listingId === session.listingId),
+      (s) => s.vendorId !== session.vendorId && s.convId !== session.convId,
     );
     localStorage.setItem(BUYER_TOKENS_KEY, JSON.stringify([
       ...filtered,
@@ -155,10 +156,25 @@ export function storeBuyerSession(session: StoredSession) {
   } catch {}
 }
 
-export function getBuyerSession(vendorId: number, listingId: number): StoredSession | null {
-  return getAllBuyerSessions().find(
-    (s) => s.vendorId === vendorId && s.listingId === listingId,
-  ) ?? null;
+export function getBuyerSession(vendorId: number, listingId?: number): StoredSession | null {
+  void listingId;
+  return getAllBuyerSessions().find((s) => s.vendorId === vendorId) ?? null;
+}
+
+export function getOrCreateBuyerKey(identity: BuyerIdentity): string {
+  const identityFingerprint = identity.phone.trim();
+  try {
+    const saved = JSON.parse(localStorage.getItem(BUYER_KEY_KEY) ?? "null") as {
+      identityFingerprint?: string;
+      key?: string;
+    } | null;
+    if (saved?.identityFingerprint === identityFingerprint && saved.key) return saved.key;
+  } catch {
+    // A malformed value is replaced below.
+  }
+  const key = `${crypto.randomUUID()}-${crypto.randomUUID()}`;
+  localStorage.setItem(BUYER_KEY_KEY, JSON.stringify({ identityFingerprint, key }));
+  return key;
 }
 
 /* ── VAPID helper ────────────────────────────────────────────── */
@@ -338,9 +354,10 @@ interface BuyerInboxProps {
   /** If set, auto-open this conversation when the inbox loads */
   pendingConvId?: number | null;
   onClearPending?: () => void;
+  onUnreadChange?: (total: number) => void;
 }
 
-export function BuyerInbox({ identity, pendingConvId, onClearPending }: BuyerInboxProps) {
+export function BuyerInbox({ identity, pendingConvId, onClearPending, onUnreadChange }: BuyerInboxProps) {
   const { lang } = useSiteSettings();
   const [conversations, setConversations] = useState<BuyerConversation[]>([]);
   const [loading, setLoading] = useState(false);
@@ -352,6 +369,7 @@ export function BuyerInbox({ identity, pendingConvId, onClearPending }: BuyerInb
     const sessions = getAllBuyerSessions();
     if (sessions.length === 0) {
       setConversations([]);
+      onUnreadChange?.(0);
       return;
     }
     setLoading(true);
@@ -363,27 +381,41 @@ export function BuyerInbox({ identity, pendingConvId, onClearPending }: BuyerInb
       });
       if (res.ok) {
         const data = (await res.json()) as BuyerConversation[];
-        const returnedIds = new Set(data.map((conv) => conv.id));
-        const liveSessions = sessions.filter((session) => returnedIds.has(session.convId));
-        if (liveSessions.length !== sessions.length) {
-          sessions
-            .filter((session) => !returnedIds.has(session.convId))
-            .forEach((session) => {
-              localStorage.removeItem(`tm_chat_${session.vendorId}_${session.listingId}`);
-            });
-          localStorage.setItem(BUYER_TOKENS_KEY, JSON.stringify(liveSessions));
-        }
-        // Attach buyerToken to each conversation from local sessions
+        const canonicalSessions: StoredSession[] = [];
         const enriched = data.map((conv) => {
-          const session = sessions.find((s) => s.convId === conv.id);
+          const session = sessions.find((s) => s.buyerToken === conv.buyerToken)
+            ?? sessions.find((s) => s.convId === conv.id);
+          if (session) {
+            canonicalSessions.push({
+              ...session,
+              convId: conv.id,
+              buyerToken: conv.buyerToken,
+              vendorId: conv.vendorId,
+              listingTitle: conv.listingTitle ?? session.listingTitle,
+              expiresAt: Date.now() + BUYER_SESSION_TTL_MS,
+            });
+          }
           return { ...conv, buyerToken: session?.buyerToken ?? conv.buyerToken };
         });
-        setConversations(enriched.sort((a, b) => new Date(b.lastMessageAt).getTime() - new Date(a.lastMessageAt).getTime()));
+        const newestByVendor = new Map<number, StoredSession>();
+        for (const session of canonicalSessions) newestByVendor.set(session.vendorId, session);
+        localStorage.setItem(BUYER_TOKENS_KEY, JSON.stringify([...newestByVendor.values()]));
+        const sorted = enriched.sort((a, b) => new Date(b.lastMessageAt).getTime() - new Date(a.lastMessageAt).getTime());
+        setConversations(sorted);
+        onUnreadChange?.(sorted.reduce((sum, conversation) => sum + conversation.buyerUnreadCount, 0));
+        const socket = socketRef.current;
+        socket.connect();
+        sorted.forEach((conversation) => {
+          socket.emit("join_conv", {
+            conversationId: conversation.id,
+            buyerToken: conversation.buyerToken,
+          });
+        });
       }
     } finally {
       setLoading(false);
     }
-  }, []);
+  }, [onUnreadChange]);
 
   const openConversation = async (conversation: BuyerConversation) => {
     const res = await fetch(`/api/conversations/${conversation.id}`, {
@@ -396,7 +428,18 @@ export function BuyerInbox({ identity, pendingConvId, onClearPending }: BuyerInb
       return;
     }
     if (!res.ok) return;
-    setOpenConv(conversation);
+    const resolved = await res.json() as { id?: number };
+    const canonicalConversation = resolved.id && resolved.id !== conversation.id
+      ? { ...conversation, id: resolved.id }
+      : conversation;
+    storeBuyerSession({
+      convId: canonicalConversation.id,
+      buyerToken: canonicalConversation.buyerToken,
+      vendorId: canonicalConversation.vendorId,
+      listingId: getBuyerSession(canonicalConversation.vendorId)?.listingId ?? 0,
+      listingTitle: canonicalConversation.listingTitle ?? "",
+    });
+    setOpenConv(canonicalConversation);
   };
 
   // Migration des anciennes sessions localStorage (tm_chat_*) vers le store centralisé
@@ -409,8 +452,17 @@ export function BuyerInbox({ identity, pendingConvId, onClearPending }: BuyerInb
     fetchConversations();
     const socket = socketRef.current;
     const handler = () => fetchConversations();
+    const reconnectHandler = () => fetchConversations();
     socket.on("new_message", handler);
-    return () => { socket.off("new_message", handler); };
+    socket.on("messages_read", handler);
+    socket.on("connect", reconnectHandler);
+    socket.on("reconnect", reconnectHandler);
+    return () => {
+      socket.off("new_message", handler);
+      socket.off("messages_read", handler);
+      socket.off("connect", reconnectHandler);
+      socket.off("reconnect", reconnectHandler);
+    };
   }, [fetchConversations]);
 
   // Auto-open pending conversation from "Discuter" redirect

@@ -106,12 +106,14 @@ CHAT INTERNE TOGOMARKET
 TogoMarket dispose d'un chat interne temps réel entre acheteurs et vendeurs :
 • Bouton "Contacter — Vendeur" sur chaque annonce (remplace l'ancien "Débloquer le Contact")
 • L'acheteur donne son prénom et numéro au premier contact (stocké localement dans le navigateur)
+• Un même acheteur conserve une seule discussion par vendeur, même s'il consulte plusieurs articles de cette boutique ; le dernier article consulté met à jour le contexte du fil
+• Dans Messages, un vendeur connecté peut utiliser simultanément « Mes clients » pour sa boutique et « Mes achats » lorsqu'il contacte d'autres vendeurs
 • La conversation s'ouvre dans un drawer en bas de l'écran
 • Les messages sont envoyés en temps réel via Socket.io
 • Chaque message envoyé affiche son heure et un accusé de lecture : ✓ signifie envoyé, ✓✓ signifie lu par le destinataire
 • Les types de messages supportés : texte, photos/images (JPEG/PNG), PDF, et messages vocaux (enregistrement audio)
 • Pour envoyer un message vocal : appuyer sur le bouton micro 🎤, parler, puis appuyer sur le bouton stop 🛑 — l'audio est uploadé et affiché avec un lecteur audio intégré
-• Le vendeur voit ses conversations dans l'onglet Stand (quand il est connecté), avec compteur de messages non lus
+• Le vendeur voit ses conversations et les compteurs de messages non lus dans l'onglet Messages
 • Aucun compte acheteur n'est nécessaire — l'identité est mémorisée dans le navigateur
 • WhatsApp n'est conservé QUE pour : admin, "Introuvable", OTP, et annonces Services
 • L'administrateur (superadmin) peut envoyer un message de diffusion à tous les vendeurs vérifiés depuis l'onglet Vendeurs > bouton "Diffuser" — le message apparaît dans la conversation TogoMarket de chaque vendeur et déclenche une notification push si le vendeur l'a activée

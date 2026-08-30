@@ -114,7 +114,7 @@ export function VendorConversations({ vendor, vendorPassword, onUnreadChange }: 
       <div className="flex items-center justify-between">
         <h3 className="font-semibold text-base flex items-center gap-2">
           <MessageCircle className="w-4 h-4 text-primary" />
-          {lang === "fr" ? "Conversations" : "Conversations"}
+          {lang === "fr" ? "Mes clients" : "My customers"}
           {totalUnread > 0 && (
             <Badge className="bg-destructive text-white text-[10px] px-1.5 py-0.5 rounded-full">
               {totalUnread}

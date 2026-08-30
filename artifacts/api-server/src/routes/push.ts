@@ -1,8 +1,9 @@
 import { Router, type IRouter } from "express";
 import { eq, and } from "drizzle-orm";
-import { db, pushSubscriptionsTable, buyerPushSubscriptionsTable, conversationsTable } from "@workspace/db";
+import { db, pushSubscriptionsTable, buyerPushSubscriptionsTable } from "@workspace/db";
 import { vapidPublicKey } from "../lib/webpush";
 import { authenticateVendorRequest } from "../lib/vendor-auth";
+import { resolveBuyerConversationId } from "../lib/conversation-access";
 
 const router: IRouter = Router();
 
@@ -145,13 +146,8 @@ router.post("/push/buyer-subscribe", async (req, res) => {
   const convId = parseInt(convIdStr, 10);
   if (isNaN(convId)) { res.status(400).json({ error: "invalid conversation id" }); return; }
 
-  // Verify the token belongs to this conversation
-  const convRows = await db
-    .select({ buyerToken: conversationsTable.buyerToken })
-    .from(conversationsTable)
-    .where(eq(conversationsTable.id, convId))
-    .limit(1);
-  if (!convRows.length || convRows[0].buyerToken !== buyerToken) {
+  const canonicalConvId = await resolveBuyerConversationId(convId, buyerToken);
+  if (!canonicalConvId) {
     res.status(401).json({ error: "unauthorized" });
     return;
   }
@@ -174,11 +170,11 @@ router.post("/push/buyer-subscribe", async (req, res) => {
     .delete(buyerPushSubscriptionsTable)
     .where(and(
       eq(buyerPushSubscriptionsTable.endpoint, endpoint),
-      eq(buyerPushSubscriptionsTable.conversationId, convId),
+      eq(buyerPushSubscriptionsTable.conversationId, canonicalConvId),
     ));
 
   await db.insert(buyerPushSubscriptionsTable).values({
-    conversationId: convId,
+    conversationId: canonicalConvId,
     endpoint,
     keys,
   });
@@ -196,12 +192,8 @@ router.post("/push/buyer-unsubscribe", async (req, res) => {
     res.status(401).json({ error: "buyer auth required" });
     return;
   }
-  const [conversation] = await db
-    .select({ buyerToken: conversationsTable.buyerToken })
-    .from(conversationsTable)
-    .where(eq(conversationsTable.id, convId))
-    .limit(1);
-  if (!conversation || conversation.buyerToken !== buyerToken) {
+  const canonicalConvId = await resolveBuyerConversationId(convId, buyerToken);
+  if (!canonicalConvId) {
     res.status(401).json({ error: "unauthorized" });
     return;
   }
@@ -211,7 +203,7 @@ router.post("/push/buyer-unsubscribe", async (req, res) => {
     .delete(buyerPushSubscriptionsTable)
     .where(and(
       eq(buyerPushSubscriptionsTable.endpoint, endpoint),
-      eq(buyerPushSubscriptionsTable.conversationId, convId),
+      eq(buyerPushSubscriptionsTable.conversationId, canonicalConvId),
     ));
   res.json({ ok: true });
 });
