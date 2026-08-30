@@ -3,11 +3,22 @@ import { eq, desc, and, gt, lt, inArray, isNull, sql } from "drizzle-orm";
 import bcrypt from "bcryptjs";
 import { randomUUID } from "node:crypto";
 import multer from "multer";
-import { db, vendorsTable, publishCodesTable, otpCodesTable, listingsTable, conversationsTable, messagesTable } from "@workspace/db";
+import {
+  db,
+  vendorsTable,
+  publishCodesTable,
+  otpCodesTable,
+  listingsTable,
+  conversationsTable,
+  messagesTable,
+  pushSubscriptionsTable,
+} from "@workspace/db";
 import { sendWhatsAppText } from "../lib/whatsapp-api";
 import { dispatchVendorOTP, getOtpConfiguration } from "../lib/otp-provider";
 import { normalizePhone, phoneEq } from "../lib/phone";
 import { getIo } from "../lib/socket-io";
+import { webpush, vapidReady } from "../lib/webpush";
+import { logger } from "../lib/logger";
 import { ObjectStorageService } from "../lib/objectStorage";
 import { validateFileBytes } from "../lib/file-security";
 import { secureMessageFileUrl } from "../lib/message-file-access";
@@ -1041,7 +1052,7 @@ router.post("/admin/broadcast-message", async (req, res) => {
   }
 
   const allVendors = await db
-    .select({ id: vendorsTable.id })
+    .select({ id: vendorsTable.id, wantsNotifications: vendorsTable.wantsNotifications })
     .from(vendorsTable)
     .where(eq(vendorsTable.verified, true));
 
@@ -1082,6 +1093,44 @@ router.post("/admin/broadcast-message", async (req, res) => {
         senderType: "buyer",
         content: message.trim(),
       }).returning();
+
+      // Notifier le vendeur par push même si son application est fermée
+      if (vapidReady && vendor.wantsNotifications) {
+        try {
+          const subs = await db
+            .select()
+            .from(pushSubscriptionsTable)
+            .where(eq(pushSubscriptionsTable.vendorId, vendor.id));
+
+          if (subs.length > 0) {
+            const payload = JSON.stringify({
+              title: "💬 TogoMarket",
+              body: message.trim().length > 80 ? message.trim().slice(0, 80) + "…" : message.trim(),
+              conversationId: convId,
+            });
+
+            await Promise.allSettled(
+              subs.map((sub) =>
+                webpush.sendNotification(
+                  { endpoint: sub.endpoint, keys: sub.keys as { auth: string; p256dh: string } },
+                  payload,
+                ).catch(async (err: { statusCode?: number }) => {
+                  if (err.statusCode === 404 || err.statusCode === 410) {
+                    await db
+                      .delete(pushSubscriptionsTable)
+                      .where(and(
+                        eq(pushSubscriptionsTable.endpoint, sub.endpoint),
+                        eq(pushSubscriptionsTable.vendorId, vendor.id),
+                      ));
+                  }
+                }),
+              ),
+            );
+          }
+        } catch (err) {
+          logger.warn({ err, vendorId: vendor.id }, "Notification push broadcast vendeur : erreur non fatale");
+        }
+      }
 
       // Reset vendor-deleted flag so broadcast always surfaces
       await db.update(conversationsTable).set({
