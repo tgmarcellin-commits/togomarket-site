@@ -265,10 +265,9 @@ export default function AdminDashboard() {
     sessionStorage.setItem("tm_admin_tab", tab);
   }, [tab]);
   const [vendorSearch, setVendorSearch] = useState("");
-  const [showBroadcast, setShowBroadcast] = useState(false);
   const [broadcastMsg, setBroadcastMsg] = useState("");
   const [broadcastLoading, setBroadcastLoading] = useState(false);
-  const [broadcastResult, setBroadcastResult] = useState<{ sent: number } | "error" | null>(null);
+  const [broadcastResult, setBroadcastResult] = useState<{ sent: number } | "forbidden" | "error" | null>(null);
   const [viewerImages, setViewerImages] = useState<string[]>([]);
   const [viewerIndex, setViewerIndex] = useState(0);
   const [videoPlayerUrl, setVideoPlayerUrl] = useState<string | null>(null);
@@ -1672,76 +1671,72 @@ export default function AdminDashboard() {
           </div>
         )}
 
-        {/* ── BROADCAST DIALOG ─────────────────────────────────── */}
-        <Dialog open={showBroadcast} onOpenChange={(o) => { setShowBroadcast(o); if (!o) { setBroadcastMsg(""); setBroadcastResult(null); } }}>
-          <DialogContent className="sm:max-w-md">
-            <DialogHeader>
-              <DialogTitle className="flex items-center gap-2">
-                <Megaphone className="w-5 h-5 text-primary" />
-                Message à tous les vendeurs
-              </DialogTitle>
-            </DialogHeader>
-            <p className="text-sm text-muted-foreground">
-              Ce message sera envoyé à <strong>tous les vendeurs vérifiés</strong> dans leur onglet Messages, sous le nom <strong>TogoMarket</strong>.
-            </p>
-            <textarea
-              className="w-full border rounded-lg px-3 py-2 text-sm resize-none focus:outline-none focus:ring-2 focus:ring-primary/40 min-h-[120px]"
-              placeholder="Rédigez votre message de diffusion ici…"
-              value={broadcastMsg}
-              onChange={(e) => { setBroadcastMsg(e.target.value); setBroadcastResult(null); }}
-              maxLength={1000}
-            />
-            <div className="flex items-center justify-between gap-2">
-              <span className="text-xs text-muted-foreground">{broadcastMsg.length}/1000</span>
-              {broadcastResult === "error" && (
-                <p className="text-xs text-destructive font-medium">Erreur lors de l'envoi. Réessayez.</p>
-              )}
-              {broadcastResult !== null && broadcastResult !== "error" && (
-                <p className="text-xs text-green-700 font-medium">
-                  ✓ Envoyé à {broadcastResult.sent} vendeur{broadcastResult.sent > 1 ? "s" : ""}.
-                </p>
-              )}
-            </div>
-            <DialogFooter className="gap-2">
-              <Button variant="outline" onClick={() => setShowBroadcast(false)}>Annuler</Button>
-              <Button
-                disabled={!broadcastMsg.trim() || broadcastLoading}
-                onClick={async () => {
-                  setBroadcastLoading(true);
-                  setBroadcastResult(null);
-                  try {
-                    const res = await fetch("/api/admin/broadcast-message", {
-                      method: "POST",
-                      headers: { "Content-Type": "application/json" },
-                      body: JSON.stringify({ password, message: broadcastMsg.trim() }),
-                    });
-                    if (!res.ok) { setBroadcastResult("error"); return; }
-                    const data = await res.json() as { sent: number };
-                    setBroadcastResult({ sent: data.sent });
-                    setBroadcastMsg("");
-                  } catch { setBroadcastResult("error"); }
-                  finally { setBroadcastLoading(false); }
-                }}
-              >
-                <Megaphone className="w-4 h-4 mr-1.5" />
-                {broadcastLoading ? "Envoi…" : "Envoyer à tous"}
-              </Button>
-            </DialogFooter>
-          </DialogContent>
-        </Dialog>
-
         {/* ── VENDEURS ─────────────────────────────────────────── */}
         {tab === "vendors" && (
           <div className="space-y-4">
+            {isSuperAdmin && (
+              <div className="border border-primary/20 rounded-xl overflow-hidden bg-primary/5">
+                <div className="flex items-center gap-2 px-4 py-3 border-b border-primary/10">
+                  <Megaphone className="w-4 h-4 text-primary flex-shrink-0" />
+                  <p className="text-sm font-semibold text-primary">Message à tous les vendeurs</p>
+                </div>
+                <div className="px-4 pb-4 pt-3 space-y-3">
+                  <p className="text-sm text-muted-foreground">
+                    Ce message sera envoyé à <strong>tous les vendeurs vérifiés</strong> dans leur onglet Messages, sous le nom <strong>TogoMarket</strong>.
+                  </p>
+                  <textarea
+                    className="w-full border rounded-lg px-3 py-2 text-sm resize-none focus:outline-none focus:ring-2 focus:ring-primary/40 bg-card"
+                    rows={4}
+                    placeholder="Rédigez votre message de diffusion ici…"
+                    value={broadcastMsg}
+                    onChange={(e) => { setBroadcastMsg(e.target.value); setBroadcastResult(null); }}
+                    maxLength={1000}
+                  />
+                  <div className="flex items-center justify-between gap-2">
+                    <span className="text-xs text-muted-foreground">{broadcastMsg.length}/1000</span>
+                    <Button
+                      size="sm"
+                      className="h-8 text-xs gap-1.5"
+                      disabled={!broadcastMsg.trim() || broadcastLoading}
+                      onClick={async () => {
+                        setBroadcastLoading(true);
+                        setBroadcastResult(null);
+                        try {
+                          const res = await fetch("/api/admin/broadcast-message", {
+                            method: "POST",
+                            headers: { "Content-Type": "application/json" },
+                            body: JSON.stringify({ password, message: broadcastMsg.trim() }),
+                          });
+                          if (res.status === 403) { setBroadcastResult("forbidden"); return; }
+                          if (!res.ok) { setBroadcastResult("error"); return; }
+                          const data = await res.json() as { sent: number };
+                          setBroadcastResult({ sent: data.sent });
+                          setBroadcastMsg("");
+                        } catch { setBroadcastResult("error"); }
+                        finally { setBroadcastLoading(false); }
+                      }}
+                    >
+                      <Megaphone className="w-3.5 h-3.5" />
+                      {broadcastLoading ? "Envoi en cours…" : "Envoyer à tous"}
+                    </Button>
+                  </div>
+                  {broadcastResult === "forbidden" && (
+                    <p className="text-xs text-destructive font-medium">Non autorisé — réservé au superadmin.</p>
+                  )}
+                  {broadcastResult === "error" && (
+                    <p className="text-xs text-destructive font-medium">Erreur lors de l'envoi. Réessayez.</p>
+                  )}
+                  {broadcastResult !== null && broadcastResult !== "forbidden" && broadcastResult !== "error" && (
+                    <p className="text-xs text-green-700 font-medium">
+                      ✓ Message envoyé à {broadcastResult.sent} vendeur{broadcastResult.sent > 1 ? "s" : ""}.
+                    </p>
+                  )}
+                </div>
+              </div>
+            )}
             <div className="flex items-center justify-between gap-3">
               <h2 className="text-lg font-bold">Vendeurs ({vendors.length})</h2>
               <div className="flex items-center gap-2">
-                {isSuperAdmin && (
-                  <Button size="sm" onClick={() => { setBroadcastResult(null); setShowBroadcast(true); }}>
-                    <Megaphone className="w-3.5 h-3.5 mr-1.5" />
-                    Diffuser
-                  </Button>
-                )}
                 <Button variant="outline" size="sm" onClick={loadVendors} disabled={vendorsLoading}>
                   <RefreshCw className={`w-3.5 h-3.5 mr-1.5 ${vendorsLoading ? "animate-spin" : ""}`} />
                   Actualiser
