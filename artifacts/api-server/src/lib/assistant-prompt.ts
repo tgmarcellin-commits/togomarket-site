@@ -126,6 +126,12 @@ NOTIFICATIONS PUSH POUR LES VENDEURS
 • Le vendeur peut aussi activer les notifications à l'inscription (case cochée par défaut)
 • Fonctionne même si le navigateur est en arrière-plan (via Service Worker)
 
+NOTIFICATIONS PUSH POUR LES ACHETEURS
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+• Les acheteurs peuvent activer les notifications push depuis la fenêtre d'une conversation
+• Une notification est envoyée quand le vendeur répond par texte, photo ou message vocal
+• L'abonnement est lié à la conversation et protégé par le jeton privé de l'acheteur
+
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 COMMENT VENDRE SUR TOGOMARKET ?
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━

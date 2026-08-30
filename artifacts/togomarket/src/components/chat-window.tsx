@@ -3,7 +3,7 @@ import { Sheet, SheetContent, SheetHeader, SheetTitle } from "@/components/ui/sh
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import {
-  Send, MessageCircle, ShoppingBag, Paperclip,
+  Send, MessageCircle, ShoppingBag, Paperclip, Bell,
   Pencil, Trash2, X, Check, FileText, Eraser, Mic, StopCircle, MoreVertical,
 } from "lucide-react";
 import { useSiteSettings } from "@/lib/site-settings";
@@ -47,6 +47,159 @@ function authHeaders(auth: ChatAuth): Record<string, string> {
 
 function canEditOrDelete(msg: ChatMessage): boolean {
   return Date.now() - new Date(msg.createdAt).getTime() < 5 * 60 * 1000;
+}
+
+function urlBase64ToUint8Array(base64String: string): Uint8Array {
+  const padding = "=".repeat((4 - (base64String.length % 4)) % 4);
+  const base64 = (base64String + padding).replace(/-/g, "+").replace(/_/g, "/");
+  const rawData = window.atob(base64);
+  return Uint8Array.from([...rawData].map((char) => char.charCodeAt(0)));
+}
+
+function BuyerPushPrompt({
+  open,
+  conversationId,
+  buyerToken,
+  lang,
+}: {
+  open: boolean;
+  conversationId: number;
+  buyerToken: string;
+  lang: string;
+}) {
+  const [show, setShow] = useState(false);
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  const subscribeCurrentConversation = useCallback(async () => {
+    if (!("serviceWorker" in navigator) || !("PushManager" in window) || !("Notification" in window)) {
+      throw new Error("push-not-supported");
+    }
+
+    const registration = await navigator.serviceWorker.register("/sw.js");
+    const keyRes = await fetch("/api/push/vapid-public-key");
+    if (!keyRes.ok) throw new Error("vapid-key-fetch-failed");
+    const { key } = (await keyRes.json()) as { key?: string };
+    if (!key) throw new Error("vapid-key-empty");
+
+    const existingSubscription = await registration.pushManager.getSubscription();
+    const subscription = existingSubscription ?? await registration.pushManager.subscribe({
+      userVisibleOnly: true,
+      applicationServerKey: urlBase64ToUint8Array(key).buffer as ArrayBuffer,
+    });
+    const subscriptionJson = subscription.toJSON() as {
+      endpoint?: string;
+      keys?: { auth?: string; p256dh?: string };
+    };
+    if (!subscriptionJson.endpoint || !subscriptionJson.keys?.auth || !subscriptionJson.keys.p256dh) {
+      throw new Error("push-subscription-invalid");
+    }
+
+    const response = await fetch("/api/push/buyer-subscribe", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        "x-buyer-token": buyerToken,
+        "x-conversation-id": String(conversationId),
+      },
+      body: JSON.stringify({
+        endpoint: subscriptionJson.endpoint,
+        keys: {
+          auth: subscriptionJson.keys.auth,
+          p256dh: subscriptionJson.keys.p256dh,
+        },
+      }),
+    });
+    if (!response.ok) throw new Error("buyer-subscribe-failed");
+  }, [buyerToken, conversationId]);
+
+  useEffect(() => {
+    if (!open || !("serviceWorker" in navigator) || !("PushManager" in window) || !("Notification" in window)) return;
+
+    if (Notification.permission === "granted") {
+      subscribeCurrentConversation().catch(() => {});
+      return;
+    }
+    if (Notification.permission === "default" && sessionStorage.getItem("tm_buyer_push_dismissed") !== "1") {
+      setShow(true);
+    }
+  }, [open, subscribeCurrentConversation]);
+
+  const handleActivate = async () => {
+    setLoading(true);
+    setError(null);
+    try {
+      const permission = await Notification.requestPermission();
+      if (permission !== "granted") {
+        if (permission === "denied") {
+          setError(
+            lang === "fr"
+              ? "Notifications bloquées — autorisez-les dans les paramètres du navigateur."
+              : "Notifications blocked — allow them in your browser settings.",
+          );
+        } else {
+          setShow(false);
+        }
+        return;
+      }
+
+      await subscribeCurrentConversation();
+      sessionStorage.removeItem("tm_buyer_push_dismissed");
+      setShow(false);
+    } catch (err) {
+      const message = err instanceof Error ? err.message : String(err);
+      setError(
+        lang === "fr"
+          ? `Échec de l'activation (${message}). Réessayez.`
+          : `Activation failed (${message}). Retry.`,
+      );
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  if (!show) return null;
+
+  return (
+    <div className="mx-4 mt-3 rounded-xl border border-primary/30 bg-primary/5 p-3 flex items-start gap-3">
+      <Bell className="w-5 h-5 text-primary flex-shrink-0 mt-0.5" />
+      <div className="flex-1 min-w-0">
+        <p className="text-sm font-semibold text-foreground">
+          {lang === "fr" ? "Activer les notifications" : "Enable notifications"}
+        </p>
+        <p className="text-xs text-muted-foreground mt-0.5 leading-relaxed">
+          {lang === "fr"
+            ? "Recevez une notification dès que ce vendeur vous répond."
+            : "Get notified when this seller replies."}
+        </p>
+        {error && <p className="text-xs text-destructive mt-1.5">{error}</p>}
+        <Button
+          size="sm"
+          className="mt-2 h-7 text-xs rounded-full px-4"
+          onClick={handleActivate}
+          disabled={loading}
+        >
+          {loading
+            ? lang === "fr"
+              ? "Activation…"
+              : "Activating…"
+            : lang === "fr"
+              ? "Activer"
+              : "Activate"}
+        </Button>
+      </div>
+      <button
+        onClick={() => {
+          sessionStorage.setItem("tm_buyer_push_dismissed", "1");
+          setShow(false);
+        }}
+        className="text-muted-foreground hover:text-foreground flex-shrink-0 mt-0.5"
+        aria-label={lang === "fr" ? "Fermer" : "Close"}
+      >
+        <X className="w-4 h-4" />
+      </button>
+    </div>
+  );
 }
 
 export function ChatWindow({
@@ -554,6 +707,15 @@ export function ChatWindow({
             </div>
           )}
         </SheetHeader>
+
+        {auth.kind === "buyer" && (
+          <BuyerPushPrompt
+            open={open}
+            conversationId={conversationId}
+            buyerToken={auth.buyerToken}
+            lang={lang}
+          />
+        )}
 
         {/* Fixed context menu — rendered outside scroll container to avoid overflow clipping */}
         {menuMsgId !== null && menuPos && (() => {
