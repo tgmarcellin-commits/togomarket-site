@@ -190,7 +190,7 @@ export function ProfileSettingsModal({
   return (
     <>
       <Dialog open={open} onOpenChange={handleOpenChange}>
-        <DialogContent className="sm:max-w-[420px] max-h-[90vh] overflow-y-auto overflow-x-hidden">
+        <DialogContent className="box-border w-[calc(100vw-1rem)] max-w-[420px] max-h-[90vh] overflow-y-auto overflow-x-hidden">
           <DialogHeader>
             <div className="flex items-center gap-2">
               {screen !== "menu" && (
@@ -254,7 +254,7 @@ export function ProfileSettingsModal({
 
           {/* ── MA BOUTIQUE ────────────────────────────────────────── */}
           {screen === "boutique" && (
-            <div className="-mx-6 -mb-6">
+            <div className="min-w-0 -mx-6 -mb-6">
               <BoutiqueView vendor={vendor} vendorPassword={vendorPassword} onNeedLogin={() => {}} />
             </div>
           )}

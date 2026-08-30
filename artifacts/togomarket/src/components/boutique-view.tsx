@@ -428,7 +428,7 @@ export function BoutiqueView({ vendor, vendorPassword, onNeedLogin }: BoutiqueVi
       )}
 
       {/* Profile header */}
-      <div className="flex items-center gap-4 mb-6">
+       <div className="flex min-w-0 items-center gap-4 mb-6">
         <div className="w-14 h-14 rounded-full border-2 border-primary/30 overflow-hidden flex-shrink-0 bg-muted flex items-center justify-center">
           {vendor.profilePhoto ? (
             <img src={resolveImageUrl(vendor.profilePhoto)} alt={vendor.firstName} className="w-full h-full object-cover" />
@@ -436,9 +436,9 @@ export function BoutiqueView({ vendor, vendorPassword, onNeedLogin }: BoutiqueVi
             <UserCircle2 className="w-8 h-8 text-muted-foreground" />
           )}
         </div>
-        <div>
-          <div className="flex items-center gap-2 flex-wrap">
-            <h2 className="font-bold text-lg leading-tight">{vendor.firstName} {vendor.lastName}</h2>
+         <div className="min-w-0">
+           <div className="flex items-center gap-2 flex-wrap">
+             <h2 className="font-bold text-lg leading-tight break-words">{vendor.firstName} {vendor.lastName}</h2>
             <span className="text-xs bg-primary text-primary-foreground font-bold px-2.5 py-0.5 rounded-full">N°{vendor.id}</span>
           </div>
           <p className="text-sm text-muted-foreground">{vendor.phone}</p>
@@ -466,12 +466,12 @@ export function BoutiqueView({ vendor, vendorPassword, onNeedLogin }: BoutiqueVi
         };
         return (
           <div className={`rounded-xl border p-3 mb-4 ${isCodeExpired ? "border-destructive/30 bg-destructive/5" : "bg-card"}`}>
-            <div className="flex items-center justify-between mb-1.5">
+             <div className="flex flex-wrap items-center justify-between gap-x-2 gap-y-1 mb-1.5">
               <div className="flex items-center gap-2">
                 <Link2 className={`w-3.5 h-3.5 flex-shrink-0 ${isCodeExpired ? "text-destructive" : "text-primary"}`} />
                 <span className={`text-xs font-semibold ${isCodeExpired ? "text-destructive" : "text-primary"}`}>{t.shopLinkLabel}</span>
               </div>
-              <span className={`text-[10px] font-semibold px-2 py-0.5 rounded-full ${
+               <span className={`max-w-full text-right whitespace-normal text-[10px] font-semibold px-2 py-0.5 rounded-full ${
                 isCodeExpired
                   ? "bg-destructive/15 text-destructive"
                   : daysLeft <= 3
@@ -549,14 +549,14 @@ export function BoutiqueView({ vendor, vendorPassword, onNeedLogin }: BoutiqueVi
 
       {/* Stats */}
       <div className="grid grid-cols-2 gap-3 mb-6">
-        <div className="rounded-xl border bg-card p-4 text-center">
+         <div className="min-w-0 rounded-xl border bg-card p-4 text-center">
           <div className="flex items-center justify-center gap-1.5 mb-1">
             <Package className="w-4 h-4 text-primary" />
             <span className="text-2xl font-bold text-primary">{published.length}</span>
           </div>
           <p className="text-xs text-muted-foreground">{t.published}</p>
         </div>
-        <div className="rounded-xl border bg-card p-4 text-center">
+         <div className="min-w-0 rounded-xl border bg-card p-4 text-center">
           <div className="flex items-center justify-center gap-1.5 mb-1">
             <Clock className="w-4 h-4 text-amber-500" />
             <span className="text-2xl font-bold text-amber-500">{pending.length}</span>
@@ -584,7 +584,7 @@ export function BoutiqueView({ vendor, vendorPassword, onNeedLogin }: BoutiqueVi
       ) : (
         <div className="space-y-3">
           {managedListings.map((listing) => (
-            <div key={listing.id} className="rounded-xl border bg-card p-3 flex gap-3">
+             <div key={listing.id} className="min-w-0 rounded-xl border bg-card p-3 flex gap-3">
               {listing.images?.[0] ? (
                 <BoutiqueMediaThumb path={listing.images[0]} alt={listing.name} />
               ) : (
@@ -593,9 +593,9 @@ export function BoutiqueView({ vendor, vendorPassword, onNeedLogin }: BoutiqueVi
                 </div>
               )}
               <div className="flex-1 min-w-0">
-                <div className="flex items-start justify-between gap-2">
-                  <p className="font-semibold text-sm break-words">{listing.name}</p>
-                  <div className="flex items-center gap-1.5 flex-shrink-0">
+                 <div className="flex min-w-0 flex-wrap items-start justify-between gap-2">
+                   <p className="min-w-0 flex-1 font-semibold text-sm break-words">{listing.name}</p>
+                   <div className="flex max-w-full items-center gap-1.5 flex-wrap">
                     {(() => {
                       const stat = contactStats.find((s) => s.listingId === listing.id);
                       return stat && stat.count > 0 ? (
@@ -626,12 +626,12 @@ export function BoutiqueView({ vendor, vendorPassword, onNeedLogin }: BoutiqueVi
                   </p>
                 )}
                 <p className="text-xs text-muted-foreground break-words">{listing.location} · {listing.sector}</p>
-                <div className="flex gap-2 mt-2">
+                 <div className="flex min-w-0 flex-wrap gap-2 mt-2">
                   {listing.sector === "Tourisme" ? (
                     <Button
                       size="sm"
                       variant="outline"
-                      className="h-7 text-xs gap-1"
+                       className="h-auto min-h-7 max-w-full whitespace-normal text-left text-xs gap-1"
                       onClick={() => setTourismeEditTarget(listing)}
                     >
                       <Pencil className="w-3 h-3" />
@@ -641,7 +641,7 @@ export function BoutiqueView({ vendor, vendorPassword, onNeedLogin }: BoutiqueVi
                     <Button
                       size="sm"
                       variant="outline"
-                      className="h-7 text-xs gap-1"
+                       className="h-auto min-h-7 max-w-full whitespace-normal text-left text-xs gap-1"
                       onClick={() => {
                         setPriceTarget(listing);
                         setNewPrice(String(listing.price));
@@ -656,7 +656,7 @@ export function BoutiqueView({ vendor, vendorPassword, onNeedLogin }: BoutiqueVi
                   <Button
                     size="sm"
                     variant="outline"
-                    className="h-7 text-xs gap-1 text-destructive border-destructive/30 hover:bg-destructive/10"
+                     className="h-auto min-h-7 max-w-full whitespace-normal text-left text-xs gap-1 text-destructive border-destructive/30 hover:bg-destructive/10"
                     onClick={() => setDeleteTarget(listing)}
                   >
                     <Trash2 className="w-3 h-3" />
