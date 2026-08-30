@@ -24,6 +24,7 @@ interface BuyerConversation {
 
 /* ── localStorage helpers ────────────────────────────────────── */
 const BUYER_TOKENS_KEY = "tm_buyer_tokens";
+export const BUYER_SESSION_TTL_MS = 30 * 24 * 60 * 60 * 1000;
 
 interface StoredSession {
   convId: number;
@@ -31,16 +32,54 @@ interface StoredSession {
   vendorId: number;
   listingId: number;
   listingTitle: string;
+  expiresAt?: number;
 }
 
 export function getAllBuyerSessions(): StoredSession[] {
   try {
     const raw = localStorage.getItem(BUYER_TOKENS_KEY);
     if (!raw) return [];
-    return JSON.parse(raw) as StoredSession[];
+    const parsed = JSON.parse(raw);
+    if (!Array.isArray(parsed)) return [];
+
+    const now = Date.now();
+    const sessions = parsed.flatMap((session: Partial<StoredSession>) => {
+      if (!session || !session.convId || !session.buyerToken) return [];
+      const expiresAt = typeof session.expiresAt === "number"
+        ? session.expiresAt
+        : now + BUYER_SESSION_TTL_MS;
+      if (expiresAt <= now) {
+        if (session.vendorId && session.listingId) {
+          localStorage.removeItem(`tm_chat_${session.vendorId}_${session.listingId}`);
+        }
+        return [];
+      }
+      return [{ ...session, expiresAt } as StoredSession];
+    });
+
+    // Persist the expiry added to older sessions and remove expired/deleted
+    // entries before they can be sent back to the API.
+    if (JSON.stringify(sessions) !== raw) {
+      localStorage.setItem(BUYER_TOKENS_KEY, JSON.stringify(sessions));
+    }
+    return sessions;
   } catch {
     return [];
   }
+}
+
+export function removeBuyerSession(convId: number): void {
+  try {
+    const sessions = getAllBuyerSessions();
+    const removed = sessions.filter((session) => session.convId === convId);
+    removed.forEach((session) => {
+      localStorage.removeItem(`tm_chat_${session.vendorId}_${session.listingId}`);
+    });
+    localStorage.setItem(
+      BUYER_TOKENS_KEY,
+      JSON.stringify(sessions.filter((session) => session.convId !== convId)),
+    );
+  } catch {}
 }
 
 /**
@@ -67,8 +106,16 @@ export function migrateLegacySessions(): void {
       try {
         const raw = localStorage.getItem(key);
         if (!raw) continue;
-        const stored = JSON.parse(raw) as { convId?: number; buyerToken?: string };
+        const stored = JSON.parse(raw) as {
+          convId?: number;
+          buyerToken?: string;
+          expiresAt?: number;
+        };
         if (!stored.convId || !stored.buyerToken) continue;
+        if (typeof stored.expiresAt === "number" && stored.expiresAt <= Date.now()) {
+          localStorage.removeItem(key);
+          continue;
+        }
         if (existingConvIds.has(stored.convId)) continue;
 
         toAdd.push({
@@ -77,6 +124,9 @@ export function migrateLegacySessions(): void {
           vendorId,
           listingId,
           listingTitle: "",
+          expiresAt: typeof stored.expiresAt === "number"
+            ? stored.expiresAt
+            : Date.now() + BUYER_SESSION_TTL_MS,
         });
         existingConvIds.add(stored.convId);
       } catch {}
@@ -95,7 +145,13 @@ export function storeBuyerSession(session: StoredSession) {
     const filtered = existing.filter(
       (s) => !(s.vendorId === session.vendorId && s.listingId === session.listingId),
     );
-    localStorage.setItem(BUYER_TOKENS_KEY, JSON.stringify([...filtered, session]));
+    localStorage.setItem(BUYER_TOKENS_KEY, JSON.stringify([
+      ...filtered,
+      {
+        ...session,
+        expiresAt: session.expiresAt ?? Date.now() + BUYER_SESSION_TTL_MS,
+      },
+    ]));
   } catch {}
 }
 
@@ -289,6 +345,7 @@ export function BuyerInbox({ identity, pendingConvId, onClearPending }: BuyerInb
   const [conversations, setConversations] = useState<BuyerConversation[]>([]);
   const [loading, setLoading] = useState(false);
   const [openConv, setOpenConv] = useState<BuyerConversation | null>(null);
+  const [unavailableConversationId, setUnavailableConversationId] = useState<number | null>(null);
   const socketRef = useRef(getSocket());
 
   const fetchConversations = useCallback(async () => {
@@ -306,6 +363,16 @@ export function BuyerInbox({ identity, pendingConvId, onClearPending }: BuyerInb
       });
       if (res.ok) {
         const data = (await res.json()) as BuyerConversation[];
+        const returnedIds = new Set(data.map((conv) => conv.id));
+        const liveSessions = sessions.filter((session) => returnedIds.has(session.convId));
+        if (liveSessions.length !== sessions.length) {
+          sessions
+            .filter((session) => !returnedIds.has(session.convId))
+            .forEach((session) => {
+              localStorage.removeItem(`tm_chat_${session.vendorId}_${session.listingId}`);
+            });
+          localStorage.setItem(BUYER_TOKENS_KEY, JSON.stringify(liveSessions));
+        }
         // Attach buyerToken to each conversation from local sessions
         const enriched = data.map((conv) => {
           const session = sessions.find((s) => s.convId === conv.id);
@@ -317,6 +384,20 @@ export function BuyerInbox({ identity, pendingConvId, onClearPending }: BuyerInb
       setLoading(false);
     }
   }, []);
+
+  const openConversation = async (conversation: BuyerConversation) => {
+    const res = await fetch(`/api/conversations/${conversation.id}`, {
+      headers: { "x-buyer-token": conversation.buyerToken },
+    });
+    if (res.status === 404) {
+      removeBuyerSession(conversation.id);
+      setConversations((current) => current.filter((conv) => conv.id !== conversation.id));
+      setUnavailableConversationId(conversation.id);
+      return;
+    }
+    if (!res.ok) return;
+    setOpenConv(conversation);
+  };
 
   // Migration des anciennes sessions localStorage (tm_chat_*) vers le store centralisé
   useEffect(() => {
@@ -376,6 +457,14 @@ export function BuyerInbox({ identity, pendingConvId, onClearPending }: BuyerInb
         · {identity.phone}
       </div>
 
+      {unavailableConversationId !== null && (
+        <p className="text-sm text-muted-foreground text-center py-2">
+          {lang === "fr"
+            ? "Cette conversation n'est plus disponible"
+            : "This conversation is no longer available"}
+        </p>
+      )}
+
       {/* Conversation list */}
       {conversations.length === 0 ? (
         <p className="text-sm text-muted-foreground text-center py-8">
@@ -392,7 +481,7 @@ export function BuyerInbox({ identity, pendingConvId, onClearPending }: BuyerInb
           {conversations.map((conv) => (
             <button
               key={conv.id}
-              onClick={() => setOpenConv(conv)}
+              onClick={() => { void openConversation(conv); }}
               className="w-full text-left rounded-xl border bg-card p-3 flex items-start gap-3 hover:bg-muted/50 transition-colors"
             >
               <div className="w-9 h-9 rounded-lg bg-primary/10 overflow-hidden flex items-center justify-center flex-shrink-0 mt-0.5 relative">
@@ -450,13 +539,11 @@ export function BuyerInbox({ identity, pendingConvId, onClearPending }: BuyerInb
           auth={{ kind: "buyer", buyerToken: openConv.buyerToken }}
           onConversationDeleted={() => {
             // Remove from local sessions
-            try {
-              const sessions = getAllBuyerSessions().filter((s) => s.convId !== openConv.id);
-              localStorage.setItem(BUYER_TOKENS_KEY, JSON.stringify(sessions));
-            } catch {}
+            removeBuyerSession(openConv.id);
             setOpenConv(null);
             fetchConversations();
           }}
+          onConversationUnavailable={() => removeBuyerSession(openConv.id)}
         />
       )}
     </div>

@@ -259,6 +259,44 @@ router.post("/conversations/buyer-list", async (req, res) => {
 });
 
 /* ──────────────────────────────────────────────────────────────
+   GET /api/conversations/:id
+   Auth: x-buyer-token OR (x-vendor-phone + x-vendor-password)
+   Used by clients to avoid opening a conversation that was deleted.
+   ────────────────────────────────────────────────────────────── */
+router.get("/conversations/:id", async (req, res) => {
+  const convId = parseInt(req.params["id"] ?? "", 10);
+  if (isNaN(convId)) { res.status(400).json({ error: "invalid id" }); return; }
+
+  const identity = await resolveIdentity(req as Parameters<typeof resolveIdentity>[0], convId);
+  if (!identity) {
+    const suppliedCredentials =
+      Boolean(req.headers["x-buyer-token"]) ||
+      Boolean(req.headers["x-vendor-phone"] && req.headers["x-vendor-password"]);
+    res.status(suppliedCredentials ? 404 : 401).json({
+      error: suppliedCredentials ? "conversation not found" : "unauthorized",
+    });
+    return;
+  }
+
+  const convRows = await db
+    .select({
+      buyerDeletedAt: conversationsTable.buyerDeletedAt,
+      vendorDeletedAt: conversationsTable.vendorDeletedAt,
+    })
+    .from(conversationsTable)
+    .where(eq(conversationsTable.id, convId))
+    .limit(1);
+  const conv = convRows[0];
+  const hiddenForViewer =
+    !conv ||
+    (identity.role === "buyer" && conv.buyerDeletedAt !== null) ||
+    (identity.role === "vendor" && conv.vendorDeletedAt !== null);
+  if (hiddenForViewer) { res.status(404).json({ error: "conversation not found" }); return; }
+
+  res.json({ id: convId });
+});
+
+/* ──────────────────────────────────────────────────────────────
    POST /api/conversations/:id/buyer-read
    Marque toutes les réponses vendeur comme lues (reset buyerUnreadCount).
    Auth: x-buyer-token
@@ -338,7 +376,30 @@ router.get("/conversations/:id/messages", async (req, res) => {
   if (isNaN(convId)) { res.status(400).json({ error: "invalid id" }); return; }
 
   const identity = await resolveIdentity(req as Parameters<typeof resolveIdentity>[0], convId);
-  if (!identity) { res.status(401).json({ error: "unauthorized" }); return; }
+  if (!identity) {
+    const suppliedCredentials =
+      Boolean(req.headers["x-buyer-token"]) ||
+      Boolean(req.headers["x-vendor-phone"] && req.headers["x-vendor-password"]);
+    res.status(suppliedCredentials ? 404 : 401).json({
+      error: suppliedCredentials ? "conversation not found" : "unauthorized",
+    });
+    return;
+  }
+
+  const convRows = await db
+    .select({
+      buyerDeletedAt: conversationsTable.buyerDeletedAt,
+      vendorDeletedAt: conversationsTable.vendorDeletedAt,
+    })
+    .from(conversationsTable)
+    .where(eq(conversationsTable.id, convId))
+    .limit(1);
+  const conv = convRows[0];
+  const hiddenForViewer =
+    !conv ||
+    (identity.role === "buyer" && conv.buyerDeletedAt !== null) ||
+    (identity.role === "vendor" && conv.vendorDeletedAt !== null);
+  if (hiddenForViewer) { res.status(404).json({ error: "conversation not found" }); return; }
 
   // Filter out messages deleted for the requesting party
   const deletedFilter = identity.role === "vendor"

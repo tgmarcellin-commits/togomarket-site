@@ -15,7 +15,7 @@ import { useT } from "@/lib/i18n";
 import { BuyerIdentityPrompt, loadBuyerIdentity, normalizePhone } from "@/components/buyer-identity-prompt";
 import { ChatWindow } from "@/components/chat-window";
 import type { BuyerIdentity } from "@/components/buyer-identity-prompt";
-import { storeBuyerSession, getBuyerSession } from "@/components/buyer-inbox";
+import { storeBuyerSession, getBuyerSession, removeBuyerSession, BUYER_SESSION_TTL_MS } from "@/components/buyer-inbox";
 
 /** Slide dans le carrousel d'une annonce — vidéo avec controls si nécessaire, image sinon. */
 function ListingMediaSlide({ path, alt, onClick }: { path: string; alt: string; onClick?: () => void }) {
@@ -48,16 +48,33 @@ function ListingMediaSlide({ path, alt, onClick }: { path: string; alt: string; 
 function chatSessionKey(vendorId: number, listingId: number) {
   return `tm_chat_${vendorId}_${listingId}`;
 }
-interface StoredChatSession { convId: number; buyerToken: string }
+interface StoredChatSession { convId: number; buyerToken: string; expiresAt?: number }
 function storeChatSession(vendorId: number, listingId: number, convId: number, buyerToken: string) {
   try {
-    localStorage.setItem(chatSessionKey(vendorId, listingId), JSON.stringify({ convId, buyerToken }));
+    localStorage.setItem(chatSessionKey(vendorId, listingId), JSON.stringify({
+      convId,
+      buyerToken,
+      expiresAt: Date.now() + BUYER_SESSION_TTL_MS,
+    }));
   } catch {}
 }
 function loadChatSession(vendorId: number, listingId: number): StoredChatSession | null {
   try {
     const raw = localStorage.getItem(chatSessionKey(vendorId, listingId));
-    return raw ? (JSON.parse(raw) as StoredChatSession) : null;
+    if (!raw) return null;
+    const stored = JSON.parse(raw) as StoredChatSession;
+    const expiresAt = stored.expiresAt ?? Date.now() + BUYER_SESSION_TTL_MS;
+    if (!stored.convId || !stored.buyerToken || expiresAt <= Date.now()) {
+      localStorage.removeItem(chatSessionKey(vendorId, listingId));
+      return null;
+    }
+    if (!stored.expiresAt) {
+      localStorage.setItem(
+        chatSessionKey(vendorId, listingId),
+        JSON.stringify({ ...stored, expiresAt }),
+      );
+    }
+    return { ...stored, expiresAt };
   } catch { return null; }
 }
 
@@ -164,6 +181,7 @@ export function ListingCard({ listing, isAdmin, adminPassword, commissionRate, w
   /** Create or resume a conversation then open it (floating window or redirect). */
   const startChat = async (identity: BuyerIdentity) => {
     setBuyerIdentity(identity);
+    setChatLoading(true);
 
     const vid = listing.vendorId ?? 0;
     const lid = listing.id;
@@ -174,27 +192,44 @@ export function ListingCard({ listing, isAdmin, adminPassword, commissionRate, w
     const samePhone = stored && storedIdentity &&
       normalizePhone(storedIdentity.phone) === normalizePhone(identity.phone);
 
-    if (samePhone && stored) {
-      // Also ensure this session is in the new BuyerInbox store
-      if (vid) {
-        const inboxSession = getBuyerSession(vid, lid);
-        if (!inboxSession) {
-          storeBuyerSession({ convId: stored.convId, buyerToken: stored.buyerToken, vendorId: vid, listingId: lid, listingTitle: listing.name });
-        }
-      }
-      if (onOpenInMessages) {
-        onOpenInMessages(stored.convId);
-      } else {
-        setConversationId(stored.convId);
-        setBuyerToken(stored.buyerToken);
-        setChatOpen(true);
-      }
-      return;
-    }
-
-    // Different person or no previous session → create a new conversation
-    setChatLoading(true);
     try {
+      if (samePhone && stored) {
+        // Verify the conversation still exists before reopening a saved session.
+        const check = await fetch(`/api/conversations/${stored.convId}`, {
+          headers: { "x-buyer-token": stored.buyerToken },
+        });
+        if (check.ok) {
+          // Also ensure this session is in the new BuyerInbox store
+          if (vid) {
+            const inboxSession = getBuyerSession(vid, lid);
+            if (!inboxSession) {
+              storeBuyerSession({
+                convId: stored.convId,
+                buyerToken: stored.buyerToken,
+                vendorId: vid,
+                listingId: lid,
+                listingTitle: listing.name,
+              });
+            }
+          }
+          if (onOpenInMessages) {
+            onOpenInMessages(stored.convId);
+          } else {
+            setConversationId(stored.convId);
+            setBuyerToken(stored.buyerToken);
+            setChatOpen(true);
+          }
+          return;
+        }
+        if (check.status !== 404) return;
+
+        // The seller account may have been deleted: discard both local copies
+        // and create a fresh conversation for the next step.
+        try { localStorage.removeItem(chatSessionKey(vid, lid)); } catch {}
+        removeBuyerSession(stored.convId);
+      }
+
+      // Different person, expired session, or deleted conversation → create a new one.
       const res = await fetch("/api/conversations", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -463,9 +498,17 @@ export function ListingCard({ listing, isAdmin, adminPassword, commissionRate, w
           if (vid) {
             try { localStorage.removeItem(`tm_chat_${vid}_${listing.id}`); } catch {}
           }
+          removeBuyerSession(conversationId ?? 0);
           setConversationId(null);
           setBuyerToken(null);
           setChatOpen(false);
+        }}
+        onConversationUnavailable={() => {
+          const vid = listing.vendorId ?? 0;
+          if (vid) {
+            try { localStorage.removeItem(chatSessionKey(vid, listing.id)); } catch {}
+          }
+          removeBuyerSession(conversationId ?? 0);
         }}
       />
     )}

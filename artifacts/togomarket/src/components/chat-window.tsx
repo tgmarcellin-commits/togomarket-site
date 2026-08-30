@@ -38,6 +38,8 @@ interface ChatWindowProps {
   auth: ChatAuth;
   /** Called after the current user successfully deletes their copy of the conversation */
   onConversationDeleted?: () => void;
+  /** Called when the conversation was removed elsewhere while this window was open */
+  onConversationUnavailable?: () => void;
 }
 
 function authHeaders(auth: ChatAuth): Record<string, string> {
@@ -204,7 +206,7 @@ function BuyerPushPrompt({
 
 export function ChatWindow({
   open, onOpenChange, conversationId, buyerIdentity, vendorName, listingTitle, listingImage, auth,
-  onConversationDeleted,
+  onConversationDeleted, onConversationUnavailable,
 }: ChatWindowProps) {
   const { lang } = useSiteSettings();
   const [messages, setMessages] = useState<ChatMessage[]>([]);
@@ -220,6 +222,7 @@ export function ChatWindow({
   const [deletingConv, setDeletingConv] = useState(false);
   const [isRecording, setIsRecording] = useState(false);
   const [recordingDuration, setRecordingDuration] = useState(0);
+  const [conversationUnavailable, setConversationUnavailable] = useState(false);
   const endRef = useRef<HTMLDivElement>(null);
   const scrollAreaRef = useRef<HTMLDivElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -250,12 +253,19 @@ export function ChatWindow({
       const res = await fetch(`/api/conversations/${conversationId}/messages`, {
         headers: authHeaders(auth),
       });
+      if (res.status === 404) {
+        setMessages([]);
+        setConversationUnavailable(true);
+        onConversationUnavailable?.();
+        return;
+      }
       if (res.ok) setMessages(await res.json() as ChatMessage[]);
     } finally { setLoading(false); }
-  }, [conversationId, auth]);
+  }, [conversationId, auth, onConversationUnavailable]);
 
   useEffect(() => {
     if (!open || !conversationId) return;
+    setConversationUnavailable(false);
     fetchMessages();
 
     // Marquer comme lu côté acheteur dès l'ouverture de la fenêtre
@@ -773,7 +783,13 @@ export function ChatWindow({
           className="flex-1 overflow-y-auto px-4 py-3 space-y-2 min-h-0"
           onClick={closeMenu}
         >
-          {loading ? (
+          {conversationUnavailable ? (
+            <div className="text-center text-muted-foreground text-sm py-10">
+              {lang === "fr"
+                ? "Cette conversation n'est plus disponible"
+                : "This conversation is no longer available"}
+            </div>
+          ) : loading ? (
             <div className="flex justify-center py-10">
               <div className="animate-spin rounded-full border-2 border-primary border-t-transparent w-6 h-6" />
             </div>
@@ -790,7 +806,7 @@ export function ChatWindow({
         </div>
 
         {/* Input bar */}
-        {auth.kind === "vendor" && buyerIdentity.phone === "##007##" ? (
+        {conversationUnavailable ? null : auth.kind === "vendor" && buyerIdentity.phone === "##007##" ? (
           /* Conversation TogoMarket : lecture seule, contact via WhatsApp */
           <div className="px-4 py-4 border-t bg-muted/40 flex-shrink-0 text-center">
             <p className="text-sm text-muted-foreground">
