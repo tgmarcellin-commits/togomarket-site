@@ -11,7 +11,7 @@ import {
 } from "@workspace/api-zod";
 import { ObjectStorageService, ObjectNotFoundError } from "../lib/objectStorage";
 import { db, listingsTable, adsTable, messagesTable, vendorsTable } from "@workspace/db";
-import { eq } from "drizzle-orm";
+import { and, eq, isNotNull, isNull } from "drizzle-orm";
 import { isAdminAny, isSuperAdmin } from "../lib/admin-auth";
 import { validateFileBytes } from "../lib/file-security";
 import { getObjectAclPolicy } from "../lib/objectAcl";
@@ -293,7 +293,7 @@ router.get("/storage/objects/*path", async (req: Request, res: Response) => {
 /**
  * POST /admin/storage/cleanup
  *
- * Find and delete orphan files in Object Storage (files not referenced by any listing or ad).
+ * Find and delete orphan files in Object Storage (files not referenced by any listing, ad, vendor, or message).
  */
 router.post("/admin/storage/cleanup", async (req: Request, res: Response) => {
   const parsed = AdminStorageCleanupBody.safeParse(req.body);
@@ -309,13 +309,16 @@ router.post("/admin/storage/cleanup", async (req: Request, res: Response) => {
   try {
     const allPaths = await objectStorageService.listAllObjectEntityPaths();
 
-    const [listings, ads, vendors] = await Promise.all([
+    const [listings, ads, vendors, messages] = await Promise.all([
       db.select({ images: listingsTable.images }).from(listingsTable),
       db.select({ image: adsTable.image, videoPath: adsTable.videoPath }).from(adsTable),
       db.select({ profilePhoto: vendorsTable.profilePhoto }).from(vendorsTable),
+      db.select({ fileUrl: messagesTable.fileUrl })
+        .from(messagesTable)
+        .where(and(isNull(messagesTable.deletedAt), isNotNull(messagesTable.fileUrl))),
     ]);
 
-    const usedPaths = collectReferencedObjectPaths({ listings, ads, vendors });
+    const usedPaths = collectReferencedObjectPaths({ listings, ads, vendors, messages });
 
     const orphans = allPaths.filter((p) => !usedPaths.has(p));
     await Promise.allSettled(orphans.map((p) => objectStorageService.deleteObjectEntity(p)));
