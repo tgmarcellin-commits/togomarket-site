@@ -186,7 +186,7 @@ export interface ListingInput {
   location: string;
   country: string;
   sector: ListingInputSector;
-  /** @maxItems 4 */
+  /** @maxItems 10 */
   images: string[];
   vendorPhone: string;
   vendorPassword: string;
@@ -202,6 +202,17 @@ export interface VendorUpdatePriceInput {
   promoPrice?: number | null;
   /** @nullable */
   description?: string | null;
+}
+
+export interface VendorUpdateTourismeInput {
+  phone: string;
+  password: string;
+  /** @minLength 3 */
+  name: string;
+  /** @maxLength 1000 */
+  description: string;
+  /** @maxItems 10 */
+  images: string[];
 }
 
 export interface VendorDeleteListingInput {

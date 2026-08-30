@@ -1,7 +1,14 @@
 import { Router, type IRouter } from "express";
 import { eq, ilike, and, desc, sql, gt, inArray, ne, type SQL } from "drizzle-orm";
 import { normalizePhone, phoneEq } from "../lib/phone";
-import { db, listingsTable, vendorsTable, reviewsTable } from "@workspace/db";
+import {
+  db,
+  adsTable,
+  listingsTable,
+  messagesTable,
+  vendorsTable,
+  reviewsTable,
+} from "@workspace/db";
 import {
   CreateListingBody,
   GetListingsQueryParams,
@@ -13,15 +20,68 @@ import {
   AdminGetPendingListingsResponse,
   AdminCreateListingBody,
   AdminPinListingBody,
+  UpdateTourismeListingBody,
+  UpdateTourismeListingParams,
 } from "@workspace/api-zod";
 import { logger } from "../lib/logger";
 import { ObjectStorageService } from "../lib/objectStorage";
+import { getObjectAclPolicy } from "../lib/objectAcl";
 import { isSuperAdmin } from "../lib/admin-auth";
 import { authenticateVendorRequest } from "../lib/vendor-auth";
 
 const objectStorage = new ObjectStorageService();
 
 const router: IRouter = Router();
+
+function storagePath(mediaPath: string): string {
+  return mediaPath.startsWith("v:") ? mediaPath.slice(2) : mediaPath;
+}
+
+async function vendorCanUseMedia(
+  vendorId: number,
+  mediaPaths: string[],
+  existingMediaPaths: string[] = [],
+): Promise<boolean> {
+  const existingPaths = new Set(existingMediaPaths.map(storagePath));
+
+  for (const mediaPath of mediaPaths) {
+    const objectPath = storagePath(mediaPath);
+    if (existingPaths.has(objectPath)) continue;
+    if (!objectPath.startsWith("/objects/")) return false;
+
+    try {
+      const objectFile = await objectStorage.getObjectEntityFile(objectPath);
+      const policy = await getObjectAclPolicy(objectFile);
+      if (policy?.owner !== `vendor:${vendorId}`) return false;
+    } catch {
+      return false;
+    }
+  }
+
+  return true;
+}
+
+async function deleteUnreferencedListingMedia(mediaPaths: string[]): Promise<{ failed: string[] }> {
+  const [remainingListings, ads, vendors, messages] = await Promise.all([
+    db.select({ images: listingsTable.images }).from(listingsTable),
+    db.select({ image: adsTable.image, videoPath: adsTable.videoPath }).from(adsTable),
+    db.select({ profilePhoto: vendorsTable.profilePhoto }).from(vendorsTable),
+    db.select({ fileUrl: messagesTable.fileUrl }).from(messagesTable),
+  ]);
+  const referencedPaths = new Set(
+    [
+      ...remainingListings.flatMap((listing) => listing.images ?? []),
+      ...ads.flatMap((ad) => [ad.image, ad.videoPath]),
+      ...vendors.map((vendor) => vendor.profilePhoto),
+      ...messages.map((message) => message.fileUrl),
+    ]
+      .filter((path): path is string => Boolean(path))
+      .map(storagePath),
+  );
+  const unreferencedPaths = Array.from(new Set(mediaPaths.map(storagePath)))
+    .filter((path) => !referencedPaths.has(path));
+  return objectStorage.deleteObjectEntities(unreferencedPaths);
+}
 
 function mapListing(
   l: typeof listingsTable.$inferSelect,
@@ -197,8 +257,17 @@ router.post("/listings", async (req, res): Promise<void> => {
     return;
   }
 
-  if (!vendor.isPublished) {
-    res.status(403).json({ error: "Votre boutique est désactivée. Contactez l'administrateur pour la réactiver." });
+  if (
+    !vendor.isPublished ||
+    !vendor.expiryDate ||
+    vendor.expiryDate.getTime() <= Date.now()
+  ) {
+    res.status(403).json({ error: "Votre boutique est expirée ou désactivée. Renouvelez-la avant de publier." });
+    return;
+  }
+
+  if (!await vendorCanUseMedia(vendor.id, parsed.data.images)) {
+    res.status(400).json({ error: "Un ou plusieurs médias ne vous appartiennent pas." });
     return;
   }
 
@@ -285,6 +354,109 @@ router.post("/listings/update-price", async (req, res): Promise<void> => {
   res.json(mapListing(updated));
 });
 
+router.patch("/listings/:listingId", async (req, res): Promise<void> => {
+  const params = UpdateTourismeListingParams.safeParse(req.params);
+  if (!params.success) {
+    res.status(400).json({ error: params.error.message });
+    return;
+  }
+
+  const parsed = UpdateTourismeListingBody.safeParse(req.body);
+  if (!parsed.success) {
+    req.log.warn({ errors: parsed.error.message }, "Invalid Tourisme catalog update body");
+    res.status(400).json({ error: parsed.error.message });
+    return;
+  }
+
+  const vendor = await authenticateVendorRequest(req, {
+    phone: normalizePhone(parsed.data.phone),
+    password: parsed.data.password,
+  });
+  if (!vendor) {
+    res.status(401).json({ error: "Mot de passe incorrect." });
+    return;
+  }
+
+  const [listing] = await db
+    .select()
+    .from(listingsTable)
+    .where(eq(listingsTable.id, params.data.listingId))
+    .limit(1);
+
+  if (!listing) {
+    res.status(404).json({ error: "Catalogue introuvable." });
+    return;
+  }
+
+  if (listing.phone !== vendor.phone) {
+    res.status(403).json({ error: "Vous ne pouvez pas modifier ce catalogue." });
+    return;
+  }
+
+  if (listing.sector !== "Tourisme") {
+    res.status(400).json({ error: "Cette annonce n'est pas un catalogue Tourisme." });
+    return;
+  }
+
+  const normalizedCatalogName = listing.name.toLowerCase().trim();
+  const catalogRows = await db
+    .select()
+    .from(listingsTable)
+    .where(and(
+      eq(listingsTable.sector, "Tourisme"),
+      phoneEq(listingsTable.phone, vendor.phone),
+      sql`lower(trim(${listingsTable.name})) = ${normalizedCatalogName}`,
+    ));
+  const previousImages = catalogRows.flatMap((row) => row.images ?? []);
+  const updatedImages = parsed.data.images;
+  const updatedStoragePaths = new Set(updatedImages.map(storagePath));
+  const removedImages = previousImages.filter((image) => !updatedStoragePaths.has(storagePath(image)));
+
+  if (!await vendorCanUseMedia(vendor.id, updatedImages, previousImages)) {
+    res.status(400).json({ error: "Un ou plusieurs médias ne vous appartiennent pas." });
+    return;
+  }
+
+  const updated = await db.transaction(async (tx) => {
+    const [updatedRow] = await tx
+      .update(listingsTable)
+      .set({
+        name: parsed.data.name.trim(),
+        location: parsed.data.description.trim() || "Catalogue Tourisme",
+        images: updatedImages,
+        approved: catalogRows.some((row) => row.approved),
+        pinned: catalogRows.some((row) => row.pinned),
+      })
+      .where(eq(listingsTable.id, params.data.listingId))
+      .returning();
+
+    await tx
+      .delete(listingsTable)
+      .where(and(
+        eq(listingsTable.sector, "Tourisme"),
+        phoneEq(listingsTable.phone, vendor.phone),
+        sql`lower(trim(${listingsTable.name})) = ${normalizedCatalogName}`,
+        ne(listingsTable.id, params.data.listingId),
+      ));
+
+    return updatedRow;
+  });
+
+  const cleanup = await deleteUnreferencedListingMedia(removedImages);
+  if (cleanup.failed.length > 0) {
+    req.log.error(
+      { id: params.data.listingId, failedMediaPaths: cleanup.failed },
+      "Tourisme catalog update left media pending cleanup",
+    );
+  }
+
+  req.log.info(
+    { id: params.data.listingId, removedMediaCount: removedImages.length },
+    "Tourisme catalog updated by vendor",
+  );
+  res.json(mapListing(updated));
+});
+
 router.post("/listings/vendor-delete", async (req, res): Promise<void> => {
   const { id, password } = req.body;
   const phone = normalizePhone(String(req.body.phone ?? ""));
@@ -315,13 +487,31 @@ router.post("/listings/vendor-delete", async (req, res): Promise<void> => {
     return;
   }
 
-  const deleted = await db
-    .delete(listingsTable)
-    .where(eq(listingsTable.id, id))
-    .returning();
+  const target = listings[0];
+  const deleted = target.sector === "Tourisme"
+    ? await db
+      .delete(listingsTable)
+      .where(and(
+        eq(listingsTable.sector, "Tourisme"),
+        phoneEq(listingsTable.phone, vendor.phone),
+        sql`lower(trim(${listingsTable.name})) = ${target.name.toLowerCase().trim()}`,
+      ))
+      .returning()
+    : await db
+      .delete(listingsTable)
+      .where(eq(listingsTable.id, id))
+      .returning();
 
-  await objectStorage.deleteObjectEntities(deleted[0].images ?? []);
-  logger.info({ id }, "Listing deleted by vendor");
+  const cleanup = await deleteUnreferencedListingMedia(
+    deleted.flatMap((deletedListing) => deletedListing.images ?? []),
+  );
+  if (cleanup.failed.length > 0) {
+    req.log.error(
+      { id, failedMediaPaths: cleanup.failed },
+      "Vendor listing delete left media pending cleanup",
+    );
+  }
+  logger.info({ id, deletedRows: deleted.length }, "Listing deleted by vendor");
   res.json({ success: true });
 });
 

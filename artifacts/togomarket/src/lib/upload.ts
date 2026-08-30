@@ -1,12 +1,15 @@
 export type UploadAuth =
   | { adminCode: string }
-  | { vendorPhone: string; vendorPassword: string };
+  | { vendorPhone: string; vendorPassword: string; tourismeListingId?: number };
 
 function uploadHeaders(auth: UploadAuth): HeadersInit {
   if ("adminCode" in auth) return { "X-Admin-Code": auth.adminCode };
   return {
     "X-Vendor-Phone": auth.vendorPhone,
     "X-Vendor-Password": auth.vendorPassword,
+    ...(auth.tourismeListingId
+      ? { "X-Tourisme-Listing-Id": String(auth.tourismeListingId) }
+      : {}),
   };
 }
 

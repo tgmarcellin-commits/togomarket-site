@@ -80,6 +80,7 @@ import type {
   VendorResendOtpResult,
   VendorUpdateNameInput,
   VendorUpdatePriceInput,
+  VendorUpdateTourismeInput,
   VendorVerifyOtpInput
 } from './api.schemas';
 
@@ -550,6 +551,78 @@ export const useCreateListing = <TError = ErrorType<unknown>,
         TContext
       > => {
       return useMutation(getCreateListingMutationOptions(options));
+    }
+
+export const getUpdateTourismeListingUrl = (listingId: number,) => {
+
+
+
+
+  return `/api/listings/${listingId}`
+}
+
+/**
+ * @summary Update a Tourisme catalog owned by the vendor
+ */
+export const updateTourismeListing = async (listingId: number,
+    vendorUpdateTourismeInput: VendorUpdateTourismeInput, options?: RequestInit): Promise<Listing> => {
+
+  return customFetch<Listing>(getUpdateTourismeListingUrl(listingId),
+  {
+    ...options,
+    method: 'PATCH',
+    headers: { 'Content-Type': 'application/json', ...options?.headers },
+    body: JSON.stringify(
+      vendorUpdateTourismeInput,)
+  }
+);}
+
+
+
+
+export const getUpdateTourismeListingMutationOptions = <TError = ErrorType<void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof updateTourismeListing>>, TError,{listingId: number;data: BodyType<VendorUpdateTourismeInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof updateTourismeListing>>, TError,{listingId: number;data: BodyType<VendorUpdateTourismeInput>}, TContext> => {
+
+const mutationKey = ['updateTourismeListing'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof updateTourismeListing>>, {listingId: number;data: BodyType<VendorUpdateTourismeInput>}> = (props) => {
+          const {listingId,data} = props ?? {};
+
+          return  updateTourismeListing(listingId,data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type UpdateTourismeListingMutationResult = NonNullable<Awaited<ReturnType<typeof updateTourismeListing>>>
+    export type UpdateTourismeListingMutationBody = BodyType<VendorUpdateTourismeInput>
+    export type UpdateTourismeListingMutationError = ErrorType<void>
+
+    /**
+ * @summary Update a Tourisme catalog owned by the vendor
+ */
+export const useUpdateTourismeListing = <TError = ErrorType<void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof updateTourismeListing>>, TError,{listingId: number;data: BodyType<VendorUpdateTourismeInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof updateTourismeListing>>,
+        TError,
+        {listingId: number;data: BodyType<VendorUpdateTourismeInput>},
+        TContext
+      > => {
+      return useMutation(getUpdateTourismeListingMutationOptions(options));
     }
 
 export const getVendorUpdateListingPriceUrl = () => {

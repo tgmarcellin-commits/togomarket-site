@@ -13,7 +13,7 @@ export interface ListingInput {
   location: string;
   country: string;
   sector: ListingInputSector;
-  /** @maxItems 4 */
+  /** @maxItems 10 */
   images: string[];
   vendorPhone: string;
   vendorPassword: string;

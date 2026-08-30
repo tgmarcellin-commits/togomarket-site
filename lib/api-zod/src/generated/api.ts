@@ -114,7 +114,7 @@ export const GetListingsResponse = zod.object({
 /**
  * @summary Create a new listing
  */
-export const createListingBodyImagesMax = 4;
+export const createListingBodyImagesMax = 10;
 
 
 
@@ -128,6 +128,53 @@ export const CreateListingBody = zod.object({
   "vendorPhone": zod.string(),
   "vendorPassword": zod.string(),
   "description": zod.string().optional()
+})
+
+
+/**
+ * @summary Update a Tourisme catalog owned by the vendor
+ */
+export const UpdateTourismeListingParams = zod.object({
+  "listingId": zod.coerce.number()
+})
+
+export const updateTourismeListingBodyNameMin = 3;
+
+export const updateTourismeListingBodyDescriptionMax = 1000;
+
+export const updateTourismeListingBodyImagesMax = 10;
+
+
+
+export const UpdateTourismeListingBody = zod.object({
+  "phone": zod.string(),
+  "password": zod.string(),
+  "name": zod.string().min(updateTourismeListingBodyNameMin),
+  "description": zod.string().max(updateTourismeListingBodyDescriptionMax),
+  "images": zod.array(zod.string()).max(updateTourismeListingBodyImagesMax)
+})
+
+export const updateTourismeListingResponseCountryDefault = `Togo`;
+export const updateTourismeListingResponseReviewCountDefault = 0;
+export const updateTourismeListingResponsePinnedDefault = false;
+
+export const UpdateTourismeListingResponse = zod.object({
+  "id": zod.number(),
+  "name": zod.string(),
+  "price": zod.number(),
+  "location": zod.string(),
+  "country": zod.string().default(updateTourismeListingResponseCountryDefault),
+  "sector": zod.string(),
+  "images": zod.array(zod.string()),
+  "createdAt": zod.string(),
+  "phone": zod.string().nullish(),
+  "approved": zod.boolean(),
+  "vendorId": zod.number().nullish(),
+  "promoPrice": zod.number().nullish(),
+  "description": zod.string().nullish(),
+  "avgRating": zod.number().nullish(),
+  "reviewCount": zod.number().default(updateTourismeListingResponseReviewCountDefault),
+  "pinned": zod.boolean().default(updateTourismeListingResponsePinnedDefault)
 })
 
 

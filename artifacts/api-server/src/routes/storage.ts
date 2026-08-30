@@ -81,16 +81,35 @@ const objectStorageService = new ObjectStorageService();
 async function requireUploadActor(req: Request, res: Response, next: NextFunction): Promise<void> {
   const adminCode = req.headers["x-admin-code"];
   if (typeof adminCode === "string" && await isAdminAny(adminCode)) {
+    res.locals.uploadOwner = "admin-media";
     next();
     return;
   }
   const vendor = await authenticateVendorRequest(req);
-  if (
-    vendor?.verified &&
-    vendor.isPublished &&
+  const isActiveVendor = Boolean(
+    vendor?.isPublished &&
     vendor.expiryDate &&
-    vendor.expiryDate.getTime() > Date.now()
-  ) {
+    vendor.expiryDate.getTime() > Date.now(),
+  );
+  let canEditTourisme = false;
+  const rawTourismeListingId = req.headers["x-tourisme-listing-id"];
+  if (vendor?.verified && typeof rawTourismeListingId === "string") {
+    const tourismeListingId = Number(rawTourismeListingId);
+    if (Number.isInteger(tourismeListingId) && tourismeListingId > 0) {
+      const [catalog] = await db
+        .select({ id: listingsTable.id })
+        .from(listingsTable)
+        .where(and(
+          eq(listingsTable.id, tourismeListingId),
+          eq(listingsTable.phone, vendor.phone),
+          eq(listingsTable.sector, "Tourisme"),
+        ))
+        .limit(1);
+      canEditTourisme = Boolean(catalog);
+    }
+  }
+  if (vendor?.verified && (isActiveVendor || canEditTourisme)) {
+    res.locals.uploadOwner = `vendor:${vendor.id}`;
     next();
     return;
   }
@@ -144,7 +163,7 @@ router.post(
       validateFileBytes(buffer, "video/mp4", ["video"]);
 
       const objectPath = await objectStorageService.uploadObjectEntity(buffer, "video/mp4", {
-        owner: "public-media",
+        owner: String(res.locals.uploadOwner),
         visibility: "public",
       });
 
@@ -179,7 +198,7 @@ router.post("/storage/uploads/image", requireUploadActor, imageUpload.single("im
     const buffer = await readFile(file.path);
     const safeFile = validateFileBytes(buffer, file.mimetype, ["image"]);
     const objectPath = await objectStorageService.uploadObjectEntity(buffer, safeFile.contentType, {
-      owner: "public-media",
+      owner: String(res.locals.uploadOwner),
       visibility: "public",
     });
     res.status(201).json({ objectPath });

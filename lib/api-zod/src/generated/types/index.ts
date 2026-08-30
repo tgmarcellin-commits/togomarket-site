@@ -73,4 +73,5 @@ export * from './vendorResendOtpResult';
 export * from './vendorResendOtpResultProvider';
 export * from './vendorUpdateNameInput';
 export * from './vendorUpdatePriceInput';
+export * from './vendorUpdateTourismeInput';
 export * from './vendorVerifyOtpInput';

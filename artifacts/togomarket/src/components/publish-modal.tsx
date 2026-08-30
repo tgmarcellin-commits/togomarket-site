@@ -3,7 +3,13 @@ import { openWhatsApp } from "@/lib/whatsapp";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import * as z from "zod";
-import { useCreateListing, getGetListingsQueryKey, type VendorProfile } from "@workspace/api-client-react";
+import {
+  useCreateListing,
+  useUpdateTourismeListing,
+  getGetListingsQueryKey,
+  type Listing,
+  type VendorProfile,
+} from "@workspace/api-client-react";
 import { useQueryClient } from "@tanstack/react-query";
 import { Button } from "@/components/ui/button";
 import {
@@ -22,7 +28,7 @@ import {
 } from "@/components/ui/form";
 import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { resizeImageToBlob, resolveImageUrl } from "@/lib/image";
+import { resizeImageToBlob, resolveImageUrl, isVideoMedia, resolveMediaUrl } from "@/lib/image";
 import { uploadImageFile, uploadVideoFile } from "@/lib/upload";
 import { UploadCloud, X, Lock, AlertCircle, UserCircle2, Store, CreditCard, Loader2, Copy, Users, Video } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
@@ -38,9 +44,19 @@ interface PublishModalProps {
   vendorPassword: string;
   onNeedLogin: () => void;
   onVendorRefresh: (updated: VendorProfile) => void;
+  editListing?: Listing | null;
+  onEditSuccess?: () => void;
 }
 
-export function PublishModal({ open, onOpenChange, vendor, vendorPassword, onNeedLogin }: PublishModalProps) {
+export function PublishModal({
+  open,
+  onOpenChange,
+  vendor,
+  vendorPassword,
+  onNeedLogin,
+  editListing,
+  onEditSuccess,
+}: PublishModalProps) {
   const { lang } = useSiteSettings();
   const t = useT(lang);
 
@@ -71,6 +87,8 @@ export function PublishModal({ open, onOpenChange, vendor, vendorPassword, onNee
   const { toast } = useToast();
   const queryClient = useQueryClient();
   const createListing = useCreateListing();
+  const updateTourismeListing = useUpdateTourismeListing();
+  const isEditMode = Boolean(editListing);
 
   const form = useForm<FormValues>({
     resolver: zodResolver(formSchema),
@@ -86,9 +104,28 @@ export function PublishModal({ open, onOpenChange, vendor, vendorPassword, onNee
 
   useEffect(() => {
     if (!open) return;
-    setScreen("gate");
-    setSectorValue(form.getValues("sector") ?? "Divers");
-  }, [open]);
+    if (editListing) {
+      setScreen("form");
+      setSectorValue("Tourisme");
+      form.reset({
+        name: editListing.name,
+        price: 0,
+        location: editListing.location,
+        country: editListing.country || "Togo",
+        sector: "Tourisme",
+        description: "",
+      });
+      setCatalogDesc(editListing.location === "Catalogue Tourisme" ? "" : editListing.location);
+      setTourismeMedia((editListing.images ?? []).map((path) => ({
+        dataUrl: resolveMediaUrl(path),
+        objectPath: path.startsWith("v:") ? path.slice(2) : path,
+        isVideo: isVideoMedia(path),
+      })));
+    } else {
+      setScreen("gate");
+      setSectorValue(form.getValues("sector") ?? "Divers");
+    }
+  }, [open, editListing, form]);
 
   const handleFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
     if (!e.target.files) return;
@@ -177,6 +214,7 @@ export function PublishModal({ open, onOpenChange, vendor, vendorPassword, onNee
             const objectPath = await uploadVideoFile(file, {
               vendorPhone: vendor?.phone ?? "",
               vendorPassword,
+               ...(editListing ? { tourismeListingId: editListing.id } : {}),
             });
             return { dataUrl: URL.createObjectURL(file), objectPath, isVideo: true };
           } else {
@@ -184,6 +222,7 @@ export function PublishModal({ open, onOpenChange, vendor, vendorPassword, onNee
             const objectPath = await uploadImageFile(blob, file.name, {
               vendorPhone: vendor?.phone ?? "",
               vendorPassword,
+               ...(editListing ? { tourismeListingId: editListing.id } : {}),
             });
             return { dataUrl, objectPath, isVideo: false };
           }
@@ -208,6 +247,43 @@ export function PublishModal({ open, onOpenChange, vendor, vendorPassword, onNee
       form.setError("name", { message: t.titleTooShort });
       return;
     }
+    const media = tourismeMedia.map((m) => m.isVideo ? `v:${m.objectPath}` : m.objectPath);
+
+    if (editListing) {
+      updateTourismeListing.mutate(
+        {
+          listingId: editListing.id,
+          data: {
+            name: name.trim(),
+            description: catalogDesc.trim(),
+            images: media,
+            phone: vendor.phone,
+            password: vendorPassword,
+          },
+        },
+        {
+          onSuccess: () => {
+            queryClient.invalidateQueries({ queryKey: getGetListingsQueryKey() });
+            toast({
+              title: lang === "fr" ? "Catalogue modifié !" : "Catalog updated!",
+              description: lang === "fr" ? "Les modifications ont été enregistrées." : "Your changes have been saved.",
+            });
+            form.reset();
+            setCatalogDesc("");
+            setTourismeMedia([]);
+            setScreen("gate");
+            onEditSuccess?.();
+            onOpenChange(false);
+          },
+          onError: (err: unknown) => {
+            const msg = (err as { message?: string })?.message ?? "";
+            toast({ title: t.updateError, description: msg || undefined, variant: "destructive" });
+          },
+        },
+      );
+      return;
+    }
+
     createListing.mutate(
       {
         data: {
@@ -216,7 +292,7 @@ export function PublishModal({ open, onOpenChange, vendor, vendorPassword, onNee
           location: catalogDesc.trim() || "Catalogue Tourisme",
           country: "Togo",
           sector: "Tourisme" as const,
-          images: tourismeMedia.map((m) => m.isVideo ? `v:${m.objectPath}` : m.objectPath),
+          images: media,
           vendorPhone: vendor.phone,
           vendorPassword,
         },
@@ -518,9 +594,14 @@ export function PublishModal({ open, onOpenChange, vendor, vendorPassword, onNee
                   render={({ field }) => (
                     <FormItem>
                       <FormLabel>{t.sectorLabel}</FormLabel>
-                      <Select
-                        onValueChange={(val) => { field.onChange(val); setSectorValue(val); }}
+                       <Select
+                         onValueChange={(val) => {
+                           if (isEditMode) return;
+                           field.onChange(val);
+                           setSectorValue(val);
+                         }}
                         value={field.value}
+                         disabled={isEditMode}
                       >
                         <FormControl>
                           <SelectTrigger>
@@ -733,10 +814,14 @@ export function PublishModal({ open, onOpenChange, vendor, vendorPassword, onNee
                 <Button
                   type="button"
                   className="w-full bg-primary hover:bg-primary/90 mt-6"
-                  disabled={createListing.isPending || uploadingTourisme}
+                  disabled={createListing.isPending || updateTourismeListing.isPending || uploadingTourisme}
                   onClick={onSubmitTourisme}
                 >
-                  {createListing.isPending ? t.sending : (lang === "fr" ? "Soumettre le catalogue" : "Submit catalog")}
+                  {createListing.isPending || updateTourismeListing.isPending
+                    ? t.sending
+                    : (isEditMode
+                      ? (lang === "fr" ? "Enregistrer les modifications" : "Save changes")
+                      : (lang === "fr" ? "Soumettre le catalogue" : "Submit catalog"))}
                 </Button>
               ) : (
                 <Button

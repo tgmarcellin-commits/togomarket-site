@@ -11,3 +11,4 @@
 - [Sessions vendeur et sockets](vendor-session-sockets.md) — les sessions opaques pilotent aussi l’identité Socket.io ; resynchroniser seulement après l’accusé `auth_ok`.
 - [Fusion des conversations](conversation-merge-proof.md) — ne fusionner des fils historiques qu’avec preuve par jetons opaques, jamais avec le téléphone ou le nom.
 - [FFmpeg en publication](ffmpeg-deployment.md) — tout transcodage serveur exige FFmpeg dans les dépendances Nix de la publication, pas seulement dans le PATH de développement.
+- [Intégrité des catalogues Tourisme](tourisme-catalog-integrity.md) — traiter les anciens catalogues multi-lignes comme un groupe logique et attribuer tout nouvel upload à son vendeur.

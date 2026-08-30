@@ -25,6 +25,7 @@ import { resolveImageUrl, isVideoMedia, resolveMediaUrl } from "@/lib/image";
 import { encodeShopToken } from "@/lib/shop-token";
 import { useSiteSettings } from "@/lib/site-settings";
 import { useT } from "@/lib/i18n";
+import { PublishModal } from "@/components/publish-modal";
 
 function BoutiqueMediaThumb({ path, alt }: { path: string; alt: string }) {
   const [isVid, setIsVid] = useState(isVideoMedia(path));
@@ -168,6 +169,7 @@ export function BoutiqueView({ vendor, vendorPassword, onNeedLogin }: BoutiqueVi
   const [isLoading, setIsLoading] = useState(false);
   const [copied, setCopied] = useState(false);
   const [deleteTarget, setDeleteTarget] = useState<Listing | null>(null);
+  const [tourismeEditTarget, setTourismeEditTarget] = useState<Listing | null>(null);
   const [priceTarget, setPriceTarget] = useState<Listing | null>(null);
   const [newPrice, setNewPrice] = useState("");
   const [newPromoPrice, setNewPromoPrice] = useState("");
@@ -216,6 +218,49 @@ export function BoutiqueView({ vendor, vendorPassword, onNeedLogin }: BoutiqueVi
     );
   }
 
+  const managedListings = (() => {
+    const result: Listing[] = [];
+    const tourismeByName = new Map<string, Listing>();
+
+    for (const listing of listings ?? []) {
+      if (listing.sector !== "Tourisme") {
+        result.push(listing);
+        continue;
+      }
+
+      const key = listing.name.toLowerCase().trim();
+      const existing = tourismeByName.get(key);
+      if (existing) {
+        existing.images = Array.from(new Set([...(existing.images ?? []), ...(listing.images ?? [])]));
+        existing.approved = existing.approved || listing.approved;
+        existing.pinned = existing.pinned || listing.pinned;
+      } else {
+        const catalog = { ...listing, images: [...(listing.images ?? [])] };
+        tourismeByName.set(key, catalog);
+        result.push(catalog);
+      }
+    }
+
+    return result;
+  })();
+  const tourismeCatalogs = managedListings.filter((listing) => listing.sector === "Tourisme");
+
+  const handleDeleteConfirm = () => {
+    if (!deleteTarget) return;
+    deleteListing.mutate(
+      { data: { id: deleteTarget.id, phone: vendor.phone, password: vendorPassword } },
+      {
+        onSuccess: () => {
+          toast({ title: t.listingDeleted });
+          setDeleteTarget(null);
+          queryClient.invalidateQueries({ queryKey: getGetListingsQueryKey() });
+          refetch();
+        },
+        onError: () => toast({ title: t.deletionError, variant: "destructive" }),
+      }
+    );
+  };
+
   const daysUntilExpiry = vendor.daysUntilExpiry ?? null;
   const isInactive = vendor.isPublished === false;
   const isExpired = isInactive || (daysUntilExpiry !== null && daysUntilExpiry <= 0);
@@ -246,28 +291,87 @@ export function BoutiqueView({ vendor, vendorPassword, onNeedLogin }: BoutiqueVi
         <p className="text-xs text-muted-foreground mt-4 max-w-xs">
           Votre boutique sera réactivée automatiquement après confirmation du paiement.
         </p>
+        {(isLoading || tourismeCatalogs.length > 0) && (
+          <div className="w-full mt-8 pt-6 border-t text-left">
+            <h3 className="font-semibold text-sm mb-1">Mes catalogues Tourisme</h3>
+            <p className="text-xs text-muted-foreground mb-3">
+              Vos catalogues Tourisme restent publics et peuvent être gérés même si la boutique est expirée.
+            </p>
+            {isLoading ? (
+              <div className="rounded-xl border bg-card h-24 animate-pulse" />
+            ) : (
+              <div className="space-y-3">
+                {tourismeCatalogs.map((catalog) => (
+                  <div key={catalog.id} className="rounded-xl border bg-card p-3 flex gap-3">
+                    {catalog.images?.[0] ? (
+                      <BoutiqueMediaThumb path={catalog.images[0]} alt={catalog.name} />
+                    ) : (
+                      <div className="w-16 h-16 rounded-lg bg-muted flex items-center justify-center flex-shrink-0">
+                        <Package className="w-6 h-6 text-muted-foreground" />
+                      </div>
+                    )}
+                    <div className="flex-1 min-w-0">
+                      <p className="font-semibold text-sm break-words">{catalog.name}</p>
+                      <p className="text-xs text-muted-foreground break-words">{catalog.location}</p>
+                      <div className="flex gap-2 mt-2 flex-wrap">
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          className="h-7 text-xs gap-1"
+                          onClick={() => setTourismeEditTarget(catalog)}
+                        >
+                          <Pencil className="w-3 h-3" />
+                          Modifier le catalogue
+                        </Button>
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          className="h-7 text-xs gap-1 text-destructive border-destructive/30 hover:bg-destructive/10"
+                          onClick={() => setDeleteTarget(catalog)}
+                        >
+                          <Trash2 className="w-3 h-3" />
+                          Supprimer le catalogue
+                        </Button>
+                      </div>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+        )}
+        <ConfirmDialog
+          open={!!deleteTarget}
+          title="Supprimer le catalogue ?"
+          description={`Êtes-vous sûr de vouloir supprimer le catalogue « ${deleteTarget?.name ?? ""} » ? Toutes ses photos et vidéos seront supprimées.`}
+          confirmLabel={t.delete}
+          cancelLabel={t.cancel}
+          destructive
+          loading={deleteListing.isPending}
+          onConfirm={handleDeleteConfirm}
+          onCancel={() => setDeleteTarget(null)}
+        />
+        <PublishModal
+          open={!!tourismeEditTarget}
+          onOpenChange={(open) => {
+            if (!open) setTourismeEditTarget(null);
+          }}
+          vendor={vendor}
+          vendorPassword={vendorPassword}
+          onNeedLogin={onNeedLogin}
+          onVendorRefresh={() => {}}
+          editListing={tourismeEditTarget}
+          onEditSuccess={() => {
+            setTourismeEditTarget(null);
+            refetch();
+          }}
+        />
       </div>
     );
   }
 
-  const published = (listings ?? []).filter((l) => l.approved);
-  const pending = (listings ?? []).filter((l) => !l.approved);
-
-  const handleDeleteConfirm = () => {
-    if (!deleteTarget) return;
-    deleteListing.mutate(
-      { data: { id: deleteTarget.id, phone: vendor.phone, password: vendorPassword } },
-      {
-        onSuccess: () => {
-          toast({ title: t.listingDeleted });
-          setDeleteTarget(null);
-          queryClient.invalidateQueries({ queryKey: getGetListingsQueryKey() });
-          refetch();
-        },
-        onError: () => toast({ title: t.deletionError, variant: "destructive" }),
-      }
-    );
-  };
+  const published = managedListings.filter((l) => l.approved);
+  const pending = managedListings.filter((l) => !l.approved);
 
   const handlePriceConfirm = () => {
     if (!priceTarget || !newPrice) return;
@@ -472,14 +576,14 @@ export function BoutiqueView({ vendor, vendorPassword, onNeedLogin }: BoutiqueVi
             <div key={n} className="rounded-xl border bg-card h-24 animate-pulse" />
           ))}
         </div>
-      ) : (listings ?? []).length === 0 ? (
+      ) : managedListings.length === 0 ? (
         <div className="text-center py-10 text-muted-foreground">
           <Package className="w-10 h-10 mx-auto mb-3 opacity-30" />
           <p className="text-sm">{t.noListingsYet}</p>
         </div>
       ) : (
         <div className="space-y-3">
-          {(listings ?? []).map((listing) => (
+          {managedListings.map((listing) => (
             <div key={listing.id} className="rounded-xl border bg-card p-3 flex gap-3">
               {listing.images?.[0] ? (
                 <BoutiqueMediaThumb path={listing.images[0]} alt={listing.name} />
@@ -523,20 +627,32 @@ export function BoutiqueView({ vendor, vendorPassword, onNeedLogin }: BoutiqueVi
                 )}
                 <p className="text-xs text-muted-foreground break-words">{listing.location} · {listing.sector}</p>
                 <div className="flex gap-2 mt-2">
-                  <Button
-                    size="sm"
-                    variant="outline"
-                    className="h-7 text-xs gap-1"
-                    onClick={() => {
-                      setPriceTarget(listing);
-                      setNewPrice(String(listing.price));
-                      setNewPromoPrice(listing.promoPrice != null ? String(listing.promoPrice) : "");
-                      setNewDescription(listing.description ?? "");
-                    }}
-                  >
-                    <Pencil className="w-3 h-3" />
-                    {t.editPrice}
-                  </Button>
+                  {listing.sector === "Tourisme" ? (
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      className="h-7 text-xs gap-1"
+                      onClick={() => setTourismeEditTarget(listing)}
+                    >
+                      <Pencil className="w-3 h-3" />
+                      Modifier le catalogue
+                    </Button>
+                  ) : (
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      className="h-7 text-xs gap-1"
+                      onClick={() => {
+                        setPriceTarget(listing);
+                        setNewPrice(String(listing.price));
+                        setNewPromoPrice(listing.promoPrice != null ? String(listing.promoPrice) : "");
+                        setNewDescription(listing.description ?? "");
+                      }}
+                    >
+                      <Pencil className="w-3 h-3" />
+                      {t.editPrice}
+                    </Button>
+                  )}
                   <Button
                     size="sm"
                     variant="outline"
@@ -544,7 +660,7 @@ export function BoutiqueView({ vendor, vendorPassword, onNeedLogin }: BoutiqueVi
                     onClick={() => setDeleteTarget(listing)}
                   >
                     <Trash2 className="w-3 h-3" />
-                    {t.delete}
+                    {listing.sector === "Tourisme" ? "Supprimer le catalogue" : t.delete}
                   </Button>
                 </div>
               </div>
@@ -556,14 +672,32 @@ export function BoutiqueView({ vendor, vendorPassword, onNeedLogin }: BoutiqueVi
       {/* Delete confirmation */}
       <ConfirmDialog
         open={!!deleteTarget}
-        title={t.deleteListingTitle}
-        description={t.deleteListingDesc(deleteTarget?.name ?? "")}
+        title={deleteTarget?.sector === "Tourisme" ? "Supprimer le catalogue ?" : t.deleteListingTitle}
+        description={deleteTarget?.sector === "Tourisme"
+          ? `Êtes-vous sûr de vouloir supprimer le catalogue « ${deleteTarget.name} » ? Toutes ses photos et vidéos seront supprimées.`
+          : t.deleteListingDesc(deleteTarget?.name ?? "")}
         confirmLabel={t.delete}
         cancelLabel={t.cancel}
         destructive
         loading={deleteListing.isPending}
         onConfirm={handleDeleteConfirm}
         onCancel={() => setDeleteTarget(null)}
+      />
+
+      <PublishModal
+        open={!!tourismeEditTarget}
+        onOpenChange={(open) => {
+          if (!open) setTourismeEditTarget(null);
+        }}
+        vendor={vendor}
+        vendorPassword={vendorPassword}
+        onNeedLogin={onNeedLogin}
+        onVendorRefresh={() => {}}
+        editListing={tourismeEditTarget}
+        onEditSuccess={() => {
+          setTourismeEditTarget(null);
+          refetch();
+        }}
       />
 
       {/* Price edit confirmation */}

@@ -217,9 +217,16 @@ export class ObjectStorageService {
     }
   }
 
-  async deleteObjectEntities(objectPaths: string[]): Promise<void> {
-    const storagePaths = objectPaths.filter((p) => p.startsWith("/objects/"));
-    await Promise.allSettled(storagePaths.map((p) => this.deleteObjectEntity(p)));
+  async deleteObjectEntities(objectPaths: string[]): Promise<{ failed: string[] }> {
+    const storagePaths = objectPaths
+      .map((p) => p.startsWith("v:") ? p.slice(2) : p)
+      .filter((p) => p.startsWith("/objects/"));
+    const results = await Promise.allSettled(storagePaths.map((p) => this.deleteObjectEntity(p)));
+    return {
+      failed: results.flatMap((result, index) =>
+        result.status === "rejected" ? [storagePaths[index]] : []
+      ),
+    };
   }
 
   async uploadObjectEntity(
