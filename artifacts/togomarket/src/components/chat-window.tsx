@@ -20,6 +20,7 @@ interface ChatMessage {
   fileType: string | null;
   editedAt: string | null;
   deletedAt: string | null;
+  readAt: string | null;
   createdAt: string;
 }
 
@@ -263,18 +264,26 @@ export function ChatWindow({
     } finally { setLoading(false); }
   }, [conversationId, auth, onConversationUnavailable]);
 
+  const markMessagesRead = useCallback(async () => {
+    if (!conversationId) return;
+    const res = await fetch(`/api/conversations/${conversationId}/read-messages`, {
+      method: "PATCH",
+      headers: authHeaders(auth),
+    });
+    if (!res.ok) return;
+    const data = await res.json() as { messageIds?: number[]; readAt?: string };
+    if (!Array.isArray(data.messageIds) || !data.readAt) return;
+    const messageIds = new Set(data.messageIds);
+    setMessages((prev) =>
+      prev.map((message) => messageIds.has(message.id) ? { ...message, readAt: data.readAt! } : message),
+    );
+  }, [conversationId, auth]);
+
   useEffect(() => {
     if (!open || !conversationId) return;
     setConversationUnavailable(false);
     fetchMessages();
-
-    // Marquer comme lu côté acheteur dès l'ouverture de la fenêtre
-    if (auth.kind === "buyer") {
-      fetch(`/api/conversations/${conversationId}/buyer-read`, {
-        method: "POST",
-        headers: { "x-buyer-token": auth.buyerToken },
-      }).catch(() => {}); // non-fatal
-    }
+    void markMessagesRead();
 
     const socket = getSocket();
     const joinPayload =
@@ -287,6 +296,14 @@ export function ChatWindow({
       if (data.conversationId !== conversationId) return;
       setMessages((prev) =>
         prev.some((m) => m.id === data.message.id) ? prev : [...prev, data.message],
+      );
+      if (data.message.senderType !== selfType) void markMessagesRead();
+    };
+    const onRead = (data: { conversationId: number; messageIds: number[]; readAt: string }) => {
+      if (data.conversationId !== conversationId || !Array.isArray(data.messageIds)) return;
+      const messageIds = new Set(data.messageIds);
+      setMessages((prev) =>
+        prev.map((message) => messageIds.has(message.id) ? { ...message, readAt: data.readAt } : message),
       );
     };
     const onEdited = (data: { messageId: number; content: string; editedAt: string }) => {
@@ -306,15 +323,17 @@ export function ChatWindow({
     };
 
     socket.on("new_message", onNew);
+    socket.on("messages_read", onRead);
     socket.on("message_edited", onEdited);
     socket.on("message_deleted", onDeleted);
     return () => {
       socket.off("new_message", onNew);
+      socket.off("messages_read", onRead);
       socket.off("message_edited", onEdited);
       socket.off("message_deleted", onDeleted);
       socket.off("message_hidden_me", onHiddenMe);
     };
-  }, [open, conversationId, fetchMessages]);
+  }, [open, conversationId, fetchMessages, markMessagesRead, selfType]);
 
   useEffect(() => { scrollToBottom(); }, [messages]);
 
@@ -647,6 +666,26 @@ export function ChatWindow({
               {lang === "fr" ? "Modifié" : "Edited"}
             </p>
           )}
+          <div className={`flex items-center justify-end gap-1 px-3 pb-1.5 text-[10px] opacity-70 ${
+            isSelf ? "text-primary-foreground" : "text-muted-foreground"
+          }`}>
+            <span>
+              {new Date(msg.createdAt).toLocaleTimeString(
+                lang === "fr" ? "fr-FR" : "en-US",
+                { hour: "2-digit", minute: "2-digit" },
+              )}
+            </span>
+            {isSelf && (
+              <span
+                className={msg.readAt ? "text-sky-300 opacity-100" : undefined}
+                aria-label={msg.readAt
+                  ? (lang === "fr" ? "Message lu" : "Message read")
+                  : (lang === "fr" ? "Message envoyé" : "Message sent")}
+              >
+                {msg.readAt ? "✓✓" : "✓"}
+              </span>
+            )}
+          </div>
         </div>
       </div>
     );

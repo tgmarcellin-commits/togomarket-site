@@ -419,6 +419,77 @@ router.get("/conversations/:id/messages", async (req, res) => {
   res.json(msgs.map(secureMessageFileUrl));
 });
 
+/* ──────────────────────────────────────────────────────────────
+   PATCH /api/conversations/:id/read-messages
+   Marque comme lus les messages envoyés par l'autre participant.
+   Auth: x-buyer-token OR (x-vendor-phone + x-vendor-password)
+   ────────────────────────────────────────────────────────────── */
+router.patch("/conversations/:id/read-messages", async (req, res) => {
+  const convId = parseInt(req.params["id"] ?? "", 10);
+  if (isNaN(convId)) { res.status(400).json({ error: "invalid id" }); return; }
+
+  const identity = await resolveIdentity(req as Parameters<typeof resolveIdentity>[0], convId);
+  if (!identity) {
+    res.status(401).json({ error: "unauthorized" });
+    return;
+  }
+
+  const convRows = await db
+    .select({
+      vendorId: conversationsTable.vendorId,
+      buyerDeletedAt: conversationsTable.buyerDeletedAt,
+      vendorDeletedAt: conversationsTable.vendorDeletedAt,
+    })
+    .from(conversationsTable)
+    .where(eq(conversationsTable.id, convId))
+    .limit(1);
+  const conv = convRows[0];
+  const hiddenForViewer =
+    !conv ||
+    (identity.role === "buyer" && conv.buyerDeletedAt !== null) ||
+    (identity.role === "vendor" && conv.vendorDeletedAt !== null);
+  if (hiddenForViewer) {
+    res.status(404).json({ error: "conversation not found" });
+    return;
+  }
+
+  const readAt = new Date();
+  const otherSenderType = identity.role === "buyer" ? "vendor" : "buyer";
+  const viewerDeletedFilter = identity.role === "buyer"
+    ? isNull(messagesTable.buyerDeletedAt)
+    : isNull(messagesTable.vendorDeletedAt);
+  const readMessages = await db
+    .update(messagesTable)
+    .set({ readAt })
+    .where(and(
+      eq(messagesTable.conversationId, convId),
+      eq(messagesTable.senderType, otherSenderType),
+      isNull(messagesTable.readAt),
+      isNull(messagesTable.deletedAt),
+      viewerDeletedFilter,
+    ))
+    .returning({ id: messagesTable.id });
+  const messageIds = readMessages.map((message) => message.id);
+
+  await db
+    .update(conversationsTable)
+    .set(identity.role === "buyer" ? { buyerUnreadCount: 0 } : { vendorUnreadCount: 0 })
+    .where(eq(conversationsTable.id, convId));
+
+  if (messageIds.length > 0) {
+    try {
+      const io = getIo();
+      const payload = { conversationId: convId, messageIds, readAt: readAt.toISOString() };
+      io.to(`vendor:${conv.vendorId}`).emit("messages_read", payload);
+      io.to(`conv:${convId}`).emit("messages_read", payload);
+    } catch {
+      // Socket.io not yet ready – the persisted read state remains authoritative.
+    }
+  }
+
+  res.json({ ok: true, messageIds, readAt: readAt.toISOString() });
+});
+
 router.get("/conversations/:id/files/:messageId", async (req, res) => {
   const convId = Number(req.params["id"]);
   const messageId = Number(req.params["messageId"]);
