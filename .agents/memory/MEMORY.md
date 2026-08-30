@@ -10,3 +10,4 @@
 - [CSRF sur clients intégrés](csrf-embedded-clients.md) — valider le jeton HMAC en en-tête et l’origine sans rendre les mutations dépendantes d’un cookie parfois bloqué.
 - [Sessions vendeur et sockets](vendor-session-sockets.md) — les sessions opaques pilotent aussi l’identité Socket.io ; resynchroniser seulement après l’accusé `auth_ok`.
 - [Fusion des conversations](conversation-merge-proof.md) — ne fusionner des fils historiques qu’avec preuve par jetons opaques, jamais avec le téléphone ou le nom.
+- [FFmpeg en publication](ffmpeg-deployment.md) — tout transcodage serveur exige FFmpeg dans les dépendances Nix de la publication, pas seulement dans le PATH de développement.
