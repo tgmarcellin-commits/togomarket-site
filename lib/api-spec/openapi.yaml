@@ -480,6 +480,27 @@ paths:
         "403":
           description: Forbidden
 
+  /admin/listings/manage:
+    post:
+      operationId: adminGetListings
+      tags: [admin, listings]
+      summary: Get all published listings for paginated admin management
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/AdminListingsQueryInput"
+      responses:
+        "200":
+          description: Published listings and the complete pinned listing set
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AdminListingsPage"
+        "403":
+          description: Forbidden
+
   /admin/settings:
     get:
       operationId: getAdminSettings
@@ -1297,6 +1318,26 @@ components:
           type: string
           description: Name of the vendor when searching by shop number (present even if no listings)
 
+    AdminListingsPage:
+      type: object
+      required: [items, pinnedItems, total, page, hasMore]
+      properties:
+        items:
+          type: array
+          items:
+            $ref: "#/components/schemas/Listing"
+        pinnedItems:
+          type: array
+          description: Complete set of pinned published listings, independent of the current page and search
+          items:
+            $ref: "#/components/schemas/Listing"
+        total:
+          type: integer
+        page:
+          type: integer
+        hasMore:
+          type: boolean
+
     Ad:
       type: object
       required: [id, advertiserName, advertiserPhone, message, startDate, endDate]
@@ -1752,6 +1793,24 @@ components:
       required: [password]
       properties:
         password:
+          type: string
+
+    AdminListingsQueryInput:
+      type: object
+      required: [password]
+      properties:
+        password:
+          type: string
+        page:
+          type: integer
+          minimum: 1
+          default: 1
+        limit:
+          type: integer
+          minimum: 1
+          maximum: 100
+          default: 20
+        search:
           type: string
 
     PlatformSettings:

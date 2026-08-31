@@ -38,6 +38,15 @@ export interface ListingsPage {
   vendorName?: string;
 }
 
+export interface AdminListingsPage {
+  items: Listing[];
+  /** Complete set of pinned published listings, independent of the current page and search */
+  pinnedItems: Listing[];
+  total: number;
+  page: number;
+  hasMore: boolean;
+}
+
 export interface Ad {
   id: number;
   advertiserName: string;
@@ -291,6 +300,18 @@ export interface AdminApproveInput {
 
 export interface AdminPasswordInput {
   password: string;
+}
+
+export interface AdminListingsQueryInput {
+  password: string;
+  /** @minimum 1 */
+  page?: number;
+  /**
+     * @minimum 1
+     * @maximum 100
+     */
+  limit?: number;
+  search?: string;
 }
 
 export type PlatformSettingsOtpProvider = typeof PlatformSettingsOtpProvider[keyof typeof PlatformSettingsOtpProvider];

@@ -8,6 +8,8 @@ import {
   useAdminGetPendingListings,
   useAdminApproveListing,
   useAdminDeleteListing,
+  useAdminPinListing,
+  useAdminGetListings,
   useAdminCreateAd,
   useAdminGetAllAds,
   useAdminDeleteAd,
@@ -29,6 +31,7 @@ import {
   getGetServicesQueryKey,
   getGetAdminSettingsQueryKey,
   type Ad,
+  type AdminListingsPage,
   type VendorProfile,
   type Event as ApiEvent,
   type Service,
@@ -572,6 +575,10 @@ export default function AdminDashboard() {
   const [pendingLoading, setPendingLoading] = useState(false);
   type PendingListing = NonNullable<ReturnType<typeof useAdminGetPendingListings>["data"]>[number];
   const [selectedPendingListing, setSelectedPendingListing] = useState<PendingListing | null>(null);
+  const [publishedListingsData, setPublishedListingsData] = useState<AdminListingsPage | null>(null);
+  const [publishedListingsPage, setPublishedListingsPage] = useState(1);
+  const [publishedListingsSearch, setPublishedListingsSearch] = useState("");
+  const [appliedPublishedListingsSearch, setAppliedPublishedListingsSearch] = useState("");
 
   const [vendors, setVendors] = useState<VendorProfile[]>([]);
   const [vendorsLoading, setVendorsLoading] = useState(false);
@@ -639,6 +646,8 @@ export default function AdminDashboard() {
   const pendingMutation = useAdminGetPendingListings();
   const approveListing = useAdminApproveListing();
   const deleteListing = useAdminDeleteListing();
+  const pinListing = useAdminPinListing();
+  const getPublishedListings = useAdminGetListings();
   const getVendors = useAdminGetVendors();
   const activateVendor = useAdminActivateVendor();
 
@@ -743,6 +752,33 @@ export default function AdminDashboard() {
     );
   };
 
+  const loadPublishedListings = (
+    page = publishedListingsPage,
+    search = appliedPublishedListingsSearch,
+  ) => {
+    getPublishedListings.mutate(
+      {
+        data: {
+          password,
+          page,
+          limit: 20,
+          ...(search ? { search } : {}),
+        },
+      },
+      {
+        onSuccess: (data) => {
+          setPublishedListingsData(data);
+          setPublishedListingsPage(data.page);
+        },
+        onError: () => toast({
+          title: "Erreur",
+          description: "Impossible de charger les annonces publiées.",
+          variant: "destructive",
+        }),
+      },
+    );
+  };
+
   const loadVendors = () => {
     setVendorsLoading(true);
     getVendors.mutate(
@@ -819,7 +855,10 @@ export default function AdminDashboard() {
   const handleTabChange = (t: DashTab) => {
     setTab(t);
     if (t === "stats") loadStats();
-    if (t === "pending") loadPending();
+    if (t === "pending") {
+      loadPending();
+      loadPublishedListings(1, appliedPublishedListingsSearch);
+    }
     if (t === "vendors") loadVendors();
     if (t === "ads") loadAds();
     if (t === "events") loadEvents();
@@ -853,6 +892,22 @@ export default function AdminDashboard() {
         },
         onError: () => toast({ title: "Erreur", variant: "destructive" }),
       }
+    );
+  };
+
+  const handlePinListing = (id: number) => {
+    pinListing.mutate(
+      { data: { password, id } },
+      {
+        onSuccess: (updated) => {
+          toast({
+            title: updated.pinned ? "Annonce épinglée" : "Annonce désépinglée",
+          });
+          queryClient.invalidateQueries({ queryKey: getGetListingsQueryKey() });
+          loadPublishedListings(publishedListingsPage, appliedPublishedListingsSearch);
+        },
+        onError: () => toast({ title: "Erreur", description: "Impossible de modifier l'épinglage.", variant: "destructive" }),
+      },
     );
   };
 
@@ -1361,6 +1416,9 @@ export default function AdminDashboard() {
     );
   });
 
+  const publishedListings = publishedListingsData?.items ?? [];
+  const pinnedListings = publishedListingsData?.pinnedItems ?? [];
+
   const role = session?.role ?? "";
 
   const tabs: Array<{ key: DashTab; label: string; icon: React.ReactNode; roles?: string[] }> = [
@@ -1576,14 +1634,184 @@ export default function AdminDashboard() {
 
         {/* ── ANNONCES EN ATTENTE ───────────────────────────────── */}
         {tab === "pending" && (
-          <div className="space-y-4">
+          <div className="space-y-6">
             <div className="flex items-center justify-between">
               <h2 className="text-lg font-bold">Annonces en attente ({pendingListings.length})</h2>
-              <Button variant="outline" size="sm" onClick={loadPending} disabled={pendingLoading}>
-                <RefreshCw className={`w-3.5 h-3.5 mr-1.5 ${pendingLoading ? "animate-spin" : ""}`} />
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => {
+                  loadPending();
+                  loadPublishedListings(publishedListingsPage, appliedPublishedListingsSearch);
+                }}
+                disabled={pendingLoading || getPublishedListings.isPending}
+              >
+                <RefreshCw className={`w-3.5 h-3.5 mr-1.5 ${pendingLoading || getPublishedListings.isPending ? "animate-spin" : ""}`} />
                 Actualiser
               </Button>
             </div>
+
+            {/* ── ANNONCES ÉPINGLÉES ── */}
+            <section className="rounded-xl border border-amber-200 bg-amber-50/50 p-4 space-y-3">
+              <div className="flex items-center gap-2">
+                <Pin className="w-4 h-4 text-amber-600 fill-amber-500" />
+                <h3 className="font-semibold">Annonces épinglées ({pinnedListings.length})</h3>
+              </div>
+              {getPublishedListings.isPending && !publishedListingsData ? (
+                <div className="flex justify-center py-8">
+                  <RefreshCw className="w-5 h-5 animate-spin text-muted-foreground" />
+                </div>
+              ) : getPublishedListings.isError && !publishedListingsData ? (
+                <p className="text-sm text-destructive">Impossible de charger les annonces publiées.</p>
+              ) : pinnedListings.length === 0 ? (
+                <p className="text-sm text-muted-foreground">Aucune annonce n'est actuellement épinglée.</p>
+              ) : (
+                <div className="grid gap-3 md:grid-cols-2">
+                  {pinnedListings.map((listing) => (
+                    <div key={listing.id} className="flex items-center gap-3 rounded-lg border border-amber-200 bg-background p-3">
+                      {listing.images?.[0] && (
+                        <AdminMediaThumb
+                          path={listing.images[0]}
+                          onClick={() => {
+                            setViewerImages(listing.images.filter((path) => !isVideoMedia(path) && !path.startsWith("v:")));
+                            setViewerIndex(0);
+                          }}
+                          onVideoClick={(url) => setVideoPlayerUrl(url)}
+                        />
+                      )}
+                      <div className="min-w-0 flex-1">
+                        <p className="font-semibold truncate">{listing.name}</p>
+                        <p className="text-sm text-muted-foreground truncate">
+                          {listing.price.toLocaleString("fr-FR")} FCFA · {listing.sector}
+                        </p>
+                      </div>
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        className="flex-shrink-0 border-amber-300 text-amber-700 hover:bg-amber-100"
+                        onClick={() => handlePinListing(listing.id)}
+                        disabled={pinListing.isPending}
+                      >
+                        <Pin className="w-3.5 h-3.5 mr-1 fill-amber-500" />
+                        Désépingler
+                      </Button>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </section>
+
+            {/* ── ANNONCES PUBLIÉES ── */}
+            <section className="rounded-xl border bg-card p-4 space-y-3">
+              <div className="flex items-center justify-between gap-3">
+                <h3 className="font-semibold">Annonces publiées ({publishedListingsData?.total ?? 0})</h3>
+                {getPublishedListings.isPending && publishedListingsData && (
+                  <RefreshCw className="w-4 h-4 animate-spin text-muted-foreground" />
+                )}
+              </div>
+              <form
+                className="flex flex-col gap-2 sm:flex-row"
+                onSubmit={(event) => {
+                  event.preventDefault();
+                  const search = publishedListingsSearch.trim();
+                  setAppliedPublishedListingsSearch(search);
+                  loadPublishedListings(1, search);
+                }}
+              >
+                <div className="relative flex-1">
+                  <Search className="absolute left-3 top-1/2 w-4 h-4 -translate-y-1/2 text-muted-foreground" />
+                  <Input
+                    value={publishedListingsSearch}
+                    onChange={(event) => setPublishedListingsSearch(event.target.value)}
+                    placeholder="Rechercher par titre, téléphone, secteur ou lieu"
+                    className="pl-9"
+                  />
+                </div>
+                <Button type="submit" variant="outline" disabled={getPublishedListings.isPending}>
+                  Rechercher
+                </Button>
+              </form>
+              {getPublishedListings.isPending && !publishedListingsData ? (
+                <div className="flex justify-center py-8">
+                  <RefreshCw className="w-5 h-5 animate-spin text-muted-foreground" />
+                </div>
+              ) : getPublishedListings.isError && !publishedListingsData ? (
+                <p className="text-sm text-destructive">Impossible de charger les annonces publiées.</p>
+              ) : publishedListings.length === 0 ? (
+                <p className="text-sm text-muted-foreground">Aucune annonce publiée.</p>
+              ) : (
+                <div className="space-y-2">
+                  {publishedListings.map((listing) => (
+                    <div key={listing.id} className="flex items-center gap-3 rounded-lg border p-3">
+                      {listing.images?.[0] && (
+                        <AdminMediaThumb
+                          path={listing.images[0]}
+                          onClick={() => {
+                            setViewerImages(listing.images.filter((path) => !isVideoMedia(path) && !path.startsWith("v:")));
+                            setViewerIndex(0);
+                          }}
+                          onVideoClick={(url) => setVideoPlayerUrl(url)}
+                        />
+                      )}
+                      <div className="min-w-0 flex-1">
+                        <p className="font-semibold truncate">{listing.name}</p>
+                        <p className="text-sm text-muted-foreground truncate">
+                          {listing.price.toLocaleString("fr-FR")} FCFA · {listing.sector} · {listing.location}
+                        </p>
+                        {listing.phone && (
+                          <p className="text-xs text-muted-foreground mt-1">
+                            <Phone className="w-3 h-3 inline mr-1" />
+                            {listing.phone}
+                          </p>
+                        )}
+                      </div>
+                      <Button
+                        variant={listing.pinned ? "default" : "outline"}
+                        size="sm"
+                        onClick={() => handlePinListing(listing.id)}
+                        disabled={pinListing.isPending}
+                        className={listing.pinned ? "flex-shrink-0 bg-amber-500 hover:bg-amber-600 text-white" : "flex-shrink-0"}
+                      >
+                        <Pin className={`w-3.5 h-3.5 mr-1 ${listing.pinned ? "fill-white" : ""}`} />
+                        {listing.pinned ? "Désépingler" : "Épingler"}
+                      </Button>
+                    </div>
+                  ))}
+                </div>
+              )}
+              {publishedListingsData && publishedListingsData.total > 0 && (
+                <div className="flex flex-col items-center justify-between gap-2 border-t pt-3 sm:flex-row">
+                  <p className="text-sm text-muted-foreground">
+                    Page {publishedListingsData.page} · {publishedListingsData.total} annonce(s)
+                  </p>
+                  <div className="flex gap-2">
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() => loadPublishedListings(
+                        publishedListingsPage - 1,
+                        appliedPublishedListingsSearch,
+                      )}
+                      disabled={publishedListingsPage <= 1 || getPublishedListings.isPending}
+                    >
+                      Précédent
+                    </Button>
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() => loadPublishedListings(
+                        publishedListingsPage + 1,
+                        appliedPublishedListingsSearch,
+                      )}
+                      disabled={!publishedListingsData.hasMore || getPublishedListings.isPending}
+                    >
+                      Suivant
+                    </Button>
+                  </div>
+                </div>
+              )}
+            </section>
+
             {pendingLoading ? (
               <div className="flex justify-center py-16"><RefreshCw className="w-6 h-6 animate-spin text-muted-foreground" /></div>
             ) : pendingListings.length === 0 ? (

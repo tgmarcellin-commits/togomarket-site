@@ -16,6 +16,8 @@ export * from './adminCreateEventInput';
 export * from './adminCreateListingInput';
 export * from './adminCreateServiceInput';
 export * from './adminDeleteInput';
+export * from './adminListingsPage';
+export * from './adminListingsQueryInput';
 export * from './adminPasswordInput';
 export * from './adminPinAdInput';
 export * from './adminPinListingInput';

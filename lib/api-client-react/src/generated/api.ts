@@ -30,6 +30,8 @@ import type {
   AdminCreateListingInput,
   AdminCreateServiceInput,
   AdminDeleteInput,
+  AdminListingsPage,
+  AdminListingsQueryInput,
   AdminPasswordInput,
   AdminPinAdInput,
   AdminPinListingInput,
@@ -1482,6 +1484,77 @@ export const useAdminGetPendingListings = <TError = ErrorType<void>,
         TContext
       > => {
       return useMutation(getAdminGetPendingListingsMutationOptions(options));
+    }
+
+export const getAdminGetListingsUrl = () => {
+
+
+
+
+  return `/api/admin/listings/manage`
+}
+
+/**
+ * @summary Get all published listings for paginated admin management
+ */
+export const adminGetListings = async (adminListingsQueryInput: AdminListingsQueryInput, options?: RequestInit): Promise<AdminListingsPage> => {
+
+  return customFetch<AdminListingsPage>(getAdminGetListingsUrl(),
+  {
+    ...options,
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...options?.headers },
+    body: JSON.stringify(
+      adminListingsQueryInput,)
+  }
+);}
+
+
+
+
+export const getAdminGetListingsMutationOptions = <TError = ErrorType<void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof adminGetListings>>, TError,{data: BodyType<AdminListingsQueryInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof adminGetListings>>, TError,{data: BodyType<AdminListingsQueryInput>}, TContext> => {
+
+const mutationKey = ['adminGetListings'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof adminGetListings>>, {data: BodyType<AdminListingsQueryInput>}> = (props) => {
+          const {data} = props ?? {};
+
+          return  adminGetListings(data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type AdminGetListingsMutationResult = NonNullable<Awaited<ReturnType<typeof adminGetListings>>>
+    export type AdminGetListingsMutationBody = BodyType<AdminListingsQueryInput>
+    export type AdminGetListingsMutationError = ErrorType<void>
+
+    /**
+ * @summary Get all published listings for paginated admin management
+ */
+export const useAdminGetListings = <TError = ErrorType<void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof adminGetListings>>, TError,{data: BodyType<AdminListingsQueryInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof adminGetListings>>,
+        TError,
+        {data: BodyType<AdminListingsQueryInput>},
+        TContext
+      > => {
+      return useMutation(getAdminGetListingsMutationOptions(options));
     }
 
 export const getGetAdminSettingsUrl = () => {

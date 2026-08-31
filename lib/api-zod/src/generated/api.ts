@@ -406,6 +406,73 @@ export const AdminGetPendingListingsResponse = zod.array(AdminGetPendingListings
 
 
 /**
+ * @summary Get all published listings for paginated admin management
+ */
+export const adminGetListingsBodyPageDefault = 1;
+
+export const adminGetListingsBodyLimitDefault = 20;
+export const adminGetListingsBodyLimitMax = 100;
+
+
+
+export const AdminGetListingsBody = zod.object({
+  "password": zod.string(),
+  "page": zod.number().min(1).default(adminGetListingsBodyPageDefault),
+  "limit": zod.number().min(1).max(adminGetListingsBodyLimitMax).default(adminGetListingsBodyLimitDefault),
+  "search": zod.string().optional()
+})
+
+export const adminGetListingsResponseItemsItemCountryDefault = `Togo`;
+export const adminGetListingsResponseItemsItemReviewCountDefault = 0;
+export const adminGetListingsResponseItemsItemPinnedDefault = false;
+export const adminGetListingsResponsePinnedItemsItemCountryDefault = `Togo`;
+export const adminGetListingsResponsePinnedItemsItemReviewCountDefault = 0;
+export const adminGetListingsResponsePinnedItemsItemPinnedDefault = false;
+
+export const AdminGetListingsResponse = zod.object({
+  "items": zod.array(zod.object({
+  "id": zod.number(),
+  "name": zod.string(),
+  "price": zod.number(),
+  "location": zod.string(),
+  "country": zod.string().default(adminGetListingsResponseItemsItemCountryDefault),
+  "sector": zod.string(),
+  "images": zod.array(zod.string()),
+  "createdAt": zod.string(),
+  "phone": zod.string().nullish(),
+  "approved": zod.boolean(),
+  "vendorId": zod.number().nullish(),
+  "promoPrice": zod.number().nullish(),
+  "description": zod.string().nullish(),
+  "avgRating": zod.number().nullish(),
+  "reviewCount": zod.number().default(adminGetListingsResponseItemsItemReviewCountDefault),
+  "pinned": zod.boolean().default(adminGetListingsResponseItemsItemPinnedDefault)
+})),
+  "pinnedItems": zod.array(zod.object({
+  "id": zod.number(),
+  "name": zod.string(),
+  "price": zod.number(),
+  "location": zod.string(),
+  "country": zod.string().default(adminGetListingsResponsePinnedItemsItemCountryDefault),
+  "sector": zod.string(),
+  "images": zod.array(zod.string()),
+  "createdAt": zod.string(),
+  "phone": zod.string().nullish(),
+  "approved": zod.boolean(),
+  "vendorId": zod.number().nullish(),
+  "promoPrice": zod.number().nullish(),
+  "description": zod.string().nullish(),
+  "avgRating": zod.number().nullish(),
+  "reviewCount": zod.number().default(adminGetListingsResponsePinnedItemsItemReviewCountDefault),
+  "pinned": zod.boolean().default(adminGetListingsResponsePinnedItemsItemPinnedDefault)
+})).describe('Complete set of pinned published listings, independent of the current page and search'),
+  "total": zod.number(),
+  "page": zod.number(),
+  "hasMore": zod.boolean()
+})
+
+
+/**
  * @summary Get platform settings
  */
 export const GetAdminSettingsResponse = zod.object({

@@ -1,5 +1,5 @@
 import { Router, type IRouter } from "express";
-import { eq, ilike, and, desc, sql, gt, inArray, ne, type SQL } from "drizzle-orm";
+import { eq, ilike, and, or, desc, sql, gt, inArray, ne, type SQL } from "drizzle-orm";
 import { normalizePhone, phoneEq } from "../lib/phone";
 import {
   db,
@@ -20,6 +20,8 @@ import {
   AdminApproveListingBody,
   AdminGetPendingListingsBody,
   AdminGetPendingListingsResponse,
+  AdminGetListingsBody,
+  AdminGetListingsResponse,
   AdminCreateListingBody,
   AdminPinListingBody,
   UpdateTourismeListingBody,
@@ -566,6 +568,66 @@ router.post("/admin/listings/pending", async (req, res): Promise<void> => {
     .orderBy(listingsTable.createdAt);
 
   res.json(AdminGetPendingListingsResponse.parse([...listings].reverse().map((l) => mapListing(l))));
+});
+
+router.post("/admin/listings/manage", async (req, res): Promise<void> => {
+  const parsed = AdminGetListingsBody.safeParse(req.body);
+  if (!parsed.success) {
+    res.status(400).json({ error: parsed.error.message });
+    return;
+  }
+  if (!await isSuperAdmin(parsed.data.password)) {
+    res.status(403).json({ error: "Forbidden" });
+    return;
+  }
+
+  const page = parsed.data.page ?? 1;
+  const limit = parsed.data.limit ?? 20;
+  const offset = (page - 1) * limit;
+  const conditions: SQL[] = [eq(listingsTable.approved, true)];
+  const search = parsed.data.search?.trim();
+  if (search) {
+    const searchCondition = or(
+      ilike(listingsTable.name, `%${search}%`),
+      ilike(listingsTable.phone, `%${search}%`),
+      ilike(listingsTable.sector, `%${search}%`),
+      ilike(listingsTable.location, `%${search}%`),
+    );
+    if (searchCondition) conditions.push(searchCondition);
+  }
+
+  const [countResult, listings, pinnedListings] = await Promise.all([
+    db
+      .select({ count: sql<string>`count(*)` })
+      .from(listingsTable)
+      .where(and(...conditions)),
+    db
+      .select({ listing: listingsTable, vendorId: vendorsTable.id })
+      .from(listingsTable)
+      .leftJoin(vendorsTable, eq(vendorsTable.phone, listingsTable.phone))
+      .where(and(...conditions))
+      .orderBy(desc(listingsTable.pinned), desc(listingsTable.createdAt))
+      .limit(limit)
+      .offset(offset),
+    db
+      .select({ listing: listingsTable, vendorId: vendorsTable.id })
+      .from(listingsTable)
+      .leftJoin(vendorsTable, eq(vendorsTable.phone, listingsTable.phone))
+      .where(and(
+        eq(listingsTable.approved, true),
+        eq(listingsTable.pinned, true),
+      ))
+      .orderBy(desc(listingsTable.createdAt)),
+  ]);
+
+  const total = Number(countResult[0]?.count ?? 0);
+  res.json(AdminGetListingsResponse.parse({
+    items: listings.map((row) => mapListing(row.listing, row.vendorId)),
+    pinnedItems: pinnedListings.map((row) => mapListing(row.listing, row.vendorId)),
+    total,
+    page,
+    hasMore: offset + listings.length < total,
+  }));
 });
 
 router.post("/admin/listings/approve", async (req, res): Promise<void> => {
