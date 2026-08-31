@@ -1,9 +1,47 @@
 import { lt, and, eq, ne, sql } from "drizzle-orm";
-import { db, listingsTable } from "@workspace/db";
+import {
+  adsTable,
+  db,
+  eventsTable,
+  listingsTable,
+  messagesTable,
+  servicesTable,
+  vendorsTable,
+} from "@workspace/db";
 import { ObjectStorageService } from "./objectStorage";
 import { logger } from "./logger";
 
 const objectStorage = new ObjectStorageService();
+
+function storagePath(mediaPath: string): string {
+  return mediaPath.startsWith("v:") ? mediaPath.slice(2) : mediaPath;
+}
+
+async function deleteOnlyUnreferencedMedia(mediaPaths: string[]): Promise<void> {
+  const [listings, ads, vendors, messages, services, events] = await Promise.all([
+    db.select({ images: listingsTable.images }).from(listingsTable),
+    db.select({ image: adsTable.image, videoPath: adsTable.videoPath }).from(adsTable),
+    db.select({ profilePhoto: vendorsTable.profilePhoto }).from(vendorsTable),
+    db.select({ fileUrl: messagesTable.fileUrl }).from(messagesTable),
+    db.select({ image: servicesTable.image, videoPath: servicesTable.videoPath }).from(servicesTable),
+    db.select({ flyerImage: eventsTable.flyerImage, videoPath: eventsTable.videoPath }).from(eventsTable),
+  ]);
+  const referenced = new Set(
+    [
+      ...listings.flatMap((listing) => listing.images ?? []),
+      ...ads.flatMap((ad) => [ad.image, ad.videoPath]),
+      ...vendors.map((vendor) => vendor.profilePhoto),
+      ...messages.map((message) => message.fileUrl),
+      ...services.flatMap((service) => [service.image, service.videoPath]),
+      ...events.flatMap((event) => [event.flyerImage, event.videoPath]),
+    ]
+      .filter((path): path is string => Boolean(path))
+      .map(storagePath),
+  );
+  const unreferenced = Array.from(new Set(mediaPaths.map(storagePath)))
+    .filter((path) => !referenced.has(path));
+  await objectStorage.deleteObjectEntities(unreferenced);
+}
 
 /**
  * Supprime les annonces approuvées publiées depuis plus de 60 jours.
@@ -31,14 +69,10 @@ export async function runListingsCleanup(): Promise<void> {
       return;
     }
 
-    // Supprimer les images associées dans l'object storage
-    for (const listing of expired) {
-      if (listing.images && listing.images.length > 0) {
-        await objectStorage.deleteObjectEntities(listing.images).catch((err) => {
-          logger.warn({ err, id: listing.id }, "Listings cleanup: échec suppression images");
-        });
-      }
-    }
+    const expiredMedia = expired.flatMap((listing) => listing.images ?? []);
+    await deleteOnlyUnreferencedMedia(expiredMedia).catch((err) => {
+      logger.warn({ err }, "Listings cleanup: échec suppression médias non référencés");
+    });
 
     logger.info({ count: expired.length }, "Listings cleanup: annonces supprimées après 60 jours");
   } catch (err) {

@@ -4,8 +4,10 @@ import { normalizePhone, phoneEq } from "../lib/phone";
 import {
   db,
   adsTable,
+  eventsTable,
   listingsTable,
   messagesTable,
+  servicesTable,
   vendorsTable,
   reviewsTable,
 } from "@workspace/db";
@@ -62,11 +64,13 @@ async function vendorCanUseMedia(
 }
 
 async function deleteUnreferencedListingMedia(mediaPaths: string[]): Promise<{ failed: string[] }> {
-  const [remainingListings, ads, vendors, messages] = await Promise.all([
+  const [remainingListings, ads, vendors, messages, services, events] = await Promise.all([
     db.select({ images: listingsTable.images }).from(listingsTable),
     db.select({ image: adsTable.image, videoPath: adsTable.videoPath }).from(adsTable),
     db.select({ profilePhoto: vendorsTable.profilePhoto }).from(vendorsTable),
     db.select({ fileUrl: messagesTable.fileUrl }).from(messagesTable),
+    db.select({ image: servicesTable.image, videoPath: servicesTable.videoPath }).from(servicesTable),
+    db.select({ flyerImage: eventsTable.flyerImage, videoPath: eventsTable.videoPath }).from(eventsTable),
   ]);
   const referencedPaths = new Set(
     [
@@ -74,6 +78,8 @@ async function deleteUnreferencedListingMedia(mediaPaths: string[]): Promise<{ f
       ...ads.flatMap((ad) => [ad.image, ad.videoPath]),
       ...vendors.map((vendor) => vendor.profilePhoto),
       ...messages.map((message) => message.fileUrl),
+      ...services.flatMap((service) => [service.image, service.videoPath]),
+      ...events.flatMap((event) => [event.flyerImage, event.videoPath]),
     ]
       .filter((path): path is string => Boolean(path))
       .map(storagePath),
@@ -610,7 +616,7 @@ router.post("/admin/listings/delete", async (req, res): Promise<void> => {
     return;
   }
 
-  await objectStorage.deleteObjectEntities(deleted[0].images ?? []);
+  await deleteUnreferencedListingMedia(deleted[0].images ?? []);
 
   req.log.info({ id: parsed.data.id }, "Listing deleted by admin");
   res.json(AdminDeleteListingResponse.parse({ success: true }));
@@ -682,7 +688,7 @@ router.post("/admin/tourisme/delete", async (req, res): Promise<void> => {
   }
 
   const allImages = deleted.flatMap((row) => row.images ?? []);
-  await objectStorage.deleteObjectEntities(allImages).catch((err) => {
+  await deleteUnreferencedListingMedia(allImages).catch((err) => {
     req.log.warn({ err }, "Tourisme catalog delete: échec suppression médias");
   });
 

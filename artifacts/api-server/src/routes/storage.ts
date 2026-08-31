@@ -10,7 +10,15 @@ import {
   AdminStorageCleanupResponse,
 } from "@workspace/api-zod";
 import { ObjectStorageService, ObjectNotFoundError } from "../lib/objectStorage";
-import { db, listingsTable, adsTable, messagesTable, vendorsTable } from "@workspace/db";
+import {
+  db,
+  listingsTable,
+  adsTable,
+  eventsTable,
+  messagesTable,
+  servicesTable,
+  vendorsTable,
+} from "@workspace/db";
 import { and, eq, isNotNull, isNull } from "drizzle-orm";
 import { isAdminAny, isSuperAdmin } from "../lib/admin-auth";
 import { validateFileBytes } from "../lib/file-security";
@@ -298,7 +306,8 @@ router.get("/storage/objects/*path", async (req: Request, res: Response) => {
 /**
  * POST /admin/storage/cleanup
  *
- * Find and delete orphan files in Object Storage (files not referenced by any listing, ad, vendor, or message).
+ * Find and delete orphan files in Object Storage only when no persisted
+ * marketplace entity still references them.
  */
 router.post("/admin/storage/cleanup", async (req: Request, res: Response) => {
   const parsed = AdminStorageCleanupBody.safeParse(req.body);
@@ -314,16 +323,25 @@ router.post("/admin/storage/cleanup", async (req: Request, res: Response) => {
   try {
     const allPaths = await objectStorageService.listAllObjectEntityPaths();
 
-    const [listings, ads, vendors, messages] = await Promise.all([
+    const [listings, ads, vendors, messages, services, events] = await Promise.all([
       db.select({ images: listingsTable.images }).from(listingsTable),
       db.select({ image: adsTable.image, videoPath: adsTable.videoPath }).from(adsTable),
       db.select({ profilePhoto: vendorsTable.profilePhoto }).from(vendorsTable),
       db.select({ fileUrl: messagesTable.fileUrl })
         .from(messagesTable)
         .where(and(isNull(messagesTable.deletedAt), isNotNull(messagesTable.fileUrl))),
+      db.select({ image: servicesTable.image, videoPath: servicesTable.videoPath }).from(servicesTable),
+      db.select({ flyerImage: eventsTable.flyerImage, videoPath: eventsTable.videoPath }).from(eventsTable),
     ]);
 
-    const usedPaths = collectReferencedObjectPaths({ listings, ads, vendors, messages });
+    const usedPaths = collectReferencedObjectPaths({
+      listings,
+      ads,
+      vendors,
+      messages,
+      services,
+      events,
+    });
 
     const orphans = allPaths.filter((p) => !usedPaths.has(p));
     await Promise.allSettled(orphans.map((p) => objectStorageService.deleteObjectEntity(p)));
