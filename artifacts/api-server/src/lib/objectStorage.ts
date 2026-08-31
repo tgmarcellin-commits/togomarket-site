@@ -10,6 +10,7 @@ import {
 } from "./objectAcl";
 
 const REPLIT_SIDECAR_ENDPOINT = "http://127.0.0.1:1106";
+const CONVERSATION_CLEANUP_METADATA_KEY = "conversationCleanupCandidate";
 
 export const objectStorageClient = new Storage({
   credentials: {
@@ -229,6 +230,17 @@ export class ObjectStorageService {
     };
   }
 
+  async markObjectEntityForConversationCleanup(objectPath: string): Promise<void> {
+    const file = await this.getObjectEntityFile(objectPath);
+    const [metadata] = await file.getMetadata();
+    await file.setMetadata({
+      metadata: {
+        ...metadata.metadata,
+        [CONVERSATION_CLEANUP_METADATA_KEY]: "true",
+      },
+    });
+  }
+
   async uploadObjectEntity(
     buffer: Buffer,
     contentType: string,
@@ -254,6 +266,45 @@ export class ObjectStorageService {
     return files
       .map((file) => objectNameToEntityPath(file.name, prefix))
       .filter((path): path is string => path !== null);
+  }
+
+  async listConversationCleanupCandidatePathsOlderThan(
+    cutoff: Date,
+  ): Promise<string[]> {
+    const privateObjectDir = this.getPrivateObjectDir();
+    const { bucketName, objectName } = parseObjectPath(privateObjectDir + "/");
+    const prefix = objectName.endsWith("/") ? objectName : objectName + "/";
+    const bucket = objectStorageClient.bucket(bucketName);
+    const [files] = await bucket.getFiles({ prefix });
+
+    return files.flatMap((file) => {
+      const cleanupCandidate =
+        file.metadata.metadata?.[CONVERSATION_CLEANUP_METADATA_KEY] === "true";
+      const rawAclPolicy = file.metadata.metadata?.["custom:aclPolicy"];
+      let conversationOwned = false;
+      try {
+        const owner = rawAclPolicy
+          ? (JSON.parse(String(rawAclPolicy)) as { owner?: unknown }).owner
+          : undefined;
+        conversationOwned =
+          typeof owner === "string" && owner.startsWith("conversation:");
+      } catch {
+        conversationOwned = false;
+      }
+      if (!cleanupCandidate && !conversationOwned) {
+        return [];
+      }
+
+      const rawCreatedAt = file.metadata.timeCreated ?? file.metadata.updated;
+      const createdAt = rawCreatedAt
+        ? new Date(String(rawCreatedAt)).getTime()
+        : Number.NaN;
+      if (!Number.isFinite(createdAt) || createdAt >= cutoff.getTime()) {
+        return [];
+      }
+      const path = objectNameToEntityPath(file.name, prefix);
+      return path ? [path] : [];
+    });
   }
 
   async canAccessObjectEntity({
