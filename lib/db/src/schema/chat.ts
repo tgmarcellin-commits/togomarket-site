@@ -94,6 +94,8 @@ export const messagesTable = pgTable("messages", {
   vendorDeletedAt: timestamp("vendor_deleted_at", { withTimezone: true }),
   /** Soft-delete for the buyer's view only */
   buyerDeletedAt: timestamp("buyer_deleted_at", { withTimezone: true }),
+  /** Timestamp when the vendor first read this buyer message */
+  readByVendorAt: timestamp("read_by_vendor_at", { withTimezone: true }),
   /** Timestamp when the recipient first read this message */
   readAt: timestamp("read_at", { withTimezone: true }),
   createdAt: timestamp("created_at", { withTimezone: true })

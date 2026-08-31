@@ -21,6 +21,7 @@ interface ChatMessage {
   fileType: string | null;
   editedAt: string | null;
   deletedAt: string | null;
+  readByVendorAt: string | null;
   readAt: string | null;
   createdAt: string;
 }
@@ -301,6 +302,21 @@ export function ChatWindow({
       );
       if (data.message.senderType !== selfType) void markMessagesRead();
     };
+    const onMessageRead = (data: {
+      conversationId: number;
+      messageIds: number[];
+      readByVendorAt: string;
+    }) => {
+      if (data.conversationId !== conversationId || !Array.isArray(data.messageIds)) return;
+      const messageIds = new Set(data.messageIds);
+      setMessages((prev) =>
+        prev.map((message) =>
+          messageIds.has(message.id)
+            ? { ...message, readByVendorAt: data.readByVendorAt }
+            : message,
+        ),
+      );
+    };
     const onRead = (data: { conversationId: number; messageIds: number[]; readAt: string }) => {
       if (data.conversationId !== conversationId || !Array.isArray(data.messageIds)) return;
       const messageIds = new Set(data.messageIds);
@@ -325,11 +341,13 @@ export function ChatWindow({
     };
 
     socket.on("new_message", onNew);
+    socket.on("message_read", onMessageRead);
     socket.on("messages_read", onRead);
     socket.on("message_edited", onEdited);
     socket.on("message_deleted", onDeleted);
     return () => {
       socket.off("new_message", onNew);
+      socket.off("message_read", onMessageRead);
       socket.off("messages_read", onRead);
       socket.off("message_edited", onEdited);
       socket.off("message_deleted", onDeleted);
@@ -677,14 +695,14 @@ export function ChatWindow({
                 { hour: "2-digit", minute: "2-digit" },
               )}
             </span>
-            {isSelf && (
+            {auth.kind === "buyer" && isSelf && (
               <span
-                className={msg.readAt ? "text-sky-300 opacity-100" : undefined}
-                aria-label={msg.readAt
+                className={(msg.readByVendorAt ?? msg.readAt) ? "text-sky-300 opacity-100" : undefined}
+                aria-label={(msg.readByVendorAt ?? msg.readAt)
                   ? (lang === "fr" ? "Message lu" : "Message read")
                   : (lang === "fr" ? "Message envoyé" : "Message sent")}
               >
-                {msg.readAt ? "✓✓" : "✓"}
+                {(msg.readByVendorAt ?? msg.readAt) ? "✓✓" : "✓"}
               </span>
             )}
           </div>

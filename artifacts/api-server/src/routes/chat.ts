@@ -1139,6 +1139,8 @@ router.get("/vendor/conversations", async (req, res) => {
 
 /* ──────────────────────────────────────────────────────────────
    POST /api/vendor/conversations/:id/read
+   Marque les messages acheteur comme lus par le vendeur et reset
+   le compteur de messages non lus.
    ────────────────────────────────────────────────────────────── */
 router.post("/vendor/conversations/:id/read", async (req, res) => {
   const vendor = await authenticateVendorRequest(req);
@@ -1148,6 +1150,19 @@ router.post("/vendor/conversations/:id/read", async (req, res) => {
   if (isNaN(requestedConvId)) { res.status(400).json({ error: "invalid id" }); return; }
   const convId = await resolveVendorConversationId(requestedConvId, vendor.id);
   if (!convId) { res.status(404).json({ error: "not found" }); return; }
+
+  const readByVendorAt = new Date();
+  const readMessages = await db
+    .update(messagesTable)
+    .set({ readByVendorAt })
+    .where(and(
+      eq(messagesTable.conversationId, convId),
+      eq(messagesTable.senderType, "buyer"),
+      isNull(messagesTable.readByVendorAt),
+      isNull(messagesTable.deletedAt),
+      isNull(messagesTable.vendorDeletedAt),
+    ))
+    .returning({ id: messagesTable.id });
 
   await db
     .update(conversationsTable)
@@ -1159,7 +1174,24 @@ router.post("/vendor/conversations/:id/read", async (req, res) => {
       ),
     );
 
-  res.json({ ok: true });
+  const messageIds = readMessages.map((message) => message.id);
+  if (messageIds.length > 0) {
+    try {
+      getIo().to(`conv:${convId}`).emit("message_read", {
+        conversationId: convId,
+        messageIds,
+        readByVendorAt: readByVendorAt.toISOString(),
+      });
+    } catch {
+      // Socket.io not yet ready — the persisted read state remains authoritative.
+    }
+  }
+
+  res.json({
+    ok: true,
+    messageIds,
+    readByVendorAt: readByVendorAt.toISOString(),
+  });
 });
 
 /*  DELETE /api/vendor/conversations/:id
