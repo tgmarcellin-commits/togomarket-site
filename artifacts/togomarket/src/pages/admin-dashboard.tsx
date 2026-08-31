@@ -2502,6 +2502,8 @@ export default function AdminDashboard() {
                       const isAdmin = msg.senderType === "buyer";
                       const isEditing = inboxEditingId === msg.id;
                       const menuOpen = inboxMenuMsgId === msg.id;
+                      const fileSrc = msg.fileUrl ? resolveImageUrl(msg.fileUrl) : null;
+                      const textContent = msg.content?.trim() ?? "";
 
                       return (
                         <div key={msg.id} className={`flex ${isAdmin ? "justify-end" : "justify-start"}`}>
@@ -2584,33 +2586,46 @@ export default function AdminDashboard() {
                                 ) : (
                                   <>
                                     {/* Image */}
-                                    {msg.fileUrl && msg.fileType === "image" && (
+                                    {fileSrc && msg.fileType === "image" && (
                                       <div
-                                        onClick={(e) => { e.stopPropagation(); window.open(resolveImageUrl(msg.fileUrl!), "_blank", "noopener,noreferrer"); }}
+                                        onClick={(e) => { e.stopPropagation(); window.open(fileSrc, "_blank", "noopener,noreferrer"); }}
+                                        onContextMenu={(e) => e.preventDefault()}
                                         className="cursor-pointer"
+                                        title="Ouvrir l’image"
                                       >
-                                        <img src={resolveImageUrl(msg.fileUrl)} alt="image" draggable={false} onContextMenu={(e) => e.preventDefault()} className="max-w-[220px] max-h-[220px] object-cover block mt-1" />
+                                        <img src={fileSrc} alt="Image envoyée" draggable={false} className="max-w-[220px] max-h-[220px] object-cover block mt-1" />
                                       </div>
                                     )}
                                     {/* Audio */}
-                                    {msg.fileUrl && msg.fileType === "audio" && (
-                                      <div className="px-3 py-2">
-                                        <audio controls src={resolveImageUrl(msg.fileUrl)} className="h-10 max-w-[200px]" />
+                                    {fileSrc && msg.fileType === "audio" && (
+                                      <div
+                                        className="px-3 py-2"
+                                        onTouchStart={(e) => e.stopPropagation()}
+                                        onPointerDown={(e) => e.stopPropagation()}
+                                      >
+                                        <audio
+                                          controls
+                                          src={fileSrc}
+                                          className="h-10 max-w-[200px]"
+                                          onContextMenu={(e) => e.preventDefault()}
+                                        />
                                       </div>
                                     )}
                                     {/* PDF */}
-                                    {msg.fileUrl && msg.fileType === "pdf" && (
-                                      <div
-                                        onClick={(e) => { e.stopPropagation(); window.open(resolveImageUrl(msg.fileUrl!), "_blank", "noopener,noreferrer"); }}
-                                        onContextMenu={(e) => e.preventDefault()}
+                                    {fileSrc && msg.fileType === "pdf" && (
+                                      <a
+                                        href={fileSrc}
+                                        target="_blank"
+                                        rel="noopener noreferrer"
+                                        download
                                         className="flex items-center gap-2 px-3 py-2 cursor-pointer"
                                       >
                                         <FileText className="w-8 h-8 flex-shrink-0 opacity-80" />
-                                        <span className="text-xs font-medium underline break-all">Voir le PDF</span>
-                                      </div>
+                                        <span className="text-xs font-medium underline break-all">Télécharger le PDF</span>
+                                      </a>
                                     )}
                                     {/* Text */}
-                                    {msg.content && <p className="px-3 py-2 break-words whitespace-pre-wrap">{msg.content}</p>}
+                                    {textContent && <p className="px-3 py-2 break-words whitespace-pre-wrap">{msg.content}</p>}
                                     {/* Modifié */}
                                     {msg.editedAt && <p className={`text-[10px] pb-0.5 px-3 opacity-60 ${isAdmin ? "text-right" : ""}`}>Modifié</p>}
                                   </>
