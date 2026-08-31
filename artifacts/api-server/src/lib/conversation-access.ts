@@ -97,3 +97,40 @@ export async function findConversationsForBuyerTokens(tokens: string[]) {
   }
   return [...byConversation.values()];
 }
+
+/**
+ * Returns the supplied buyer tokens that no longer identify a conversation
+ * visible to the buyer. A vendor soft-delete intentionally does not make a
+ * token invalid; the buyer must still be able to read that conversation.
+ */
+export async function findInvalidBuyerTokens(tokens: string[]): Promise<string[]> {
+  if (tokens.length === 0) return [];
+
+  const [direct, aliased] = await Promise.all([
+    db
+      .select({
+        token: conversationsTable.buyerToken,
+        buyerDeletedAt: conversationsTable.buyerDeletedAt,
+      })
+      .from(conversationsTable)
+      .where(inArray(conversationsTable.buyerToken, tokens)),
+    db
+      .select({
+        token: conversationBuyerTokensTable.token,
+        buyerDeletedAt: conversationsTable.buyerDeletedAt,
+      })
+      .from(conversationBuyerTokensTable)
+      .innerJoin(
+        conversationsTable,
+        eq(conversationBuyerTokensTable.conversationId, conversationsTable.id),
+      )
+      .where(inArray(conversationBuyerTokensTable.token, tokens)),
+  ]);
+
+  const visibleTokens = new Set(
+    [...direct, ...aliased]
+      .filter((row) => row.buyerDeletedAt === null)
+      .map((row) => row.token),
+  );
+  return tokens.filter((token) => !visibleTokens.has(token));
+}

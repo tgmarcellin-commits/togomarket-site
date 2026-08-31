@@ -22,6 +22,10 @@ interface BuyerConversation {
   buyerToken: string;
 }
 
+type BuyerListResponse =
+  | BuyerConversation[]
+  | { conversations: BuyerConversation[]; invalidTokens: string[] };
+
 /* ── localStorage helpers ────────────────────────────────────── */
 const BUYER_TOKENS_KEY = "tm_buyer_tokens";
 const BUYER_KEY_KEY = "tm_buyer_key";
@@ -80,6 +84,24 @@ export function removeBuyerSession(convId: number): void {
       BUYER_TOKENS_KEY,
       JSON.stringify(sessions.filter((session) => session.convId !== convId)),
     );
+  } catch {}
+}
+
+export function removeBuyerSessionsByTokens(tokens: string[]): void {
+  if (tokens.length === 0) return;
+  try {
+    const invalidTokens = new Set(tokens);
+    const sessions = getAllBuyerSessions();
+    const removed = sessions.filter((session) => invalidTokens.has(session.buyerToken));
+    removed.forEach((session) => {
+      localStorage.removeItem(`tm_chat_${session.vendorId}_${session.listingId}`);
+    });
+    if (removed.length > 0) {
+      localStorage.setItem(
+        BUYER_TOKENS_KEY,
+        JSON.stringify(sessions.filter((session) => !invalidTokens.has(session.buyerToken))),
+      );
+    }
   } catch {}
 }
 
@@ -362,7 +384,7 @@ export function BuyerInbox({ identity, pendingConvId, onClearPending, onUnreadCh
   const [conversations, setConversations] = useState<BuyerConversation[]>([]);
   const [loading, setLoading] = useState(false);
   const [openConv, setOpenConv] = useState<BuyerConversation | null>(null);
-  const [unavailableConversationId, setUnavailableConversationId] = useState<number | null>(null);
+  const [hasUnavailableConversation, setHasUnavailableConversation] = useState(false);
   const socketRef = useRef(getSocket());
   const fetchSequenceRef = useRef(0);
   const totalUnread = conversations.reduce((sum, conversation) => sum + (conversation.buyerUnreadCount ?? 0), 0);
@@ -391,7 +413,13 @@ export function BuyerInbox({ identity, pendingConvId, onClearPending, onUnreadCh
         body: JSON.stringify({ buyerTokens: sessions.map((s) => s.buyerToken) }),
       });
       if (res.ok && requestSequence === fetchSequenceRef.current) {
-        const data = (await res.json()) as BuyerConversation[];
+        const payload = await res.json() as BuyerListResponse;
+        const data = Array.isArray(payload) ? payload : payload.conversations;
+        const invalidTokens = Array.isArray(payload) ? [] : payload.invalidTokens;
+        if (invalidTokens.length > 0) {
+          removeBuyerSessionsByTokens(invalidTokens);
+          setHasUnavailableConversation(true);
+        }
         if (requestSequence !== fetchSequenceRef.current) return;
         const canonicalSessions: StoredSession[] = [];
         const enriched = data.map((conv) => {
@@ -431,7 +459,7 @@ export function BuyerInbox({ identity, pendingConvId, onClearPending, onUnreadCh
     if (res.status === 404) {
       removeBuyerSession(conversation.id);
       setConversations((current) => current.filter((conv) => conv.id !== conversation.id));
-      setUnavailableConversationId(conversation.id);
+      setHasUnavailableConversation(true);
       return;
     }
     if (!res.ok) return;
@@ -514,11 +542,11 @@ export function BuyerInbox({ identity, pendingConvId, onClearPending, onUnreadCh
         · {identity.phone}
       </div>
 
-      {unavailableConversationId !== null && (
+      {hasUnavailableConversation && (
         <p className="text-sm text-muted-foreground text-center py-2">
           {lang === "fr"
-            ? "Cette conversation n'est plus disponible"
-            : "This conversation is no longer available"}
+            ? "Une conversation a été supprimée définitivement par le vendeur et n'est plus disponible."
+            : "A conversation was permanently deleted by the seller and is no longer available."}
         </p>
       )}
 

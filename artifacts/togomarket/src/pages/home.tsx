@@ -31,7 +31,11 @@ import { VendorConversations } from "@/components/vendor-conversations";
 import { PushActivationBanner } from "@/components/push-activation-banner";
 import { VendorSystemNotifications } from "@/components/vendor-system-notifications";
 import { confirmOrRepairVendorPush, supportsVendorPush } from "@/lib/vendor-push";
-import { BuyerInbox, getAllBuyerSessions, migrateLegacySessions } from "@/components/buyer-inbox";
+import {
+  BuyerInbox,
+  getAllBuyerSessions,
+  migrateLegacySessions,
+} from "@/components/buyer-inbox";
 import { loadBuyerIdentity } from "@/components/buyer-identity-prompt";
 import { useToast } from "@/hooks/use-toast";
 import { getSocket, joinBuyerConversationRooms } from "@/lib/socket";
@@ -339,11 +343,16 @@ export default function Home() {
         });
         if (!response.ok || cancelled || requestSequence !== buyerUnreadRequestRef.current) return;
 
-        const conversations = await response.json() as {
+        type BuyerUnreadConversation = {
           id: number;
           buyerToken: string;
           buyerUnreadCount: number;
-        }[];
+        };
+        type BuyerUnreadPayload =
+          | BuyerUnreadConversation[]
+          | { conversations: BuyerUnreadConversation[]; invalidTokens: string[] };
+        const payload = await response.json() as BuyerUnreadPayload;
+        const conversations = Array.isArray(payload) ? payload : payload.conversations;
         if (cancelled || requestSequence !== buyerUnreadRequestRef.current) return;
 
         setBuyerConvsUnread(

@@ -27,6 +27,7 @@ import {
   isValidBuyerKey,
   resolveBuyerConversationId,
   resolveVendorConversationId,
+  findInvalidBuyerTokens,
 } from "../lib/conversation-access";
 import { mergeAuthorizedBuyerConversations } from "../lib/conversation-merge";
 
@@ -343,7 +344,7 @@ router.post("/conversations", async (req, res) => {
 router.post("/conversations/buyer-list", async (req, res) => {
   const { buyerTokens } = req.body as { buyerTokens?: string[] };
   if (!Array.isArray(buyerTokens) || buyerTokens.length === 0) {
-    res.json([]);
+    res.json({ conversations: [], invalidTokens: [] });
     return;
   }
 
@@ -360,12 +361,13 @@ router.post("/conversations/buyer-list", async (req, res) => {
   }
   await Promise.all([...idsByVendor.values()].map(mergeAuthorizedBuyerConversations));
   authorizedRows = await findConversationsForBuyerTokens(tokens);
+  const invalidTokens = await findInvalidBuyerTokens(tokens);
   const convRows = authorizedRows
     .filter((row) => row.conversation.buyerDeletedAt === null)
     .sort((a, b) => b.conversation.updatedAt.getTime() - a.conversation.updatedAt.getTime());
 
   if (convRows.length === 0) {
-    res.json([]);
+    res.json({ conversations: [], invalidTokens });
     return;
   }
 
@@ -424,7 +426,10 @@ router.post("/conversations/buyer-list", async (req, res) => {
     };
   });
 
-  res.json(await addListingImageFallback(result));
+  res.json({
+    conversations: await addListingImageFallback(result),
+    invalidTokens,
+  });
 });
 
 /* ──────────────────────────────────────────────────────────────
