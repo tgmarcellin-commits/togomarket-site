@@ -570,6 +570,8 @@ export default function AdminDashboard() {
   const [statsError, setStatsError] = useState<string | null>(null);
   const [statsDateFrom, setStatsDateFrom] = useState("");
   const [statsDateTo, setStatsDateTo] = useState("");
+  const statsRequestRef = useRef(0);
+  const statsSessionFailedRef = useRef(false);
 
   const [pendingListings, setPendingListings] = useState<NonNullable<ReturnType<typeof useAdminGetPendingListings>["data"]>>([]);
   const [pendingLoading, setPendingLoading] = useState(false);
@@ -682,42 +684,54 @@ export default function AdminDashboard() {
     }
   }, [settingsData]);
 
-  const loadStats = (from?: string, to?: string) => {
+  const loadStats = async (from?: string, to?: string) => {
+    if (statsSessionFailedRef.current) return;
+
+    const requestId = ++statsRequestRef.current;
     setStatsLoading(true);
     setStatsError(null);
     const dateFrom = from !== undefined ? from : statsDateFrom;
     const dateTo = to !== undefined ? to : statsDateTo;
-    fetch("/api/admin/stats", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ code: password, dateFrom: dateFrom || undefined, dateTo: dateTo || undefined }),
-    })
-      .then(async (r) => {
-        const data = await r.json().catch(() => null);
-        if (r.status === 401 || r.status === 403) {
-          clearAdminSession();
-          setStats(null);
-          toast({
-            title: "Session admin expirée",
-            description: "Veuillez vous reconnecter pour continuer.",
-            variant: "destructive",
-          });
-          navigate("/admin-login");
-          return null;
-        }
-        if (!r.ok || !isAdminStats(data)) {
-          throw new Error("Les statistiques sont momentanément indisponibles.");
-        }
-        return data;
-      })
-      .then((data) => {
-        if (data) setStats(data);
-      })
-      .catch((err: unknown) => {
+    try {
+      const response = await fetch("/api/admin/stats", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ code: password, dateFrom: dateFrom || undefined, dateTo: dateTo || undefined }),
+      });
+      const data = await response.json().catch(() => null);
+
+      // Do not let an older request log out a newer, already completed session.
+      if (requestId !== statsRequestRef.current) return;
+
+      if (response.status === 401 || response.status === 403) {
+        statsSessionFailedRef.current = true;
+        clearAdminSession();
         setStats(null);
-        setStatsError(err instanceof Error ? err.message : "Les statistiques sont momentanément indisponibles.");
-      })
-      .finally(() => setStatsLoading(false));
+        setStatsError("Votre session administrateur a expiré. Veuillez vous reconnecter.");
+        toast({
+          title: "Session admin expirée",
+          description: "Veuillez vous reconnecter pour continuer.",
+          variant: "destructive",
+        });
+        navigate("/admin-login");
+        return;
+      }
+
+      if (!response.ok || !isAdminStats(data)) {
+        throw new Error("Les statistiques sont momentanément indisponibles.");
+      }
+
+      setStats(data);
+      setStatsError(null);
+    } catch (err: unknown) {
+      if (requestId !== statsRequestRef.current) return;
+      setStats(null);
+      setStatsError(err instanceof Error ? err.message : "Les statistiques sont momentanément indisponibles.");
+    } finally {
+      if (requestId === statsRequestRef.current) {
+        setStatsLoading(false);
+      }
+    }
   };
 
   const applyQuickRange = (preset: "today" | "week" | "month" | "year" | "all") => {
