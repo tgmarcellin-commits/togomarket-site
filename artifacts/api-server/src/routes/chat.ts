@@ -364,41 +364,65 @@ router.post("/conversations/buyer-list", async (req, res) => {
     .filter((row) => row.conversation.buyerDeletedAt === null)
     .sort((a, b) => b.conversation.updatedAt.getTime() - a.conversation.updatedAt.getTime());
 
-  // For each conversation, get the last message
-  const result = await Promise.all(
-    convRows.map(async ({ conversation: conv, accessToken }) => {
-      const lastMsgs = await db
-        .select({ content: messagesTable.content, createdAt: messagesTable.createdAt, senderType: messagesTable.senderType })
-        .from(messagesTable)
-        .where(and(
-          eq(messagesTable.conversationId, conv.id),
-          isNull(messagesTable.deletedAt),
-          isNull(messagesTable.buyerDeletedAt),
-        ))
-        .orderBy(desc(messagesTable.createdAt))
-        .limit(1);
+  if (convRows.length === 0) {
+    res.json([]);
+    return;
+  }
 
-      const last = lastMsgs[0];
+  const conversationIds = convRows.map(({ conversation }) => conversation.id);
+  const [lastMessages, unreadRows] = await Promise.all([
+    db
+      .selectDistinctOn([messagesTable.conversationId], {
+        conversationId: messagesTable.conversationId,
+        content: messagesTable.content,
+        createdAt: messagesTable.createdAt,
+      })
+      .from(messagesTable)
+      .where(and(
+        inArray(messagesTable.conversationId, conversationIds),
+        isNull(messagesTable.deletedAt),
+        isNull(messagesTable.buyerDeletedAt),
+      ))
+      .orderBy(messagesTable.conversationId, desc(messagesTable.createdAt)),
+    db
+      .select({
+        conversationId: messagesTable.conversationId,
+        count: sql<number>`count(*)::int`,
+      })
+      .from(messagesTable)
+      .where(and(
+        inArray(messagesTable.conversationId, conversationIds),
+        eq(messagesTable.senderType, "vendor"),
+        isNull(messagesTable.readAt),
+        isNull(messagesTable.deletedAt),
+        isNull(messagesTable.buyerDeletedAt),
+      ))
+      .groupBy(messagesTable.conversationId),
+  ]);
 
-      // Count unread messages for buyer = vendor messages the buyer hasn't "read" yet
-      // We approximate this as vendor messages since the buyer's last fetch.
-      // For simplicity, we expose the field but the server doesn't track buyer reads.
-      // The client can mark conversations read by opening them.
-      return {
-        id: conv.id,
-        vendorId: conv.vendorId,
-        listingTitle: conv.listingTitle,
-        listingId: conv.listingId,
-        listingImage: conv.listingImage,
-        buyerName: conv.buyerName,
-        buyerPhone: conv.buyerPhone,
-        buyerToken: accessToken,
-        lastMessage: last?.content ?? null,
-        lastMessageAt: last?.createdAt ?? conv.updatedAt,
-        buyerUnreadCount: conv.buyerUnreadCount,
-      };
-    }),
+  const lastMessageByConversation = new Map(
+    lastMessages.map((message) => [message.conversationId, message]),
   );
+  const unreadByConversation = new Map(
+    unreadRows.map((row) => [row.conversationId, row.count]),
+  );
+
+  const result = convRows.map(({ conversation: conv, accessToken }) => {
+    const last = lastMessageByConversation.get(conv.id);
+    return {
+      id: conv.id,
+      vendorId: conv.vendorId,
+      listingTitle: conv.listingTitle,
+      listingId: conv.listingId,
+      listingImage: conv.listingImage,
+      buyerName: conv.buyerName,
+      buyerPhone: conv.buyerPhone,
+      buyerToken: accessToken,
+      lastMessage: last?.content ?? null,
+      lastMessageAt: last?.createdAt ?? conv.updatedAt,
+      buyerUnreadCount: unreadByConversation.get(conv.id) ?? 0,
+    };
+  });
 
   res.json(await addListingImageFallback(result));
 });
@@ -710,11 +734,11 @@ router.post("/conversations/:id/messages", async (req, res) => {
     .set({
       updatedAt: new Date(),
       vendorUnreadCount: senderType === "buyer"
-        ? conv.vendorUnreadCount + 1
-        : conv.vendorUnreadCount,
+        ? sql`${conversationsTable.vendorUnreadCount} + 1`
+        : conversationsTable.vendorUnreadCount,
       buyerUnreadCount: senderType === "vendor"
-        ? conv.buyerUnreadCount + 1
-        : conv.buyerUnreadCount,
+        ? sql`${conversationsTable.buyerUnreadCount} + 1`
+        : conversationsTable.buyerUnreadCount,
       // Vendor replies to broadcast → admin inbox gets an unread increment
       adminUnreadCount: senderType === "vendor" && isBroadcastConv
         ? sql`${conversationsTable.adminUnreadCount} + 1`
@@ -925,8 +949,12 @@ router.post(
       .update(conversationsTable)
       .set({
         updatedAt: new Date(),
-        vendorUnreadCount: senderType === "buyer" ? conv.vendorUnreadCount + 1 : conv.vendorUnreadCount,
-        buyerUnreadCount: senderType === "vendor" ? conv.buyerUnreadCount + 1 : conv.buyerUnreadCount,
+        vendorUnreadCount: senderType === "buyer"
+          ? sql`${conversationsTable.vendorUnreadCount} + 1`
+          : conversationsTable.vendorUnreadCount,
+        buyerUnreadCount: senderType === "vendor"
+          ? sql`${conversationsTable.buyerUnreadCount} + 1`
+          : conversationsTable.buyerUnreadCount,
         vendorDeletedAt: senderType === "buyer" ? null : conv.vendorDeletedAt,
         buyerDeletedAt: senderType === "vendor" ? null : conv.buyerDeletedAt,
       })
@@ -1134,7 +1162,35 @@ router.get("/vendor/conversations", async (req, res) => {
     ))
     .orderBy(desc(conversationsTable.updatedAt));
 
-  res.json(await addListingImageFallback(convs));
+  if (convs.length === 0) {
+    res.json([]);
+    return;
+  }
+
+  const unreadRows = await db
+    .select({
+      conversationId: messagesTable.conversationId,
+      count: sql<number>`count(*)::int`,
+    })
+    .from(messagesTable)
+    .where(and(
+      inArray(messagesTable.conversationId, convs.map((conversation) => conversation.id)),
+      eq(messagesTable.senderType, "buyer"),
+      isNull(messagesTable.readAt),
+      isNull(messagesTable.readByVendorAt),
+      isNull(messagesTable.deletedAt),
+      isNull(messagesTable.vendorDeletedAt),
+    ))
+    .groupBy(messagesTable.conversationId);
+  const unreadByConversation = new Map(
+    unreadRows.map((row) => [row.conversationId, row.count]),
+  );
+  const conversationsWithUnread = convs.map((conversation) => ({
+    ...conversation,
+    vendorUnreadCount: unreadByConversation.get(conversation.id) ?? 0,
+  }));
+
+  res.json(await addListingImageFallback(conversationsWithUnread));
 });
 
 /* ──────────────────────────────────────────────────────────────

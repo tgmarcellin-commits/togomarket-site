@@ -12,3 +12,4 @@
 - [Fusion des conversations](conversation-merge-proof.md) — ne fusionner des fils historiques qu’avec preuve par jetons opaques, jamais avec le téléphone ou le nom.
 - [FFmpeg en publication](ffmpeg-deployment.md) — tout transcodage serveur exige FFmpeg dans les dépendances Nix de la publication, pas seulement dans le PATH de développement.
 - [Intégrité des catalogues Tourisme](tourisme-catalog-integrity.md) — traiter les anciens catalogues multi-lignes comme un groupe logique et attribuer tout nouvel upload à son vendeur.
+- [Autorité des badges non lus](unread-badge-authority.md) — un seul propriétaire client, réponses réseau séquencées et totaux dérivés des messages réellement non lus.

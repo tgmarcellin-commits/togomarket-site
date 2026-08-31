@@ -4,7 +4,7 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { ChatWindow } from "@/components/chat-window";
 import { useSiteSettings } from "@/lib/site-settings";
-import { getSocket } from "@/lib/socket";
+import { getSocket, joinBuyerConversationRooms } from "@/lib/socket";
 import { resolveImageUrl } from "@/lib/image";
 import type { BuyerIdentity } from "@/components/buyer-identity-prompt";
 
@@ -364,23 +364,35 @@ export function BuyerInbox({ identity, pendingConvId, onClearPending, onUnreadCh
   const [openConv, setOpenConv] = useState<BuyerConversation | null>(null);
   const [unavailableConversationId, setUnavailableConversationId] = useState<number | null>(null);
   const socketRef = useRef(getSocket());
+  const fetchSequenceRef = useRef(0);
+  const totalUnread = conversations.reduce((sum, conversation) => sum + (conversation.buyerUnreadCount ?? 0), 0);
+
+  useEffect(() => {
+    onUnreadChange?.(totalUnread);
+  }, [onUnreadChange, totalUnread]);
 
   const fetchConversations = useCallback(async () => {
+    const requestSequence = ++fetchSequenceRef.current;
     const sessions = getAllBuyerSessions();
     if (sessions.length === 0) {
       setConversations([]);
-      onUnreadChange?.(0);
       return;
     }
     setLoading(true);
     try {
+      const socket = socketRef.current;
+      socket.connect();
+      await joinBuyerConversationRooms(socket, sessions);
+      if (requestSequence !== fetchSequenceRef.current) return;
+
       const res = await fetch("/api/conversations/buyer-list", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ buyerTokens: sessions.map((s) => s.buyerToken) }),
       });
-      if (res.ok) {
+      if (res.ok && requestSequence === fetchSequenceRef.current) {
         const data = (await res.json()) as BuyerConversation[];
+        if (requestSequence !== fetchSequenceRef.current) return;
         const canonicalSessions: StoredSession[] = [];
         const enriched = data.map((conv) => {
           const session = sessions.find((s) => s.buyerToken === conv.buyerToken)
@@ -402,20 +414,15 @@ export function BuyerInbox({ identity, pendingConvId, onClearPending, onUnreadCh
         localStorage.setItem(BUYER_TOKENS_KEY, JSON.stringify([...newestByVendor.values()]));
         const sorted = enriched.sort((a, b) => new Date(b.lastMessageAt).getTime() - new Date(a.lastMessageAt).getTime());
         setConversations(sorted);
-        onUnreadChange?.(sorted.reduce((sum, conversation) => sum + conversation.buyerUnreadCount, 0));
-        const socket = socketRef.current;
-        socket.connect();
-        sorted.forEach((conversation) => {
-          socket.emit("join_conv", {
-            conversationId: conversation.id,
-            buyerToken: conversation.buyerToken,
-          });
-        });
       }
     } finally {
       setLoading(false);
     }
-  }, [onUnreadChange]);
+  }, []);
+
+  const handleMessagesRead = useCallback(() => {
+    void fetchConversations();
+  }, [fetchConversations]);
 
   const openConversation = async (conversation: BuyerConversation) => {
     const res = await fetch(`/api/conversations/${conversation.id}`, {
@@ -474,8 +481,6 @@ export function BuyerInbox({ identity, pendingConvId, onClearPending, onUnreadCh
       onClearPending?.();
     }
   }, [pendingConvId, conversations, onClearPending]);
-
-  const totalUnread = conversations.reduce((s, c) => s + (c.buyerUnreadCount ?? 0), 0);
 
   return (
     <div className="space-y-3">
@@ -589,6 +594,7 @@ export function BuyerInbox({ identity, pendingConvId, onClearPending, onUnreadCh
           listingTitle={openConv.listingTitle}
           listingImage={openConv.listingImage}
           auth={{ kind: "buyer", buyerToken: openConv.buyerToken }}
+          onMessagesRead={handleMessagesRead}
           onConversationDeleted={() => {
             // Remove from local sessions
             removeBuyerSession(openConv.id);

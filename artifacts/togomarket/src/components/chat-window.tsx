@@ -43,6 +43,8 @@ interface ChatWindowProps {
   onConversationDeleted?: () => void;
   /** Called when the conversation was removed elsewhere while this window was open */
   onConversationUnavailable?: () => void;
+  /** Called after the server confirms that the current participant read messages */
+  onMessagesRead?: (conversationId: number) => void;
 }
 
 function authHeaders(auth: ChatAuth): Record<string, string> {
@@ -209,7 +211,7 @@ function BuyerPushPrompt({
 
 export function ChatWindow({
   open, onOpenChange, conversationId, buyerIdentity, vendorName, listingTitle, listingImage, auth,
-  onConversationDeleted, onConversationUnavailable,
+  onConversationDeleted, onConversationUnavailable, onMessagesRead,
 }: ChatWindowProps) {
   const { lang } = useSiteSettings();
   const [messages, setMessages] = useState<ChatMessage[]>([]);
@@ -276,11 +278,12 @@ export function ChatWindow({
     if (!res.ok) return;
     const data = await res.json() as { messageIds?: number[]; readAt?: string };
     if (!Array.isArray(data.messageIds) || !data.readAt) return;
+    if (data.messageIds.length > 0) onMessagesRead?.(conversationId);
     const messageIds = new Set(data.messageIds);
     setMessages((prev) =>
       prev.map((message) => messageIds.has(message.id) ? { ...message, readAt: data.readAt! } : message),
     );
-  }, [conversationId, auth]);
+  }, [conversationId, auth, onMessagesRead]);
 
   useEffect(() => {
     if (!open || !conversationId) return;

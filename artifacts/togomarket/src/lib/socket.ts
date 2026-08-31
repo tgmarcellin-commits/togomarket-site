@@ -18,3 +18,17 @@ export function getSocket(): Socket {
   }
   return _socket;
 }
+
+export async function joinBuyerConversationRooms(
+  socket: Socket,
+  sessions: Array<{ convId: number; buyerToken: string }>,
+): Promise<void> {
+  await Promise.allSettled(
+    sessions.map(async (session) => {
+      await socket.timeout(5_000).emitWithAck("join_conv", {
+        conversationId: session.convId,
+        buyerToken: session.buyerToken,
+      });
+    }),
+  );
+}

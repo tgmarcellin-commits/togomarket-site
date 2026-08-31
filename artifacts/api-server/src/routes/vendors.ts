@@ -876,7 +876,7 @@ router.post("/admin/broadcast-inbox/:id/reply", async (req, res) => {
 
   await db.update(conversationsTable).set({
     updatedAt: new Date(),
-    vendorUnreadCount: conv.vendorUnreadCount + 1,
+    vendorUnreadCount: sql`${conversationsTable.vendorUnreadCount} + 1`,
     vendorDeletedAt: null,
   }).where(eq(conversationsTable.id, convId));
 
@@ -940,7 +940,7 @@ router.post(
 
     await db.update(conversationsTable).set({
       updatedAt: new Date(),
-      vendorUnreadCount: conv.vendorUnreadCount + 1,
+      vendorUnreadCount: sql`${conversationsTable.vendorUnreadCount} + 1`,
       vendorDeletedAt: null,
     }).where(eq(conversationsTable.id, convId));
 
@@ -1065,18 +1065,16 @@ router.post("/admin/broadcast-message", async (req, res) => {
     try {
       // Reuse the most recent TogoMarket conversation or create a fresh one
       const existing = await db
-        .select({ id: conversationsTable.id, vendorUnreadCount: conversationsTable.vendorUnreadCount })
+        .select({ id: conversationsTable.id })
         .from(conversationsTable)
         .where(and(eq(conversationsTable.vendorId, vendor.id), eq(conversationsTable.buyerPhone, "##007##")))
         .orderBy(desc(conversationsTable.createdAt))
         .limit(1);
 
       let convId: number;
-      let prevUnread: number;
 
       if (existing.length > 0) {
         convId = existing[0].id;
-        prevUnread = existing[0].vendorUnreadCount;
       } else {
         const [conv] = await db.insert(conversationsTable).values({
           vendorId: vendor.id,
@@ -1085,7 +1083,6 @@ router.post("/admin/broadcast-message", async (req, res) => {
           buyerToken: randomUUID(),
         }).returning({ id: conversationsTable.id });
         convId = conv.id;
-        prevUnread = 0;
       }
 
       const [msg] = await db.insert(messagesTable).values({
@@ -1135,7 +1132,7 @@ router.post("/admin/broadcast-message", async (req, res) => {
       // Reset vendor-deleted flag so broadcast always surfaces
       await db.update(conversationsTable).set({
         updatedAt: new Date(),
-        vendorUnreadCount: prevUnread + 1,
+        vendorUnreadCount: sql`${conversationsTable.vendorUnreadCount} + 1`,
         vendorDeletedAt: null,
       }).where(eq(conversationsTable.id, convId));
 

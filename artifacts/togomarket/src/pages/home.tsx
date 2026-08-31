@@ -31,10 +31,10 @@ import { VendorConversations } from "@/components/vendor-conversations";
 import { PushActivationBanner } from "@/components/push-activation-banner";
 import { VendorSystemNotifications } from "@/components/vendor-system-notifications";
 import { confirmOrRepairVendorPush, supportsVendorPush } from "@/lib/vendor-push";
-import { BuyerInbox } from "@/components/buyer-inbox";
+import { BuyerInbox, getAllBuyerSessions, migrateLegacySessions } from "@/components/buyer-inbox";
 import { loadBuyerIdentity } from "@/components/buyer-identity-prompt";
 import { useToast } from "@/hooks/use-toast";
-import { getSocket } from "@/lib/socket";
+import { getSocket, joinBuyerConversationRooms } from "@/lib/socket";
 import { SESSION_COOKIE_PASSWORD, vendorAuthHeaders } from "@/lib/vendor-auth";
 
 interface VendorInSector {
@@ -155,6 +155,8 @@ export default function Home() {
   const [buyerConvsUnread, setBuyerConvsUnread] = useState(0);
   const [systemNotifsUnread, setSystemNotifsUnread] = useState(0);
   const pushNudgeCheckInFlight = useRef(false);
+  const buyerUnreadRequestRef = useRef(0);
+  const vendorUnreadRequestRef = useRef(0);
   const messagesUnread = convsUnread + buyerConvsUnread + systemNotifsUnread;
 
   // Buyer inbox state
@@ -222,21 +224,28 @@ export default function Home() {
     const headers = vendorAuthHeaders(vendor.phone, vendorPassword);
     let cancelled = false;
     const fetchUnreadCounts = async () => {
+      const requestSequence = ++vendorUnreadRequestRef.current;
       try {
         const [convRes, notifRes] = await Promise.all([
           fetch("/api/vendor/conversations", { headers, credentials: "include" }),
           fetch("/api/vendor/notifications", { headers, credentials: "include" }),
         ]);
-        if (cancelled) return;
-        if (convRes.ok) {
-          const convs = (await convRes.json()) as { vendorUnreadCount: number }[];
-          if (!cancelled)
-            setConvsUnread(convs.reduce((sum, c) => sum + (c.vendorUnreadCount || 0), 0));
+        const [conversations, notifications] = await Promise.all([
+          convRes.ok
+            ? convRes.json() as Promise<{ vendorUnreadCount: number }[]>
+            : Promise.resolve(null),
+          notifRes.ok
+            ? notifRes.json() as Promise<{ isRead: boolean }[]>
+            : Promise.resolve(null),
+        ]);
+        if (cancelled || requestSequence !== vendorUnreadRequestRef.current) return;
+        if (conversations) {
+          setConvsUnread(
+            conversations.reduce((sum, conversation) => sum + (conversation.vendorUnreadCount || 0), 0),
+          );
         }
-        if (notifRes.ok) {
-          const notifs = (await notifRes.json()) as { isRead: boolean }[];
-          if (!cancelled)
-            setSystemNotifsUnread(notifs.filter((n) => !n.isRead).length);
+        if (notifications) {
+          setSystemNotifsUnread(notifications.filter((notification) => !notification.isRead).length);
         }
       } catch {
         // silencieux : le badge se mettra à jour à la prochaine occasion
@@ -286,6 +295,7 @@ export default function Home() {
       void showPushNudgeIfNeeded(notification);
     };
     socket.on("new_message", handler);
+    socket.on("messages_read", fetchUnreadCounts);
     socket.on("vendor_system_notification", systemNotificationHandler);
     socket.on("auth_ok", fetchUnreadCounts);
     socket.on("connect", authenticate);
@@ -293,6 +303,7 @@ export default function Home() {
     return () => {
       cancelled = true;
       socket.off("new_message", handler);
+      socket.off("messages_read", fetchUnreadCounts);
       socket.off("vendor_system_notification", systemNotificationHandler);
       socket.off("auth_ok", fetchUnreadCounts);
       socket.off("connect", authenticate);
@@ -300,6 +311,67 @@ export default function Home() {
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [vendor?.phone, vendorPassword, lang, toast]);
+
+  // Keep the buyer side of the Messages badge live even before the Messages
+  // tab is opened. Each browser-held token is validated independently by the API.
+  useEffect(() => {
+    let cancelled = false;
+    const socket = getSocket();
+    migrateLegacySessions();
+
+    const fetchBuyerUnreadCounts = async () => {
+      const requestSequence = ++buyerUnreadRequestRef.current;
+      const sessions = getAllBuyerSessions();
+      if (sessions.length === 0) {
+        if (!cancelled) setBuyerConvsUnread(0);
+        return;
+      }
+
+      try {
+        socket.connect();
+        await joinBuyerConversationRooms(socket, sessions);
+        if (cancelled || requestSequence !== buyerUnreadRequestRef.current) return;
+
+        const response = await fetch("/api/conversations/buyer-list", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ buyerTokens: sessions.map((session) => session.buyerToken) }),
+        });
+        if (!response.ok || cancelled || requestSequence !== buyerUnreadRequestRef.current) return;
+
+        const conversations = await response.json() as {
+          id: number;
+          buyerToken: string;
+          buyerUnreadCount: number;
+        }[];
+        if (cancelled || requestSequence !== buyerUnreadRequestRef.current) return;
+
+        setBuyerConvsUnread(
+          conversations.reduce(
+            (sum, conversation) => sum + (conversation.buyerUnreadCount || 0),
+            0,
+          ),
+        );
+      } catch {
+        // The next socket event or reconnect will retry without blocking the app.
+      }
+    };
+
+    const sync = () => { void fetchBuyerUnreadCounts(); };
+    socket.connect();
+    sync();
+    socket.on("new_message", sync);
+    socket.on("messages_read", sync);
+    socket.on("connect", sync);
+    socket.on("reconnect", sync);
+    return () => {
+      cancelled = true;
+      socket.off("new_message", sync);
+      socket.off("messages_read", sync);
+      socket.off("connect", sync);
+      socket.off("reconnect", sync);
+    };
+  }, []);
 
   const [page, setPage] = useState(1);
   const [loadedListings, setLoadedListings] = useState<Listing[]>([]);
@@ -1284,7 +1356,6 @@ export default function Home() {
                     identity={activeBuyerIdentity}
                     pendingConvId={pendingConvId}
                     onClearPending={() => setPendingConvId(null)}
-                    onUnreadChange={setBuyerConvsUnread}
                   />
                 </div>
               )}
@@ -1296,7 +1367,6 @@ export default function Home() {
               identity={buyerIdentity}
               pendingConvId={pendingConvId}
               onClearPending={() => setPendingConvId(null)}
-              onUnreadChange={setBuyerConvsUnread}
             />
           ) : (
             /* ── Ni vendeur ni acheteur : inviter à s'identifier ─────── */

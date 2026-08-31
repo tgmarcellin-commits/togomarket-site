@@ -130,17 +130,26 @@ io.on("connection", (socket) => {
 
   // Buyer joins a conversation room: emit "join_conv" { conversationId, buyerToken }
   // The token is validated against the DB before the socket is admitted to the room.
-  socket.on("join_conv", async ({ conversationId, buyerToken }: { conversationId: number; buyerToken: string }) => {
-    if (!conversationId || !buyerToken) return;
+  socket.on("join_conv", async (
+    { conversationId, buyerToken }: { conversationId: number; buyerToken: string },
+    acknowledge?: (result: { ok: boolean; conversationId?: number }) => void,
+  ) => {
+    if (!conversationId || !buyerToken) {
+      acknowledge?.({ ok: false });
+      return;
+    }
     try {
       const canonicalId = await resolveBuyerConversationId(conversationId, buyerToken);
       if (!canonicalId) {
         logger.warn({ conversationId }, "socket join_conv rejected: invalid token");
+        acknowledge?.({ ok: false });
         return;
       }
       socket.join(`conv:${canonicalId}`);
+      acknowledge?.({ ok: true, conversationId: canonicalId });
       socket.emit("join_conv_ok", { requestedConversationId: conversationId, conversationId: canonicalId });
     } catch (err) {
+      acknowledge?.({ ok: false });
       logger.error({ err }, "socket join_conv error");
     }
   });
