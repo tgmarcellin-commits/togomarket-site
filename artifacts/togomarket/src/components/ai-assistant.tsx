@@ -23,8 +23,8 @@ const TITLES: Record<"fr" | "en", string> = {
 };
 
 const SUBTITLES: Record<"fr" | "en", string> = {
-  fr: "En ligne · Répond instantanément",
-  en: "Online · Replies instantly",
+  fr: "En ligne · Répond en quelques secondes",
+  en: "Online · Replies in a few seconds",
 };
 
 const ERROR_MSGS: Record<"fr" | "en", string> = {
@@ -119,6 +119,19 @@ export function AiAssistant({ lang, supportWhatsApp = "22870703131" }: Props) {
           if (!line.startsWith("data: ")) continue;
           try {
             const json = JSON.parse(line.slice(6));
+            if (json.replaceContent) {
+              setMessages((prev) => {
+                const updated = [...prev];
+                const last = updated[updated.length - 1];
+                if (last?.role === "assistant") {
+                  updated[updated.length - 1] = {
+                    ...last,
+                    content: json.replaceContent,
+                  };
+                }
+                return updated;
+              });
+            }
             if (json.content) {
               setMessages((prev) => {
                 const updated = [...prev];
@@ -134,6 +147,17 @@ export function AiAssistant({ lang, supportWhatsApp = "22870703131" }: Props) {
             }
             if (json.error) {
               streamError = true;
+              setMessages((prev) => {
+                const updated = [...prev];
+                const last = updated[updated.length - 1];
+                if (last?.role === "assistant") {
+                  updated[updated.length - 1] = {
+                    ...last,
+                    content: ERROR_MSGS[lang],
+                  };
+                }
+                return updated;
+              });
             }
           } catch {}
         }

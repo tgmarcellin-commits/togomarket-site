@@ -17,6 +17,8 @@ const SENSITIVE_OUTPUT_PATTERNS = [
   /\b(?:api[_ -]?key|secret[_ -]?key|csrf|bearer|jwt|cookie|postgres(?:ql)?|sql|database|base de donn[ée]es)\b/i,
   /\b(?:superadmin|sous-admin)\b/i,
 ];
+const OUTPUT_HOLD_BACK_CHARS = 96;
+const MODEL_TIMEOUT_MS = 12_000;
 
 type ChatRole = "user" | "assistant";
 interface ChatMessage { role: ChatRole; content: string; }
@@ -48,6 +50,10 @@ function protectAssistantOutput(text: string): string {
   return normalized;
 }
 
+function containsSensitiveOutput(text: string): boolean {
+  return SENSITIVE_OUTPUT_PATTERNS.some((pattern) => pattern.test(text));
+}
+
 function isTransientProviderError(error: unknown): boolean {
   if (!error || typeof error !== "object") return false;
   const status = "status" in error ? Number(error.status) : NaN;
@@ -69,7 +75,9 @@ function activeVendorPhonesSubquery() {
 
 async function buildDbContext(userMessage: string): Promise<string> {
   try {
-    const countsBySector = await db
+    const keyword = userMessage.replace(/[^\w\s]/gi, " ").trim().split(/\s+/).filter(w => w.length > 2).join(" ");
+
+    const countsPromise = db
       .select({
         sector: listingsTable.sector,
         count: sql<number>`cast(count(*) as int)`,
@@ -81,18 +89,8 @@ async function buildDbContext(userMessage: string): Promise<string> {
       ))
       .groupBy(listingsTable.sector);
 
-    const totalApproved = countsBySector.reduce((s, r) => s + r.count, 0);
-    const sectorSummary = countsBySector
-      .map((r) => `${r.sector}: ${r.count} annonce(s)`)
-      .join(", ");
-
-    const keyword = userMessage.replace(/[^\w\s]/gi, " ").trim().split(/\s+/).filter(w => w.length > 2).join(" ");
-
-    let searchResults: Array<{ name: string; price: string; location: string; sector: string }> = [];
-    if (keyword.length > 0) {
-      const words = keyword.split(/\s+/).slice(0, 5);
-      const conditions = words.map(w => ilike(listingsTable.name, `%${w}%`));
-      const rows = await db
+    const searchPromise = keyword.length > 0
+      ? db
         .select({
           name: listingsTable.name,
           price: listingsTable.price,
@@ -103,16 +101,23 @@ async function buildDbContext(userMessage: string): Promise<string> {
         .where(and(
           eq(listingsTable.approved, true),
           inArray(listingsTable.phone, activeVendorPhonesSubquery()),
-          ...conditions,
+          ...keyword.split(/\s+/).slice(0, 5).map(w => ilike(listingsTable.name, `%${w}%`)),
         ))
-        .limit(8);
-      searchResults = rows.map(r => ({
-        name: r.name,
-        price: r.price,
-        location: r.location,
-        sector: r.sector,
-      }));
-    }
+        .limit(8)
+      : Promise.resolve([]);
+
+    const [countsBySector, rows] = await Promise.all([countsPromise, searchPromise]);
+    const totalApproved = countsBySector.reduce((s, r) => s + r.count, 0);
+    const sectorSummary = countsBySector
+      .map((r) => `${r.sector}: ${r.count} annonce(s)`)
+      .join(", ");
+
+    const searchResults = rows.map(r => ({
+      name: r.name,
+      price: r.price,
+      location: r.location,
+      sector: r.sector,
+    }));
 
     let context = `\n━━━━ DONNÉES EN TEMPS RÉEL (base de données TogoMarket) ━━━━\n`;
     context += `Total annonces approuvées : ${totalApproved}\n`;
@@ -148,6 +153,8 @@ router.post("/assistant/chat", async (req, res) => {
   res.setHeader("Cache-Control", "no-cache");
   res.setHeader("Connection", "keep-alive");
   res.setHeader("Access-Control-Allow-Origin", "*");
+  res.flushHeaders();
+  res.write(`data: ${JSON.stringify({ status: "thinking" })}\n\n`);
 
   try {
     const dbContext = await buildDbContext(lastUserMessage);
@@ -165,6 +172,9 @@ router.post("/assistant/chat", async (req, res) => {
 
     const lastMessage = messages[messages.length - 1];
     let fullResponse = "";
+    let pendingOutput = "";
+    let outputWasStreamed = false;
+    let blockedOutput = false;
 
     for (let attempt = 0; attempt < RETRY_DELAYS_MS.length; attempt += 1) {
       if (RETRY_DELAYS_MS[attempt] > 0) {
@@ -181,17 +191,39 @@ router.post("/assistant/chat", async (req, res) => {
             { category: HarmCategory.HARM_CATEGORY_SEXUALLY_EXPLICIT, threshold: HarmBlockThreshold.BLOCK_NONE },
             { category: HarmCategory.HARM_CATEGORY_DANGEROUS_CONTENT, threshold: HarmBlockThreshold.BLOCK_NONE },
           ],
-        });
+        }, { timeout: MODEL_TIMEOUT_MS });
         const chat = model.startChat({
           history,
-          generationConfig: { maxOutputTokens: 8192 },
+          generationConfig: { maxOutputTokens: 1024 },
         });
         const result = await chat.sendMessageStream(lastMessage.content);
         fullResponse = "";
+        pendingOutput = "";
         for await (const chunk of result.stream) {
           const text = chunk.text();
-          if (text) fullResponse += text;
+          if (!text) continue;
+          fullResponse += text;
+          pendingOutput += text;
+
+          if (containsSensitiveOutput(fullResponse)) {
+            blockedOutput = true;
+            res.write(`data: ${JSON.stringify({
+              replaceContent: SECURITY_REFUSAL,
+              security: true,
+            })}\n\n`);
+            break;
+          }
+
+          if (pendingOutput.length > OUTPUT_HOLD_BACK_CHARS) {
+            const safeText = pendingOutput.slice(0, -OUTPUT_HOLD_BACK_CHARS);
+            pendingOutput = pendingOutput.slice(-OUTPUT_HOLD_BACK_CHARS);
+            if (safeText) {
+              res.write(`data: ${JSON.stringify({ content: safeText })}\n\n`);
+              outputWasStreamed = true;
+            }
+          }
         }
+        if (blockedOutput) break;
         break;
       } catch (error) {
         if (!isTransientProviderError(error) || attempt === RETRY_DELAYS_MS.length - 1) {
@@ -200,9 +232,19 @@ router.post("/assistant/chat", async (req, res) => {
       }
     }
 
-    // Buffer the model output so a sensitive fragment is never sent before
-    // the complete response can be checked.
-    res.write(`data: ${JSON.stringify({ content: protectAssistantOutput(fullResponse) })}\n\n`);
+    if (!blockedOutput) {
+      const protectedResponse = protectAssistantOutput(fullResponse);
+      if (protectedResponse === SECURITY_REFUSAL) {
+        res.write(`data: ${JSON.stringify({
+          replaceContent: SECURITY_REFUSAL,
+          security: true,
+        })}\n\n`);
+      } else if (pendingOutput) {
+        res.write(`data: ${JSON.stringify({ content: pendingOutput })}\n\n`);
+      } else if (!outputWasStreamed) {
+        res.write(`data: ${JSON.stringify({ content: protectedResponse })}\n\n`);
+      }
+    }
     res.write(`data: ${JSON.stringify({ done: true })}\n\n`);
     res.end();
   } catch (err: unknown) {

@@ -2,6 +2,7 @@
 - [Scripts package DB access](scripts-db-deps.md) — le package scripts doit déclarer `drizzle-orm` ET `@workspace/db` dans ses dépendances pour accéder à la base via tsx.
 - [DB SSL production](db-ssl-prod.md) — ne jamais forcer SSL sur le pool pg en production avec le Helium local (sslmode=disable dans l'URL) ; laisser l'URL gérer le SSL.
 - [Mise à jour prompt assistante IA](assistant-prompt-rule.md) — mettre à jour `artifacts/api-server/src/lib/assistant-prompt.ts` à chaque nouvelle feature ; règle utilisateur explicite.
+- [Réactivité de l’assistante IA](assistant-stream-performance.md) — filtrer les sorties par segments avec une fenêtre de retenue et un timeout fournisseur, pas en bloquant tout le flux.
 - [Format des numéros béninois](benin-phone-format.md) — le 0 de « 01 » fait partie du numéro ; toujours passer par normalizePhone/phoneEq, jamais retirer les zéros de tête pour +229.
 - [Dérive spec OpenAPI](openapi-spec-drift.md) — après chaque codegen orval, des champs utilisés mais absents du YAML cassent le build ; corriger le spec, pas le code appelant.
 - [Admin password secrets](admin-password-secrets.md) — ADMIN_PASSWORD et SUB_ADMIN_PASSWORD sont des secrets requis (pas de fallback en dur) lus via `artifacts/api-server/src/lib/admin-auth.ts`.
