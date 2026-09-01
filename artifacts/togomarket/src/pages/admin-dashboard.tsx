@@ -44,6 +44,7 @@ import { openWhatsApp } from "@/lib/whatsapp";
 import { getSocket } from "@/lib/socket";
 import { ImageViewer } from "@/components/image-viewer";
 import { SmartVideo } from "@/components/smart-video";
+import { InboxMessageContent } from "@/components/inbox-message-content";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import {
@@ -87,7 +88,6 @@ import {
   ArrowLeft,
   Mic,
   StopCircle,
-  FileText,
   Paperclip,
   MoreVertical,
   Pencil,
@@ -2766,7 +2766,6 @@ export default function AdminDashboard() {
                       const isEditing = inboxEditingId === msg.id;
                       const menuOpen = inboxMenuMsgId === msg.id;
                       const fileSrc = msg.fileUrl ? resolveImageUrl(msg.fileUrl) : null;
-                      const textContent = msg.content?.trim() ?? "";
 
                       return (
                         <div key={msg.id} className={`flex ${isAdmin ? "justify-end" : "justify-start"}`}>
@@ -2848,47 +2847,11 @@ export default function AdminDashboard() {
                                   </div>
                                 ) : (
                                   <>
-                                    {/* Image */}
-                                    {fileSrc && msg.fileType === "image" && (
-                                      <div
-                                        onClick={(e) => { e.stopPropagation(); window.open(fileSrc, "_blank", "noopener,noreferrer"); }}
-                                        onContextMenu={(e) => e.preventDefault()}
-                                        className="cursor-pointer"
-                                        title="Ouvrir l’image"
-                                      >
-                                        <img src={fileSrc} alt="Image envoyée" draggable={false} className="max-w-[220px] max-h-[220px] object-cover block mt-1" />
-                                      </div>
-                                    )}
-                                    {/* Audio */}
-                                    {fileSrc && msg.fileType === "audio" && (
-                                      <div
-                                        className="px-3 py-2"
-                                        onTouchStart={(e) => e.stopPropagation()}
-                                        onPointerDown={(e) => e.stopPropagation()}
-                                      >
-                                        <audio
-                                          controls
-                                          src={fileSrc}
-                                          className="h-10 max-w-[200px]"
-                                          onContextMenu={(e) => e.preventDefault()}
-                                        />
-                                      </div>
-                                    )}
-                                    {/* PDF */}
-                                    {fileSrc && msg.fileType === "pdf" && (
-                                      <a
-                                        href={fileSrc}
-                                        target="_blank"
-                                        rel="noopener noreferrer"
-                                        download
-                                        className="flex items-center gap-2 px-3 py-2 cursor-pointer"
-                                      >
-                                        <FileText className="w-8 h-8 flex-shrink-0 opacity-80" />
-                                        <span className="text-xs font-medium underline break-all">Télécharger le PDF</span>
-                                      </a>
-                                    )}
-                                    {/* Text */}
-                                    {textContent && <p className="px-3 py-2 break-words whitespace-pre-wrap">{msg.content}</p>}
+                                    <InboxMessageContent
+                                      message={msg}
+                                      fileSrc={fileSrc}
+                                      onImageOpen={(e) => e.stopPropagation()}
+                                    />
                                     {/* Modifié */}
                                     {msg.editedAt && <p className={`text-[10px] pb-0.5 px-3 opacity-60 ${isAdmin ? "text-right" : ""}`}>Modifié</p>}
                                   </>

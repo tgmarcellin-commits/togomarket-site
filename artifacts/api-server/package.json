@@ -9,7 +9,8 @@
     "start": "node --enable-source-maps ./dist/index.mjs",
     "typecheck": "tsc -p tsconfig.json --noEmit",
     "test:conversation-merge": "pnpm --filter @workspace/scripts exec tsx --test ../artifacts/api-server/src/lib/conversation-merge.test.ts",
-    "test:socket-io": "pnpm --filter @workspace/scripts exec tsx --test ../artifacts/api-server/src/lib/socket-io.integration.test.ts"
+    "test:socket-io": "pnpm --filter @workspace/scripts exec tsx --test ../artifacts/api-server/src/lib/socket-io.integration.test.ts",
+    "test:message-file-access": "pnpm --filter @workspace/scripts exec tsx --test ../artifacts/api-server/src/lib/message-file-access.test.ts"
   },
   "dependencies": {
     "@google-cloud/storage": "^8.0.1",
