@@ -19,7 +19,7 @@ import {
   servicesTable,
   vendorsTable,
 } from "@workspace/db";
-import { and, eq, isNotNull, isNull } from "drizzle-orm";
+import { and, eq } from "drizzle-orm";
 import { isAdminAny, isSuperAdmin } from "../lib/admin-auth";
 import { validateFileBytes } from "../lib/file-security";
 import { getObjectAclPolicy } from "../lib/objectAcl";
@@ -327,9 +327,10 @@ router.post("/admin/storage/cleanup", async (req: Request, res: Response) => {
       db.select({ images: listingsTable.images }).from(listingsTable),
       db.select({ image: adsTable.image, videoPath: adsTable.videoPath }).from(adsTable),
       db.select({ profilePhoto: vendorsTable.profilePhoto }).from(vendorsTable),
-      db.select({ fileUrl: messagesTable.fileUrl })
-        .from(messagesTable)
-        .where(and(isNull(messagesTable.deletedAt), isNotNull(messagesTable.fileUrl))),
+      // A deleted message can still be visible to the other participant, so
+      // its attachment remains a live storage reference until the message row
+      // itself is removed by conversation cleanup.
+      db.select({ fileUrl: messagesTable.fileUrl }).from(messagesTable),
       db.select({ image: servicesTable.image, videoPath: servicesTable.videoPath }).from(servicesTable),
       db.select({ flyerImage: eventsTable.flyerImage, videoPath: eventsTable.videoPath }).from(eventsTable),
     ]);

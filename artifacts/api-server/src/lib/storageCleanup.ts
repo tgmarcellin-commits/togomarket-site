@@ -13,6 +13,7 @@ type VendorStorageReference = {
 
 type MessageStorageReference = {
   fileUrl: string | null;
+  deletedAt?: Date | null;
 };
 
 type ServiceStorageReference = {
