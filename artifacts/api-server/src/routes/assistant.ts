@@ -197,6 +197,13 @@ router.post("/assistant/chat", async (req, res) => {
   res.flushHeaders();
   res.write(`data: ${JSON.stringify({ status: "thinking" })}\n\n`);
 
+  if (isSensitiveRequest(lastUserMessage)) {
+    res.write(`data: ${JSON.stringify({ content: SECURITY_REFUSAL })}\n\n`);
+    res.write(`data: ${JSON.stringify({ done: true })}\n\n`);
+    res.end();
+    return;
+  }
+
   try {
     const dbContext = await buildDbContext(lastUserMessage);
     const systemPrompt = ASSISTANT_SYSTEM_PROMPT + (dbContext ? `\n${dbContext}` : "");
@@ -273,30 +280,39 @@ router.post("/assistant/chat", async (req, res) => {
         providerError = error;
         if (isQuotaExceededError(error)) break;
         if (!isTransientProviderError(error) || attempt === RETRY_DELAYS_MS.length - 1) {
-          throw error;
+          break;
         }
       }
     }
 
     if (!providerSucceeded && !blockedOutput) {
-      if (!isQuotaExceededError(providerError) || !openAI) {
-        throw providerError ?? new Error("Assistant provider unavailable");
+      if (isQuotaExceededError(providerError) && openAI) {
+        try {
+          const completion = await openAI.chat.completions.create({
+            model: "gpt-4o-mini",
+            messages: [
+              { role: "system", content: systemPrompt },
+              ...messages.slice(0, -1).map((message) => ({
+                role: message.role,
+                content: message.content,
+              })),
+              { role: "user", content: lastMessage.content },
+            ],
+            max_tokens: 1024,
+            temperature: 0.2,
+          });
+          fullResponse = completion.choices[0]?.message?.content ?? "";
+        } catch (error) {
+          req.log?.warn({ provider: "openai", status: "unavailable" }, "Assistant fallback provider unavailable");
+          fullResponse = buildLocalFallbackResponse(lastUserMessage);
+        }
+      } else {
+        req.log?.warn(
+          { provider: "gemini", status: isQuotaExceededError(providerError) ? "quota_exceeded" : "unavailable" },
+          "Assistant primary provider unavailable; using local fallback",
+        );
+        fullResponse = buildLocalFallbackResponse(lastUserMessage);
       }
-
-      const completion = await openAI.chat.completions.create({
-        model: "gpt-4o-mini",
-        messages: [
-          { role: "system", content: systemPrompt },
-          ...messages.slice(0, -1).map((message) => ({
-            role: message.role,
-            content: message.content,
-          })),
-          { role: "user", content: lastMessage.content },
-        ],
-        max_tokens: 1024,
-        temperature: 0.2,
-      });
-      fullResponse = completion.choices[0]?.message?.content ?? "";
       pendingOutput = "";
     }
 
