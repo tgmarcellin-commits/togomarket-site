@@ -3,7 +3,7 @@ import { Sheet, SheetContent, SheetHeader, SheetTitle } from "@/components/ui/sh
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import {
-  Send, MessageCircle, ShoppingBag, Paperclip, Bell,
+  Send, MessageCircle, ShoppingBag, Paperclip, Bell, Truck,
   Pencil, Trash2, X, Check, FileText, Eraser, Mic, StopCircle, MoreVertical,
 } from "lucide-react";
 import { useSiteSettings } from "@/lib/site-settings";
@@ -756,7 +756,7 @@ export function ChatWindow({
             )}
           </SheetTitle>
           {(listingTitle || listingImage) && (
-            <div className="flex items-center gap-2 mt-1.5 bg-primary/10 border border-primary/20 rounded-lg px-3 py-2">
+            <div className="flex items-center gap-2.5 mt-1.5 bg-primary/10 border border-primary/20 rounded-lg px-3 py-2">
               <div className="w-11 h-11 rounded-md bg-primary/15 overflow-hidden flex-shrink-0 relative flex items-center justify-center">
                 <ShoppingBag className="w-4 h-4 text-primary" />
                 {listingImage && (
@@ -768,7 +768,7 @@ export function ChatWindow({
                   />
                 )}
               </div>
-              <div className="min-w-0">
+              <div className="min-w-0 flex-1">
                 <p className="text-[10px] font-medium text-primary/70 uppercase tracking-wide leading-none mb-0.5">
                   {lang === "fr" ? "Article concerné" : "Item"}
                 </p>
@@ -776,6 +776,14 @@ export function ChatWindow({
                   {listingTitle ?? (lang === "fr" ? "Article sélectionné" : "Selected item")}
                 </p>
               </div>
+              <button
+                type="button"
+                className="ml-auto flex-shrink-0 inline-flex items-center gap-1.5 rounded-md border border-primary/30 bg-background/80 px-2.5 py-2 text-[11px] font-semibold text-primary shadow-sm whitespace-nowrap transition-colors hover:bg-background focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/50"
+                aria-label={lang === "fr" ? "Assigner livreur" : "Assign delivery driver"}
+              >
+                <Truck className="w-3.5 h-3.5" aria-hidden="true" />
+                {lang === "fr" ? "Assigner livreur" : "Assign driver"}
+              </button>
             </div>
           )}
         </SheetHeader>
