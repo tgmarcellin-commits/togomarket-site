@@ -67,6 +67,22 @@ export async function mergeAuthorizedBuyerConversations(conversationIds: number[
         .set({ buyerKeyHash: null })
         .where(inArray(conversationsTable.id, duplicateIds));
 
+      // Messages created before per-message listing snapshots existed can still
+      // inherit a trustworthy context here: each source conversation retains
+      // the listing it represented until the rows are consolidated. Already
+      // consolidated messages stay nullable because their origin is no longer
+      // recoverable without guessing.
+      for (const sourceConversation of group) {
+        await tx
+          .update(messagesTable)
+          .set({
+            listingId: sql`coalesce(${messagesTable.listingId}, ${sourceConversation.listingId})`,
+            listingTitle: sql`coalesce(${messagesTable.listingTitle}, ${sourceConversation.listingTitle})`,
+            listingImage: sql`coalesce(${messagesTable.listingImage}, ${sourceConversation.listingImage})`,
+          })
+          .where(eq(messagesTable.conversationId, sourceConversation.id));
+      }
+
       await tx
         .update(messagesTable)
         .set({ conversationId: canonical.id })

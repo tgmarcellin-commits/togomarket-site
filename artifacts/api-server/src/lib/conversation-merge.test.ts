@@ -109,6 +109,9 @@ async function seedConversation(values: {
   buyerPhone: string;
   buyerToken: string;
   buyerKeyHash?: string | null;
+  listingId?: number | null;
+  listingTitle?: string | null;
+  listingImage?: string | null;
   createdAt?: Date;
   updatedAt?: Date;
   vendorUnreadCount?: number;
@@ -121,6 +124,9 @@ async function seedConversation(values: {
     buyerPhone: values.buyerPhone,
     buyerToken: values.buyerToken,
     buyerKeyHash: values.buyerKeyHash ?? null,
+    listingId: values.listingId ?? null,
+    listingTitle: values.listingTitle ?? null,
+    listingImage: values.listingImage ?? null,
     createdAt: values.createdAt,
     updatedAt: values.updatedAt,
     vendorUnreadCount: values.vendorUnreadCount,
@@ -183,6 +189,9 @@ test("alias merge keeps legacy ids, messages, attachments, unread counters, and 
       buyerName: "Acheteur historique",
       buyerPhone: "22890000002",
       buyerToken: canonicalToken,
+      listingId: 101,
+      listingTitle: "Annonce historique A",
+      listingImage: "/objects/uploads/listing-a",
       createdAt: new Date(now - 10_000),
       updatedAt: new Date(now - 5_000),
       vendorUnreadCount: 2,
@@ -195,6 +204,9 @@ test("alias merge keeps legacy ids, messages, attachments, unread counters, and 
       buyerPhone: "22890000002",
       buyerToken: duplicateToken,
       buyerKeyHash: hashBuyerKey(`guest:alias-${now}`),
+      listingId: 202,
+      listingTitle: "Annonce historique B",
+      listingImage: "/objects/uploads/listing-b",
       createdAt: new Date(now - 8_000),
       updatedAt: new Date(now - 1_000),
       vendorUnreadCount: 4,
@@ -261,6 +273,14 @@ test("alias merge keeps legacy ids, messages, attachments, unread counters, and 
       .where(eq(messagesTable.conversationId, canonical.id));
     assert.equal(mergedMessages.length, 2);
     assert.ok(mergedMessages.some((message) => message.fileUrl === "/objects/uploads/merged-attachment"));
+    assert.deepEqual(
+      new Set(mergedMessages.map((message) => message.listingTitle)),
+      new Set(["Annonce historique A", "Annonce historique B"]),
+    );
+    assert.deepEqual(
+      new Set(mergedMessages.map((message) => message.listingId)),
+      new Set([101, 202]),
+    );
 
     const subscriptions = await db
       .select()
@@ -279,6 +299,10 @@ test("alias merge keeps legacy ids, messages, attachments, unread counters, and 
     });
     assert.equal(legacyMessages.response.status, 200);
     assert.equal(legacyMessages.body.length, 2);
+    assert.deepEqual(
+      new Set(legacyMessages.body.map((message: { listingTitle: string | null }) => message.listingTitle)),
+      new Set(["Annonce historique A", "Annonce historique B"]),
+    );
   } finally {
     await deleteTestVendor(vendor.id);
   }

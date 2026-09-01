@@ -14,3 +14,4 @@
 - [Intégrité des catalogues Tourisme](tourisme-catalog-integrity.md) — traiter les anciens catalogues multi-lignes comme un groupe logique et attribuer tout nouvel upload à son vendeur.
 - [Autorité des badges non lus](unread-badge-authority.md) — un seul propriétaire client, réponses réseau séquencées et totaux dérivés des messages réellement non lus.
 - [Migration des photos vendeur](profile-photo-migration-order.md) — migrer et vérifier les anciens formats avant de les masquer dans les réponses API.
+- [Base dédiée et tests navigateur](dedicated-db-browser-tests.md) — les injections DB génériques du testeur ne peuplent pas la base TogoMarket configurée séparément.

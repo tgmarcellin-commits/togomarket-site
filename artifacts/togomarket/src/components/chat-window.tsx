@@ -16,6 +16,9 @@ interface ChatMessage {
   id: number;
   conversationId: number;
   senderType: "buyer" | "vendor";
+  listingId: number | null;
+  listingTitle: string | null;
+  listingImage: string | null;
   content: string | null;
   fileUrl: string | null;
   fileType: string | null;
@@ -621,6 +624,38 @@ export function ChatWindow({
               : "bg-muted text-foreground rounded-bl-sm"
           }`}
         >
+          {/* Listing context captured when this message was sent. Older
+              messages may not have one because the field was introduced later. */}
+          {(msg.listingTitle || msg.listingImage) && (
+            <div className={`flex items-center gap-2 px-2.5 py-2 border-b ${
+              isSelf
+                ? "border-primary-foreground/20 bg-primary-foreground/10"
+                : "border-border/70 bg-background/40"
+            }`}>
+              <div className="w-7 h-7 rounded-md overflow-hidden flex-shrink-0 relative flex items-center justify-center bg-primary/15">
+                <ShoppingBag className={`w-3.5 h-3.5 ${isSelf ? "text-primary-foreground" : "text-primary"}`} />
+                {msg.listingImage && (
+                  <img
+                    src={resolveImageUrl(msg.listingImage)}
+                    alt=""
+                    className="absolute inset-0 w-full h-full object-cover"
+                    onError={(event) => { event.currentTarget.style.display = "none"; }}
+                  />
+                )}
+              </div>
+              <div className="min-w-0">
+                <p className={`text-[9px] uppercase tracking-wide leading-none mb-0.5 ${
+                  isSelf ? "text-primary-foreground/70" : "text-muted-foreground"
+                }`}>
+                  {lang === "fr" ? "Annonce" : "Listing"}
+                </p>
+                <p className="text-[11px] font-semibold leading-tight line-clamp-2">
+                  {msg.listingTitle ?? (lang === "fr" ? "Annonce sélectionnée" : "Selected listing")}
+                </p>
+              </div>
+            </div>
+          )}
+
           {/* Image — div instead of <a> to block browser native long-press menu */}
           {msg.fileUrl && msg.fileType === "image" && (
             <div
@@ -777,7 +812,7 @@ export function ChatWindow({
               </div>
               <div className="min-w-0 flex-1">
                 <p className="text-[10px] font-medium text-primary/70 uppercase tracking-wide leading-none mb-0.5">
-                  {lang === "fr" ? "Article concerné" : "Item"}
+                  {lang === "fr" ? "Contexte actuel" : "Current context"}
                 </p>
                 <p className="text-sm font-semibold text-foreground leading-tight line-clamp-2">
                   {listingTitle ?? (lang === "fr" ? "Article sélectionné" : "Selected item")}

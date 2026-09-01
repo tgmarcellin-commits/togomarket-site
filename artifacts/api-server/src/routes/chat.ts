@@ -730,7 +730,14 @@ router.post("/conversations/:id/messages", async (req, res) => {
 
   const [msg] = await db
     .insert(messagesTable)
-    .values({ conversationId: convId, senderType, content: content.trim() })
+    .values({
+      conversationId: convId,
+      senderType,
+      listingId: conv.listingId,
+      listingTitle: conv.listingTitle,
+      listingImage: conv.listingImage,
+      content: content.trim(),
+    })
     .returning();
 
   // Update updatedAt + unread count + reset recipient's soft-delete so conversation reappears
@@ -943,7 +950,16 @@ router.post(
     try {
       [msg] = await db
         .insert(messagesTable)
-        .values({ conversationId: convId, senderType, fileUrl: objectPath, fileType, content: null })
+        .values({
+          conversationId: convId,
+          senderType,
+          listingId: conv.listingId,
+          listingTitle: conv.listingTitle,
+          listingImage: conv.listingImage,
+          fileUrl: objectPath,
+          fileType,
+          content: null,
+        })
         .returning();
     } catch (error) {
       await objectStorage.deleteObjectEntity(objectPath).catch(() => {});

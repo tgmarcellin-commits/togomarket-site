@@ -84,6 +84,14 @@ export const messagesTable = pgTable("messages", {
     .notNull()
     .references(() => conversationsTable.id, { onDelete: "cascade" }),
   senderType: text("sender_type").notNull(), // "buyer" | "vendor"
+  /**
+   * Snapshot of the listing context when this message was sent. These fields
+   * stay nullable so messages from older conversations remain valid even when
+   * their original listing can no longer be identified.
+   */
+  listingId: integer("listing_id"),
+  listingTitle: text("listing_title"),
+  listingImage: text("listing_image"),
   content: text("content"),               // nullable when a file-only message
   fileUrl: text("file_url"),              // Object Storage path e.g. /objects/uploads/...
   fileType: text("file_type"),            // "image" | "pdf" | "audio"

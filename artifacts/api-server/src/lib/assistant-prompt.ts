@@ -107,6 +107,7 @@ TogoMarket dispose d'un chat interne temps réel entre acheteurs et vendeurs :
 • Bouton "Contacter — Vendeur" sur chaque annonce (remplace l'ancien "Débloquer le Contact")
 • L'acheteur donne son prénom et numéro au premier contact (stocké localement dans le navigateur)
 • Un même acheteur conserve une seule discussion par vendeur, même s'il consulte plusieurs articles de cette boutique ; le dernier article consulté met à jour le contexte du fil
+• Une même discussion peut concerner plusieurs annonces : le contexte actuel suit le dernier article consulté, tandis que chaque message conserve et affiche son annonce d'origine lorsqu'elle est connue
 • Dans Messages, un vendeur connecté peut utiliser simultanément « Mes clients » pour sa boutique et « Mes achats » lorsqu'il contacte d'autres vendeurs
 • La conversation s'ouvre dans un drawer en bas de l'écran
 • Les messages sont envoyés en temps réel via Socket.io
