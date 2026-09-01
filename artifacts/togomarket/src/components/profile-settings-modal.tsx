@@ -8,6 +8,7 @@ import {
 import {
   Dialog,
   DialogContent,
+  DialogDescription,
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
@@ -204,6 +205,11 @@ export function ProfileSettingsModal({
               )}
               <DialogTitle>{screenTitle[screen]}</DialogTitle>
             </div>
+            <DialogDescription className="sr-only">
+              {lang === "fr"
+                ? "Gérez votre boutique, vos informations personnelles et votre sécurité."
+                : "Manage your shop, personal information, and security."}
+            </DialogDescription>
           </DialogHeader>
 
           {/* ── MENU PRINCIPAL ─────────────────────────────────────── */}
@@ -509,9 +515,9 @@ export function ProfileSettingsModal({
       <Dialog open={confirmNameOpen} onOpenChange={setConfirmNameOpen}>
         <DialogContent className="sm:max-w-[340px]">
           <DialogHeader><DialogTitle>{t.confirmChangesTitle}</DialogTitle></DialogHeader>
-          <p className="text-sm text-muted-foreground">
+          <DialogDescription>
             {t.confirmNameDesc(`${firstName.trim()} ${lastName.trim()}`)}
-          </p>
+          </DialogDescription>
           <div className="flex gap-2 justify-end">
             <Button variant="outline" onClick={() => setConfirmNameOpen(false)}>{t.cancel}</Button>
             <Button onClick={handleSaveName} disabled={updateName.isPending}>
@@ -525,7 +531,7 @@ export function ProfileSettingsModal({
       <Dialog open={confirmPwdOpen} onOpenChange={setConfirmPwdOpen}>
         <DialogContent className="sm:max-w-[340px]">
           <DialogHeader><DialogTitle>{t.confirmChangeTitle}</DialogTitle></DialogHeader>
-          <p className="text-sm text-muted-foreground">{t.confirmPwdDesc}</p>
+          <DialogDescription>{t.confirmPwdDesc}</DialogDescription>
           <div className="flex gap-2 justify-end">
             <Button variant="outline" onClick={() => setConfirmPwdOpen(false)}>{t.cancel}</Button>
             <Button onClick={handleChangePassword} disabled={changePassword.isPending}>
@@ -539,7 +545,7 @@ export function ProfileSettingsModal({
       <Dialog open={confirmLogoutOpen} onOpenChange={setConfirmLogoutOpen}>
         <DialogContent className="sm:max-w-[340px]">
           <DialogHeader><DialogTitle>{t.logoutTitle}</DialogTitle></DialogHeader>
-          <p className="text-sm text-muted-foreground">{t.logoutDesc}</p>
+          <DialogDescription>{t.logoutDesc}</DialogDescription>
           <div className="flex gap-2 justify-end">
             <Button variant="outline" onClick={() => setConfirmLogoutOpen(false)}>{t.cancel}</Button>
             <Button variant="destructive" onClick={() => { setConfirmLogoutOpen(false); onOpenChange(false); onLogout(); }}>

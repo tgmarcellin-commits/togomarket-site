@@ -5,6 +5,7 @@ import { Button } from "@/components/ui/button";
 import {
   Dialog,
   DialogContent,
+  DialogDescription,
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
@@ -344,6 +345,11 @@ export function AuthModal({ open, onOpenChange, onLoginSuccess, referredBy }: Au
       <DialogContent className="sm:max-w-[420px] max-h-[90vh] overflow-y-auto">
         <DialogHeader>
           <DialogTitle>{screenTitle[screen]}</DialogTitle>
+          <DialogDescription className="sr-only">
+            {lang === "fr"
+              ? "Connexion et création de compte vendeur TogoMarket."
+              : "TogoMarket seller sign-in and account creation."}
+          </DialogDescription>
         </DialogHeader>
 
         {screen === "choice" && (

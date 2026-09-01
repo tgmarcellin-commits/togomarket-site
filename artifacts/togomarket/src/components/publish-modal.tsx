@@ -15,6 +15,7 @@ import { Button } from "@/components/ui/button";
 import {
   Dialog,
   DialogContent,
+  DialogDescription,
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
@@ -561,6 +562,11 @@ export function PublishModal({
               <><Lock className="w-5 h-5" /> {t.publishListing}</>
             )}
           </DialogTitle>
+          <DialogDescription className="sr-only">
+            {lang === "fr"
+              ? "Publiez ou modifiez une annonce vendeur."
+              : "Publish or edit a seller listing."}
+          </DialogDescription>
         </DialogHeader>
 
         {screen === "gate" && <Gate />}

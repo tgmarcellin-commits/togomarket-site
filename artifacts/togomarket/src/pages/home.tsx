@@ -59,6 +59,23 @@ interface TourismeCatalog {
   createdAt: string;
 }
 
+function withOccurrenceKeys<T>(
+  items: T[],
+  getIdentity: (item: T) => string,
+): Array<{ item: T; key: string; position: number }> {
+  const occurrences = new Map<string, number>();
+  return items.map((item, position) => {
+    const identity = getIdentity(item);
+    const occurrence = occurrences.get(identity) ?? 0;
+    occurrences.set(identity, occurrence + 1);
+    return {
+      item,
+      key: `${identity}:${occurrence}`,
+      position,
+    };
+  });
+}
+
 
 const CATALOG_SECTORS = [
   { label: "Tourisme", emoji: "🌴", value: "Tourisme" },
@@ -837,9 +854,9 @@ export default function Home() {
                           </div>
                         ) : (
                           <div className="grid grid-cols-2 gap-3">
-                            {catalog.images.map((img, i) => (
+                            {withOccurrenceKeys(catalog.images, (image) => image).map(({ item: img, key, position }) => (
                               isVideoMedia(img) ? (
-                                <div key={i} className="col-span-2 rounded-xl overflow-hidden bg-black aspect-video relative">
+                                <div key={key} className="col-span-2 rounded-xl overflow-hidden bg-black aspect-video relative">
                                   <video
                                     src={resolveMediaUrl(img)}
                                     controls
@@ -848,10 +865,10 @@ export default function Home() {
                                   />
                                 </div>
                               ) : (
-                                <a key={i} href={resolveImageUrl(img)} target="_blank" rel="noopener noreferrer">
+                                <a key={key} href={resolveImageUrl(img)} target="_blank" rel="noopener noreferrer">
                                   <img
                                     src={resolveImageUrl(img)}
-                                    alt={`${catalog.catalogName} ${i + 1}`}
+                                    alt={`${catalog.catalogName} ${position + 1}`}
                                     className="w-full aspect-square rounded-xl object-cover hover:opacity-90 transition-opacity"
                                   />
                                 </a>
@@ -885,10 +902,13 @@ export default function Home() {
                     </div>
                   ) : (
                     <div className="grid grid-cols-2 gap-4">
-                      {tourismeCatalogs.map((catalog, i) => (
-                        <div key={i} className="relative">
+                      {withOccurrenceKeys(
+                        tourismeCatalogs,
+                        (catalog) => `${catalog.phone}:${catalog.catalogName}:${catalog.createdAt}`,
+                      ).map(({ item: catalog, key, position }) => (
+                        <div key={key} className="relative">
                         <button
-                          onClick={() => setSelectedTourismeCatalog(i)}
+                          onClick={() => setSelectedTourismeCatalog(position)}
                           className="group w-full text-left rounded-2xl overflow-hidden border bg-card hover:border-primary/50 hover:shadow-md active:scale-95 transition-all"
                         >
                           <div className="aspect-video bg-muted relative overflow-hidden">

@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef, useCallback } from "react";
-import { Sheet, SheetContent, SheetHeader, SheetTitle } from "@/components/ui/sheet";
+import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetDescription } from "@/components/ui/sheet";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import {
@@ -598,13 +598,13 @@ export function ChatWindow({
   };
 
   // ── Render message bubble ──────────────────────────────────────────────────
-  const renderBubble = (msg: ChatMessage) => {
+  const renderBubble = (msg: ChatMessage, itemKey: string) => {
     const isSelf = msg.senderType === selfType;
 
     if (msg.deletedAt) return null;
 
     return (
-      <div key={msg.id} className={`flex ${isSelf ? "justify-end" : "justify-start"}`}>
+      <div key={itemKey} className={`flex ${isSelf ? "justify-end" : "justify-start"}`}>
         <div
           onTouchStart={(e) => { e.preventDefault(); startLongPress(msg.id, e.currentTarget as HTMLElement); }}
           onTouchEnd={onPressEnd}
@@ -714,6 +714,8 @@ export function ChatWindow({
     );
   };
 
+  const messageKeyCounts = new Map<string, number>();
+
   return (
     <Sheet open={open} onOpenChange={(v) => { closeMenu(); onOpenChange(v); }}>
       <SheetContent side="bottom" className="h-[90dvh] flex flex-col p-0">
@@ -755,6 +757,11 @@ export function ChatWindow({
               </div>
             )}
           </SheetTitle>
+          <SheetDescription className="sr-only">
+            {auth.kind === "vendor"
+              ? (lang === "fr" ? "Conversation avec un client." : "Conversation with a customer.")
+              : (lang === "fr" ? "Conversation avec un vendeur." : "Conversation with a seller.")}
+          </SheetDescription>
           {(listingTitle || listingImage) && (
             <div className="flex items-center gap-2.5 mt-1.5 bg-primary/10 border border-primary/20 rounded-lg px-3 py-2">
               <div className="w-11 h-11 rounded-md bg-primary/15 overflow-hidden flex-shrink-0 relative flex items-center justify-center">
@@ -870,7 +877,12 @@ export function ChatWindow({
                 : "Start the conversation! The seller will reply as soon as possible."}
             </div>
           ) : (
-            messages.map((m) => renderBubble(m))
+            messages.map((m) => {
+              const keyBase = `${m.id}:${m.createdAt}:${m.senderType}`;
+              const occurrence = messageKeyCounts.get(keyBase) ?? 0;
+              messageKeyCounts.set(keyBase, occurrence + 1);
+              return renderBubble(m, `${keyBase}:${occurrence}`);
+            })
           )}
           <div ref={endRef} />
         </div>

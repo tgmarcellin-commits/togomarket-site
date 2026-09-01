@@ -15,6 +15,7 @@ import { Input } from "@/components/ui/input";
 import {
   Dialog,
   DialogContent,
+  DialogDescription,
   DialogHeader,
   DialogTitle,
   DialogFooter,
@@ -84,7 +85,7 @@ function ConfirmDialog({
         <DialogHeader>
           <DialogTitle>{title}</DialogTitle>
         </DialogHeader>
-        <p className="text-sm text-muted-foreground">{description}</p>
+        <DialogDescription>{description}</DialogDescription>
         <DialogFooter className="gap-2">
           <Button variant="outline" onClick={onCancel} disabled={loading}>
             {cancelLabel ?? "Annuler"}
@@ -707,9 +708,9 @@ export function BoutiqueView({ vendor, vendorPassword, onNeedLogin }: BoutiqueVi
             <DialogTitle>{t.editPriceTitle}</DialogTitle>
           </DialogHeader>
           <div className="space-y-3">
-            <p className="text-sm text-muted-foreground">
+            <DialogDescription>
               {t.listingLabel} : <strong>{priceTarget?.name}</strong>
-            </p>
+            </DialogDescription>
             <div>
               <label className="text-sm font-medium mb-1 block">{t.newPriceLabel}</label>
               <Input

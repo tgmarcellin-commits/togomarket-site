@@ -27,6 +27,23 @@ interface VendorConversationsProps {
   onUnreadChange?: (total: number) => void;
 }
 
+function conversationRenderKey(conversation: Conversation): string {
+  return [
+    conversation.id,
+    conversation.vendorId,
+    conversation.buyerPhone,
+    conversation.listingId ?? "none",
+  ].join(":");
+}
+
+function uniqueConversations(conversations: Conversation[]): Conversation[] {
+  const unique = new Map<string, Conversation>();
+  for (const conversation of conversations) {
+    unique.set(conversationRenderKey(conversation), conversation);
+  }
+  return [...unique.values()];
+}
+
 export function VendorConversations({ vendor, vendorPassword, onUnreadChange }: VendorConversationsProps) {
   const { lang } = useSiteSettings();
   const [conversations, setConversations] = useState<Conversation[]>([]);
@@ -42,7 +59,7 @@ export function VendorConversations({ vendor, vendorPassword, onUnreadChange }: 
     try {
       const res = await fetch("/api/vendor/conversations", { headers: authHeaders, credentials: "include" });
       if (res.ok) {
-        const data = await res.json() as Conversation[];
+        const data = uniqueConversations(await res.json() as Conversation[]);
         setConversations(data);
         onUnreadChange?.(data.reduce((sum, c) => sum + c.vendorUnreadCount, 0));
       }
@@ -144,7 +161,7 @@ export function VendorConversations({ vendor, vendorPassword, onUnreadChange }: 
             const isDeleting = deletingId === conv.id;
             return (
               <div
-                key={conv.id}
+                key={conversationRenderKey(conv)}
                 onPointerDown={() => onPressStart(conv.id)}
                 onPointerUp={onPressEnd}
                 onPointerLeave={onPressEnd}
