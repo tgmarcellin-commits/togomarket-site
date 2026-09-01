@@ -5,13 +5,11 @@ import {
   type Service,
 } from "@workspace/api-client-react";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
-import { Button } from "@/components/ui/button";
 import { Briefcase, MapPin, User, Building2, Wrench } from "lucide-react";
 import { resolveImageUrl } from "@/lib/image";
 import { useSiteSettings } from "@/lib/site-settings";
 import { useT } from "@/lib/i18n";
 import { SmartVideo } from "@/components/smart-video";
-import { ImageViewer } from "@/components/image-viewer";
 
 const WA_ICON = (
   <svg viewBox="0 0 24 24" className="w-3.5 h-3.5 fill-white flex-shrink-0">
@@ -118,7 +116,6 @@ const SERVICE_CATEGORIES: {
 /* ── Service card ─────────────────────────────────────────────────────────── */
 function ServiceCard({ service, lang }: { service: Service; lang: string }) {
   const [open, setOpen] = useState(false);
-  const [viewerOpen, setViewerOpen] = useState(false);
   const cfg = typeConfig(service.type, lang);
   const Icon = cfg.icon;
   const expiresAt = new Date(service.expiresAt);
@@ -180,9 +177,6 @@ function ServiceCard({ service, lang }: { service: Service; lang: string }) {
       <Dialog open={open} onOpenChange={setOpen}>
         <DialogContent
           className="sm:max-w-[420px] max-h-[90vh] overflow-y-auto"
-          onPointerDownOutside={(e) => { if (viewerOpen) e.preventDefault(); }}
-          onInteractOutside={(e) => { if (viewerOpen) e.preventDefault(); }}
-          onEscapeKeyDown={(e) => { if (viewerOpen) e.preventDefault(); }}
         >
           <DialogHeader>
             <DialogTitle className="pr-6">{service.title}</DialogTitle>
@@ -192,8 +186,7 @@ function ServiceCard({ service, lang }: { service: Service; lang: string }) {
               <img
                 src={resolveImageUrl(service.image)}
                 alt={service.title}
-                className="w-full h-56 rounded-lg object-cover bg-black/5 cursor-zoom-in"
-                onClick={() => setViewerOpen(true)}
+                className="w-full h-56 rounded-lg object-cover bg-black/5"
               />
             )}
             {service.videoPath && (
@@ -221,14 +214,6 @@ function ServiceCard({ service, lang }: { service: Service; lang: string }) {
             <WaBtn contact={service.contact} label={cfg.waLabel} fullWidth />
           </div>
 
-          {/* Visionneuse plein écran (rendue dans le dialog pour rester interactive) */}
-          {viewerOpen && service.image && (
-            <ImageViewer
-              images={[service.image]}
-              startIndex={0}
-              onClose={() => setViewerOpen(false)}
-            />
-          )}
         </DialogContent>
       </Dialog>
     </>

@@ -2,12 +2,10 @@ import { useState } from "react";
 import { SmartVideo } from "@/components/smart-video";
 import { useGetActiveAds, useGetAdminSettings, type Ad } from "@workspace/api-client-react";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
-import { Button } from "@/components/ui/button";
 import { Megaphone, Play } from "lucide-react";
 import { resolveImageUrl } from "@/lib/image";
 import { useSiteSettings } from "@/lib/site-settings";
 import { useT } from "@/lib/i18n";
-import { ImageViewer } from "@/components/image-viewer";
 
 function ShareButtons({ text, url }: { text: string; url: string }) {
   const waHref = `https://wa.me/?text=${encodeURIComponent(text)}`;
@@ -44,8 +42,6 @@ function AdDetailModal({ ad, open, onClose, t }: {
   onClose: () => void;
   t: ReturnType<typeof useT>;
 }) {
-  const [viewerOpen, setViewerOpen] = useState(false);
-
   if (!ad) return null;
   const isActive = new Date(ad.endDate) > new Date();
   const endDate = new Date(ad.endDate).toLocaleDateString(t.dateLocale, { day: "numeric", month: "long", year: "numeric" });
@@ -68,11 +64,9 @@ function AdDetailModal({ ad, open, onClose, t }: {
                 style={{ maxHeight: 280 }}
               />
             ) : ad.image ? (
-              <button
-                type="button"
-                className="w-full rounded-xl overflow-hidden cursor-zoom-in focus:outline-none"
+              <div
+                className="w-full rounded-xl overflow-hidden"
                 style={{ maxHeight: 280 }}
-                onClick={() => setViewerOpen(true)}
               >
                 <img
                   src={resolveImageUrl(ad.image)}
@@ -80,7 +74,7 @@ function AdDetailModal({ ad, open, onClose, t }: {
                   className="w-full object-cover"
                   style={{ maxHeight: 280 }}
                 />
-              </button>
+              </div>
             ) : null}
             <div className="space-y-2">
               <p className="text-sm leading-relaxed">{ad.message}</p>
@@ -101,13 +95,6 @@ function AdDetailModal({ ad, open, onClose, t }: {
         </DialogContent>
       </Dialog>
 
-      {viewerOpen && ad.image && (
-        <ImageViewer
-          images={[ad.image]}
-          startIndex={0}
-          onClose={() => setViewerOpen(false)}
-        />
-      )}
     </>
   );
 }
@@ -129,7 +116,6 @@ export function PubliciteView() {
   const { data: ads, isLoading } = useGetActiveAds();
   const { data: settings } = useGetAdminSettings();
   const [selectedAd, setSelectedAd] = useState<Ad | null>(null);
-  const [viewerImage, setViewerImage] = useState<string | null>(null);
   const [activeCategory, setActiveCategory] = useState<AdCategory>("Agence");
   const whatsappAds = settings?.whatsappAds ?? "22870703131";
 
@@ -241,8 +227,8 @@ export function PubliciteView() {
                     ) : ad.image ? (
                       <button
                         type="button"
-                        className="w-28 h-28 flex-shrink-0 overflow-hidden cursor-zoom-in focus:outline-none"
-                        onClick={() => setViewerImage(ad.image!)}
+                        className="w-28 h-28 flex-shrink-0 overflow-hidden focus:outline-none"
+                        onClick={() => setSelectedAd(ad)}
                       >
                         <img
                           src={resolveImageUrl(ad.image)}
@@ -298,13 +284,6 @@ export function PubliciteView() {
         t={t}
       />
 
-      {viewerImage && (
-        <ImageViewer
-          images={[viewerImage]}
-          startIndex={0}
-          onClose={() => setViewerImage(null)}
-        />
-      )}
     </div>
   );
 }

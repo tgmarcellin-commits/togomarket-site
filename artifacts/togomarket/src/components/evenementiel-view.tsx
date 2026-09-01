@@ -7,7 +7,6 @@ import { openWhatsApp } from "@/lib/whatsapp";
 import { useSiteSettings } from "@/lib/site-settings";
 import { useT } from "@/lib/i18n";
 import { resolveImageUrl } from "@/lib/image";
-import { ImageViewer } from "@/components/image-viewer";
 import { SmartVideo } from "@/components/smart-video";
 
 function ShareButtons({ text, url }: { text: string; url: string }) {
@@ -150,7 +149,6 @@ export function EvenementielView() {
   const { data: events, isLoading } = useGetEvents();
   const { data: settings } = useGetAdminSettings();
   const [selectedEvent, setSelectedEvent] = useState<Event | null>(null);
-  const [viewerImage, setViewerImage] = useState<string | null>(null);
   const whatsappAds = settings?.whatsappAds ?? "22870703131";
 
   const submitText = lang === "fr"
@@ -216,9 +214,9 @@ export function EvenementielView() {
               {event.flyerImage && (
                 <button
                   type="button"
-                  className="w-full overflow-hidden cursor-zoom-in focus:outline-none"
+                  className="w-full overflow-hidden focus:outline-none"
                   style={{ maxHeight: 200 }}
-                  onClick={() => setViewerImage(event.flyerImage!)}
+                  onClick={() => setSelectedEvent(event)}
                 >
                   <img
                     src={resolveImageUrl(event.flyerImage)}
@@ -294,13 +292,6 @@ export function EvenementielView() {
         t={t}
       />
 
-      {viewerImage && (
-        <ImageViewer
-          images={[viewerImage]}
-          startIndex={0}
-          onClose={() => setViewerImage(null)}
-        />
-      )}
     </div>
   );
 }
