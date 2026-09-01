@@ -71,3 +71,7 @@ Plateforme de marketplace multi-secteurs pour le Togo — permet à n'importe qu
 ## Pointers
 
 - See the `pnpm-workspace` skill for workspace structure, TypeScript setup, and package details
+
+Agent Behavior Restrictions
+
+Do not suggest next tasks.Do not display the 'Suggested next tasks' UI element.Never initiate any autonomous task or background planning without explicit user instruction.Do not create automated sub-tasks post-merge.Wait for direct user prompts before proposing any modifications or next steps.
