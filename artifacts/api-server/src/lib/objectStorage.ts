@@ -2,6 +2,15 @@ import { Storage, File } from "@google-cloud/storage";
 import { Readable } from "stream";
 import { randomUUID } from "crypto";
 import {
+  adsTable,
+  db,
+  eventsTable,
+  listingsTable,
+  messagesTable,
+  servicesTable,
+  vendorsTable,
+} from "@workspace/db";
+import {
   ObjectAclPolicy,
   ObjectPermission,
   canAccessObject,
@@ -208,10 +217,57 @@ export class ObjectStorageService {
     return signObjectURL({ bucketName, objectName, method: "GET", ttlSec });
   }
 
+  private async getReferencedObjectPaths(): Promise<Set<string>> {
+    const [listings, ads, vendors, messages, services, events] = await Promise.all([
+      db.select({ images: listingsTable.images }).from(listingsTable),
+      db.select({ image: adsTable.image, videoPath: adsTable.videoPath }).from(adsTable),
+      db.select({ profilePhoto: vendorsTable.profilePhoto }).from(vendorsTable),
+      db.select({ fileUrl: messagesTable.fileUrl }).from(messagesTable),
+      db.select({ image: servicesTable.image, videoPath: servicesTable.videoPath }).from(servicesTable),
+      db.select({ flyerImage: eventsTable.flyerImage, videoPath: eventsTable.videoPath }).from(eventsTable),
+    ]);
+    const paths = new Set<string>();
+    const add = (value: string | null | undefined) => {
+      const normalized = value?.startsWith("v:") ? value.slice(2) : value;
+      if (normalized?.startsWith("/objects/")) paths.add(normalized);
+    };
+
+    for (const listing of listings) {
+      for (const image of listing.images ?? []) add(image);
+    }
+    for (const ad of ads) {
+      add(ad.image);
+      add(ad.videoPath);
+    }
+    for (const vendor of vendors) add(vendor.profilePhoto);
+    for (const message of messages) add(message.fileUrl);
+    for (const service of services) {
+      add(service.image);
+      add(service.videoPath);
+    }
+    for (const event of events) {
+      add(event.flyerImage);
+      add(event.videoPath);
+    }
+    return paths;
+  }
+
+  private async deleteObjectEntityUnchecked(objectPath: string): Promise<void> {
+    const file = await this.getObjectEntityFile(objectPath);
+    await file.delete();
+  }
+
   async deleteObjectEntity(objectPath: string): Promise<void> {
+    const normalizedPath = objectPath.startsWith("v:") ? objectPath.slice(2) : objectPath;
+    if (!normalizedPath.startsWith("/objects/")) return;
+
+    // This is the final safety net for every deletion caller, including
+    // legacy routes that may not have their own reference check.
+    const referencedPaths = await this.getReferencedObjectPaths();
+    if (referencedPaths.has(normalizedPath)) return;
+
     try {
-      const file = await this.getObjectEntityFile(objectPath);
-      await file.delete();
+      await this.deleteObjectEntityUnchecked(normalizedPath);
     } catch (err) {
       if (err instanceof ObjectNotFoundError) return;
       throw err;
@@ -222,10 +278,16 @@ export class ObjectStorageService {
     const storagePaths = objectPaths
       .map((p) => p.startsWith("v:") ? p.slice(2) : p)
       .filter((p) => p.startsWith("/objects/"));
-    const results = await Promise.allSettled(storagePaths.map((p) => this.deleteObjectEntity(p)));
+    if (storagePaths.length === 0) return { failed: [] };
+
+    const referencedPaths = await this.getReferencedObjectPaths();
+    const deletablePaths = storagePaths.filter((p) => !referencedPaths.has(p));
+    const results = await Promise.allSettled(
+      deletablePaths.map((p) => this.deleteObjectEntityUnchecked(p)),
+    );
     return {
       failed: results.flatMap((result, index) =>
-        result.status === "rejected" ? [storagePaths[index]] : []
+        result.status === "rejected" ? [deletablePaths[index]] : []
       ),
     };
   }
