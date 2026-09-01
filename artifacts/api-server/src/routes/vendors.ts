@@ -825,6 +825,7 @@ router.post("/admin/broadcast-inbox", async (req, res) => {
         id: messagesTable.id,
         conversationId: messagesTable.conversationId,
         content: messagesTable.content,
+        fileType: messagesTable.fileType,
         senderType: messagesTable.senderType,
       })
       .from(messagesTable)
@@ -835,6 +836,7 @@ router.post("/admin/broadcast-inbox", async (req, res) => {
   const result = convs.map(c => ({
     ...c,
     lastMessage: lastMsgMap.get(c.id)?.content ?? null,
+    lastFileType: lastMsgMap.get(c.id)?.fileType ?? null,
     lastSenderType: lastMsgMap.get(c.id)?.senderType ?? null,
   }));
 

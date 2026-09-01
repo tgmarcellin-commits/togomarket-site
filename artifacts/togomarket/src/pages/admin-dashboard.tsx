@@ -113,6 +113,7 @@ interface InboxConv {
   updatedAt: string;
   adminUnreadCount: number;
   lastMessage: string | null;
+  lastFileType: string | null;
   lastSenderType: "buyer" | "vendor" | null;
 }
 
@@ -126,6 +127,14 @@ interface InboxMessage {
   editedAt?: string | null;
   deletedAt?: string | null;
   createdAt: string;
+}
+
+function getInboxLastMessagePreview(conv: InboxConv): string {
+  if (conv.lastMessage?.trim()) return conv.lastMessage;
+  if (conv.lastFileType === "image") return "Photo";
+  if (conv.lastFileType === "audio") return "Message vocal";
+  if (conv.lastFileType === "pdf") return "PDF";
+  return conv.lastMessage ?? "Aucun message";
 }
 
 interface AdminAccount {
@@ -414,7 +423,13 @@ export default function AdminDashboard() {
       const data = await res.json() as { message: InboxMessage };
       setInboxMessages((prev) => prev.some((m) => m.id === data.message.id) ? prev : [...prev, data.message]);
       setInboxConvs((prev) => prev.map((c) => c.id === selectedInboxConv.id
-        ? { ...c, updatedAt: new Date().toISOString(), lastMessage: null, lastSenderType: "buyer" as const } : c)
+        ? {
+            ...c,
+            updatedAt: new Date().toISOString(),
+            lastMessage: null,
+            lastFileType: data.message.fileType,
+            lastSenderType: "buyer" as const,
+          } : c)
         .sort((a, b) => new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime()));
       setTimeout(() => inboxBottomRef.current?.scrollIntoView({ behavior: "smooth" }), 100);
     } finally { setInboxUploading(false); }
@@ -480,7 +495,13 @@ export default function AdminDashboard() {
       setInboxReply("");
       // Update conversation list
       setInboxConvs(prev => prev.map(c => c.id === selectedInboxConv.id
-        ? { ...c, updatedAt: new Date().toISOString(), lastMessage: inboxReply.trim(), lastSenderType: "buyer" as const }
+        ? {
+            ...c,
+            updatedAt: new Date().toISOString(),
+            lastMessage: inboxReply.trim(),
+            lastFileType: null,
+            lastSenderType: "buyer" as const,
+          }
         : c
       ).sort((a, b) => new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime()));
       setTimeout(() => inboxBottomRef.current?.scrollIntoView({ behavior: "smooth" }), 100);
@@ -3009,7 +3030,7 @@ export default function AdminDashboard() {
                           </div>
                           <p className="text-xs text-muted-foreground truncate mt-0.5">
                             {conv.lastSenderType === "buyer" && <span className="text-primary font-medium">Vous : </span>}
-                            {conv.lastMessage ?? "Aucun message"}
+                            {getInboxLastMessagePreview(conv)}
                           </p>
                           <p className="text-[10px] text-muted-foreground mt-0.5">{conv.vendorPhone}</p>
                         </div>
