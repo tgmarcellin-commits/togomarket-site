@@ -95,6 +95,7 @@ export function AiAssistant({ lang, supportWhatsApp = "22870703131" }: Props) {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ messages: newMessages }),
+        credentials: "include",
         signal: controller.signal,
       });
 
@@ -105,6 +106,7 @@ export function AiAssistant({ lang, supportWhatsApp = "22870703131" }: Props) {
       const reader = res.body.getReader();
       const decoder = new TextDecoder();
       let buffer = "";
+      let streamError = false;
 
       while (true) {
         const { done, value } = await reader.read();
@@ -130,8 +132,25 @@ export function AiAssistant({ lang, supportWhatsApp = "22870703131" }: Props) {
                 return updated;
               });
             }
+            if (json.error) {
+              streamError = true;
+            }
           } catch {}
         }
+      }
+
+      if (streamError) {
+        setMessages((prev) => {
+          const updated = [...prev];
+          const last = updated[updated.length - 1];
+          if (last?.role === "assistant" && last.content === "") {
+            updated[updated.length - 1] = {
+              ...last,
+              content: ERROR_MSGS[lang],
+            };
+          }
+          return updated;
+        });
       }
     } catch (err: unknown) {
       if (err instanceof Error && err.name === "AbortError") return;

@@ -7,6 +7,16 @@ import { ASSISTANT_SYSTEM_PROMPT } from "../lib/assistant-prompt";
 const router: IRouter = Router();
 
 const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY ?? "");
+const SECURITY_REFUSAL =
+  "Je ne peux pas vous aider avec ça. Pour toute question d'ordre administratif, contactez l'équipe via le bouton WhatsApp de support.";
+const SENSITIVE_OUTPUT_PATTERNS = [
+  /\b(?:system|developer)\s+(?:prompt|instruction|message)\b/i,
+  /\b(?:prompt|instruction)\s+syst[eè]me\b/i,
+  /\b(?:GEMINI|OPENAI|SESSION|ADMIN|SUB_ADMIN|FEDAPAY|WHATSAPP|VAPID)_[A-Z0-9_]+\b/i,
+  /\/api\/(?:admin|security|storage|vendors\/session)\b/i,
+  /\b(?:api[_ -]?key|secret[_ -]?key|csrf|bearer|jwt|cookie|postgres(?:ql)?|sql|database|base de donn[ée]es)\b/i,
+  /\b(?:superadmin|sous-admin)\b/i,
+];
 
 type ChatRole = "user" | "assistant";
 interface ChatMessage { role: ChatRole; content: string; }
@@ -14,17 +24,37 @@ interface ChatMessage { role: ChatRole; content: string; }
 function validateBody(body: unknown): { messages: ChatMessage[] } | null {
   if (!body || typeof body !== "object") return null;
   const b = body as Record<string, unknown>;
-  if (!Array.isArray(b.messages) || b.messages.length === 0 || b.messages.length > 50) return null;
+  if (!Array.isArray(b.messages) || b.messages.length === 0 || b.messages.length > 20) return null;
   const messages: ChatMessage[] = [];
+  let totalLength = 0;
   for (const m of b.messages) {
     if (!m || typeof m !== "object") return null;
     const msg = m as Record<string, unknown>;
     if (msg.role !== "user" && msg.role !== "assistant") return null;
     if (typeof msg.content !== "string" || msg.content.length === 0 || msg.content.length > 2000) return null;
+    totalLength += msg.content.length;
+    if (totalLength > 12000) return null;
     messages.push({ role: msg.role as ChatRole, content: msg.content });
   }
+  if (messages.at(-1)?.role !== "user") return null;
   return { messages };
 }
+
+function protectAssistantOutput(text: string): string {
+  const normalized = text.trim();
+  if (!normalized || SENSITIVE_OUTPUT_PATTERNS.some((pattern) => pattern.test(normalized))) {
+    return SECURITY_REFUSAL;
+  }
+  return normalized;
+}
+
+function isTransientProviderError(error: unknown): boolean {
+  if (!error || typeof error !== "object") return false;
+  const status = "status" in error ? Number(error.status) : NaN;
+  return [408, 429, 500, 502, 503, 504].includes(status);
+}
+
+const RETRY_DELAYS_MS = [0, 500, 1500];
 
 // Sous-requête réutilisable : téléphones des vendeurs actifs
 function activeVendorPhonesSubquery() {
@@ -123,17 +153,6 @@ router.post("/assistant/chat", async (req, res) => {
     const dbContext = await buildDbContext(lastUserMessage);
     const systemPrompt = ASSISTANT_SYSTEM_PROMPT + (dbContext ? `\n${dbContext}` : "");
 
-    const model = genAI.getGenerativeModel({
-      model: "gemini-2.5-flash",
-      systemInstruction: systemPrompt,
-      safetySettings: [
-        { category: HarmCategory.HARM_CATEGORY_HARASSMENT, threshold: HarmBlockThreshold.BLOCK_NONE },
-        { category: HarmCategory.HARM_CATEGORY_HATE_SPEECH, threshold: HarmBlockThreshold.BLOCK_NONE },
-        { category: HarmCategory.HARM_CATEGORY_SEXUALLY_EXPLICIT, threshold: HarmBlockThreshold.BLOCK_NONE },
-        { category: HarmCategory.HARM_CATEGORY_DANGEROUS_CONTENT, threshold: HarmBlockThreshold.BLOCK_NONE },
-      ],
-    });
-
     // Gemini requires: history starts with 'user' and strictly alternates user/model
     const rawHistory = messages.slice(0, -1).map((m) => ({
       role: m.role === "assistant" ? "model" : ("user" as const),
@@ -145,27 +164,51 @@ router.post("/assistant/chat", async (req, res) => {
     const history = firstUserIdx >= 0 ? rawHistory.slice(firstUserIdx) : [];
 
     const lastMessage = messages[messages.length - 1];
+    let fullResponse = "";
 
-    const chat = model.startChat({
-      history,
-      generationConfig: { maxOutputTokens: 1024 },
-    });
+    for (let attempt = 0; attempt < RETRY_DELAYS_MS.length; attempt += 1) {
+      if (RETRY_DELAYS_MS[attempt] > 0) {
+        await new Promise((resolve) => setTimeout(resolve, RETRY_DELAYS_MS[attempt]));
+      }
 
-    const result = await chat.sendMessageStream(lastMessage.content);
-
-    for await (const chunk of result.stream) {
-      const text = chunk.text();
-      if (text) {
-        res.write(`data: ${JSON.stringify({ content: text })}\n\n`);
+      try {
+        const model = genAI.getGenerativeModel({
+          model: "gemini-2.5-flash",
+          systemInstruction: systemPrompt,
+          safetySettings: [
+            { category: HarmCategory.HARM_CATEGORY_HARASSMENT, threshold: HarmBlockThreshold.BLOCK_NONE },
+            { category: HarmCategory.HARM_CATEGORY_HATE_SPEECH, threshold: HarmBlockThreshold.BLOCK_NONE },
+            { category: HarmCategory.HARM_CATEGORY_SEXUALLY_EXPLICIT, threshold: HarmBlockThreshold.BLOCK_NONE },
+            { category: HarmCategory.HARM_CATEGORY_DANGEROUS_CONTENT, threshold: HarmBlockThreshold.BLOCK_NONE },
+          ],
+        });
+        const chat = model.startChat({
+          history,
+          generationConfig: { maxOutputTokens: 8192 },
+        });
+        const result = await chat.sendMessageStream(lastMessage.content);
+        fullResponse = "";
+        for await (const chunk of result.stream) {
+          const text = chunk.text();
+          if (text) fullResponse += text;
+        }
+        break;
+      } catch (error) {
+        if (!isTransientProviderError(error) || attempt === RETRY_DELAYS_MS.length - 1) {
+          throw error;
+        }
       }
     }
 
+    // Buffer the model output so a sensitive fragment is never sent before
+    // the complete response can be checked.
+    res.write(`data: ${JSON.stringify({ content: protectAssistantOutput(fullResponse) })}\n\n`);
     res.write(`data: ${JSON.stringify({ done: true })}\n\n`);
     res.end();
   } catch (err: unknown) {
-    const message = err instanceof Error ? err.message : "AI error";
     req.log?.error({ err }, "Assistant chat error");
-    res.write(`data: ${JSON.stringify({ error: message })}\n\n`);
+    // Never expose provider errors, request details, or configuration values.
+    res.write(`data: ${JSON.stringify({ error: "assistant_unavailable" })}\n\n`);
     res.end();
   }
 });
