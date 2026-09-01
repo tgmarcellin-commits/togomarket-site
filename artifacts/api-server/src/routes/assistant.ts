@@ -1,5 +1,6 @@
 import { Router, type IRouter } from "express";
 import { GoogleGenerativeAI, HarmCategory, HarmBlockThreshold } from "@google/generative-ai";
+import OpenAI from "openai";
 import { ilike, eq, and, sql, gt, inArray } from "drizzle-orm";
 import { db, listingsTable, vendorsTable } from "@workspace/db";
 import { ASSISTANT_SYSTEM_PROMPT } from "../lib/assistant-prompt";
@@ -19,6 +20,9 @@ const SENSITIVE_OUTPUT_PATTERNS = [
 ];
 const OUTPUT_HOLD_BACK_CHARS = 96;
 const MODEL_TIMEOUT_MS = 12_000;
+const openAI = process.env.OPENAI_API_KEY
+  ? new OpenAI({ apiKey: process.env.OPENAI_API_KEY, timeout: MODEL_TIMEOUT_MS })
+  : null;
 
 type ChatRole = "user" | "assistant";
 interface ChatMessage { role: ChatRole; content: string; }
@@ -54,13 +58,50 @@ function containsSensitiveOutput(text: string): boolean {
   return SENSITIVE_OUTPUT_PATTERNS.some((pattern) => pattern.test(text));
 }
 
+function isSensitiveRequest(text: string): boolean {
+  return [
+    /(?:ignore|oublie|désactive).*(?:règle|instruction|consigne)/i,
+    /(?:prompt|consigne|instruction).*(?:système|interne)/i,
+    /\b(?:secret|clé\s+(?:api|secrète)|mot\s+de\s+passe|token|bearer|jwt)\b/i,
+    /\b(?:superadmin|sous-admin|base\s+de\s+données|postgres|sql)\b/i,
+  ].some((pattern) => pattern.test(text));
+}
+
 function isTransientProviderError(error: unknown): boolean {
   if (!error || typeof error !== "object") return false;
   const status = "status" in error ? Number(error.status) : NaN;
   return [408, 429, 500, 502, 503, 504].includes(status);
 }
 
+function isQuotaExceededError(error: unknown): boolean {
+  if (!error || typeof error !== "object") return false;
+  const status = "status" in error ? Number(error.status) : NaN;
+  const details = JSON.stringify(error);
+  return status === 429 && /(quota|free[_ -]?tier|billing|exceeded)/i.test(details);
+}
+
 const RETRY_DELAYS_MS = [0, 500, 1500];
+
+function buildLocalFallbackResponse(userMessage: string): string {
+  const normalized = userMessage.toLocaleLowerCase("fr-FR");
+
+  if (/^\s*(bonjour|salut|hello|bonsoir|coucou)\b/.test(normalized)) {
+    return "Bonjour ! Je suis l'assistante TogoMarket. Comment puis-je vous aider à trouver un article, une boutique ou un service ?";
+  }
+  if (/(?:article|annonce|produit|chercher|trouver|recherche)/.test(normalized)) {
+    return "Pour trouver un article, ouvrez l'onglet « Market Place », puis utilisez la barre de recherche. Vous pouvez aussi ouvrir « Stand » pour parcourir les boutiques par secteur.";
+  }
+  if (/(?:boutique|vendeur|stand|magasin)/.test(normalized)) {
+    return "Vous pouvez découvrir les boutiques dans l'onglet « Stand ». Sélectionnez un secteur, puis une boutique pour voir ses annonces et contacter le vendeur.";
+  }
+  if (/(?:commande|acheter|livraison|prix)/.test(normalized)) {
+    return "Pour une commande, ouvrez l'annonce concernée et contactez directement le vendeur avec les coordonnées indiquées. Pour une aide complémentaire, utilisez le bouton WhatsApp du support.";
+  }
+  if (/(?:introuvable|service|besoin)/.test(normalized)) {
+    return "Si vous ne trouvez pas ce que vous cherchez, utilisez le service « Introuvable » pour envoyer votre demande à l'équipe TogoMarket.";
+  }
+  return "Je peux vous aider à naviguer sur TogoMarket. Consultez « Market Place » pour les articles, « Stand » pour les boutiques, ou utilisez le bouton WhatsApp du support pour une demande précise.";
+}
 
 // Sous-requête réutilisable : téléphones des vendeurs actifs
 function activeVendorPhonesSubquery() {
@@ -175,6 +216,8 @@ router.post("/assistant/chat", async (req, res) => {
     let pendingOutput = "";
     let outputWasStreamed = false;
     let blockedOutput = false;
+    let providerSucceeded = false;
+    let providerError: unknown;
 
     for (let attempt = 0; attempt < RETRY_DELAYS_MS.length; attempt += 1) {
       if (RETRY_DELAYS_MS[attempt] > 0) {
@@ -224,12 +267,37 @@ router.post("/assistant/chat", async (req, res) => {
           }
         }
         if (blockedOutput) break;
+        providerSucceeded = true;
         break;
       } catch (error) {
+        providerError = error;
+        if (isQuotaExceededError(error)) break;
         if (!isTransientProviderError(error) || attempt === RETRY_DELAYS_MS.length - 1) {
           throw error;
         }
       }
+    }
+
+    if (!providerSucceeded && !blockedOutput) {
+      if (!isQuotaExceededError(providerError) || !openAI) {
+        throw providerError ?? new Error("Assistant provider unavailable");
+      }
+
+      const completion = await openAI.chat.completions.create({
+        model: "gpt-4o-mini",
+        messages: [
+          { role: "system", content: systemPrompt },
+          ...messages.slice(0, -1).map((message) => ({
+            role: message.role,
+            content: message.content,
+          })),
+          { role: "user", content: lastMessage.content },
+        ],
+        max_tokens: 1024,
+        temperature: 0.2,
+      });
+      fullResponse = completion.choices[0]?.message?.content ?? "";
+      pendingOutput = "";
     }
 
     if (!blockedOutput) {
