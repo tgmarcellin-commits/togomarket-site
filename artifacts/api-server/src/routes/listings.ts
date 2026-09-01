@@ -28,7 +28,7 @@ import {
   UpdateTourismeListingParams,
 } from "@workspace/api-zod";
 import { logger } from "../lib/logger";
-import { ObjectStorageService } from "../lib/objectStorage";
+import { normalizeObjectStoragePath, ObjectStorageService } from "../lib/objectStorage";
 import { getObjectAclPolicy } from "../lib/objectAcl";
 import { isSuperAdmin } from "../lib/admin-auth";
 import { authenticateVendorRequest } from "../lib/vendor-auth";
@@ -38,7 +38,7 @@ const objectStorage = new ObjectStorageService();
 const router: IRouter = Router();
 
 function storagePath(mediaPath: string): string {
-  return mediaPath.startsWith("v:") ? mediaPath.slice(2) : mediaPath;
+  return normalizeObjectStoragePath(mediaPath) ?? mediaPath;
 }
 
 async function vendorCanUseMedia(
@@ -51,7 +51,7 @@ async function vendorCanUseMedia(
   for (const mediaPath of mediaPaths) {
     const objectPath = storagePath(mediaPath);
     if (existingPaths.has(objectPath)) continue;
-    if (!objectPath.startsWith("/objects/")) return false;
+    if (!normalizeObjectStoragePath(mediaPath)) return false;
 
     try {
       const objectFile = await objectStorage.getObjectEntityFile(objectPath);
@@ -412,7 +412,7 @@ router.patch("/listings/:listingId", async (req, res): Promise<void> => {
     .from(listingsTable)
     .where(and(
       eq(listingsTable.sector, "Tourisme"),
-      phoneEq(listingsTable.phone, vendor.phone),
+      phoneEq(listingsTable.phone, normalizePhone(vendor.phone)),
       sql`lower(trim(${listingsTable.name})) = ${normalizedCatalogName}`,
     ));
   const previousImages = catalogRows.flatMap((row) => row.images ?? []);
@@ -442,7 +442,7 @@ router.patch("/listings/:listingId", async (req, res): Promise<void> => {
       .delete(listingsTable)
       .where(and(
         eq(listingsTable.sector, "Tourisme"),
-        phoneEq(listingsTable.phone, vendor.phone),
+        phoneEq(listingsTable.phone, normalizePhone(vendor.phone)),
         sql`lower(trim(${listingsTable.name})) = ${normalizedCatalogName}`,
         ne(listingsTable.id, params.data.listingId),
       ));
@@ -490,7 +490,7 @@ router.post("/listings/vendor-delete", async (req, res): Promise<void> => {
     return;
   }
 
-  if (listings[0].phone !== vendor.phone) {
+  if (normalizePhone(listings[0].phone) !== normalizePhone(vendor.phone)) {
     res.status(403).json({ error: "Vous ne pouvez pas supprimer cette annonce." });
     return;
   }
@@ -501,7 +501,7 @@ router.post("/listings/vendor-delete", async (req, res): Promise<void> => {
       .delete(listingsTable)
       .where(and(
         eq(listingsTable.sector, "Tourisme"),
-        phoneEq(listingsTable.phone, vendor.phone),
+        phoneEq(listingsTable.phone, normalizePhone(vendor.phone)),
         sql`lower(trim(${listingsTable.name})) = ${target.name.toLowerCase().trim()}`,
       ))
       .returning()

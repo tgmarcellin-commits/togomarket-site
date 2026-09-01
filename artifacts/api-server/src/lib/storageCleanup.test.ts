@@ -1,6 +1,20 @@
 import assert from "node:assert/strict";
 import test from "node:test";
+import { normalizeObjectStoragePath } from "./objectStorage";
 import { collectReferencedObjectPaths } from "./storageCleanup";
+
+test("normalizes video object paths and rejects non-storage values", () => {
+  assert.equal(
+    normalizeObjectStoragePath("v:/objects/uploads/tourisme-video"),
+    "/objects/uploads/tourisme-video",
+  );
+  assert.equal(
+    normalizeObjectStoragePath("/objects/uploads/tourisme-image"),
+    "/objects/uploads/tourisme-image",
+  );
+  assert.equal(normalizeObjectStoragePath("data:image/png;base64,legacy"), null);
+  assert.equal(normalizeObjectStoragePath("/objects/"), null);
+});
 
 test("storage cleanup retains referenced vendor profile photos", () => {
   const referencedProfilePhoto = "/objects/uploads/vendor-profile";

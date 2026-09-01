@@ -25,6 +25,7 @@ import { validateFileBytes } from "../lib/file-security";
 import { getObjectAclPolicy } from "../lib/objectAcl";
 import { collectReferencedObjectPaths } from "../lib/storageCleanup";
 import { authenticateVendorRequest } from "../lib/vendor-auth";
+import { normalizePhone, phoneEq } from "../lib/phone";
 
 const videoUpload = multer({
   dest: "/tmp",
@@ -109,7 +110,7 @@ async function requireUploadActor(req: Request, res: Response, next: NextFunctio
         .from(listingsTable)
         .where(and(
           eq(listingsTable.id, tourismeListingId),
-          eq(listingsTable.phone, vendor.phone),
+          phoneEq(listingsTable.phone, normalizePhone(vendor.phone)),
           eq(listingsTable.sector, "Tourisme"),
         ))
         .limit(1);

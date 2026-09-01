@@ -1,3 +1,5 @@
+import { normalizeObjectStoragePath } from "./objectStorage";
+
 type ListingStorageReference = {
   images: string[] | null;
 };
@@ -27,8 +29,8 @@ type EventStorageReference = {
 };
 
 function addObjectPath(paths: Set<string>, value: string | null | undefined): void {
-  const normalized = value?.startsWith("v:") ? value.slice(2) : value;
-  if (normalized?.startsWith("/objects/")) {
+  const normalized = normalizeObjectStoragePath(value);
+  if (normalized) {
     paths.add(normalized);
   }
 }

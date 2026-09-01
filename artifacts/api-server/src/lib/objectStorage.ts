@@ -21,6 +21,21 @@ import {
 const REPLIT_SIDECAR_ENDPOINT = "http://127.0.0.1:1106";
 const CONVERSATION_CLEANUP_METADATA_KEY = "conversationCleanupCandidate";
 
+/**
+ * Return the persisted object path without the presentation-only video marker.
+ * Non-object values (legacy data URLs, empty values, etc.) are not storage
+ * references and must never be sent to the object storage API.
+ */
+export function normalizeObjectStoragePath(
+  value: string | null | undefined,
+): string | null {
+  const normalized = value?.startsWith("v:") ? value.slice(2) : value;
+  if (!normalized?.startsWith("/objects/") || normalized === "/objects/") {
+    return null;
+  }
+  return normalized;
+}
+
 export const objectStorageClient = new Storage({
   credentials: {
     audience: "replit",
@@ -228,8 +243,8 @@ export class ObjectStorageService {
     ]);
     const paths = new Set<string>();
     const add = (value: string | null | undefined) => {
-      const normalized = value?.startsWith("v:") ? value.slice(2) : value;
-      if (normalized?.startsWith("/objects/")) paths.add(normalized);
+      const normalized = normalizeObjectStoragePath(value);
+      if (normalized) paths.add(normalized);
     };
 
     for (const listing of listings) {
@@ -258,8 +273,8 @@ export class ObjectStorageService {
   }
 
   async deleteObjectEntity(objectPath: string): Promise<void> {
-    const normalizedPath = objectPath.startsWith("v:") ? objectPath.slice(2) : objectPath;
-    if (!normalizedPath.startsWith("/objects/")) return;
+    const normalizedPath = normalizeObjectStoragePath(objectPath);
+    if (!normalizedPath) return;
 
     // This is the final safety net for every deletion caller, including
     // legacy routes that may not have their own reference check.
@@ -275,9 +290,12 @@ export class ObjectStorageService {
   }
 
   async deleteObjectEntities(objectPaths: string[]): Promise<{ failed: string[] }> {
-    const storagePaths = objectPaths
-      .map((p) => p.startsWith("v:") ? p.slice(2) : p)
-      .filter((p) => p.startsWith("/objects/"));
+    const storagePaths = Array.from(new Set(
+      objectPaths.flatMap((path) => {
+        const normalized = normalizeObjectStoragePath(path);
+        return normalized ? [normalized] : [];
+      }),
+    ));
     if (storagePaths.length === 0) return { failed: [] };
 
     const referencedPaths = await this.getReferencedObjectPaths();

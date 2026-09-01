@@ -8,13 +8,13 @@ import {
   servicesTable,
   vendorsTable,
 } from "@workspace/db";
-import { ObjectStorageService } from "./objectStorage";
+import { normalizeObjectStoragePath, ObjectStorageService } from "./objectStorage";
 import { logger } from "./logger";
 
 const objectStorage = new ObjectStorageService();
 
 function storagePath(mediaPath: string): string {
-  return mediaPath.startsWith("v:") ? mediaPath.slice(2) : mediaPath;
+  return normalizeObjectStoragePath(mediaPath) ?? mediaPath;
 }
 
 async function deleteOnlyUnreferencedMedia(mediaPaths: string[]): Promise<void> {
