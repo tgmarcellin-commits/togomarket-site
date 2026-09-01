@@ -24,6 +24,7 @@ import { validateFileBytes } from "../lib/file-security";
 import { secureMessageFileUrl } from "../lib/message-file-access";
 import { verifyVendorRenewalToken } from "../lib/vendor-renewal-token";
 import { authenticateVendorRequest, issueVendorSession, revokeAllVendorSessions, revokeVendorSession } from "../lib/vendor-auth";
+import { isValidProfilePhotoPath, normalizeProfilePhoto } from "../lib/profile-photo";
 
 const adminUpload = multer({
   storage: multer.memoryStorage(),
@@ -104,7 +105,7 @@ function mapVendor(v: typeof vendorsTable.$inferSelect, publishCode: { code: str
     shopName: v.shopName ?? null,
     phone: v.phone,
     verified: v.verified,
-    profilePhoto: v.profilePhoto ?? null,
+    profilePhoto: normalizeProfilePhoto(v.profilePhoto),
     createdAt: v.createdAt.toISOString(),
     publishCode,
     expiryDate: expiry?.toISOString() ?? null,
@@ -124,6 +125,9 @@ router.post("/vendors/register", async (req, res) => {
   const { firstName, lastName, password } = parsed.data;
   const shopName = parsed.data.shopName ? String(parsed.data.shopName).trim() || null : null;
   const profilePhoto = parsed.data.profilePhoto ? String(parsed.data.profilePhoto).trim() || null : null;
+  if (profilePhoto && !isValidProfilePhotoPath(profilePhoto)) {
+    return res.status(400).json({ error: "Chemin de photo de profil invalide." });
+  }
   const wantsNotifications = parsed.data.wantsNotifications !== false;
   const phone = normalizePhone(parsed.data.phone);
   const referredBy = parsed.data.referredBy ? Number(parsed.data.referredBy) : null;
@@ -398,8 +402,11 @@ router.post("/vendors/profile/update", async (req, res) => {
     return res.status(400).json({ error: parsed.error.message });
   }
   const phone = normalizePhone(parsed.data.phone);
-  const { password, profilePhoto } = parsed.data;
-  if (profilePhoto && !profilePhoto.startsWith("/objects/uploads/")) {
+  const { password } = parsed.data;
+  const profilePhoto = parsed.data.profilePhoto == null
+    ? null
+    : String(parsed.data.profilePhoto).trim() || null;
+  if (profilePhoto && !isValidProfilePhotoPath(profilePhoto)) {
     return res.status(400).json({ error: "Chemin de photo de profil invalide." });
   }
 
@@ -409,7 +416,7 @@ router.post("/vendors/profile/update", async (req, res) => {
   try {
     const [updated] = await db
       .update(vendorsTable)
-      .set({ profilePhoto: profilePhoto ?? null })
+      .set({ profilePhoto })
       .where(eq(vendorsTable.id, vendor.id))
       .returning();
     const publishCode = await getActivePublishCode(updated.id);
@@ -725,7 +732,10 @@ router.get("/vendors/sector/:sector", async (req, res) => {
         gt(vendorsTable.expiryDate, new Date()),
       ))
       .orderBy(vendorsTable.id);
-    return res.json(vendors);
+    return res.json(vendors.map((vendor) => ({
+      ...vendor,
+      profilePhoto: normalizeProfilePhoto(vendor.profilePhoto),
+    })));
   } catch (err) {
     req.log.error({ err }, "Failed to get vendors by sector");
     return res.status(500).json({ error: "Erreur interne" });

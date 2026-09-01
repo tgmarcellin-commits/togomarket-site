@@ -2,6 +2,8 @@ import { Storage } from "@google-cloud/storage";
 import { db, pool, vendorsTable } from "@workspace/db";
 import { and, eq, like } from "drizzle-orm";
 import { randomUUID } from "node:crypto";
+import { resolve } from "node:path";
+import { fileURLToPath } from "node:url";
 
 const REPLIT_SIDECAR_ENDPOINT = "http://127.0.0.1:1106";
 
@@ -45,7 +47,7 @@ function parseObjectPath(path: string): { bucketName: string; objectName: string
   };
 }
 
-function decodeImageDataUrl(dataUrl: string): DecodedImage {
+export function decodeImageDataUrl(dataUrl: string): DecodedImage {
   const commaIndex = dataUrl.indexOf(",");
   if (!dataUrl.startsWith("data:") || commaIndex < 0) {
     throw new Error("profile photo is not a data URL");
@@ -58,7 +60,7 @@ function decodeImageDataUrl(dataUrl: string): DecodedImage {
   }
 
   const encoded = dataUrl.slice(commaIndex + 1).replace(/\s/g, "");
-  if (!encoded || !/^[A-Za-z0-9+/]*={0,2}$/.test(encoded) || encoded.length % 4 === 1) {
+  if (!/^(?:[A-Za-z0-9+/]{4})*(?:[A-Za-z0-9+/]{2}==|[A-Za-z0-9+/]{3}=)?$/.test(encoded)) {
     throw new Error("profile photo contains invalid base64");
   }
 
@@ -91,7 +93,33 @@ async function deleteUploadedImage(objectPath: string): Promise<void> {
   await storageClient.bucket(bucketName).file(objectName).delete({ ignoreNotFound: true });
 }
 
-async function migrateProfilePhotos(): Promise<void> {
+export async function persistMigratedProfilePhoto({
+  vendorId,
+  originalPhoto,
+  objectPath,
+  updateIfUnchanged,
+  deleteUploadedObject,
+}: {
+  vendorId: number;
+  originalPhoto: string;
+  objectPath: string;
+  updateIfUnchanged: (
+    vendorId: number,
+    originalPhoto: string,
+    objectPath: string,
+  ) => Promise<boolean>;
+  deleteUploadedObject: (objectPath: string) => Promise<void>;
+}): Promise<boolean> {
+  const updated = await updateIfUnchanged(vendorId, originalPhoto, objectPath);
+  if (updated) {
+    return true;
+  }
+
+  await deleteUploadedObject(objectPath);
+  return false;
+}
+
+export async function migrateProfilePhotos(): Promise<void> {
   console.log("Démarrage de la migration des photos de profil vendeur...");
 
   const vendors = await db
@@ -120,17 +148,29 @@ async function migrateProfilePhotos(): Promise<void> {
       const image = decodeImageDataUrl(originalPhoto);
       objectPath = await uploadImage(image);
 
-      const updated = await db
-        .update(vendorsTable)
-        .set({ profilePhoto: objectPath })
-        .where(and(
-          eq(vendorsTable.id, vendor.id),
-          eq(vendorsTable.profilePhoto, originalPhoto),
-        ))
-        .returning({ id: vendorsTable.id });
+      const updated = await persistMigratedProfilePhoto({
+        vendorId: vendor.id,
+        originalPhoto,
+        objectPath,
+        updateIfUnchanged: async (vendorId, expectedPhoto, nextPhoto) => {
+          const rows = await db
+            .update(vendorsTable)
+            .set({ profilePhoto: nextPhoto })
+            .where(and(
+              eq(vendorsTable.id, vendorId),
+              eq(vendorsTable.profilePhoto, expectedPhoto),
+            ))
+            .returning({ id: vendorsTable.id });
+          return rows.length > 0;
+        },
+        deleteUploadedObject: deleteUploadedImage,
+      });
 
-      if (updated.length === 0) {
-        throw new Error("vendor was not found during update");
+      if (!updated) {
+        objectPath = undefined;
+        skipped++;
+        console.log(`⏭ Vendeur #${vendor.id} — photo modifiée pendant la migration`);
+        continue;
       }
 
       migrated++;
@@ -156,13 +196,15 @@ async function migrateProfilePhotos(): Promise<void> {
   }
 }
 
-migrateProfilePhotos()
-  .then(async () => {
-    await pool.end();
-    console.log("Migration terminée.");
-  })
-  .catch(async (error) => {
-    console.error("Erreur fatale:", error);
-    await pool.end();
-    process.exitCode = 1;
-  });
+if (process.argv[1] && fileURLToPath(import.meta.url) === resolve(process.argv[1])) {
+  migrateProfilePhotos()
+    .then(async () => {
+      await pool.end();
+      console.log("Migration terminée.");
+    })
+    .catch(async (error) => {
+      console.error("Erreur fatale:", error);
+      await pool.end();
+      process.exitCode = 1;
+    });
+}
