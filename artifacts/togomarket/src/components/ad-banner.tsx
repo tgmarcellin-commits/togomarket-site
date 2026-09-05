@@ -187,7 +187,13 @@ export function AdBanner() {
   return (
     <div
       className="w-full relative bg-black overflow-hidden select-none"
-      style={{ aspectRatio: "16/9", maxHeight: "256px" }}
+      style={{
+        // La zone publicitaire occupe réellement l'espace disponible sur grand
+        // écran sans devenir démesurée. Le flyer, lui, est toujours contenu
+        // intégralement à l'intérieur de cette zone.
+        height: "min(70vh, 56.25vw, 720px)",
+        minHeight: "220px",
+      }}
       onTouchStart={handleTouchStart}
       onTouchEnd={handleTouchEnd}
     >
@@ -210,12 +216,22 @@ export function AdBanner() {
           className="w-full h-full object-cover"
         />
       ) : (
-        <img
-          key={ad.id}
-          src={resolveImageUrl(ad.image!)}
-          alt={`Flyer publicitaire de ${ad.advertiserName}`}
-          className="w-full h-full object-cover"
-        />
+        <div className="absolute inset-0 flex items-center justify-center overflow-hidden bg-black">
+          {/* Fond agrandi pour remplir toute la zone sans recadrer le flyer
+              principal. Le flyer net reste toujours entièrement visible. */}
+          <img
+            src={resolveImageUrl(ad.image!)}
+            alt=""
+            aria-hidden="true"
+            className="absolute inset-0 w-full h-full object-cover scale-110 blur-2xl opacity-35"
+          />
+          <img
+            key={ad.id}
+            src={resolveImageUrl(ad.image!)}
+            alt={`Flyer publicitaire de ${ad.advertiserName}`}
+            className="relative z-[1] max-w-full max-h-full w-auto h-auto object-contain"
+          />
+        </div>
       )}
 
       {/* Icône play/pause flashée au tap */}
