@@ -38,7 +38,7 @@ import {
   type AdminContactStat,
 } from "@workspace/api-client-react";
 import { loadAdminSession, clearAdminSession } from "./admin-login";
-import { resolveImageUrl, resizeImageToBlob, isVideoMedia, resolveMediaUrl } from "@/lib/image";
+import { extractVideoPoster, resolveImageUrl, resizeImageToBlob, isVideoMedia, resolveMediaUrl } from "@/lib/image";
 import { uploadImageFile, uploadVideoFile } from "@/lib/upload";
 import { openWhatsApp } from "@/lib/whatsapp";
 import { getSocket } from "@/lib/socket";
@@ -611,7 +611,7 @@ export default function AdminDashboard() {
   const [adsLoading, setAdsLoading] = useState(false);
   const [showAdForm, setShowAdForm] = useState(false);
   const [playingAdId, setPlayingAdId] = useState<number | null>(null);
-  const [adForm, setAdForm] = useState({ advertiserName: "", advertiserPhone: "", videoPath: "", videoName: "" });
+  const [adForm, setAdForm] = useState({ advertiserName: "", advertiserPhone: "", videoPath: "", videoName: "", image: "" });
   const adVideoRef = useRef<HTMLInputElement>(null);
 
   const [allEvents, setAllEvents] = useState<ApiEvent[]>([]);
@@ -664,6 +664,7 @@ export default function AdminDashboard() {
     commissionRate: "5",
     otpProvider: "WHATSAPP" as "WHATSAPP" | "TECHSOFT" | "MANUAL",
     whatsappValidation: "",
+    adVideoPlaybackMode: "AUTOPLAY" as "AUTOPLAY" | "ECONOMICAL",
   });
 
   const pendingMutation = useAdminGetPendingListings();
@@ -701,6 +702,7 @@ export default function AdminDashboard() {
         commissionRate: String(settingsData.commissionRate ?? 5),
         otpProvider: settingsData.otpProvider ?? "WHATSAPP",
         whatsappValidation: settingsData.whatsappValidation ?? "",
+        adVideoPlaybackMode: settingsData.adVideoPlaybackMode ?? "AUTOPLAY",
       }));
     }
   }, [settingsData]);
@@ -1148,8 +1150,12 @@ export default function AdminDashboard() {
     e.target.value = "";
     setAdVideoStatus("uploading");
     try {
-      const objectPath = await uploadVideoFile(file, { adminCode: password }, (s) => setAdVideoStatus(s));
-      setAdForm((f) => ({ ...f, videoPath: objectPath, videoName: file.name }));
+      const posterBlob = await extractVideoPoster(file);
+      const [objectPath, posterPath] = await Promise.all([
+        uploadVideoFile(file, { adminCode: password }, (s) => setAdVideoStatus(s)),
+        uploadImageFile(posterBlob, `${file.name.replace(/\.[^/.]+$/, "")}-poster.jpg`, { adminCode: password }),
+      ]);
+      setAdForm((f) => ({ ...f, videoPath: objectPath, videoName: file.name, image: posterPath }));
     } catch {
       toast({ title: "Erreur vidéo", variant: "destructive" });
     } finally {
@@ -1163,11 +1169,11 @@ export default function AdminDashboard() {
       return;
     }
     createAd.mutate(
-      { data: { password, advertiserName: adForm.advertiserName || adForm.advertiserPhone, advertiserPhone: adForm.advertiserPhone, message: "", videoPath: adForm.videoPath } },
+      { data: { password, advertiserName: adForm.advertiserName || adForm.advertiserPhone, advertiserPhone: adForm.advertiserPhone, message: "", image: adForm.image, videoPath: adForm.videoPath } },
       {
         onSuccess: () => {
           toast({ title: "Publicité créée !" });
-          setAdForm({ advertiserName: "", advertiserPhone: "", videoPath: "", videoName: "" });
+          setAdForm({ advertiserName: "", advertiserPhone: "", videoPath: "", videoName: "", image: "" });
           setShowAdForm(false);
           loadAds();
         },
@@ -1386,6 +1392,7 @@ export default function AdminDashboard() {
           whatsappServices: settingsForm.whatsappServices || undefined,
           otpProvider: settingsForm.otpProvider,
           whatsappValidation: settingsForm.whatsappValidation,
+          adVideoPlaybackMode: settingsForm.adVideoPlaybackMode,
         }
       },
       {
@@ -2652,6 +2659,25 @@ export default function AdminDashboard() {
                 <Input placeholder="22870703131" value={settingsForm.whatsappValidation} onChange={(e) => setSettingsForm((f) => ({ ...f, whatsappValidation: e.target.value }))} />
                 <p className="text-xs text-muted-foreground mt-1">Reçoit les demandes d'activation manuelle et sert de contact support.</p>
               </div>
+              {isSuperAdmin && (
+                <div className="rounded-lg border border-primary/20 bg-primary/5 p-3">
+                  <label className="text-sm font-semibold block mb-1.5">Lecture des vidéos publicitaires</label>
+                  <select
+                    className="border rounded-md px-3 py-2 text-sm w-full bg-background"
+                    value={settingsForm.adVideoPlaybackMode}
+                    onChange={(e) => setSettingsForm((f) => ({
+                      ...f,
+                      adVideoPlaybackMode: e.target.value as typeof f.adVideoPlaybackMode,
+                    }))}
+                  >
+                    <option value="AUTOPLAY">Lecture automatique</option>
+                    <option value="ECONOMICAL">Lecture économique / manuelle</option>
+                  </select>
+                  <p className="text-xs text-muted-foreground mt-1.5">
+                    En mode économique, les vidéos ne sont téléchargées et lues qu’après un double-clic.
+                  </p>
+                </div>
+              )}
               <Button onClick={handleSaveSettings} disabled={updateSettings.isPending}>
                 {updateSettings.isPending ? "Sauvegarde…" : "Sauvegarder"}
               </Button>

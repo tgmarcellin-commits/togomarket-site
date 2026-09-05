@@ -5,6 +5,7 @@
  * TogoMarket API
  * OpenAPI spec version: 0.1.0
  */
+import type { PlatformSettingsAdVideoPlaybackMode } from './platformSettingsAdVideoPlaybackMode';
 import type { PlatformSettingsOtpProvider } from './platformSettingsOtpProvider';
 
 export interface PlatformSettings {
@@ -15,4 +16,5 @@ export interface PlatformSettings {
   whatsappServices: string;
   otpProvider: PlatformSettingsOtpProvider;
   whatsappValidation: string;
+  adVideoPlaybackMode: PlatformSettingsAdVideoPlaybackMode;
 }

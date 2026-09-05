@@ -2,7 +2,7 @@ import { Router, type IRouter, type Request, type Response, type NextFunction } 
 import { Readable } from "stream";
 import { spawn } from "child_process";
 import { createReadStream, statSync } from "fs";
-import { readFile } from "fs/promises";
+import { readFile, writeFile } from "fs/promises";
 import { unlink } from "fs/promises";
 import multer from "multer";
 import {
@@ -19,7 +19,7 @@ import {
   servicesTable,
   vendorsTable,
 } from "@workspace/db";
-import { and, eq } from "drizzle-orm";
+import { and, eq, gt, isNull } from "drizzle-orm";
 import { isAdminAny, isSuperAdmin } from "../lib/admin-auth";
 import { validateFileBytes } from "../lib/file-security";
 import { getObjectAclPolicy } from "../lib/objectAcl";
@@ -84,8 +84,86 @@ function compressVideo(inputPath: string, outputPath: string): Promise<{ origina
   });
 }
 
+function extractFirstVideoFrame(inputPath: string, outputPath: string): Promise<void> {
+  return new Promise((resolve, reject) => {
+    const ffmpeg = spawn("ffmpeg", [
+      "-y",
+      "-i", inputPath,
+      "-frames:v", "1",
+      "-vf", "scale=-2:min(720\\,ih)",
+      "-q:v", "4",
+      outputPath,
+    ], { stdio: ["ignore", "ignore", "pipe"] });
+    const timeout = setTimeout(() => ffmpeg.kill("SIGKILL"), 60_000);
+    let stderr = "";
+    ffmpeg.stderr.on("data", (d: Buffer) => { stderr += d.toString(); });
+    ffmpeg.on("close", (code) => {
+      clearTimeout(timeout);
+      if (code === 0) resolve();
+      else reject(new Error(`ffmpeg poster exited with code ${code}: ${stderr.slice(-300)}`));
+    });
+    ffmpeg.on("error", (error) => {
+      clearTimeout(timeout);
+      reject(error);
+    });
+  });
+}
+
 const router: IRouter = Router();
 const objectStorageService = new ObjectStorageService();
+
+router.get("/storage/video-poster", async (req: Request, res: Response) => {
+  const rawPath = typeof req.query.path === "string" ? req.query.path : "";
+  if (!rawPath.startsWith("/objects/")) {
+    res.status(400).json({ error: "Chemin vidéo invalide" });
+    return;
+  }
+
+  const [ad] = await db
+    .select({ id: adsTable.id, videoPath: adsTable.videoPath, image: adsTable.image })
+    .from(adsTable)
+    .where(and(
+      eq(adsTable.videoPath, rawPath),
+      eq(adsTable.isPublished, true),
+      gt(adsTable.endDate, new Date()),
+    ))
+    .limit(1);
+  if (!ad?.videoPath) {
+    res.status(404).end();
+    return;
+  }
+  if (ad.image) {
+    res.redirect(302, `/api/storage${ad.image}`);
+    return;
+  }
+
+  const inputPath = `/tmp/ad-poster-${ad.id}-${Date.now()}.mp4`;
+  const outputPath = `${inputPath}.jpg`;
+  try {
+    const videoFile = await objectStorageService.getObjectEntityFile(ad.videoPath);
+    const [videoBuffer] = await videoFile.download();
+    await writeFile(inputPath, videoBuffer);
+    await extractFirstVideoFrame(inputPath, outputPath);
+    const posterBuffer = await readFile(outputPath);
+    const posterPath = await objectStorageService.uploadObjectEntity(posterBuffer, "image/jpeg", {
+      owner: "public-ad-poster",
+      visibility: "public",
+    });
+    const [updated] = await db
+      .update(adsTable)
+      .set({ image: posterPath })
+      .where(and(eq(adsTable.id, ad.id), isNull(adsTable.image)))
+      .returning({ image: adsTable.image });
+    const resolvedPosterPath = updated?.image ?? posterPath;
+    res.setHeader("Cache-Control", "public, max-age=86400");
+    res.redirect(302, `/api/storage${resolvedPosterPath}`);
+  } catch (error) {
+    req.log.warn({ error, adId: ad.id }, "Unable to generate ad video poster");
+    res.status(404).end();
+  } finally {
+    await Promise.allSettled([unlink(inputPath), unlink(outputPath)]);
+  }
+});
 
 async function requireUploadActor(req: Request, res: Response, next: NextFunction): Promise<void> {
   const adminCode = req.headers["x-admin-code"];

@@ -10,4 +10,5 @@ export const platformSettingsTable = pgTable("platform_settings", {
   whatsappServices: text("whatsapp_services").notNull().default("22870703131"),
   otpProvider: text("otp_provider").notNull().default("WHATSAPP"),
   whatsappValidation: text("whatsapp_validation").notNull().default("22870703131"),
+  adVideoPlaybackMode: text("ad_video_playback_mode").notNull().default("AUTOPLAY"),
 });

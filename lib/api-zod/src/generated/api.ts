@@ -482,7 +482,8 @@ export const GetAdminSettingsResponse = zod.object({
   "whatsappAds": zod.string(),
   "whatsappServices": zod.string(),
   "otpProvider": zod.enum(['WHATSAPP', 'TECHSOFT', 'MANUAL']),
-  "whatsappValidation": zod.string()
+  "whatsappValidation": zod.string(),
+  "adVideoPlaybackMode": zod.enum(['AUTOPLAY', 'ECONOMICAL'])
 })
 
 
@@ -498,7 +499,8 @@ export const UpdateAdminSettingsBody = zod.object({
   "whatsappAds": zod.string().optional(),
   "whatsappServices": zod.string().optional(),
   "otpProvider": zod.enum(['WHATSAPP', 'TECHSOFT', 'MANUAL']).optional(),
-  "whatsappValidation": zod.string().optional()
+  "whatsappValidation": zod.string().optional(),
+  "adVideoPlaybackMode": zod.enum(['AUTOPLAY', 'ECONOMICAL']).optional()
 })
 
 export const UpdateAdminSettingsResponse = zod.object({
@@ -508,7 +510,8 @@ export const UpdateAdminSettingsResponse = zod.object({
   "whatsappAds": zod.string(),
   "whatsappServices": zod.string(),
   "otpProvider": zod.enum(['WHATSAPP', 'TECHSOFT', 'MANUAL']),
-  "whatsappValidation": zod.string()
+  "whatsappValidation": zod.string(),
+  "adVideoPlaybackMode": zod.enum(['AUTOPLAY', 'ECONOMICAL'])
 })
 
 

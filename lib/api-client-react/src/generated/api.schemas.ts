@@ -323,6 +323,14 @@ export const PlatformSettingsOtpProvider = {
   MANUAL: 'MANUAL',
 } as const;
 
+export type PlatformSettingsAdVideoPlaybackMode = typeof PlatformSettingsAdVideoPlaybackMode[keyof typeof PlatformSettingsAdVideoPlaybackMode];
+
+
+export const PlatformSettingsAdVideoPlaybackMode = {
+  AUTOPLAY: 'AUTOPLAY',
+  ECONOMICAL: 'ECONOMICAL',
+} as const;
+
 export interface PlatformSettings {
   commissionRate: number;
   whatsappCommission: string;
@@ -331,6 +339,7 @@ export interface PlatformSettings {
   whatsappServices: string;
   otpProvider: PlatformSettingsOtpProvider;
   whatsappValidation: string;
+  adVideoPlaybackMode: PlatformSettingsAdVideoPlaybackMode;
 }
 
 export type UpdateSettingsInputOtpProvider = typeof UpdateSettingsInputOtpProvider[keyof typeof UpdateSettingsInputOtpProvider];
@@ -340,6 +349,14 @@ export const UpdateSettingsInputOtpProvider = {
   WHATSAPP: 'WHATSAPP',
   TECHSOFT: 'TECHSOFT',
   MANUAL: 'MANUAL',
+} as const;
+
+export type UpdateSettingsInputAdVideoPlaybackMode = typeof UpdateSettingsInputAdVideoPlaybackMode[keyof typeof UpdateSettingsInputAdVideoPlaybackMode];
+
+
+export const UpdateSettingsInputAdVideoPlaybackMode = {
+  AUTOPLAY: 'AUTOPLAY',
+  ECONOMICAL: 'ECONOMICAL',
 } as const;
 
 export interface UpdateSettingsInput {
@@ -352,6 +369,7 @@ export interface UpdateSettingsInput {
   whatsappServices?: string;
   otpProvider?: UpdateSettingsInputOtpProvider;
   whatsappValidation?: string;
+  adVideoPlaybackMode?: UpdateSettingsInputAdVideoPlaybackMode;
 }
 
 export interface Service {

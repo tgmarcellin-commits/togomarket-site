@@ -1,5 +1,5 @@
 import { useEffect, useState, useRef, useCallback, useMemo } from "react";
-import { getGetActiveAdsQueryKey, useGetActiveAds, type Ad } from "@workspace/api-client-react";
+import { getGetActiveAdsQueryKey, getGetAdminSettingsQueryKey, useGetActiveAds, useGetAdminSettings, type Ad } from "@workspace/api-client-react";
 import { Volume2, VolumeX, Play, Pause } from "lucide-react";
 import { resolveImageUrl } from "@/lib/image";
 
@@ -10,6 +10,15 @@ export function AdBanner() {
       refetchInterval: 5 * 60 * 1000,
     }, // re-fetch toutes les 5 min pour suivre la rotation serveur
   });
+  const { data: settings, isError: settingsError } = useGetAdminSettings({
+    query: {
+      queryKey: getGetAdminSettingsQueryKey(),
+      refetchInterval: 30 * 1000,
+      refetchOnWindowFocus: true,
+    },
+  });
+  const playbackConfigured = settings !== undefined || settingsError;
+  const economicalMode = settings?.adVideoPlaybackMode === "ECONOMICAL";
 
   // Uniquement les publicités avec vidéo
   const videoAds = useMemo<Ad[]>(
@@ -32,6 +41,7 @@ export function AdBanner() {
   }, [videoAds]);
   const [muted, setMuted] = useState(false);
   const [paused, setPaused] = useState(false);
+  const [viewingVideo, setViewingVideo] = useState(false);
   const [showIcon, setShowIcon] = useState(false);
   const videoRef = useRef<HTMLVideoElement>(null);
   const touchStartX = useRef(0);
@@ -40,15 +50,31 @@ export function AdBanner() {
   const iconTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const ad = videoAds[current] as Ad | undefined;
+  const posterUrl = ad
+    ? ad.image
+      ? resolveImageUrl(ad.image)
+      : `/api/storage/video-poster?path=${encodeURIComponent(ad.videoPath!)}`
+    : undefined;
 
-  // Changer de vidéo → reset + lecture automatique
+  // Changer de vidéo : lecture automatique uniquement dans le mode configuré.
   useEffect(() => {
     const v = videoRef.current;
     if (!v) return;
     v.currentTime = 0;
+    setViewingVideo(false);
+    if (!playbackConfigured) {
+      v.pause();
+      setPaused(true);
+      return;
+    }
+    if (economicalMode) {
+      v.pause();
+      setPaused(true);
+      return;
+    }
     setPaused(false);
     v.play().catch(() => {});
-  }, [current]);
+  }, [current, economicalMode, playbackConfigured]);
 
   // Sync muted
   useEffect(() => {
@@ -64,16 +90,41 @@ export function AdBanner() {
   const handleNext = useCallback(() => {
     setCurrent((c) => (c + 1) % videoAds.length);
     setPaused(false);
+    setViewingVideo(false);
   }, [videoAds.length]);
 
   const handlePrev = useCallback(() => {
     setCurrent((c) => (c - 1 + videoAds.length) % videoAds.length);
     setPaused(false);
+    setViewingVideo(false);
   }, [videoAds.length]);
+
+  // Le carrousel conserve une rotation fixe de cinq secondes dans les deux modes.
+  // En mode économique, le minuteur est suspendu tant que la vidéo est visionnée.
+  useEffect(() => {
+    if (!playbackConfigured || videoAds.length <= 1 || (economicalMode && viewingVideo)) return;
+    const timer = window.setInterval(handleNext, 5000);
+    return () => window.clearInterval(timer);
+  }, [economicalMode, handleNext, playbackConfigured, videoAds.length, viewingVideo]);
+
+  const startManualPlayback = useCallback(() => {
+    if (!economicalMode) return;
+    const v = videoRef.current;
+    if (!v) return;
+    setViewingVideo(true);
+    v.play().then(() => setPaused(false)).catch(() => {
+      setViewingVideo(false);
+      setPaused(true);
+    });
+  }, [economicalMode]);
 
   const handleTap = useCallback(() => {
     const v = videoRef.current;
     if (!v) return;
+    if (economicalMode && !viewingVideo) {
+      startManualPlayback();
+      return;
+    }
     if (paused) {
       v.play().catch(() => {});
       setPaused(false);
@@ -82,7 +133,7 @@ export function AdBanner() {
       setPaused(true);
     }
     flashIcon();
-  }, [paused, flashIcon]);
+  }, [economicalMode, flashIcon, paused, startManualPlayback, viewingVideo]);
 
   const handleTouchStart = (e: React.TouchEvent) => {
     touchStartX.current = e.touches[0].clientX;
@@ -133,13 +184,27 @@ export function AdBanner() {
         ref={videoRef}
         key={ad.id}
         src={resolveImageUrl(ad.videoPath!)}
+        poster={posterUrl}
         muted={muted}
-        autoPlay
+        autoPlay={playbackConfigured && !economicalMode}
+        preload={playbackConfigured && !economicalMode ? "auto" : "none"}
         playsInline
-        loop={videoAds.length === 1}
-        onEnded={videoAds.length > 1 ? handleNext : undefined}
+        loop={!economicalMode && videoAds.length === 1}
+        onDoubleClick={economicalMode ? startManualPlayback : undefined}
+        onEnded={economicalMode ? () => {
+          setViewingVideo(false);
+          setPaused(true);
+        } : undefined}
         className="w-full h-full object-cover"
       />
+
+      {economicalMode && !viewingVideo && (
+        <div className="absolute inset-x-0 bottom-12 flex justify-center pointer-events-none px-3">
+          <span className="rounded-full bg-black/65 px-3 py-1.5 text-center text-xs font-semibold text-white shadow">
+            Double-cliquez pour visualiser la vidéo publicitaire
+          </span>
+        </div>
+      )}
 
       {/* Icône play/pause flashée au tap */}
       {showIcon && (

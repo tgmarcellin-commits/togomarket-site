@@ -1815,7 +1815,7 @@ components:
 
     PlatformSettings:
       type: object
-      required: [commissionRate, whatsappCommission, whatsappOrders, whatsappAds, whatsappServices, otpProvider, whatsappValidation]
+      required: [commissionRate, whatsappCommission, whatsappOrders, whatsappAds, whatsappServices, otpProvider, whatsappValidation, adVideoPlaybackMode]
       properties:
         commissionRate:
           type: integer
@@ -1832,6 +1832,9 @@ components:
           enum: [WHATSAPP, TECHSOFT, MANUAL]
         whatsappValidation:
           type: string
+        adVideoPlaybackMode:
+          type: string
+          enum: [AUTOPLAY, ECONOMICAL]
 
     UpdateSettingsInput:
       type: object
@@ -1856,6 +1859,9 @@ components:
           enum: [WHATSAPP, TECHSOFT, MANUAL]
         whatsappValidation:
           type: string
+        adVideoPlaybackMode:
+          type: string
+          enum: [AUTOPLAY, ECONOMICAL]
 
     Service:
       type: object

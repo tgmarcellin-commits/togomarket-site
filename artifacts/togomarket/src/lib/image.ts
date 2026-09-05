@@ -99,3 +99,60 @@ export function resizeImageToBlob(file: File): Promise<{ blob: Blob; dataUrl: st
     reader.readAsDataURL(file);
   });
 }
+
+/** Capture the first decoded frame so video cards never need a black poster. */
+export function extractVideoPoster(file: File): Promise<Blob> {
+  return new Promise((resolve, reject) => {
+    const video = document.createElement("video");
+    const objectUrl = URL.createObjectURL(file);
+    let settled = false;
+
+    const cleanup = () => {
+      URL.revokeObjectURL(objectUrl);
+      video.remove();
+    };
+    const fail = (error: Error) => {
+      if (settled) return;
+      settled = true;
+      cleanup();
+      reject(error);
+    };
+
+    video.preload = "metadata";
+    video.muted = true;
+    video.playsInline = true;
+    video.onloadeddata = () => {
+      if (settled) return;
+      const width = video.videoWidth;
+      const height = video.videoHeight;
+      if (!width || !height) {
+        fail(new Error("Impossible de lire la première image de la vidéo"));
+        return;
+      }
+
+      const maxWidth = 1280;
+      const scale = Math.min(1, maxWidth / width);
+      const canvas = document.createElement("canvas");
+      canvas.width = Math.max(1, Math.round(width * scale));
+      canvas.height = Math.max(1, Math.round(height * scale));
+      const context = canvas.getContext("2d");
+      if (!context) {
+        fail(new Error("Impossible de préparer l'image de couverture"));
+        return;
+      }
+      context.drawImage(video, 0, 0, canvas.width, canvas.height);
+      canvas.toBlob((blob) => {
+        if (!blob) {
+          fail(new Error("Impossible de créer l'image de couverture"));
+          return;
+        }
+        settled = true;
+        cleanup();
+        resolve(blob);
+      }, "image/jpeg", 0.82);
+    };
+    video.onerror = () => fail(new Error("Vidéo non prise en charge"));
+    video.src = objectUrl;
+    video.load();
+  });
+}
