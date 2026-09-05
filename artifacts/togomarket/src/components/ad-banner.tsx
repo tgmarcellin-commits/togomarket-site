@@ -46,7 +46,7 @@ export function AdBanner() {
   const videoRef = useRef<HTMLVideoElement>(null);
   const touchStartX = useRef(0);
   const touchStartY = useRef(0);
-  const lastTapTime = useRef(0);
+  const lastTouchTime = useRef(0);
   const iconTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const ad = videoAds[current] as Ad | undefined;
@@ -137,6 +137,14 @@ export function AdBanner() {
     flashIcon();
   }, [economicalMode, flashIcon, paused, startManualPlayback, viewingVideo]);
 
+  const handleVideoClick = useCallback(
+    () => {
+      if (Date.now() - lastTouchTime.current < 500) return;
+      handleTap();
+    },
+    [handleTap]
+  );
+
   const handleTouchStart = (e: React.TouchEvent) => {
     touchStartX.current = e.touches[0].clientX;
     touchStartY.current = e.touches[0].clientY;
@@ -152,21 +160,16 @@ export function AdBanner() {
 
       // Swipe horizontal (ignore si mouvement vertical dominant)
       if (Math.abs(dx) > 50 && Math.abs(dx) > dy) {
-        lastTapTime.current = 0;
         if (dx > 0) handleNext();
         else handlePrev();
         return;
       }
 
-      // Double tap pour pause / lecture
+      // Un tap sur la vidéo contrôle la lecture. Le clic généré ensuite par le
+      // navigateur est ignoré pour éviter de basculer deux fois l'état.
       if (Math.abs(dx) <= 15 && dy <= 15) {
-        const now = Date.now();
-        if (now - lastTapTime.current < 300) {
-          lastTapTime.current = 0;
-          handleTap();
-        } else {
-          lastTapTime.current = now;
-        }
+        lastTouchTime.current = Date.now();
+        handleTap();
       }
     },
     [handleNext, handlePrev, handleTap]
@@ -192,7 +195,7 @@ export function AdBanner() {
         preload={playbackConfigured && !economicalMode ? "auto" : "none"}
         playsInline
         loop={!economicalMode && videoAds.length === 1}
-        onDoubleClick={economicalMode ? startManualPlayback : undefined}
+        onClick={handleVideoClick}
         onEnded={economicalMode ? () => {
           setViewingVideo(false);
           setPaused(true);
@@ -245,7 +248,14 @@ export function AdBanner() {
           )}
           {/* Bouton son */}
           <button
-            onClick={(e) => { e.stopPropagation(); setMuted((m) => !m); }}
+            type="button"
+            aria-label="Activer ou couper le son"
+            onClick={(e) => e.stopPropagation()}
+            onDoubleClick={(e) => {
+              e.preventDefault();
+              e.stopPropagation();
+              setMuted((m) => !m);
+            }}
             className="bg-black/50 rounded-full p-1.5 active:scale-90 transition-transform"
           >
             {muted ? (
