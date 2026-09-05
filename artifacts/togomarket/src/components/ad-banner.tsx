@@ -20,9 +20,10 @@ export function AdBanner() {
   const playbackConfigured = settings !== undefined || settingsError;
   const economicalMode = settings?.adVideoPlaybackMode === "ECONOMICAL";
 
-  // Uniquement les publicités avec vidéo
-  const videoAds = useMemo<Ad[]>(
-    () => (ads ?? []).filter((ad) => !!ad.videoPath),
+  // Les publicités sont soit des flyers, soit des vidéos. Une vidéo reste
+  // prioritaire lorsqu'elle possède aussi une image utilisée comme poster.
+  const mediaAds = useMemo<Ad[]>(
+    () => (ads ?? []).filter((ad) => !!ad.videoPath || !!ad.image),
     [ads]
   );
 
@@ -32,13 +33,13 @@ export function AdBanner() {
   // (le serveur place toujours la vidéo courante en tête)
   const prevAdsKeyRef = useRef<string>("");
   useEffect(() => {
-    if (!videoAds.length) return;
-    const key = videoAds.map((a) => a.id).join(",");
+    if (!mediaAds.length) return;
+    const key = mediaAds.map((a) => a.id).join(",");
     if (key !== prevAdsKeyRef.current) {
       prevAdsKeyRef.current = key;
       setCurrent(0);
     }
-  }, [videoAds]);
+  }, [mediaAds]);
   const [muted, setMuted] = useState(false);
   const [paused, setPaused] = useState(false);
   const [viewingVideo, setViewingVideo] = useState(false);
@@ -49,9 +50,10 @@ export function AdBanner() {
   const lastTouchTime = useRef(0);
   const iconTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
-  const ad = videoAds[current] as Ad | undefined;
-  const posterUrl = ad
-    ? ad.image
+  const ad = mediaAds[current] as Ad | undefined;
+  const isVideoAd = !!ad?.videoPath;
+  const posterUrl = isVideoAd
+    ? ad?.image
       ? resolveImageUrl(ad.image)
       : `/api/storage/video-poster?path=${encodeURIComponent(ad.videoPath!)}`
     : undefined;
@@ -88,26 +90,31 @@ export function AdBanner() {
   }, []);
 
   const handleNext = useCallback(() => {
-    setCurrent((c) => (c + 1) % videoAds.length);
+    setCurrent((c) => (c + 1) % mediaAds.length);
     setPaused(false);
     setViewingVideo(false);
-  }, [videoAds.length]);
+  }, [mediaAds.length]);
 
   const handlePrev = useCallback(() => {
-    setCurrent((c) => (c - 1 + videoAds.length) % videoAds.length);
+    setCurrent((c) => (c - 1 + mediaAds.length) % mediaAds.length);
     setPaused(false);
     setViewingVideo(false);
-  }, [videoAds.length]);
+  }, [mediaAds.length]);
 
-  // En mode économique, le carrousel avance toutes les dix secondes et le
-  // minuteur est suspendu tant que la vidéo est visionnée.
-  // En lecture automatique, le passage à la vidéo suivante se fait à la fin
-  // de la vidéo courante.
+  // Les flyers ont une durée d'affichage de dix secondes. En mode
+  // économique, le même minuteur s'applique aux vidéos tant qu'elles ne sont
+  // pas lancées. En lecture automatique, une vidéo passe à la suivante à sa
+  // fin réelle.
   useEffect(() => {
-    if (!playbackConfigured || !economicalMode || videoAds.length <= 1 || viewingVideo) return;
+    if (
+      !playbackConfigured
+      || mediaAds.length <= 1
+      || (isVideoAd && !economicalMode)
+      || (economicalMode && isVideoAd && viewingVideo)
+    ) return;
     const timer = window.setInterval(handleNext, 10_000);
     return () => window.clearInterval(timer);
-  }, [economicalMode, handleNext, playbackConfigured, videoAds.length, viewingVideo]);
+  }, [economicalMode, handleNext, isVideoAd, mediaAds.length, playbackConfigured, viewingVideo]);
 
   const startManualPlayback = useCallback(() => {
     if (!economicalMode) return;
@@ -175,7 +182,7 @@ export function AdBanner() {
     [handleNext, handlePrev, handleTap]
   );
 
-  if (!videoAds.length || !ad) return null;
+  if (!mediaAds.length || !ad) return null;
 
   return (
     <div
@@ -184,24 +191,32 @@ export function AdBanner() {
       onTouchStart={handleTouchStart}
       onTouchEnd={handleTouchEnd}
     >
-      {/* Vidéo */}
-      <video
-        ref={videoRef}
-        key={ad.id}
-        src={resolveImageUrl(ad.videoPath!)}
-        poster={posterUrl}
-        muted={muted}
-        autoPlay={playbackConfigured && !economicalMode}
-        preload={playbackConfigured && !economicalMode ? "auto" : "none"}
-        playsInline
-        loop={!economicalMode && videoAds.length === 1}
-        onClick={handleVideoClick}
-        onEnded={economicalMode ? () => {
-          setViewingVideo(false);
-          setPaused(true);
-        } : handleNext}
-        className="w-full h-full object-cover"
-      />
+      {isVideoAd ? (
+        <video
+          ref={videoRef}
+          key={ad.id}
+          src={resolveImageUrl(ad.videoPath!)}
+          poster={posterUrl}
+          muted={muted}
+          autoPlay={playbackConfigured && !economicalMode}
+          preload={playbackConfigured && !economicalMode ? "auto" : "none"}
+          playsInline
+          loop={!economicalMode && mediaAds.length === 1}
+          onClick={handleVideoClick}
+          onEnded={economicalMode ? () => {
+            setViewingVideo(false);
+            setPaused(true);
+          } : handleNext}
+          className="w-full h-full object-cover"
+        />
+      ) : (
+        <img
+          key={ad.id}
+          src={resolveImageUrl(ad.image!)}
+          alt={`Flyer publicitaire de ${ad.advertiserName}`}
+          className="w-full h-full object-cover"
+        />
+      )}
 
       {/* Icône play/pause flashée au tap */}
       {showIcon && (
@@ -231,9 +246,9 @@ export function AdBanner() {
           PUBLICITÉ
         </span>
         <div className="flex items-center gap-2 pointer-events-auto">
-          {videoAds.length > 1 && (
+          {mediaAds.length > 1 && (
             <div className="flex gap-1 items-center">
-              {videoAds.map((_, i) => (
+              {mediaAds.map((_, i) => (
                 <button
                   key={i}
                   onClick={(e) => { e.stopPropagation(); setCurrent(i); setPaused(false); }}
@@ -246,24 +261,25 @@ export function AdBanner() {
               ))}
             </div>
           )}
-          {/* Bouton son */}
-          <button
-            type="button"
-            aria-label="Activer ou couper le son"
-            onClick={(e) => e.stopPropagation()}
-            onDoubleClick={(e) => {
-              e.preventDefault();
-              e.stopPropagation();
-              setMuted((m) => !m);
-            }}
-            className="bg-black/50 rounded-full p-1.5 active:scale-90 transition-transform"
-          >
-            {muted ? (
-              <VolumeX className="w-4 h-4 text-white" />
-            ) : (
-              <Volume2 className="w-4 h-4 text-white" />
-            )}
-          </button>
+          {isVideoAd && (
+            <button
+              type="button"
+              aria-label="Activer ou couper le son"
+              onClick={(e) => e.stopPropagation()}
+              onDoubleClick={(e) => {
+                e.preventDefault();
+                e.stopPropagation();
+                setMuted((m) => !m);
+              }}
+              className="bg-black/50 rounded-full p-1.5 active:scale-90 transition-transform"
+            >
+              {muted ? (
+                <VolumeX className="w-4 h-4 text-white" />
+              ) : (
+                <Volume2 className="w-4 h-4 text-white" />
+              )}
+            </button>
+          )}
         </div>
       </div>
 

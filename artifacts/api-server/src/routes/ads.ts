@@ -1,5 +1,5 @@
 import { Router, type IRouter } from "express";
-import { gt, eq, and, count, desc, isNotNull } from "drizzle-orm";
+import { gt, eq, and, count, desc, isNotNull, or } from "drizzle-orm";
 import { db, adsTable } from "@workspace/db";
 import { getAdminRole } from "../lib/admin-auth";
 
@@ -46,7 +46,7 @@ function mapAd(a: typeof adsTable.$inferSelect) {
   };
 }
 
-// GET /ads — active published video ads only
+// GET /ads — active published video and flyer ads
 // Rotation toutes les 5 minutes pour toutes les vidéos.
 // Les épinglées apparaissent dans la rotation régulière ET reçoivent
 // un slot bonus toutes les 10 min (toutes les 2 tranches de 5 min).
@@ -61,7 +61,7 @@ router.get("/ads", async (req, res) => {
       .where(and(
         gt(adsTable.endDate, now),
         eq(adsTable.isPublished, true),
-        isNotNull(adsTable.videoPath),
+        or(isNotNull(adsTable.videoPath), isNotNull(adsTable.image)),
       ));
 
     const pinned = ads
@@ -120,12 +120,12 @@ router.get("/ads", async (req, res) => {
 });
 
 router.post("/admin/ads", async (req, res) => {
-  const { password, advertiserName, advertiserPhone, videoPath } = req.body;
+  const { password, advertiserName, advertiserPhone, image, videoPath } = req.body;
   if (!await canManageAds(password)) {
     return res.status(403).json({ error: "Forbidden" });
   }
-  if (!advertiserPhone || !videoPath) {
-    return res.status(400).json({ error: "Numéro WhatsApp et vidéo requis" });
+  if (!advertiserPhone || (!image && !videoPath)) {
+    return res.status(400).json({ error: "Numéro WhatsApp et flyer ou vidéo requis" });
   }
   try {
     const now = new Date();
@@ -136,8 +136,8 @@ router.post("/admin/ads", async (req, res) => {
         advertiserName: advertiserName || advertiserPhone,
         advertiserPhone,
         message: "",
-        image: null,
-        videoPath,
+        image: image || null,
+        videoPath: videoPath || null,
         startDate: now,
         endDate,
         isPublished: false,

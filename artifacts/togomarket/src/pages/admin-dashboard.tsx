@@ -611,8 +611,9 @@ export default function AdminDashboard() {
   const [adsLoading, setAdsLoading] = useState(false);
   const [showAdForm, setShowAdForm] = useState(false);
   const [playingAdId, setPlayingAdId] = useState<number | null>(null);
-  const [adForm, setAdForm] = useState({ advertiserName: "", advertiserPhone: "", videoPath: "", videoName: "", image: "" });
+  const [adForm, setAdForm] = useState({ advertiserName: "", advertiserPhone: "", videoPath: "", videoName: "", image: "", imageName: "" });
   const adVideoRef = useRef<HTMLInputElement>(null);
+  const adImageRef = useRef<HTMLInputElement>(null);
 
   const [allEvents, setAllEvents] = useState<ApiEvent[]>([]);
   const [eventsLoading, setEventsLoading] = useState(false);
@@ -1144,10 +1145,33 @@ export default function AdminDashboard() {
 
 
   const [adVideoStatus, setAdVideoStatus] = useState<"idle" | "compressing" | "uploading">("idle");
+  const handleAdImageChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    e.target.value = "";
+    if (adForm.videoPath) {
+      toast({ title: "Choisissez un flyer ou une vidéo, pas les deux", variant: "destructive" });
+      return;
+    }
+    setAdVideoStatus("uploading");
+    try {
+      const objectPath = await uploadImageFile(file, file.name, { adminCode: password });
+      setAdForm((f) => ({ ...f, image: objectPath, imageName: file.name }));
+    } catch {
+      toast({ title: "Erreur flyer", variant: "destructive" });
+    } finally {
+      setAdVideoStatus("idle");
+    }
+  };
+
   const handleAdVideoChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
     e.target.value = "";
+    if (adForm.image && !adForm.videoPath) {
+      toast({ title: "Choisissez un flyer ou une vidéo, pas les deux", variant: "destructive" });
+      return;
+    }
     setAdVideoStatus("uploading");
     try {
       const posterBlob = await extractVideoPoster(file);
@@ -1155,7 +1179,7 @@ export default function AdminDashboard() {
         uploadVideoFile(file, { adminCode: password }, (s) => setAdVideoStatus(s)),
         uploadImageFile(posterBlob, `${file.name.replace(/\.[^/.]+$/, "")}-poster.jpg`, { adminCode: password }),
       ]);
-      setAdForm((f) => ({ ...f, videoPath: objectPath, videoName: file.name, image: posterPath }));
+      setAdForm((f) => ({ ...f, videoPath: objectPath, videoName: file.name, image: posterPath, imageName: "" }));
     } catch {
       toast({ title: "Erreur vidéo", variant: "destructive" });
     } finally {
@@ -1164,16 +1188,16 @@ export default function AdminDashboard() {
   };
 
   const handleCreateAd = () => {
-    if (!adForm.advertiserPhone.trim() || !adForm.videoPath) {
-      toast({ title: "Vidéo et numéro WhatsApp requis", variant: "destructive" });
+    if (!adForm.advertiserPhone.trim() || (!adForm.videoPath && !adForm.image)) {
+      toast({ title: "Flyer ou vidéo et numéro WhatsApp requis", variant: "destructive" });
       return;
     }
     createAd.mutate(
-      { data: { password, advertiserName: adForm.advertiserName || adForm.advertiserPhone, advertiserPhone: adForm.advertiserPhone, message: "", image: adForm.image, videoPath: adForm.videoPath } },
+      { data: { password, advertiserName: adForm.advertiserName || adForm.advertiserPhone, advertiserPhone: adForm.advertiserPhone, message: "", image: adForm.image || undefined, videoPath: adForm.videoPath || undefined } },
       {
         onSuccess: () => {
           toast({ title: "Publicité créée !" });
-          setAdForm({ advertiserName: "", advertiserPhone: "", videoPath: "", videoName: "", image: "" });
+          setAdForm({ advertiserName: "", advertiserPhone: "", videoPath: "", videoName: "", image: "", imageName: "" });
           setShowAdForm(false);
           loadAds();
         },
@@ -2262,12 +2286,18 @@ export default function AdminDashboard() {
                   onChange={(e) => setAdForm((f) => ({ ...f, advertiserPhone: e.target.value }))}
                 />
                 <div className="flex items-center gap-3 flex-wrap">
-                  <input type="file" accept="video/*" ref={adVideoRef} className="hidden" onChange={handleAdVideoChange} disabled={adVideoStatus !== "idle"} />
-                  <Button variant="outline" size="sm" onClick={() => adVideoRef.current?.click()} disabled={adVideoStatus !== "idle"}>
+                  <input type="file" accept="image/*" ref={adImageRef} className="hidden" onChange={handleAdImageChange} disabled={adVideoStatus !== "idle" || !!adForm.videoPath} />
+                  <input type="file" accept="video/*" ref={adVideoRef} className="hidden" onChange={handleAdVideoChange} disabled={adVideoStatus !== "idle" || (!!adForm.image && !adForm.videoPath)} />
+                  <Button variant="outline" size="sm" onClick={() => adImageRef.current?.click()} disabled={adVideoStatus !== "idle" || !!adForm.videoPath}>
+                    {adForm.imageName ? "🖼️ Flyer ✓" : "🖼️ Ajouter un flyer"}
+                  </Button>
+                  <Button variant="outline" size="sm" onClick={() => adVideoRef.current?.click()} disabled={adVideoStatus !== "idle" || (!!adForm.image && !adForm.videoPath)}>
                     {adVideoStatus === "compressing" ? "⏳ Compression..." : adVideoStatus === "uploading" ? "⬆️ Envoi..." : adForm.videoName ? "🎬 Vidéo ✓" : "🎬 Ajouter la vidéo *"}
                   </Button>
+                  {adForm.imageName && !adForm.videoPath && <span className="text-xs text-muted-foreground truncate max-w-[160px]">✅ {adForm.imageName}</span>}
                   {adForm.videoName && <span className="text-xs text-muted-foreground truncate max-w-[160px]">✅ {adForm.videoName}</span>}
                 </div>
+                <p className="text-xs text-muted-foreground">Ajoutez soit un flyer, soit une vidéo. Une vidéo peut aussi avoir son poster généré automatiquement.</p>
                 <div className="flex gap-2">
                   <Button size="sm" onClick={handleCreateAd} disabled={createAd.isPending || adVideoStatus !== "idle"}>
                     {createAd.isPending ? "Création…" : "Créer"}
@@ -2290,7 +2320,7 @@ export default function AdminDashboard() {
                   return (
                     <div key={ad.id} className={`bg-card border rounded-xl p-3 flex flex-col gap-2 ${!active ? "border-red-200 bg-red-50/30" : ""}`}>
                       <div className="flex items-center gap-3">
-                      {ad.videoPath && (
+                      {ad.videoPath ? (
                         <button
                           type="button"
                           className="w-14 h-14 rounded-lg bg-black flex items-center justify-center flex-shrink-0 overflow-hidden relative group"
@@ -2302,7 +2332,9 @@ export default function AdminDashboard() {
                             <span className="text-white text-xs font-bold">{playingAdId === ad.id ? "✕" : "▶"}</span>
                           </div>
                         </button>
-                      )}
+                      ) : ad.image ? (
+                        <img src={resolveImageUrl(ad.image)} alt="" className="w-14 h-14 rounded-lg object-cover flex-shrink-0" />
+                      ) : null}
                       <div className="flex-1 min-w-0">
                         <div className="flex items-center gap-1.5 flex-wrap">
                           <p className="font-semibold text-sm truncate">{ad.advertiserName}</p>
@@ -2674,7 +2706,7 @@ export default function AdminDashboard() {
                     <option value="ECONOMICAL">Lecture économique / manuelle</option>
                   </select>
                   <p className="text-xs text-muted-foreground mt-1.5">
-                    En mode économique, les vidéos ne sont téléchargées et lues qu’après un double-clic.
+                    En mode économique, les vidéos ne sont téléchargées et lues qu’après un clic au centre.
                   </p>
                 </div>
               )}
