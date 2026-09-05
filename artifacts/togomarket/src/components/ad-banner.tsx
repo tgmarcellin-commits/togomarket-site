@@ -99,11 +99,13 @@ export function AdBanner() {
     setViewingVideo(false);
   }, [videoAds.length]);
 
-  // Le carrousel conserve une rotation fixe de cinq secondes dans les deux modes.
-  // En mode économique, le minuteur est suspendu tant que la vidéo est visionnée.
+  // En mode économique, le carrousel avance toutes les dix secondes et le
+  // minuteur est suspendu tant que la vidéo est visionnée.
+  // En lecture automatique, le passage à la vidéo suivante se fait à la fin
+  // de la vidéo courante.
   useEffect(() => {
-    if (!playbackConfigured || videoAds.length <= 1 || (economicalMode && viewingVideo)) return;
-    const timer = window.setInterval(handleNext, 5000);
+    if (!playbackConfigured || !economicalMode || videoAds.length <= 1 || viewingVideo) return;
+    const timer = window.setInterval(handleNext, 10_000);
     return () => window.clearInterval(timer);
   }, [economicalMode, handleNext, playbackConfigured, videoAds.length, viewingVideo]);
 
@@ -194,17 +196,9 @@ export function AdBanner() {
         onEnded={economicalMode ? () => {
           setViewingVideo(false);
           setPaused(true);
-        } : undefined}
+        } : handleNext}
         className="w-full h-full object-cover"
       />
-
-      {economicalMode && !viewingVideo && (
-        <div className="absolute inset-x-0 bottom-12 flex justify-center pointer-events-none px-3">
-          <span className="rounded-full bg-black/65 px-3 py-1.5 text-center text-xs font-semibold text-white shadow">
-            Double-cliquez pour visualiser la vidéo publicitaire
-          </span>
-        </div>
-      )}
 
       {/* Icône play/pause flashée au tap */}
       {showIcon && (
