@@ -19,7 +19,7 @@ import {
   servicesTable,
   vendorsTable,
 } from "@workspace/db";
-import { and, eq, gt, isNull } from "drizzle-orm";
+import { and, eq, gt } from "drizzle-orm";
 import { isAdminAny, isSuperAdmin } from "../lib/admin-auth";
 import { validateFileBytes } from "../lib/file-security";
 import { getObjectAclPolicy } from "../lib/objectAcl";
@@ -84,13 +84,18 @@ function compressVideo(inputPath: string, outputPath: string): Promise<{ origina
   });
 }
 
-function extractFirstVideoFrame(inputPath: string, outputPath: string): Promise<void> {
+/**
+ * Pick a representative frame from the first ten seconds instead of blindly
+ * using timestamp zero, which is often a black fade-in for advertising videos.
+ */
+function extractVideoPreviewFrame(inputPath: string, outputPath: string): Promise<void> {
   return new Promise((resolve, reject) => {
     const ffmpeg = spawn("ffmpeg", [
       "-y",
       "-i", inputPath,
+      "-t", "10",
+      "-vf", "thumbnail=300,scale=-2:min(720\\,ih)",
       "-frames:v", "1",
-      "-vf", "scale=-2:min(720\\,ih)",
       "-q:v", "4",
       outputPath,
     ], { stdio: ["ignore", "ignore", "pipe"] });
@@ -114,9 +119,17 @@ const objectStorageService = new ObjectStorageService();
 
 router.get("/storage/video-poster", async (req: Request, res: Response) => {
   const rawPath = typeof req.query.path === "string" ? req.query.path : "";
+  const refreshRequested = req.query.refresh === "1";
   if (!rawPath.startsWith("/objects/")) {
     res.status(400).json({ error: "Chemin vidéo invalide" });
     return;
+  }
+  if (refreshRequested) {
+    const adminCode = req.headers["x-admin-code"];
+    if (typeof adminCode !== "string" || !await isAdminAny(adminCode)) {
+      res.status(403).json({ error: "Régénération du poster non autorisée" });
+      return;
+    }
   }
 
   const [ad] = await db
@@ -132,7 +145,7 @@ router.get("/storage/video-poster", async (req: Request, res: Response) => {
     res.status(404).end();
     return;
   }
-  if (ad.image) {
+  if (ad.image && !refreshRequested) {
     res.redirect(302, `/api/storage${ad.image}`);
     return;
   }
@@ -143,7 +156,7 @@ router.get("/storage/video-poster", async (req: Request, res: Response) => {
     const videoFile = await objectStorageService.getObjectEntityFile(ad.videoPath);
     const [videoBuffer] = await videoFile.download();
     await writeFile(inputPath, videoBuffer);
-    await extractFirstVideoFrame(inputPath, outputPath);
+    await extractVideoPreviewFrame(inputPath, outputPath);
     const posterBuffer = await readFile(outputPath);
     const posterPath = await objectStorageService.uploadObjectEntity(posterBuffer, "image/jpeg", {
       owner: "public-ad-poster",
@@ -152,7 +165,7 @@ router.get("/storage/video-poster", async (req: Request, res: Response) => {
     const [updated] = await db
       .update(adsTable)
       .set({ image: posterPath })
-      .where(and(eq(adsTable.id, ad.id), isNull(adsTable.image)))
+      .where(and(eq(adsTable.id, ad.id), eq(adsTable.videoPath, rawPath)))
       .returning({ image: adsTable.image });
     const resolvedPosterPath = updated?.image ?? posterPath;
     res.setHeader("Cache-Control", "public, max-age=86400");

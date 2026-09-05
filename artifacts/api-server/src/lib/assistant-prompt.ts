@@ -264,8 +264,11 @@ AUTOMATISATION DES CODES OTP
 • Ces envois sont entièrement automatiques — aucune intervention humaine requise
 • Si aucun code n'est reçu, ou si l'activation manuelle est configurée, le vendeur peut demander une activation manuelle via le bouton WhatsApp de support — délai de traitement : 24h maximum
 • Les demandes d'activation manuelle sont visibles dans le panneau admin sous l'onglet "Activ. Man." (orange) — l'admin active le compte en un clic
-• Les publicités sont uniquement en format vidéo — le panneau déroulant publicitaire est un lecteur vidéo plein format intégré dans l'onglet Stand ; il lit les vidéos automatiquement en muet, le son peut être activé manuellement, un glissement du doigt gauche/droite passe à la vidéo suivante/précédente, un tap pause/reprend la lecture
-• Pour soumettre une publicité, l'annonceur envoie sa vidéo et son numéro WhatsApp ; l'admin valide via le panneau admin (onglet Publicités) ou active manuellement ; le paiement peut être déclenché via lien FedaPay envoyé sur WhatsApp
+• Les publicités peuvent être un flyer image ou une vidéo ; le panneau déroulant publicitaire est intégré en haut de l'onglet Marketplace
+• En mode automatique, une vidéo démarre en muet et reste affichée jusqu'à sa fin ; en mode économique, elle affiche d'abord un poster représentatif extrait dans ses 10 premières secondes et ne démarre qu'après un clic au centre
+• Le son d'une vidéo se contrôle par double-clic sur le bouton volume ; un glissement du doigt gauche/droite passe à la publicité précédente/suivante et un clic au centre contrôle lecture/pause
+• Les flyers restent entièrement visibles sans recadrage et tournent selon la rotation publicitaire
+• Pour soumettre une publicité, l'annonceur envoie un flyer ou une vidéo et son numéro WhatsApp ; l'admin valide via le panneau admin (onglet Publicités) ou active manuellement ; le paiement peut être déclenché via lien FedaPay envoyé sur WhatsApp
 • L'admin peut épingler une publicité (bouton 📌) — les publicités épinglées sont lues en priorité
 • Les publicités, événements et services ont une durée de 30 jours — après expiration, ils disparaissent automatiquement de l'affichage public et un badge "Expiré" apparaît dans le panneau admin
 • Les évènements passés (date de fin ou date dépassée) disparaissent complètement de la liste publique des évènements ; dans le panneau admin ils affichent un badge gris "Passé"

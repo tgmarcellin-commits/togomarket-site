@@ -100,7 +100,10 @@ export function resizeImageToBlob(file: File): Promise<{ blob: Blob; dataUrl: st
   });
 }
 
-/** Capture the first decoded frame so video cards never need a black poster. */
+/**
+ * Capture a representative decoded frame from the first ten seconds so video
+ * previews do not inherit a black fade-in at timestamp zero.
+ */
 export function extractVideoPoster(file: File): Promise<Blob> {
   return new Promise((resolve, reject) => {
     const video = document.createElement("video");
@@ -118,10 +121,10 @@ export function extractVideoPoster(file: File): Promise<Blob> {
       reject(error);
     };
 
-    video.preload = "metadata";
+    video.preload = "auto";
     video.muted = true;
     video.playsInline = true;
-    video.onloadeddata = () => {
+    video.onloadedmetadata = () => {
       if (settled) return;
       const width = video.videoWidth;
       const height = video.videoHeight;
@@ -140,16 +143,35 @@ export function extractVideoPoster(file: File): Promise<Blob> {
         fail(new Error("Impossible de préparer l'image de couverture"));
         return;
       }
-      context.drawImage(video, 0, 0, canvas.width, canvas.height);
-      canvas.toBlob((blob) => {
-        if (!blob) {
-          fail(new Error("Impossible de créer l'image de couverture"));
-          return;
-        }
-        settled = true;
-        cleanup();
-        resolve(blob);
-      }, "image/jpeg", 0.82);
+
+      const capture = () => {
+        if (settled) return;
+        context.drawImage(video, 0, 0, canvas.width, canvas.height);
+        canvas.toBlob((blob) => {
+          if (!blob) {
+            fail(new Error("Impossible de créer l'image de couverture"));
+            return;
+          }
+          settled = true;
+          cleanup();
+          resolve(blob);
+        }, "image/jpeg", 0.82);
+      };
+
+      const duration = Number.isFinite(video.duration) ? video.duration : 0;
+      // Prefer a frame a few seconds into the video, while remaining inside
+      // the first ten seconds and supporting short clips.
+      const previewTime = Math.min(5, Math.max(0.5, duration > 0 ? duration * 0.4 : 2));
+      video.onseeked = () => {
+        video.onseeked = null;
+        requestAnimationFrame(capture);
+      };
+      try {
+        video.currentTime = previewTime;
+      } catch {
+        video.onseeked = null;
+        capture();
+      }
     };
     video.onerror = () => fail(new Error("Vidéo non prise en charge"));
     video.src = objectUrl;
