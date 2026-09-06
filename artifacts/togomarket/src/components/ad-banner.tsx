@@ -52,10 +52,10 @@ export function AdBanner() {
 
   const ad = mediaAds[current] as Ad | undefined;
   const isVideoAd = !!ad?.videoPath;
+  // Toujours passer par le générateur serveur : un ancien poster peut être
+  // noir, même si le champ image existe déjà en base.
   const posterUrl = isVideoAd
-    ? ad?.image
-      ? resolveImageUrl(ad.image)
-      : `/api/storage/video-poster?path=${encodeURIComponent(ad.videoPath!)}`
+    ? `/api/storage/video-poster?path=${encodeURIComponent(ad.videoPath!)}`
     : undefined;
 
   // Changer de vidéo : lecture automatique uniquement dans le mode configuré.

@@ -36,6 +36,8 @@ const imageUpload = multer({
   limits: { fileSize: 5 * 1024 * 1024, files: 1, fields: 2 },
 });
 let activeVideoJobs = 0;
+const generatedVideoPosterCache = new Map<string, string>();
+const videoPosterJobs = new Map<string, Promise<string>>();
 
 /** Run ffmpeg to compress a video file. Returns path to compressed output. */
 function compressVideo(inputPath: string, outputPath: string): Promise<{ originalSize: number; compressedSize: number }> {
@@ -114,6 +116,47 @@ function extractVideoPreviewFrame(inputPath: string, outputPath: string): Promis
   });
 }
 
+async function generateVideoPoster(videoPath: string, adId: number): Promise<string> {
+  const cachedPoster = generatedVideoPosterCache.get(videoPath);
+  if (cachedPoster) return cachedPoster;
+
+  const activeJob = videoPosterJobs.get(videoPath);
+  if (activeJob) return activeJob;
+
+  const job = (async () => {
+    const inputPath = `/tmp/ad-poster-${adId}-${Date.now()}.mp4`;
+    const outputPath = `${inputPath}.jpg`;
+    try {
+      const videoFile = await objectStorageService.getObjectEntityFile(videoPath);
+      const [videoBuffer] = await videoFile.download();
+      await writeFile(inputPath, videoBuffer);
+      await extractVideoPreviewFrame(inputPath, outputPath);
+      const posterBuffer = await readFile(outputPath);
+      const posterPath = await objectStorageService.uploadObjectEntity(posterBuffer, "image/jpeg", {
+        owner: "public-ad-poster",
+        visibility: "public",
+      });
+      const [updated] = await db
+        .update(adsTable)
+        .set({ image: posterPath })
+        .where(and(eq(adsTable.id, adId), eq(adsTable.videoPath, videoPath)))
+        .returning({ image: adsTable.image });
+      const resolvedPosterPath = updated?.image ?? posterPath;
+      generatedVideoPosterCache.set(videoPath, resolvedPosterPath);
+      return resolvedPosterPath;
+    } finally {
+      await Promise.allSettled([unlink(inputPath), unlink(outputPath)]);
+    }
+  })();
+
+  videoPosterJobs.set(videoPath, job);
+  try {
+    return await job;
+  } finally {
+    videoPosterJobs.delete(videoPath);
+  }
+}
+
 const router: IRouter = Router();
 const objectStorageService = new ObjectStorageService();
 
@@ -145,36 +188,32 @@ router.get("/storage/video-poster", async (req: Request, res: Response) => {
     res.status(404).end();
     return;
   }
-  if (ad.image && !refreshRequested) {
-    res.redirect(302, `/api/storage${ad.image}`);
-    return;
+  if (!refreshRequested) {
+    const cachedPoster = generatedVideoPosterCache.get(rawPath);
+    if (cachedPoster) {
+      res.setHeader("Cache-Control", "public, max-age=86400");
+      res.redirect(302, `/api/storage${cachedPoster}`);
+      return;
+    }
+  } else {
+    generatedVideoPosterCache.delete(rawPath);
   }
 
-  const inputPath = `/tmp/ad-poster-${ad.id}-${Date.now()}.mp4`;
-  const outputPath = `${inputPath}.jpg`;
   try {
-    const videoFile = await objectStorageService.getObjectEntityFile(ad.videoPath);
-    const [videoBuffer] = await videoFile.download();
-    await writeFile(inputPath, videoBuffer);
-    await extractVideoPreviewFrame(inputPath, outputPath);
-    const posterBuffer = await readFile(outputPath);
-    const posterPath = await objectStorageService.uploadObjectEntity(posterBuffer, "image/jpeg", {
-      owner: "public-ad-poster",
-      visibility: "public",
-    });
-    const [updated] = await db
-      .update(adsTable)
-      .set({ image: posterPath })
-      .where(and(eq(adsTable.id, ad.id), eq(adsTable.videoPath, rawPath)))
-      .returning({ image: adsTable.image });
-    const resolvedPosterPath = updated?.image ?? posterPath;
+    const posterPath = await generateVideoPoster(ad.videoPath, ad.id);
     res.setHeader("Cache-Control", "public, max-age=86400");
-    res.redirect(302, `/api/storage${resolvedPosterPath}`);
+    res.redirect(302, `/api/storage${posterPath}`);
+    return;
   } catch (error) {
     req.log.warn({ error, adId: ad.id }, "Unable to generate ad video poster");
+    // A previously stored poster is still safer than a blank video frame if
+    // FFmpeg or object storage is temporarily unavailable.
+    if (ad.image) {
+      res.setHeader("Cache-Control", "public, max-age=300");
+      res.redirect(302, `/api/storage${ad.image}`);
+      return;
+    }
     res.status(404).end();
-  } finally {
-    await Promise.allSettled([unlink(inputPath), unlink(outputPath)]);
   }
 });
 
