@@ -1028,6 +1028,7 @@ export const GetEventsResponseItem = zod.object({
   "date": zod.string(),
   "endDate": zod.string().nullable(),
   "location": zod.string(),
+  "whatsappPhone": zod.string().nullable(),
   "ticketLink": zod.string().nullish(),
   "ticketPrice": zod.string().nullish(),
   "createdAt": zod.string(),
@@ -1039,6 +1040,10 @@ export const GetEventsResponse = zod.array(GetEventsResponseItem)
 /**
  * @summary Create a new event (admin only)
  */
+export const adminCreateEventBodyWhatsappPhoneMin = 8;
+
+
+
 export const AdminCreateEventBody = zod.object({
   "password": zod.string(),
   "title": zod.string(),
@@ -1048,6 +1053,7 @@ export const AdminCreateEventBody = zod.object({
   "date": zod.string(),
   "endDate": zod.string().optional(),
   "location": zod.string(),
+  "whatsappPhone": zod.string().min(adminCreateEventBodyWhatsappPhoneMin),
   "ticketLink": zod.string().optional(),
   "ticketPrice": zod.string().optional()
 })
@@ -1063,6 +1069,36 @@ export const AdminDeleteEventBody = zod.object({
 
 export const AdminDeleteEventResponse = zod.object({
   "success": zod.boolean()
+})
+
+
+/**
+ * @summary Update an event WhatsApp number (admin only)
+ */
+export const adminUpdateEventWhatsappBodyWhatsappPhoneMin = 8;
+
+
+
+export const AdminUpdateEventWhatsappBody = zod.object({
+  "password": zod.string(),
+  "id": zod.number(),
+  "whatsappPhone": zod.string().min(adminUpdateEventWhatsappBodyWhatsappPhoneMin)
+})
+
+export const AdminUpdateEventWhatsappResponse = zod.object({
+  "id": zod.number(),
+  "title": zod.string(),
+  "description": zod.string(),
+  "flyerImage": zod.string().nullish(),
+  "videoPath": zod.string().nullish(),
+  "date": zod.string(),
+  "endDate": zod.string().nullable(),
+  "location": zod.string(),
+  "whatsappPhone": zod.string().nullable(),
+  "ticketLink": zod.string().nullish(),
+  "ticketPrice": zod.string().nullish(),
+  "createdAt": zod.string(),
+  "isPublished": zod.boolean().nullish()
 })
 
 

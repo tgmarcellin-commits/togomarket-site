@@ -22,6 +22,7 @@ export * from './adminPasswordInput';
 export * from './adminPinAdInput';
 export * from './adminPinListingInput';
 export * from './adminResetVendorPasswordInput';
+export * from './adminUpdateEventWhatsappInput';
 export * from './adminVerifyInput';
 export * from './adminVerifyResult';
 export * from './contactRequestInput';

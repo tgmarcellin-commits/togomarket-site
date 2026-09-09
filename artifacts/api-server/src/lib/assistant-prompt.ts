@@ -250,6 +250,8 @@ MOT DE PASSE OUBLIÉ
 PARTAGE ET VISIBILITÉ
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 • Chaque annonce, événement et publicité a des boutons de partage WhatsApp et Facebook directement visibles
+• Chaque événement possède son propre numéro WhatsApp, visible et modifiable dans la colonne "Numéro WhatsApp" du panneau admin ; le bouton WhatsApp public ouvre directement la conversation avec ce numéro
+• Le lien de paiement FedaPay d'un événement est envoyé uniquement au numéro WhatsApp enregistré pour cet événement ; un événement sans numéro doit d'abord être complété dans le panneau admin
 • Le lien de boutique du vendeur peut être partagé en un clic sur WhatsApp ou Facebook
 • Pour soumettre une publicité ou un événement : cliquer sur le bouton vert WhatsApp en bas de la section Publicité ou Événementiel
 • Pour publier une offre d'emploi ou chercher un emploi : aller dans l'onglet "Services" et cliquer sur le bouton WhatsApp en bas

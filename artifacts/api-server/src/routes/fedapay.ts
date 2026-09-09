@@ -199,9 +199,12 @@ async function getPaymentEntity(entityType: EntityType, entityId: number): Promi
       .from(servicesTable).where(eq(servicesTable.id, entityId)).limit(1);
     return { exists: Boolean(row), transactionId: row?.transactionId ?? null, ownerPhone: row?.phone ?? null };
   }
-  const [row] = await db.select({ transactionId: eventsTable.fedapayTransactionId })
+  const [row] = await db.select({
+    transactionId: eventsTable.fedapayTransactionId,
+    phone: eventsTable.whatsappPhone,
+  })
     .from(eventsTable).where(eq(eventsTable.id, entityId)).limit(1);
-  return { exists: Boolean(row), transactionId: row?.transactionId ?? null, ownerPhone: null };
+  return { exists: Boolean(row), transactionId: row?.transactionId ?? null, ownerPhone: row?.phone ?? null };
 }
 
 async function activateEntity(
@@ -285,6 +288,9 @@ router.post("/fedapay/create-transaction", async (req, res) => {
     }
     const expectedPhone = paymentEntity.ownerPhone ? normalizePhone(paymentEntity.ownerPhone) : "";
     const suppliedPhone = normalizePhone(String(customerPhone));
+    if (entityType === "event" && expectedPhone.length < 8) {
+      return res.status(400).json({ error: "Cet événement n'a pas encore de numéro WhatsApp enregistré" });
+    }
     if (expectedPhone.length >= 8 && suppliedPhone !== expectedPhone) {
       return res.status(403).json({ error: "Le numéro ne correspond pas au propriétaire" });
     }

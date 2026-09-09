@@ -8,22 +8,24 @@ import { useSiteSettings } from "@/lib/site-settings";
 import { useT } from "@/lib/i18n";
 import { resolveImageUrl } from "@/lib/image";
 import { SmartVideo } from "@/components/smart-video";
+import { waPhone } from "@/lib/wa";
 
-function ShareButtons({ text, url }: { text: string; url: string }) {
-  const waHref = `https://wa.me/?text=${encodeURIComponent(text)}`;
+function ShareButtons({ text, url, whatsappPhone }: { text: string; url: string; whatsappPhone?: string | null }) {
   const fbHref = `https://www.facebook.com/sharer/sharer.php?u=${encodeURIComponent(url)}&quote=${encodeURIComponent(text)}`;
   return (
     <div className="flex items-center gap-1.5">
+      {whatsappPhone && (
       <a
-        href={waHref}
+        href={`https://wa.me/${waPhone(whatsappPhone)}?text=${encodeURIComponent(text)}`}
         target="_blank"
         rel="noopener noreferrer"
         onClick={(e) => e.stopPropagation()}
         className="w-8 h-8 flex items-center justify-center rounded-full bg-[#25D366] hover:bg-[#1eb355] transition-colors"
-        title="Partager sur WhatsApp"
+        title="Contacter l'organisateur sur WhatsApp"
       >
         <svg viewBox="0 0 24 24" className="w-4 h-4 fill-white"><path d="M17.472 14.382c-.297-.149-1.758-.867-2.03-.967-.273-.099-.471-.148-.67.15-.197.297-.767.966-.94 1.164-.173.199-.347.223-.644.075-.297-.15-1.255-.463-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.298-.347.446-.52.149-.174.198-.298.298-.497.099-.198.05-.371-.025-.52-.075-.149-.669-1.612-.916-2.207-.242-.579-.487-.5-.669-.51-.173-.008-.371-.01-.57-.01-.198 0-.52.074-.792.372-.272.297-1.04 1.016-1.04 2.479 0 1.462 1.065 2.875 1.213 3.074.149.198 2.096 3.2 5.077 4.487.709.306 1.262.489 1.694.625.712.227 1.36.195 1.871.118.571-.085 1.758-.719 2.006-1.413.248-.694.248-1.289.173-1.413-.074-.124-.272-.198-.57-.347z"/><path d="M12 0C5.373 0 0 5.373 0 12c0 2.123.554 4.114 1.526 5.843L.057 23.617a.5.5 0 0 0 .611.64l5.975-1.566A11.945 11.945 0 0 0 12 24c6.627 0 12-5.373 12-12S18.627 0 12 0zm0 22c-1.885 0-3.645-.52-5.148-1.426l-.369-.221-3.821 1.001.982-3.713-.24-.381A9.944 9.944 0 0 1 2 12C2 6.477 6.477 2 12 2s10 4.477 10 10-4.477 10-10 10z"/></svg>
       </a>
+      )}
       <a
         href={fbHref}
         target="_blank"
@@ -125,7 +127,7 @@ function EventDetailModal({ event, open, onClose, locale, t }: {
           </p>
           <div className="flex items-center justify-between pt-1">
             <span className="text-xs text-muted-foreground">{t.shareViaWhatsApp} / Facebook</span>
-            <ShareButtons text={shareText} url={shareUrl} />
+            <ShareButtons text={shareText} url={shareUrl} whatsappPhone={event.whatsappPhone} />
           </div>
           {event.ticketLink && (
             <Button
@@ -235,7 +237,7 @@ export function EvenementielView() {
                         {t.past}
                       </span>
                     )}
-                    <ShareButtons text={shareText} url={shareUrl} />
+                    <ShareButtons text={shareText} url={shareUrl} whatsappPhone={event.whatsappPhone} />
                   </div>
                 </div>
                 <div className="flex items-start gap-1.5 text-xs text-muted-foreground">

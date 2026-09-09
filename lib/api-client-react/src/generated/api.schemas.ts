@@ -101,6 +101,8 @@ export interface Event {
   endDate: string | null;
   location: string;
   /** @nullable */
+  whatsappPhone: string | null;
+  /** @nullable */
   ticketLink?: string | null;
   /** @nullable */
   ticketPrice?: string | null;
@@ -118,8 +120,17 @@ export interface AdminCreateEventInput {
   date: string;
   endDate?: string;
   location: string;
+  /** @minLength 8 */
+  whatsappPhone: string;
   ticketLink?: string;
   ticketPrice?: string;
+}
+
+export interface AdminUpdateEventWhatsappInput {
+  password: string;
+  id: number;
+  /** @minLength 8 */
+  whatsappPhone: string;
 }
 
 export interface HealthStatus {

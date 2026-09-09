@@ -20,6 +20,7 @@ function mapEvent(e: typeof eventsTable.$inferSelect) {
     date: e.date.toISOString(),
     endDate: e.endDate?.toISOString() ?? null,
     location: e.location,
+    whatsappPhone: e.whatsappPhone ?? null,
     ticketLink: e.ticketLink ?? null,
     ticketPrice: e.ticketPrice ?? null,
     createdAt: e.createdAt.toISOString(),
@@ -50,11 +51,11 @@ router.get("/events", async (req, res) => {
 });
 
 router.post("/admin/events", async (req, res) => {
-  const { password, title, description, flyerImage, videoPath, date, endDate, location, ticketLink, ticketPrice } = req.body;
+  const { password, title, description, flyerImage, videoPath, date, endDate, location, whatsappPhone, ticketLink, ticketPrice } = req.body;
   if (!await canManageEvents(password)) {
     return res.status(403).json({ error: "Forbidden" });
   }
-  if (!title?.trim() || !description?.trim() || !date || !location?.trim()) {
+  if (!title?.trim() || !description?.trim() || !date || !location?.trim() || !whatsappPhone?.trim()) {
     return res.status(400).json({ error: "Champs requis manquants" });
   }
   try {
@@ -68,6 +69,7 @@ router.post("/admin/events", async (req, res) => {
         date: new Date(date),
         endDate: endDate ? new Date(endDate) : null,
         location: location.trim(),
+        whatsappPhone: whatsappPhone.trim(),
         ticketLink: ticketLink ?? null,
         ticketPrice: ticketPrice ?? null,
         isPublished: false,
@@ -93,6 +95,31 @@ router.post("/admin/events/all", async (req, res) => {
     return res.json(events.map(mapEvent));
   } catch (err) {
     req.log.error({ err }, "Failed to get all events");
+    return res.status(500).json({ error: "Erreur interne" });
+  }
+});
+
+router.post("/admin/events/whatsapp", async (req, res) => {
+  const { password, id, whatsappPhone } = req.body;
+  if (!await canManageEvents(password)) {
+    return res.status(403).json({ error: "Forbidden" });
+  }
+  const eventId = Number(id);
+  if (!Number.isInteger(eventId) || eventId <= 0 || typeof whatsappPhone !== "string" || whatsappPhone.trim().length < 8) {
+    return res.status(400).json({ error: "Numéro WhatsApp invalide" });
+  }
+  try {
+    const [event] = await db
+      .update(eventsTable)
+      .set({ whatsappPhone: whatsappPhone.trim() })
+      .where(eq(eventsTable.id, eventId))
+      .returning();
+    if (!event) {
+      return res.status(404).json({ error: "Événement introuvable" });
+    }
+    return res.json(mapEvent(event));
+  } catch (err) {
+    req.log.error({ err }, "Failed to update event WhatsApp number");
     return res.status(500).json({ error: "Erreur interne" });
   }
 });

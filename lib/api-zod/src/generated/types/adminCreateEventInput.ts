@@ -15,6 +15,8 @@ export interface AdminCreateEventInput {
   date: string;
   endDate?: string;
   location: string;
+  /** @minLength 8 */
+  whatsappPhone: string;
   ticketLink?: string;
   ticketPrice?: string;
 }

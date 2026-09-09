@@ -269,7 +269,7 @@ export function AdminModal({
   const [allEvents, setAllEvents] = useState<ApiEvent[]>([]);
   const [eventsLoading, setEventsLoading] = useState(false);
   const [showEventForm, setShowEventForm] = useState(false);
-  const [eventForm, setEventForm] = useState({ title: "", description: "", date: "", location: "", ticketPrice: "", ticketLink: "", flyerImage: "", flyerPreview: "" });
+  const [eventForm, setEventForm] = useState({ title: "", description: "", date: "", location: "", whatsappPhone: "", ticketPrice: "", ticketLink: "", flyerImage: "", flyerPreview: "" });
   const eventFlyerRef = useRef<HTMLInputElement>(null);
 
   const createEvent = useAdminCreateEvent();
@@ -286,8 +286,8 @@ export function AdminModal({
   };
 
   const handleCreateEvent = () => {
-    if (!eventForm.title || !eventForm.description || !eventForm.date || !eventForm.location) {
-      toast({ title: "Titre, description, date et lieu sont requis", variant: "destructive" });
+    if (!eventForm.title || !eventForm.description || !eventForm.date || !eventForm.location || !eventForm.whatsappPhone.trim()) {
+      toast({ title: "Titre, description, date, lieu et numéro WhatsApp sont requis", variant: "destructive" });
       return;
     }
     createEvent.mutate(
@@ -298,6 +298,7 @@ export function AdminModal({
           description: eventForm.description,
           date: eventForm.date,
           location: eventForm.location,
+          whatsappPhone: eventForm.whatsappPhone.trim(),
           ticketPrice: eventForm.ticketPrice || undefined,
           ticketLink: eventForm.ticketLink || undefined,
           flyerImage: eventForm.flyerImage || undefined,
@@ -307,7 +308,7 @@ export function AdminModal({
         onSuccess: () => {
           toast({ title: "Événement créé !" });
           setShowEventForm(false);
-          setEventForm({ title: "", description: "", date: "", location: "", ticketPrice: "", ticketLink: "", flyerImage: "", flyerPreview: "" });
+          setEventForm({ title: "", description: "", date: "", location: "", whatsappPhone: "", ticketPrice: "", ticketLink: "", flyerImage: "", flyerPreview: "" });
           queryClient.invalidateQueries({ queryKey: getGetEventsQueryKey() });
           refetchEvents();
         },
@@ -1750,13 +1751,19 @@ export function AdminModal({
                       className="h-8 text-sm"
                     />
                     <Input
+                      placeholder="Numéro WhatsApp *"
+                      value={eventForm.whatsappPhone}
+                      onChange={(e) => setEventForm((f) => ({ ...f, whatsappPhone: e.target.value }))}
+                      className="h-8 text-sm"
+                    />
+                    <Input
                       placeholder="Prix du billet (ex: 1 000 FCFA, Gratuit)"
                       value={eventForm.ticketPrice}
                       onChange={(e) => setEventForm((f) => ({ ...f, ticketPrice: e.target.value }))}
                       className="h-8 text-sm"
                     />
                     <Input
-                      placeholder="Lien billetterie / WhatsApp (optionnel)"
+                      placeholder="Lien billetterie (optionnel)"
                       value={eventForm.ticketLink}
                       onChange={(e) => setEventForm((f) => ({ ...f, ticketLink: e.target.value }))}
                       className="h-8 text-sm"

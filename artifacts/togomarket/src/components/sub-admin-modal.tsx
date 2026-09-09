@@ -184,7 +184,7 @@ export function SubAdminModal({ section, open, onOpenChange }: SubAdminModalProp
   const [allEvents, setAllEvents] = useState<ApiEvent[]>([]);
   const [eventsLoading, setEventsLoading] = useState(false);
   const [showEventForm, setShowEventForm] = useState(false);
-  const [eventForm, setEventForm] = useState({ title: "", description: "", date: "", location: "", ticketPrice: "", ticketLink: "", flyerImage: "", flyerPreview: "" });
+  const [eventForm, setEventForm] = useState({ title: "", description: "", date: "", location: "", whatsappPhone: "", ticketPrice: "", ticketLink: "", flyerImage: "", flyerPreview: "" });
   const [confirmEvent, setConfirmEvent] = useState<number | null>(null);
   const eventFlyerRef = useRef<HTMLInputElement>(null);
 
@@ -213,8 +213,8 @@ export function SubAdminModal({ section, open, onOpenChange }: SubAdminModalProp
   };
 
   const handleCreateEvent = () => {
-    if (!eventForm.title.trim() || !eventForm.description.trim() || !eventForm.date || !eventForm.location.trim()) {
-      toast({ title: "Titre, description, date et lieu sont requis", variant: "destructive" });
+    if (!eventForm.title.trim() || !eventForm.description.trim() || !eventForm.date || !eventForm.location.trim() || !eventForm.whatsappPhone.trim()) {
+      toast({ title: "Titre, description, date, lieu et numéro WhatsApp sont requis", variant: "destructive" });
       return;
     }
     createEvent.mutate(
@@ -225,6 +225,7 @@ export function SubAdminModal({ section, open, onOpenChange }: SubAdminModalProp
           description: eventForm.description,
           date: eventForm.date,
           location: eventForm.location,
+          whatsappPhone: eventForm.whatsappPhone.trim(),
           ticketPrice: eventForm.ticketPrice || undefined,
           ticketLink: eventForm.ticketLink || undefined,
           flyerImage: eventForm.flyerImage || undefined,
@@ -233,7 +234,7 @@ export function SubAdminModal({ section, open, onOpenChange }: SubAdminModalProp
       {
         onSuccess: () => {
           toast({ title: "Événement créé ✓" });
-          setEventForm({ title: "", description: "", date: "", location: "", ticketPrice: "", ticketLink: "", flyerImage: "", flyerPreview: "" });
+          setEventForm({ title: "", description: "", date: "", location: "", whatsappPhone: "", ticketPrice: "", ticketLink: "", flyerImage: "", flyerPreview: "" });
           setShowEventForm(false);
           queryClient.invalidateQueries({ queryKey: getGetEventsQueryKey() });
           refetchEvents();
@@ -470,6 +471,7 @@ export function SubAdminModal({ section, open, onOpenChange }: SubAdminModalProp
                 />
                 <Input type="datetime-local" value={eventForm.date} onChange={(e) => setEventForm((f) => ({ ...f, date: e.target.value }))} className="h-8 text-sm" />
                 <Input placeholder="Lieu *" value={eventForm.location} onChange={(e) => setEventForm((f) => ({ ...f, location: e.target.value }))} className="h-8 text-sm" />
+                <Input placeholder="Numéro WhatsApp *" value={eventForm.whatsappPhone} onChange={(e) => setEventForm((f) => ({ ...f, whatsappPhone: e.target.value }))} className="h-8 text-sm" />
                 <Input placeholder="Prix ticket (optionnel)" value={eventForm.ticketPrice} onChange={(e) => setEventForm((f) => ({ ...f, ticketPrice: e.target.value }))} className="h-8 text-sm" />
                 <Input placeholder="Lien ticket (optionnel)" value={eventForm.ticketLink} onChange={(e) => setEventForm((f) => ({ ...f, ticketLink: e.target.value }))} className="h-8 text-sm" />
                 <div className="flex items-center gap-2">

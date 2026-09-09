@@ -9,6 +9,7 @@ export const eventsTable = pgTable("events", {
   date: timestamp("date", { withTimezone: true }).notNull(),
   endDate: timestamp("end_date", { withTimezone: true }),
   location: text("location").notNull(),
+  whatsappPhone: text("whatsapp_phone"),
   ticketLink: text("ticket_link"),
   ticketPrice: text("ticket_price"),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),

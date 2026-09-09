@@ -19,6 +19,8 @@ export interface Event {
   endDate: string | null;
   location: string;
   /** @nullable */
+  whatsappPhone: string | null;
+  /** @nullable */
   ticketLink?: string | null;
   /** @nullable */
   ticketPrice?: string | null;

@@ -618,7 +618,7 @@ export default function AdminDashboard() {
   const [allEvents, setAllEvents] = useState<ApiEvent[]>([]);
   const [eventsLoading, setEventsLoading] = useState(false);
   const [showEventForm, setShowEventForm] = useState(false);
-  const [eventForm, setEventForm] = useState({ title: "", description: "", date: "", time: "", endDate: "", endTime: "", location: "", ticketPrice: "", ticketLink: "", flyerImage: "", flyerPreview: "", videoPath: "", videoName: "" });
+  const [eventForm, setEventForm] = useState({ title: "", description: "", date: "", time: "", endDate: "", endTime: "", location: "", whatsappPhone: "", ticketPrice: "", ticketLink: "", flyerImage: "", flyerPreview: "", videoPath: "", videoName: "" });
   const eventFlyerRef = useRef<HTMLInputElement>(null);
   const eventVideoRef = useRef<HTMLInputElement>(null);
 
@@ -656,6 +656,8 @@ export default function AdminDashboard() {
     customerPhone: string;
   } | null>(null);
   const [paymentLinkLoading, setPaymentLinkLoading] = useState(false);
+  const [eventPhoneSaving, setEventPhoneSaving] = useState<number | null>(null);
+  const [eventPhoneDrafts, setEventPhoneDrafts] = useState<Record<number, string>>({});
 
   const [settingsForm, setSettingsForm] = useState({
     whatsappCommission: "",
@@ -1277,8 +1279,8 @@ export default function AdminDashboard() {
   };
 
   const handleCreateEvent = () => {
-    if (!eventForm.title || !eventForm.description || !eventForm.date || !eventForm.location) {
-      toast({ title: "Titre, description, date et lieu sont requis", variant: "destructive" });
+    if (!eventForm.title || !eventForm.description || !eventForm.date || !eventForm.location || !eventForm.whatsappPhone.trim()) {
+      toast({ title: "Titre, description, date, lieu et numéro WhatsApp sont requis", variant: "destructive" });
       return;
     }
     // Combine date + heure en ISO string (heure locale)
@@ -1296,6 +1298,7 @@ export default function AdminDashboard() {
           date: startISO,
           endDate: endISO,
           location: eventForm.location,
+          whatsappPhone: eventForm.whatsappPhone.trim(),
           ticketPrice: eventForm.ticketPrice || undefined,
           ticketLink: eventForm.ticketLink || undefined,
           flyerImage: eventForm.flyerImage || undefined,
@@ -1306,13 +1309,40 @@ export default function AdminDashboard() {
         onSuccess: () => {
           toast({ title: "Événement créé !" });
           setShowEventForm(false);
-          setEventForm({ title: "", description: "", date: "", time: "", endDate: "", endTime: "", location: "", ticketPrice: "", ticketLink: "", flyerImage: "", flyerPreview: "", videoPath: "", videoName: "" });
+          setEventForm({ title: "", description: "", date: "", time: "", endDate: "", endTime: "", location: "", whatsappPhone: "", ticketPrice: "", ticketLink: "", flyerImage: "", flyerPreview: "", videoPath: "", videoName: "" });
           queryClient.invalidateQueries({ queryKey: getGetEventsQueryKey() });
           loadEvents();
         },
         onError: () => toast({ title: "Erreur", variant: "destructive" }),
       }
     );
+  };
+
+  const handleUpdateEventWhatsapp = async (eventId: number, fallbackPhone: string | null | undefined) => {
+    const whatsappPhone = (eventPhoneDrafts[eventId] ?? fallbackPhone ?? "").trim();
+    if (whatsappPhone.length < 8) {
+      toast({ title: "Numéro WhatsApp invalide", variant: "destructive" });
+      return;
+    }
+    setEventPhoneSaving(eventId);
+    try {
+      const response = await fetch("/api/admin/events/whatsapp", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ password, id: eventId, whatsappPhone }),
+      });
+      const data = await response.json() as { error?: string; whatsappPhone?: string | null };
+      if (!response.ok) {
+        throw new Error(data.error ?? "Impossible d'enregistrer le numéro");
+      }
+      setEventPhoneDrafts((drafts) => ({ ...drafts, [eventId]: data.whatsappPhone ?? whatsappPhone }));
+      setAllEvents((events) => events.map((event) => event.id === eventId ? { ...event, whatsappPhone: data.whatsappPhone ?? whatsappPhone } : event));
+      toast({ title: "Numéro WhatsApp enregistré" });
+    } catch (err) {
+      toast({ title: "Erreur", description: err instanceof Error ? err.message : "Impossible d'enregistrer le numéro", variant: "destructive" });
+    } finally {
+      setEventPhoneSaving(null);
+    }
   };
 
   const handleDeleteEvent = (id: number) => {
@@ -2428,6 +2458,7 @@ export default function AdminDashboard() {
                     </div>
                   </div>
                   <Input placeholder="Lieu *" value={eventForm.location} onChange={(e) => setEventForm((f) => ({ ...f, location: e.target.value }))} />
+                  <Input placeholder="Numéro WhatsApp *" value={eventForm.whatsappPhone} onChange={(e) => setEventForm((f) => ({ ...f, whatsappPhone: e.target.value }))} />
                   <Input placeholder="Prix billet" value={eventForm.ticketPrice} onChange={(e) => setEventForm((f) => ({ ...f, ticketPrice: e.target.value }))} />
                   <Input placeholder="Lien billets" value={eventForm.ticketLink} onChange={(e) => setEventForm((f) => ({ ...f, ticketLink: e.target.value }))} className="col-span-2" />
                 </div>
@@ -2491,6 +2522,24 @@ export default function AdminDashboard() {
                           ? ` → ${new Date((ev as ApiEvent & { endDate?: string | null }).endDate!).toLocaleString("fr-FR", { day: "2-digit", month: "short", hour: "2-digit", minute: "2-digit" })}`
                           : ""}
                       </p>
+                      <div className="flex items-center gap-1.5 mt-1">
+                        <span className="text-xs font-medium text-foreground/80 shrink-0">WhatsApp :</span>
+                        <Input
+                          value={eventPhoneDrafts[ev.id] ?? ev.whatsappPhone ?? ""}
+                          onChange={(e) => setEventPhoneDrafts((drafts) => ({ ...drafts, [ev.id]: e.target.value }))}
+                          placeholder="Numéro WhatsApp"
+                          className="h-7 max-w-[150px] text-xs"
+                        />
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          className="h-7 px-2 text-xs shrink-0"
+                          disabled={eventPhoneSaving === ev.id}
+                          onClick={() => handleUpdateEventWhatsapp(ev.id, ev.whatsappPhone)}
+                        >
+                          {eventPhoneSaving === ev.id ? "…" : "Enregistrer"}
+                        </Button>
+                      </div>
                     </div>
                     <div className="flex gap-2 flex-shrink-0">
                       {isSuperAdmin && !ev.isPublished && (
@@ -2499,7 +2548,19 @@ export default function AdminDashboard() {
                           Valider
                         </Button>
                       )}
-                      <Button size="sm" variant="ghost" className="h-8 w-8 p-0 text-green-600" title="Envoyer lien de paiement" onClick={() => setPaymentLinkDialog({ entityType: "event", entityId: ev.id, customerName: ev.title, customerPhone: "" })}>
+                      <Button
+                        size="sm"
+                        variant="ghost"
+                        className="h-8 w-8 p-0 text-green-600"
+                        title={ev.whatsappPhone ? "Envoyer lien de paiement via WhatsApp" : "Numéro WhatsApp non renseigné"}
+                        disabled={!ev.whatsappPhone}
+                        onClick={() => setPaymentLinkDialog({
+                          entityType: "event",
+                          entityId: ev.id,
+                          customerName: ev.title,
+                          customerPhone: ev.whatsappPhone ?? "",
+                        })}
+                      >
                         📲
                       </Button>
                       <Button size="sm" variant="ghost" className="h-8 w-8 p-0 text-destructive" onClick={() => { if (confirm("Supprimer cet événement ?")) handleDeleteEvent(ev.id); }}>
@@ -3219,7 +3280,13 @@ export default function AdminDashboard() {
                 value={paymentLinkDialog?.customerPhone ?? ""}
                 onChange={(e) => setPaymentLinkDialog((d) => d ? { ...d, customerPhone: e.target.value } : d)}
                 placeholder="Ex: 22890123456"
+                readOnly={paymentLinkDialog?.entityType === "event"}
               />
+              {paymentLinkDialog?.entityType === "event" && (
+                <p className="text-[11px] text-muted-foreground mt-1">
+                  Pour un événement, le lien est envoyé uniquement au numéro WhatsApp enregistré pour cet événement.
+                </p>
+              )}
             </div>
           </div>
           <DialogFooter className="gap-2">

@@ -36,6 +36,7 @@ import type {
   AdminPinAdInput,
   AdminPinListingInput,
   AdminResetVendorPasswordInput,
+  AdminUpdateEventWhatsappInput,
   AdminVerifyInput,
   AdminVerifyResult,
   ContactRequestInput,
@@ -3728,6 +3729,77 @@ export const useAdminDeleteEvent = <TError = ErrorType<void>,
         TContext
       > => {
       return useMutation(getAdminDeleteEventMutationOptions(options));
+    }
+
+export const getAdminUpdateEventWhatsappUrl = () => {
+
+
+
+
+  return `/api/admin/events/whatsapp`
+}
+
+/**
+ * @summary Update an event WhatsApp number (admin only)
+ */
+export const adminUpdateEventWhatsapp = async (adminUpdateEventWhatsappInput: AdminUpdateEventWhatsappInput, options?: RequestInit): Promise<Event> => {
+
+  return customFetch<Event>(getAdminUpdateEventWhatsappUrl(),
+  {
+    ...options,
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...options?.headers },
+    body: JSON.stringify(
+      adminUpdateEventWhatsappInput,)
+  }
+);}
+
+
+
+
+export const getAdminUpdateEventWhatsappMutationOptions = <TError = ErrorType<void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof adminUpdateEventWhatsapp>>, TError,{data: BodyType<AdminUpdateEventWhatsappInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof adminUpdateEventWhatsapp>>, TError,{data: BodyType<AdminUpdateEventWhatsappInput>}, TContext> => {
+
+const mutationKey = ['adminUpdateEventWhatsapp'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof adminUpdateEventWhatsapp>>, {data: BodyType<AdminUpdateEventWhatsappInput>}> = (props) => {
+          const {data} = props ?? {};
+
+          return  adminUpdateEventWhatsapp(data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type AdminUpdateEventWhatsappMutationResult = NonNullable<Awaited<ReturnType<typeof adminUpdateEventWhatsapp>>>
+    export type AdminUpdateEventWhatsappMutationBody = BodyType<AdminUpdateEventWhatsappInput>
+    export type AdminUpdateEventWhatsappMutationError = ErrorType<void>
+
+    /**
+ * @summary Update an event WhatsApp number (admin only)
+ */
+export const useAdminUpdateEventWhatsapp = <TError = ErrorType<void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof adminUpdateEventWhatsapp>>, TError,{data: BodyType<AdminUpdateEventWhatsappInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof adminUpdateEventWhatsapp>>,
+        TError,
+        {data: BodyType<AdminUpdateEventWhatsappInput>},
+        TContext
+      > => {
+      return useMutation(getAdminUpdateEventWhatsappMutationOptions(options));
     }
 
 export const getGetServicesUrl = () => {

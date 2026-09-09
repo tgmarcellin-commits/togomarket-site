@@ -1133,6 +1133,31 @@ paths:
         "403":
           description: Forbidden
 
+  /admin/events/whatsapp:
+    post:
+      operationId: adminUpdateEventWhatsapp
+      tags: [admin, events]
+      summary: Update an event WhatsApp number (admin only)
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/AdminUpdateEventWhatsappInput"
+      responses:
+        "200":
+          description: Event updated
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Event"
+        "400":
+          description: Invalid WhatsApp number
+        "403":
+          description: Forbidden
+        "404":
+          description: Event not found
+
   /services:
     get:
       operationId: getServices
@@ -1405,7 +1430,7 @@ components:
 
     Event:
       type: object
-      required: [id, title, description, date, endDate, location, createdAt]
+      required: [id, title, description, date, endDate, location, whatsappPhone, createdAt]
       properties:
         id:
           type: integer
@@ -1423,6 +1448,8 @@ components:
           type: ["string", "null"]
         location:
           type: string
+        whatsappPhone:
+          type: ["string", "null"]
         ticketLink:
           type: ["string", "null"]
         ticketPrice:
@@ -1434,7 +1461,7 @@ components:
 
     AdminCreateEventInput:
       type: object
-      required: [password, title, description, date, location]
+      required: [password, title, description, date, location, whatsappPhone]
       properties:
         password:
           type: string
@@ -1452,10 +1479,25 @@ components:
           type: string
         location:
           type: string
+        whatsappPhone:
+          type: string
+          minLength: 8
         ticketLink:
           type: string
         ticketPrice:
           type: string
+
+    AdminUpdateEventWhatsappInput:
+      type: object
+      required: [password, id, whatsappPhone]
+      properties:
+        password:
+          type: string
+        id:
+          type: integer
+        whatsappPhone:
+          type: string
+          minLength: 8
 
     HealthStatus:
       type: object
