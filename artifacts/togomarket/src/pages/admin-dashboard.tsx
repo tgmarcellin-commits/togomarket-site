@@ -2522,23 +2522,28 @@ export default function AdminDashboard() {
                           ? ` → ${new Date((ev as ApiEvent & { endDate?: string | null }).endDate!).toLocaleString("fr-FR", { day: "2-digit", month: "short", hour: "2-digit", minute: "2-digit" })}`
                           : ""}
                       </p>
-                      <div className="flex items-center gap-1.5 mt-1">
-                        <span className="text-xs font-medium text-foreground/80 shrink-0">WhatsApp :</span>
-                        <Input
-                          value={eventPhoneDrafts[ev.id] ?? ev.whatsappPhone ?? ""}
-                          onChange={(e) => setEventPhoneDrafts((drafts) => ({ ...drafts, [ev.id]: e.target.value }))}
-                          placeholder="Numéro WhatsApp"
-                          className="h-7 max-w-[150px] text-xs"
-                        />
-                        <Button
-                          size="sm"
-                          variant="outline"
-                          className="h-7 px-2 text-xs shrink-0"
-                          disabled={eventPhoneSaving === ev.id}
-                          onClick={() => handleUpdateEventWhatsapp(ev.id, ev.whatsappPhone)}
-                        >
-                          {eventPhoneSaving === ev.id ? "…" : "Enregistrer"}
-                        </Button>
+                      <div className="mt-2 rounded-lg border border-border/70 bg-muted/20 p-2">
+                        <span className="mb-1.5 block text-xs font-semibold text-foreground/80">WhatsApp :</span>
+                        <div className="grid grid-cols-[minmax(0,1fr)_auto] items-center gap-2">
+                          <Input
+                            type="tel"
+                            inputMode="tel"
+                            autoComplete="tel"
+                            value={eventPhoneDrafts[ev.id] ?? ev.whatsappPhone ?? ""}
+                            onChange={(e) => setEventPhoneDrafts((drafts) => ({ ...drafts, [ev.id]: e.target.value }))}
+                            placeholder="Numéro WhatsApp"
+                            className="h-9 min-w-0 w-full bg-background px-2.5 text-sm font-medium text-foreground caret-foreground placeholder:text-muted-foreground"
+                          />
+                          <Button
+                            size="sm"
+                            variant="outline"
+                            className="h-9 px-2.5 text-xs shrink-0"
+                            disabled={eventPhoneSaving === ev.id}
+                            onClick={() => handleUpdateEventWhatsapp(ev.id, ev.whatsappPhone)}
+                          >
+                            {eventPhoneSaving === ev.id ? "…" : "Enregistrer"}
+                          </Button>
+                        </div>
                       </div>
                     </div>
                     <div className="flex gap-2 flex-shrink-0">
