@@ -1,4 +1,5 @@
 import { Router, type IRouter } from "express";
+import { sql } from "drizzle-orm";
 import { db, platformSettingsTable } from "@workspace/db";
 import {
   GetAdminSettingsResponse,
@@ -10,6 +11,8 @@ import {
 import { SUB_ADMIN_PASSWORD_DEFAULT, isSuperAdmin } from "../lib/admin-auth";
 
 const router: IRouter = Router();
+type PlaybackMode = "AUTOPLAY" | "ECONOMICAL";
+const DEFAULT_PLAYBACK_MODE: PlaybackMode = "AUTOPLAY";
 
 const settingsColumns = {
   id: platformSettingsTable.id,
@@ -21,8 +24,43 @@ const settingsColumns = {
   whatsappServices: platformSettingsTable.whatsappServices,
   otpProvider: platformSettingsTable.otpProvider,
   whatsappValidation: platformSettingsTable.whatsappValidation,
-  adVideoPlaybackMode: platformSettingsTable.adVideoPlaybackMode,
 };
+
+async function hasPlaybackModeColumn(): Promise<boolean> {
+  const result = await db.execute(sql`
+    select 1
+    from information_schema.columns
+    where table_schema = 'public'
+      and table_name = 'platform_settings'
+      and column_name = 'ad_video_playback_mode'
+    limit 1
+  `);
+  return result.rows.length > 0;
+}
+
+async function readPlaybackMode(id: number): Promise<PlaybackMode> {
+  if (!await hasPlaybackModeColumn()) return DEFAULT_PLAYBACK_MODE;
+
+  const result = await db.execute(sql`
+    select ad_video_playback_mode
+    from public.platform_settings
+    where id = ${id}
+    limit 1
+  `);
+  const value = (result.rows[0] as { ad_video_playback_mode?: unknown } | undefined)
+    ?.ad_video_playback_mode;
+  return value === "ECONOMICAL" ? "ECONOMICAL" : DEFAULT_PLAYBACK_MODE;
+}
+
+async function writePlaybackMode(id: number, mode: PlaybackMode): Promise<void> {
+  if (!await hasPlaybackModeColumn()) return;
+
+  await db.execute(sql`
+    update public.platform_settings
+    set ad_video_playback_mode = ${mode}
+    where id = ${id}
+  `);
+}
 
 async function getSettings() {
   const rows = await db
@@ -41,12 +79,14 @@ async function getSettings() {
         whatsappServices: "22870703131",
         otpProvider: "WHATSAPP",
         whatsappValidation: "22870703131",
-        adVideoPlaybackMode: "AUTOPLAY",
       })
       .returning(settingsColumns);
-    return row;
+    return { ...row, adVideoPlaybackMode: DEFAULT_PLAYBACK_MODE as const };
   }
-  return rows[0];
+  return {
+    ...rows[0],
+    adVideoPlaybackMode: await readPlaybackMode(rows[0].id),
+  };
 }
 
 router.get("/admin/settings", async (_req, res): Promise<void> => {
@@ -99,9 +139,6 @@ router.post("/admin/settings", async (req, res): Promise<void> => {
       ...(parsed.data.whatsappValidation !== undefined
         ? { whatsappValidation: parsed.data.whatsappValidation }
         : {}),
-      ...(parsed.data.adVideoPlaybackMode !== undefined
-        ? { adVideoPlaybackMode: parsed.data.adVideoPlaybackMode }
-        : {}),
     })
     .returning(settingsColumns);
 
@@ -109,6 +146,11 @@ router.post("/admin/settings", async (req, res): Promise<void> => {
     res.status(500).json({ error: "Failed to update settings" });
     return;
   }
+
+  if (parsed.data.adVideoPlaybackMode !== undefined) {
+    await writePlaybackMode(updated.id, parsed.data.adVideoPlaybackMode);
+  }
+  const savedPlaybackMode = await readPlaybackMode(updated.id);
 
   res.json(UpdateAdminSettingsResponse.parse({
     commissionRate: updated.commissionRate,
@@ -118,9 +160,7 @@ router.post("/admin/settings", async (req, res): Promise<void> => {
     whatsappServices: updated.whatsappServices ?? "22870703131",
     otpProvider: updated.otpProvider ?? "WHATSAPP",
     whatsappValidation: updated.whatsappValidation ?? "22870703131",
-    adVideoPlaybackMode: updated.adVideoPlaybackMode === "ECONOMICAL"
-      ? "ECONOMICAL"
-      : "AUTOPLAY",
+    adVideoPlaybackMode: savedPlaybackMode,
   }));
 });
 
