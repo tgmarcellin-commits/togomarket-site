@@ -20,7 +20,12 @@ import { logger } from "../lib/logger";
 import { ObjectStorageService } from "../lib/objectStorage";
 import { validateFileBytes } from "../lib/file-security";
 import { secureMessageFileUrl, verifyMessageFileAccess } from "../lib/message-file-access";
-import { compatibleMessageColumns, withMessageListingContext } from "../lib/message-compat";
+import {
+  compatibleMessageColumns,
+  compatibleMessageInsertColumns,
+  compatibleMessagesInsertTable,
+  withMessageListingContext,
+} from "../lib/message-compat";
 import { authenticateVendorRequest } from "../lib/vendor-auth";
 import {
   findConversationsForBuyerTokens,
@@ -730,13 +735,13 @@ router.post("/conversations/:id/messages", async (req, res) => {
   const isBroadcastConv = conv.buyerPhone === "##007##";
 
   const [storedMessage] = await db
-    .insert(messagesTable)
+    .insert(compatibleMessagesInsertTable)
     .values({
       conversationId: convId,
       senderType,
       content: content.trim(),
     })
-    .returning(compatibleMessageColumns);
+    .returning(compatibleMessageInsertColumns);
   const msg = withMessageListingContext(storedMessage, conv);
 
   // Update updatedAt + unread count + reset recipient's soft-delete so conversation reappears
@@ -948,7 +953,7 @@ router.post(
     let msg;
     try {
       const [storedMessage] = await db
-        .insert(messagesTable)
+        .insert(compatibleMessagesInsertTable)
         .values({
           conversationId: convId,
           senderType,
@@ -956,7 +961,7 @@ router.post(
           fileType,
           content: null,
         })
-        .returning(compatibleMessageColumns);
+        .returning(compatibleMessageInsertColumns);
       msg = withMessageListingContext(storedMessage, conv);
     } catch (error) {
       await objectStorage.deleteObjectEntity(objectPath).catch(() => {});

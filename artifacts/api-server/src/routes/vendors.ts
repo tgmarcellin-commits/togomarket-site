@@ -22,7 +22,12 @@ import { logger } from "../lib/logger";
 import { ObjectStorageService } from "../lib/objectStorage";
 import { validateFileBytes } from "../lib/file-security";
 import { secureMessageFileUrl } from "../lib/message-file-access";
-import { compatibleMessageColumns, withMessageListingContext } from "../lib/message-compat";
+import {
+  compatibleMessageColumns,
+  compatibleMessageInsertColumns,
+  compatibleMessagesInsertTable,
+  withMessageListingContext,
+} from "../lib/message-compat";
 import { verifyVendorRenewalToken } from "../lib/vendor-renewal-token";
 import { authenticateVendorRequest, issueVendorSession, revokeAllVendorSessions, revokeVendorSession } from "../lib/vendor-auth";
 import { isValidProfilePhotoPath, normalizeProfilePhoto } from "../lib/profile-photo";
@@ -883,11 +888,11 @@ router.post("/admin/broadcast-inbox/:id/reply", async (req, res) => {
     .limit(1);
   if (!conv) return res.status(404).json({ error: "conversation not found" });
 
-  const [msg] = await db.insert(messagesTable).values({
+  const [msg] = await db.insert(compatibleMessagesInsertTable).values({
     conversationId: convId,
     senderType: "buyer",
     content: content.trim(),
-  }).returning(compatibleMessageColumns);
+  }).returning(compatibleMessageInsertColumns);
 
   await db.update(conversationsTable).set({
     updatedAt: new Date(),
@@ -941,13 +946,13 @@ router.post(
     });
     let msg;
     try {
-      [msg] = await db.insert(messagesTable).values({
+      [msg] = await db.insert(compatibleMessagesInsertTable).values({
         conversationId: convId,
         senderType: "buyer",
         fileUrl: objectPath,
         fileType,
         content: null,
-      }).returning(compatibleMessageColumns);
+      }).returning(compatibleMessageInsertColumns);
     } catch (error) {
       await adminObjectStorage.deleteObjectEntity(objectPath).catch(() => {});
       throw error;
@@ -1100,11 +1105,11 @@ router.post("/admin/broadcast-message", async (req, res) => {
         convId = conv.id;
       }
 
-      const [msg] = await db.insert(messagesTable).values({
+      const [msg] = await db.insert(compatibleMessagesInsertTable).values({
         conversationId: convId,
         senderType: "buyer",
         content: message.trim(),
-      }).returning(compatibleMessageColumns);
+      }).returning(compatibleMessageInsertColumns);
 
       // Notifier le vendeur par push même si son application est fermée
       if (vapidReady && vendor.wantsNotifications) {
