@@ -11,8 +11,6 @@ import { SUB_ADMIN_PASSWORD_DEFAULT, isSuperAdmin } from "../lib/admin-auth";
 
 const router: IRouter = Router();
 
-// The production database predates ad_video_playback_mode. Keep settings
-// operations compatible until the managed production schema is migrated.
 const settingsColumns = {
   id: platformSettingsTable.id,
   commissionRate: platformSettingsTable.commissionRate,
@@ -23,6 +21,7 @@ const settingsColumns = {
   whatsappServices: platformSettingsTable.whatsappServices,
   otpProvider: platformSettingsTable.otpProvider,
   whatsappValidation: platformSettingsTable.whatsappValidation,
+  adVideoPlaybackMode: platformSettingsTable.adVideoPlaybackMode,
 };
 
 async function getSettings() {
@@ -42,11 +41,12 @@ async function getSettings() {
         whatsappServices: "22870703131",
         otpProvider: "WHATSAPP",
         whatsappValidation: "22870703131",
+        adVideoPlaybackMode: "AUTOPLAY",
       })
       .returning(settingsColumns);
-    return { ...row, adVideoPlaybackMode: "AUTOPLAY" as const };
+    return row;
   }
-  return { ...rows[0], adVideoPlaybackMode: "AUTOPLAY" as const };
+  return rows[0];
 }
 
 router.get("/admin/settings", async (_req, res): Promise<void> => {
@@ -59,7 +59,9 @@ router.get("/admin/settings", async (_req, res): Promise<void> => {
     whatsappServices: settings.whatsappServices ?? "22870703131",
     otpProvider: settings.otpProvider ?? "WHATSAPP",
     whatsappValidation: settings.whatsappValidation ?? "22870703131",
-    adVideoPlaybackMode: "AUTOPLAY",
+    adVideoPlaybackMode: settings.adVideoPlaybackMode === "ECONOMICAL"
+      ? "ECONOMICAL"
+      : "AUTOPLAY",
   }));
 });
 
@@ -97,6 +99,9 @@ router.post("/admin/settings", async (req, res): Promise<void> => {
       ...(parsed.data.whatsappValidation !== undefined
         ? { whatsappValidation: parsed.data.whatsappValidation }
         : {}),
+      ...(parsed.data.adVideoPlaybackMode !== undefined
+        ? { adVideoPlaybackMode: parsed.data.adVideoPlaybackMode }
+        : {}),
     })
     .returning(settingsColumns);
 
@@ -113,7 +118,9 @@ router.post("/admin/settings", async (req, res): Promise<void> => {
     whatsappServices: updated.whatsappServices ?? "22870703131",
     otpProvider: updated.otpProvider ?? "WHATSAPP",
     whatsappValidation: updated.whatsappValidation ?? "22870703131",
-    adVideoPlaybackMode: "AUTOPLAY",
+    adVideoPlaybackMode: updated.adVideoPlaybackMode === "ECONOMICAL"
+      ? "ECONOMICAL"
+      : "AUTOPLAY",
   }));
 });
 
