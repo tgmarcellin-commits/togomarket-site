@@ -4,11 +4,17 @@ import * as schema from "./schema";
 
 const { Pool } = pg;
 
-const databaseUrl = process.env.TOGOMARKET_DATABASE_URL;
+// Replit injects DATABASE_URL for the managed production database. The
+// project-specific secret is kept as a development/legacy fallback so a
+// stale external connection cannot override production data.
+const databaseUrl =
+  process.env.NODE_ENV === "production"
+    ? process.env.DATABASE_URL ?? process.env.TOGOMARKET_DATABASE_URL
+    : process.env.TOGOMARKET_DATABASE_URL ?? process.env.DATABASE_URL;
 
 if (!databaseUrl) {
   throw new Error(
-    "TOGOMARKET_DATABASE_URL must be set. Did you configure the TogoMarket database secret?",
+    "A PostgreSQL connection is required. Configure DATABASE_URL or TOGOMARKET_DATABASE_URL.",
   );
 }
 

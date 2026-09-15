@@ -10,7 +10,7 @@ Plateforme de marketplace multi-secteurs pour le Togo — permet à n'importe qu
 - `pnpm run build` — typecheck + build all packages
 - `pnpm --filter @workspace/api-spec run codegen` — regenerate API hooks and Zod schemas from the OpenAPI spec
 - `pnpm --filter @workspace/db run push` — push DB schema changes (dev only)
-- Required secret: `TOGOMARKET_DATABASE_URL` — Postgres connection string used by the application
+- Database connection: production uses Replit's managed `DATABASE_URL`; development keeps `TOGOMARKET_DATABASE_URL` as a legacy fallback
 - Optional env: `ADMIN_PASSWORD` — admin password (default: "17210")
 
 ## Stack

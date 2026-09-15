@@ -1,10 +1,15 @@
 import { defineConfig } from "drizzle-kit";
 import path from "path";
 
-const databaseUrl = process.env.TOGOMARKET_DATABASE_URL;
+const databaseUrl =
+  process.env.NODE_ENV === "production"
+    ? process.env.DATABASE_URL ?? process.env.TOGOMARKET_DATABASE_URL
+    : process.env.TOGOMARKET_DATABASE_URL ?? process.env.DATABASE_URL;
 
 if (!databaseUrl) {
-  throw new Error("TOGOMARKET_DATABASE_URL, ensure the TogoMarket database secret is configured");
+  throw new Error(
+    "A PostgreSQL connection is required. Configure DATABASE_URL or TOGOMARKET_DATABASE_URL",
+  );
 }
 
 export default defineConfig({
