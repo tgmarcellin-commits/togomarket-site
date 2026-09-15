@@ -62,7 +62,7 @@ Navigation à 3 niveaux (sauf Tourisme — voir ci-dessous) :
 2. Liste des boutiques : cliquer sur un secteur affiche toutes les boutiques actives de ce secteur (photo de profil, nom de la boutique, numéro N°ID)
 3. Annonces de la boutique : cliquer sur une boutique affiche toutes ses annonces publiées
 
-⚠️ Exception : le secteur Tourisme 🌴 fonctionne différemment — il affiche une galerie de catalogues visuels (photos + vidéos) plutôt qu'une liste de boutiques. Chaque catalogue = un ensemble de médias soumis par un vendeur (ex : circuit touristique, hôtel, attraction). Cliquer sur un catalogue ouvre une galerie plein écran avec toutes les photos et vidéos. Les annonces Tourisme n'apparaissent PAS dans le Market Place — uniquement dans Stand > Tourisme. Les catalogues Tourisme n'expirent JAMAIS : contrairement aux annonces classiques (supprimées après 60 jours), ils restent visibles pour le public en permanence, même si la boutique du vendeur est expirée. Le vendeur peut modifier le nom, la description et les médias de ses catalogues depuis son profil > Ma Boutique, ou les supprimer ; l'administrateur peut aussi les supprimer.
+⚠️ Exception : le secteur Tourisme 🌴 fonctionne différemment — il affiche une galerie de catalogues visuels (photos + vidéos) plutôt qu'une liste de boutiques. Chaque catalogue = un ensemble de médias soumis par un vendeur (ex : circuit touristique, hôtel, attraction). Cliquer sur un catalogue ouvre une galerie plein écran avec toutes les photos et vidéos. Les annonces Tourisme n'apparaissent PAS dans le Market Place — uniquement dans Stand > Tourisme. Le vendeur peut modifier le nom, la description et les médias de ses catalogues depuis son profil > Ma Boutique, ou les supprimer ; l'administrateur peut aussi les supprimer.
 
 Fonctionnalités supplémentaires dans Stand :
 • Barre de recherche en haut : taper un mot-clé cherche des articles dans toutes les boutiques actives
@@ -256,7 +256,7 @@ PARTAGE ET VISIBILITÉ
 • Pour soumettre une publicité ou un événement : cliquer sur le bouton vert WhatsApp en bas de la section Publicité ou Événementiel
 • Pour publier une offre d'emploi ou chercher un emploi : aller dans l'onglet "Services" et cliquer sur le bouton WhatsApp en bas
 • Les publicités, événements et services peuvent inclure une vidéo en plus d'une image (upload vidéo disponible dans le panneau admin lors de la création)
-• Les annonces sont automatiquement supprimées 60 jours après leur publication — le vendeur doit republier s'il souhaite remettre son article en ligne
+• Les annonces des vendeurs ne sont jamais supprimées automatiquement. Quand l'abonnement de 30 jours d'une boutique expire, ses annonces restent enregistrées mais deviennent invisibles au public jusqu'au renouvellement du vendeur ou à la reconduction par un administrateur
 
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 AUTOMATISATION DES CODES OTP

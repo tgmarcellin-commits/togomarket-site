@@ -3,7 +3,6 @@ import { Server } from "socket.io";
 import app from "./app";
 import { logger } from "./lib/logger";
 import { startRenewalReminderCron } from "./lib/renewal-reminder";
-import { startListingsCleanupCron } from "./lib/listings-cleanup";
 import { startConversationsCleanupCron } from "./lib/conversations-cleanup";
 import { registerSocketHandlers, setIo } from "./lib/socket-io";
 
@@ -41,6 +40,5 @@ httpServer.listen(port, (err?: Error) => {
 
   logger.info({ port }, "Server listening");
   startRenewalReminderCron();
-  startListingsCleanupCron();
   startConversationsCleanupCron();
 });
