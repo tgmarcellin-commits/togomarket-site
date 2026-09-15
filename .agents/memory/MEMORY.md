@@ -17,3 +17,4 @@
 - [Migration des photos vendeur](profile-photo-migration-order.md) — migrer et vérifier les anciens formats avant de les masquer dans les réponses API.
 - [Base dédiée et tests navigateur](dedicated-db-browser-tests.md) — les injections DB génériques du testeur ne peuplent pas la base TogoMarket configurée séparément.
 - [Connexion DB de publication](production-database-url.md) — la publication doit utiliser `DATABASE_URL` gérée par Replit ; l’ancien secret TogoMarket peut être refusé ou obsolète.
+- [Dérive du schéma production](production-schema-lag.md) — la base publiée peut manquer des colonnes récentes ; rendre les routes compatibles ou appliquer la migration via Publish.
