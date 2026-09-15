@@ -225,7 +225,11 @@ router.post("/admin/events/force-publish", async (req, res): Promise<void> => {
     res.status(403).json({ error: "Accès refusé" });
     return;
   }
-  const event = await db.select().from(eventsTable).where(eq(eventsTable.id, id)).limit(1);
+  const event = await db.select({
+    id: eventsTable.id,
+    date: eventsTable.date,
+    endDate: eventsTable.endDate,
+  }).from(eventsTable).where(eq(eventsTable.id, id)).limit(1);
   if (!event[0]) { res.status(404).json({ error: "Événement introuvable" }); return; }
   await db
     .update(eventsTable)

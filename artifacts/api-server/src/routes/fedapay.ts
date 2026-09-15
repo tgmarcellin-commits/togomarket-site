@@ -201,10 +201,9 @@ async function getPaymentEntity(entityType: EntityType, entityId: number): Promi
   }
   const [row] = await db.select({
     transactionId: eventsTable.fedapayTransactionId,
-    phone: eventsTable.whatsappPhone,
   })
     .from(eventsTable).where(eq(eventsTable.id, entityId)).limit(1);
-  return { exists: Boolean(row), transactionId: row?.transactionId ?? null, ownerPhone: row?.phone ?? null };
+  return { exists: Boolean(row), transactionId: row?.transactionId ?? null, ownerPhone: null };
 }
 
 async function activateEntity(

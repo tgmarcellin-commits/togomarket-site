@@ -20,6 +20,7 @@ import { logger } from "../lib/logger";
 import { ObjectStorageService } from "../lib/objectStorage";
 import { validateFileBytes } from "../lib/file-security";
 import { secureMessageFileUrl, verifyMessageFileAccess } from "../lib/message-file-access";
+import { compatibleMessageColumns, withMessageListingContext } from "../lib/message-compat";
 import { authenticateVendorRequest } from "../lib/vendor-auth";
 import {
   findConversationsForBuyerTokens,
@@ -568,7 +569,7 @@ router.get("/conversations/:id/messages", async (req, res) => {
     : isNull(messagesTable.buyerDeletedAt);
 
   const msgs = await db
-    .select()
+    .select(compatibleMessageColumns)
     .from(messagesTable)
     .where(and(
       eq(messagesTable.conversationId, convId),
@@ -577,7 +578,7 @@ router.get("/conversations/:id/messages", async (req, res) => {
     ))
     .orderBy(messagesTable.createdAt);
 
-  res.json(msgs.map(secureMessageFileUrl));
+  res.json(msgs.map((message) => secureMessageFileUrl(withMessageListingContext(message))));
 });
 
 /* ──────────────────────────────────────────────────────────────
@@ -728,17 +729,15 @@ router.post("/conversations/:id/messages", async (req, res) => {
 
   const isBroadcastConv = conv.buyerPhone === "##007##";
 
-  const [msg] = await db
+  const [storedMessage] = await db
     .insert(messagesTable)
     .values({
       conversationId: convId,
       senderType,
-      listingId: conv.listingId,
-      listingTitle: conv.listingTitle,
-      listingImage: conv.listingImage,
       content: content.trim(),
     })
-    .returning();
+    .returning(compatibleMessageColumns);
+  const msg = withMessageListingContext(storedMessage, conv);
 
   // Update updatedAt + unread count + reset recipient's soft-delete so conversation reappears
   await db
@@ -948,19 +947,17 @@ router.post(
     });
     let msg;
     try {
-      [msg] = await db
+      const [storedMessage] = await db
         .insert(messagesTable)
         .values({
           conversationId: convId,
           senderType,
-          listingId: conv.listingId,
-          listingTitle: conv.listingTitle,
-          listingImage: conv.listingImage,
           fileUrl: objectPath,
           fileType,
           content: null,
         })
-        .returning();
+        .returning(compatibleMessageColumns);
+      msg = withMessageListingContext(storedMessage, conv);
     } catch (error) {
       await objectStorage.deleteObjectEntity(objectPath).catch(() => {});
       throw error;
@@ -1045,7 +1042,7 @@ router.delete("/messages/:id/me", async (req, res) => {
   const msgId = parseInt(req.params["id"] ?? "", 10);
   if (isNaN(msgId)) { res.status(400).json({ error: "invalid id" }); return; }
 
-  const msgRows = await db.select().from(messagesTable).where(eq(messagesTable.id, msgId)).limit(1);
+  const msgRows = await db.select(compatibleMessageColumns).from(messagesTable).where(eq(messagesTable.id, msgId)).limit(1);
   if (!msgRows.length) { res.status(404).json({ error: "not found" }); return; }
   const msg = msgRows[0];
 
@@ -1076,7 +1073,7 @@ router.delete("/messages/:id", async (req, res) => {
   const msgId = parseInt(req.params["id"] ?? "", 10);
   if (isNaN(msgId)) { res.status(400).json({ error: "invalid id" }); return; }
 
-  const msgRows = await db.select().from(messagesTable).where(eq(messagesTable.id, msgId)).limit(1);
+  const msgRows = await db.select(compatibleMessageColumns).from(messagesTable).where(eq(messagesTable.id, msgId)).limit(1);
   if (!msgRows.length) { res.status(404).json({ error: "not found" }); return; }
   const msg = msgRows[0];
 
@@ -1092,7 +1089,7 @@ router.delete("/messages/:id", async (req, res) => {
     .update(messagesTable)
     .set({ deletedAt: new Date() })
     .where(eq(messagesTable.id, msgId))
-    .returning();
+    .returning(compatibleMessageColumns);
 
   const convRows = await db.select({ vendorId: conversationsTable.vendorId }).from(conversationsTable).where(eq(conversationsTable.id, msg.conversationId)).limit(1);
   const vendorId = convRows[0]?.vendorId;
@@ -1116,7 +1113,7 @@ router.patch("/messages/:id", async (req, res) => {
   const { content } = req.body as { content?: string };
   if (!content?.trim()) { res.status(400).json({ error: "content required" }); return; }
 
-  const msgRows = await db.select().from(messagesTable).where(eq(messagesTable.id, msgId)).limit(1);
+  const msgRows = await db.select(compatibleMessageColumns).from(messagesTable).where(eq(messagesTable.id, msgId)).limit(1);
   if (!msgRows.length) { res.status(404).json({ error: "not found" }); return; }
   const msg = msgRows[0];
 
@@ -1140,7 +1137,7 @@ router.patch("/messages/:id", async (req, res) => {
     .update(messagesTable)
     .set({ content: content.trim(), editedAt })
     .where(eq(messagesTable.id, msgId))
-    .returning();
+    .returning(compatibleMessageColumns);
 
   const convRows = await db.select({ vendorId: conversationsTable.vendorId }).from(conversationsTable).where(eq(conversationsTable.id, msg.conversationId)).limit(1);
   const vendorId = convRows[0]?.vendorId;

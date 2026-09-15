@@ -22,6 +22,7 @@ import { logger } from "../lib/logger";
 import { ObjectStorageService } from "../lib/objectStorage";
 import { validateFileBytes } from "../lib/file-security";
 import { secureMessageFileUrl } from "../lib/message-file-access";
+import { compatibleMessageColumns, withMessageListingContext } from "../lib/message-compat";
 import { verifyVendorRenewalToken } from "../lib/vendor-renewal-token";
 import { authenticateVendorRequest, issueVendorSession, revokeAllVendorSessions, revokeVendorSession } from "../lib/vendor-auth";
 import { isValidProfilePhotoPath, normalizeProfilePhoto } from "../lib/profile-photo";
@@ -857,12 +858,14 @@ router.post("/admin/broadcast-inbox/:id/messages", async (req, res) => {
     .limit(1);
   if (!conv) return res.status(404).json({ error: "conversation not found" });
 
-  const msgs = await db.select()
+  const msgs = await db.select(compatibleMessageColumns)
     .from(messagesTable)
     .where(and(eq(messagesTable.conversationId, convId), isNull(messagesTable.deletedAt)))
     .orderBy(messagesTable.createdAt);
 
-  return res.json({ messages: msgs.map(secureMessageFileUrl) });
+  return res.json({
+    messages: msgs.map((message) => secureMessageFileUrl(withMessageListingContext(message))),
+  });
 });
 
 // POST /api/admin/broadcast-inbox/:id/reply  — admin répond en tant que TogoMarket
@@ -884,7 +887,7 @@ router.post("/admin/broadcast-inbox/:id/reply", async (req, res) => {
     conversationId: convId,
     senderType: "buyer",
     content: content.trim(),
-  }).returning();
+  }).returning(compatibleMessageColumns);
 
   await db.update(conversationsTable).set({
     updatedAt: new Date(),
@@ -944,7 +947,7 @@ router.post(
         fileUrl: objectPath,
         fileType,
         content: null,
-      }).returning();
+      }).returning(compatibleMessageColumns);
     } catch (error) {
       await adminObjectStorage.deleteObjectEntity(objectPath).catch(() => {});
       throw error;
@@ -981,7 +984,7 @@ router.post("/admin/broadcast-inbox/:convId/messages/:msgId/edit", async (req, r
     .limit(1);
   if (!conv) return res.status(404).json({ error: "conversation not found" });
 
-  const [msg] = await db.select().from(messagesTable)
+  const [msg] = await db.select(compatibleMessageColumns).from(messagesTable)
     .where(and(eq(messagesTable.id, msgId), eq(messagesTable.conversationId, convId))).limit(1);
   if (!msg || msg.deletedAt) return res.status(404).json({ error: "message not found" });
   if (msg.fileUrl) return res.status(400).json({ error: "cannot edit file messages" });
@@ -1015,7 +1018,7 @@ router.post("/admin/broadcast-inbox/:convId/messages/:msgId/delete", async (req,
     .limit(1);
   if (!conv) return res.status(404).json({ error: "conversation not found" });
 
-  const [msg] = await db.select().from(messagesTable)
+  const [msg] = await db.select(compatibleMessageColumns).from(messagesTable)
     .where(and(eq(messagesTable.id, msgId), eq(messagesTable.conversationId, convId))).limit(1);
   if (!msg) return res.status(404).json({ error: "message not found" });
   if (msg.deletedAt) return res.status(410).json({ error: "already deleted" });
@@ -1101,7 +1104,7 @@ router.post("/admin/broadcast-message", async (req, res) => {
         conversationId: convId,
         senderType: "buyer",
         content: message.trim(),
-      }).returning();
+      }).returning(compatibleMessageColumns);
 
       // Notifier le vendeur par push même si son application est fermée
       if (vapidReady && vendor.wantsNotifications) {

@@ -18,3 +18,4 @@
 - [Base dédiée et tests navigateur](dedicated-db-browser-tests.md) — les injections DB génériques du testeur ne peuplent pas la base TogoMarket configurée séparément.
 - [Connexion DB de publication](production-database-url.md) — la publication doit utiliser `DATABASE_URL` gérée par Replit ; l’ancien secret TogoMarket peut être refusé ou obsolète.
 - [Dérive du schéma production](production-schema-lag.md) — la base publiée peut manquer des colonnes récentes ; rendre les routes compatibles ou appliquer la migration via Publish.
+- [Conservation des publications](listing-retention.md) — ne jamais supprimer automatiquement les publications selon leur âge ; l’expiration vendeur doit seulement contrôler leur visibilité.

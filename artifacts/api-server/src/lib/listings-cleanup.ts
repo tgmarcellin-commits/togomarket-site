@@ -85,17 +85,5 @@ export async function runListingsCleanup(): Promise<void> {
  * Première exécution après 60 secondes, puis toutes les 24 heures.
  */
 export function startListingsCleanupCron(): void {
-  const INTERVAL_MS = 24 * 60 * 60 * 1000; // 24h
-  const STARTUP_DELAY_MS = 60 * 1000;       // 60s
-
-  setTimeout(async () => {
-    logger.info("Listings cleanup: première vérification au démarrage");
-    await runListingsCleanup();
-    setInterval(runListingsCleanup, INTERVAL_MS);
-  }, STARTUP_DELAY_MS);
-
-  logger.info(
-    { intervalHours: 24, startupDelaySeconds: 60 },
-    "Listings cleanup cron: démarrage programmé"
-  );
+  logger.info("Listings cleanup cron: désactivé pour préserver les publications existantes");
 }
