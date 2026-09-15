@@ -922,6 +922,9 @@ export default function AdminDashboard() {
   };
 
   const handleDeleteListing = (id: number) => {
+    if (!window.confirm("Supprimer définitivement cette publication ? Cette action est irréversible.")) {
+      return;
+    }
     deleteListing.mutate(
       { data: { password, id } },
       {
@@ -929,6 +932,7 @@ export default function AdminDashboard() {
           toast({ title: "Annonce supprimée" });
           queryClient.invalidateQueries({ queryKey: getGetListingsQueryKey() });
           loadPending();
+          loadPublishedListings(publishedListingsPage, appliedPublishedListingsSearch);
         },
         onError: () => toast({ title: "Erreur", variant: "destructive" }),
       }
@@ -1781,16 +1785,27 @@ export default function AdminDashboard() {
                           {listing.price.toLocaleString("fr-FR")} FCFA · {listing.sector}
                         </p>
                       </div>
-                      <Button
-                        variant="outline"
-                        size="sm"
-                        className="flex-shrink-0 border-amber-300 text-amber-700 hover:bg-amber-100"
-                        onClick={() => handlePinListing(listing.id)}
-                        disabled={pinListing.isPending}
-                      >
-                        <Pin className="w-3.5 h-3.5 mr-1 fill-amber-500" />
-                        Désépingler
-                      </Button>
+                      <div className="flex flex-shrink-0 flex-col gap-2">
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          className="border-amber-300 text-amber-700 hover:bg-amber-100"
+                          onClick={() => handlePinListing(listing.id)}
+                          disabled={pinListing.isPending || deleteListing.isPending}
+                        >
+                          <Pin className="w-3.5 h-3.5 mr-1 fill-amber-500" />
+                          Désépingler
+                        </Button>
+                        <Button
+                          variant="destructive"
+                          size="sm"
+                          onClick={() => handleDeleteListing(listing.id)}
+                          disabled={deleteListing.isPending || pinListing.isPending}
+                        >
+                          <Trash2 className="w-3.5 h-3.5 mr-1" />
+                          Supprimer
+                        </Button>
+                      </div>
                     </div>
                   ))}
                 </div>
@@ -1861,16 +1876,27 @@ export default function AdminDashboard() {
                           </p>
                         )}
                       </div>
-                      <Button
-                        variant={listing.pinned ? "default" : "outline"}
-                        size="sm"
-                        onClick={() => handlePinListing(listing.id)}
-                        disabled={pinListing.isPending}
-                        className={listing.pinned ? "flex-shrink-0 bg-amber-500 hover:bg-amber-600 text-white" : "flex-shrink-0"}
-                      >
-                        <Pin className={`w-3.5 h-3.5 mr-1 ${listing.pinned ? "fill-white" : ""}`} />
-                        {listing.pinned ? "Désépingler" : "Épingler"}
-                      </Button>
+                      <div className="flex flex-shrink-0 flex-col gap-2">
+                        <Button
+                          variant={listing.pinned ? "default" : "outline"}
+                          size="sm"
+                          onClick={() => handlePinListing(listing.id)}
+                          disabled={pinListing.isPending || deleteListing.isPending}
+                          className={listing.pinned ? "bg-amber-500 hover:bg-amber-600 text-white" : ""}
+                        >
+                          <Pin className={`w-3.5 h-3.5 mr-1 ${listing.pinned ? "fill-white" : ""}`} />
+                          {listing.pinned ? "Désépingler" : "Épingler"}
+                        </Button>
+                        <Button
+                          variant="destructive"
+                          size="sm"
+                          onClick={() => handleDeleteListing(listing.id)}
+                          disabled={deleteListing.isPending || pinListing.isPending}
+                        >
+                          <Trash2 className="w-3.5 h-3.5 mr-1" />
+                          Supprimer
+                        </Button>
+                      </div>
                     </div>
                   ))}
                 </div>
