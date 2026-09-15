@@ -81,7 +81,7 @@ async function getSettings() {
         whatsappValidation: "22870703131",
       })
       .returning(settingsColumns);
-    return { ...row, adVideoPlaybackMode: DEFAULT_PLAYBACK_MODE as const };
+    return { ...row, adVideoPlaybackMode: DEFAULT_PLAYBACK_MODE };
   }
   return {
     ...rows[0],
