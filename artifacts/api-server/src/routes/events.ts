@@ -1,5 +1,6 @@
 import { Router, type IRouter } from "express";
 import { eq, desc, and, sql } from "drizzle-orm";
+import { boolean, pgTable, serial, text, timestamp } from "drizzle-orm/pg-core";
 import { db, eventsTable } from "@workspace/db";
 import { getAdminRole } from "../lib/admin-auth";
 
@@ -9,6 +10,44 @@ async function canManageEvents(password: unknown): Promise<boolean> {
 }
 
 const router: IRouter = Router();
+
+export const compatibleEventsInsertTable = pgTable("events", {
+  id: serial("id").primaryKey(),
+  title: text("title").notNull(),
+  description: text("description").notNull(),
+  flyerImage: text("flyer_image"),
+  videoPath: text("video_path"),
+  date: timestamp("date", { withTimezone: true }).notNull(),
+  endDate: timestamp("end_date", { withTimezone: true }),
+  location: text("location").notNull(),
+  ticketLink: text("ticket_link"),
+  ticketPrice: text("ticket_price"),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  isPublished: boolean("is_published").notNull().default(false),
+  paymentStatus: text("payment_status").notNull().default("unpaid"),
+  validationMethod: text("validation_method").notNull().default("pending"),
+  fedapayTransactionId: text("fedapay_transaction_id"),
+  subscriptionExpiresAt: timestamp("subscription_expires_at", { withTimezone: true }),
+});
+
+const compatibleEventInsertColumns = {
+  id: compatibleEventsInsertTable.id,
+  title: compatibleEventsInsertTable.title,
+  description: compatibleEventsInsertTable.description,
+  flyerImage: compatibleEventsInsertTable.flyerImage,
+  videoPath: compatibleEventsInsertTable.videoPath,
+  date: compatibleEventsInsertTable.date,
+  endDate: compatibleEventsInsertTable.endDate,
+  location: compatibleEventsInsertTable.location,
+  ticketLink: compatibleEventsInsertTable.ticketLink,
+  ticketPrice: compatibleEventsInsertTable.ticketPrice,
+  createdAt: compatibleEventsInsertTable.createdAt,
+  isPublished: compatibleEventsInsertTable.isPublished,
+  paymentStatus: compatibleEventsInsertTable.paymentStatus,
+  validationMethod: compatibleEventsInsertTable.validationMethod,
+  fedapayTransactionId: compatibleEventsInsertTable.fedapayTransactionId,
+  subscriptionExpiresAt: compatibleEventsInsertTable.subscriptionExpiresAt,
+};
 
 const compatibleEventColumns = {
   id: eventsTable.id,
@@ -127,7 +166,7 @@ router.post("/admin/events", async (req, res) => {
   }
   try {
     const [event] = await db
-      .insert(eventsTable)
+      .insert(compatibleEventsInsertTable)
       .values({
         title: title.trim(),
         description: description.trim(),
@@ -142,7 +181,7 @@ router.post("/admin/events", async (req, res) => {
         paymentStatus: "unpaid",
         validationMethod: "pending",
       })
-      .returning(compatibleEventColumns);
+      .returning(compatibleEventInsertColumns);
     await writeEventWhatsappPhone(event.id, whatsappPhone.trim());
     req.log.info({ id: event.id }, "Event created");
     return res.status(201).json(mapEvent({ ...event, whatsappPhone: whatsappPhone.trim() }));
