@@ -4,7 +4,7 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { ChatWindow } from "@/components/chat-window";
 import { useSiteSettings } from "@/lib/site-settings";
-import { getSocket, joinBuyerConversationRooms } from "@/lib/socket";
+import { getSocket, joinBuyerConversationRooms, type RealtimeMessageEvent } from "@/lib/socket";
 import { resolveImageUrl } from "@/lib/image";
 import type { BuyerIdentity } from "@/components/buyer-identity-prompt";
 
@@ -387,6 +387,10 @@ export function BuyerInbox({ identity, pendingConvId, onClearPending, onUnreadCh
   const [hasUnavailableConversation, setHasUnavailableConversation] = useState(false);
   const socketRef = useRef(getSocket());
   const fetchSequenceRef = useRef(0);
+  const openConversationIdRef = useRef<number | null>(null);
+  const receivedMessageIdsRef = useRef(new Set<number>());
+  const latestMessageIdByConversationRef = useRef(new Map<number, number>());
+  openConversationIdRef.current = openConv?.id ?? null;
   const totalUnread = conversations.reduce((sum, conversation) => sum + (conversation.buyerUnreadCount ?? 0), 0);
 
   useEffect(() => {
@@ -441,16 +445,32 @@ export function BuyerInbox({ identity, pendingConvId, onClearPending, onUnreadCh
         for (const session of canonicalSessions) newestByVendor.set(session.vendorId, session);
         localStorage.setItem(BUYER_TOKENS_KEY, JSON.stringify([...newestByVendor.values()]));
         const sorted = enriched.sort((a, b) => new Date(b.lastMessageAt).getTime() - new Date(a.lastMessageAt).getTime());
-        setConversations(sorted);
+        setConversations((current) => {
+          const currentById = new Map(current.map((conversation) => [conversation.id, conversation]));
+          const merged = sorted.map((conversation) => {
+            const live = currentById.get(conversation.id);
+            return live && new Date(live.lastMessageAt).getTime() > new Date(conversation.lastMessageAt).getTime()
+              ? live
+              : conversation;
+          });
+          current.forEach((conversation) => {
+            if (!merged.some((candidate) => candidate.id === conversation.id)) merged.push(conversation);
+          });
+          return merged.sort((a, b) => new Date(b.lastMessageAt).getTime() - new Date(a.lastMessageAt).getTime());
+        });
       }
     } finally {
       setLoading(false);
     }
   }, []);
 
-  const handleMessagesRead = useCallback(() => {
-    void fetchConversations();
-  }, [fetchConversations]);
+  const handleMessagesRead = useCallback((conversationId: number) => {
+    setConversations((current) => current.map((conversation) =>
+      conversation.id === conversationId
+        ? { ...conversation, buyerUnreadCount: 0 }
+        : conversation
+    ));
+  }, []);
 
   const openConversation = async (conversation: BuyerConversation) => {
     const res = await fetch(`/api/conversations/${conversation.id}`, {
@@ -486,19 +506,52 @@ export function BuyerInbox({ identity, pendingConvId, onClearPending, onUnreadCh
   useEffect(() => {
     fetchConversations();
     const socket = socketRef.current;
-    const handler = () => fetchConversations();
+    const handleNewMessage = (payload: RealtimeMessageEvent) => {
+      if (receivedMessageIdsRef.current.has(payload.message.id)) return;
+      receivedMessageIdsRef.current.add(payload.message.id);
+      const latestMessageId = latestMessageIdByConversationRef.current.get(payload.conversationId) ?? 0;
+      if (payload.message.id <= latestMessageId) return;
+      latestMessageIdByConversationRef.current.set(payload.conversationId, payload.message.id);
+      setConversations((current) => {
+        const existing = current.find((conversation) => conversation.id === payload.conversationId);
+        if (!existing) {
+          void fetchConversations();
+          return current;
+        }
+        const isOpen = openConversationIdRef.current === payload.conversationId;
+        return current
+          .map((conversation) => conversation.id === payload.conversationId
+            ? {
+                ...conversation,
+                lastMessage: payload.message.content,
+                lastMessageAt: payload.conversation?.updatedAt ?? payload.message.createdAt,
+                buyerUnreadCount: isOpen
+                  ? 0
+                  : payload.conversation?.buyerUnreadCount
+                    ?? (payload.message.senderType === "vendor"
+                      ? conversation.buyerUnreadCount + 1
+                      : conversation.buyerUnreadCount),
+              }
+            : conversation)
+          .sort((a, b) => new Date(b.lastMessageAt).getTime() - new Date(a.lastMessageAt).getTime());
+      });
+    };
+    const handleRead = (payload: { conversationId?: number; readerRole?: string }) => {
+      if (!payload.conversationId || payload.readerRole !== "buyer") return;
+      handleMessagesRead(payload.conversationId);
+    };
     const reconnectHandler = () => fetchConversations();
-    socket.on("new_message", handler);
-    socket.on("messages_read", handler);
+    socket.on("new_message", handleNewMessage);
+    socket.on("messages_read", handleRead);
     socket.on("connect", reconnectHandler);
     socket.on("reconnect", reconnectHandler);
     return () => {
-      socket.off("new_message", handler);
-      socket.off("messages_read", handler);
+      socket.off("new_message", handleNewMessage);
+      socket.off("messages_read", handleRead);
       socket.off("connect", reconnectHandler);
       socket.off("reconnect", reconnectHandler);
     };
-  }, [fetchConversations]);
+  }, [fetchConversations, handleMessagesRead]);
 
   // Auto-open pending conversation from "Discuter" redirect
   useEffect(() => {

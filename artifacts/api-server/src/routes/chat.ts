@@ -647,7 +647,12 @@ router.patch("/conversations/:id/read-messages", async (req, res) => {
   if (messageIds.length > 0) {
     try {
       const io = getIo();
-      const payload = { conversationId: convId, messageIds, readAt: readAt.toISOString() };
+      const payload = {
+        conversationId: convId,
+        messageIds,
+        readAt: readAt.toISOString(),
+        readerRole: identity.role,
+      };
       io.to(`vendor:${conv.vendorId}`).emit("messages_read", payload);
       io.to(`conv:${convId}`).emit("messages_read", payload);
     } catch {
@@ -745,7 +750,7 @@ router.post("/conversations/:id/messages", async (req, res) => {
   const msg = withMessageListingContext(storedMessage, conv);
 
   // Update updatedAt + unread count + reset recipient's soft-delete so conversation reappears
-  await db
+  const [conversationState] = await db
     .update(conversationsTable)
     .set({
       updatedAt: new Date(),
@@ -763,15 +768,22 @@ router.post("/conversations/:id/messages", async (req, res) => {
       vendorDeletedAt: senderType === "buyer" ? null : conv.vendorDeletedAt,
       buyerDeletedAt: senderType === "vendor" ? null : conv.buyerDeletedAt,
     })
-    .where(eq(conversationsTable.id, convId));
+    .where(eq(conversationsTable.id, convId))
+    .returning({
+      updatedAt: conversationsTable.updatedAt,
+      vendorUnreadCount: conversationsTable.vendorUnreadCount,
+      buyerUnreadCount: conversationsTable.buyerUnreadCount,
+      adminUnreadCount: conversationsTable.adminUnreadCount,
+    });
 
   // Broadcast via Socket.io
   try {
     const io = getIo();
-    io.to(`vendor:${conv.vendorId}`).emit("new_message", { conversationId: convId, message: msg });
-    io.to(`conv:${convId}`).emit("new_message", { conversationId: convId, message: msg });
+    const payload = { conversationId: convId, message: msg, conversation: conversationState };
+    io.to(`vendor:${conv.vendorId}`).emit("new_message", payload);
+    io.to(`conv:${convId}`).emit("new_message", payload);
     if (senderType === "vendor" && isBroadcastConv) {
-      emitToAdmin("new_message", { conversationId: convId, message: secureMessageFileUrl(msg) });
+      emitToAdmin("new_message", { ...payload, message: secureMessageFileUrl(msg) });
     }
   } catch {
     // socket.io not yet ready – non-fatal
@@ -968,7 +980,7 @@ router.post(
       throw error;
     }
 
-    await db
+    const [conversationState] = await db
       .update(conversationsTable)
       .set({
         updatedAt: new Date(),
@@ -981,15 +993,22 @@ router.post(
         vendorDeletedAt: senderType === "buyer" ? null : conv.vendorDeletedAt,
         buyerDeletedAt: senderType === "vendor" ? null : conv.buyerDeletedAt,
       })
-      .where(eq(conversationsTable.id, convId));
+      .where(eq(conversationsTable.id, convId))
+      .returning({
+        updatedAt: conversationsTable.updatedAt,
+        vendorUnreadCount: conversationsTable.vendorUnreadCount,
+        buyerUnreadCount: conversationsTable.buyerUnreadCount,
+        adminUnreadCount: conversationsTable.adminUnreadCount,
+      });
 
     try {
       const io = getIo();
       const secureMsg = secureMessageFileUrl(msg);
-      io.to(`vendor:${conv.vendorId}`).emit("new_message", { conversationId: convId, message: secureMsg });
-      io.to(`conv:${convId}`).emit("new_message", { conversationId: convId, message: secureMsg });
+      const payload = { conversationId: convId, message: secureMsg, conversation: conversationState };
+      io.to(`vendor:${conv.vendorId}`).emit("new_message", payload);
+      io.to(`conv:${convId}`).emit("new_message", payload);
       if (senderType === "vendor" && conv.buyerPhone === "##007##") {
-        emitToAdmin("new_message", { conversationId: convId, message: secureMsg });
+        emitToAdmin("new_message", payload);
       }
     } catch { /* non-fatal */ }
 

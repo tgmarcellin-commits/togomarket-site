@@ -306,6 +306,9 @@ export default function AdminDashboard() {
   const adminTabRef = useRef<DashTab>(tab);
   const inboxListRequestRef = useRef(0);
   const inboxThreadRequestRef = useRef(0);
+  const inboxConversationsRef = useRef<InboxConv[]>([]);
+  const inboxReceivedMessageIdsRef = useRef(new Set<number>());
+  const inboxLatestMessageIdByConversationRef = useRef(new Map<number, number>());
   const inboxFileInputRef = useRef<HTMLInputElement>(null);
   const inboxMediaRecorderRef = useRef<MediaRecorder | null>(null);
   const inboxAudioChunksRef = useRef<Blob[]>([]);
@@ -313,6 +316,7 @@ export default function AdminDashboard() {
   const longPressTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const totalInboxUnread = inboxConvs.reduce((s, c) => s + c.adminUnreadCount, 0);
+  inboxConversationsRef.current = inboxConvs;
   selectedInboxConvIdRef.current = selectedInboxConv?.id ?? null;
   adminTabRef.current = tab;
 
@@ -328,7 +332,19 @@ export default function AdminDashboard() {
       if (!res.ok) return;
       const data = await res.json() as { conversations: InboxConv[] };
       if (requestId === inboxListRequestRef.current) {
-        setInboxConvs(data.conversations ?? []);
+        setInboxConvs((current) => {
+          const currentById = new Map(current.map((conversation) => [conversation.id, conversation]));
+          const merged = (data.conversations ?? []).map((conversation) => {
+            const live = currentById.get(conversation.id);
+            return live && new Date(live.updatedAt).getTime() > new Date(conversation.updatedAt).getTime()
+              ? live
+              : conversation;
+          });
+          current.forEach((conversation) => {
+            if (!merged.some((candidate) => candidate.id === conversation.id)) merged.push(conversation);
+          });
+          return merged.sort((a, b) => new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime());
+        });
       }
     } finally {
       if (requestId === inboxListRequestRef.current) {
@@ -347,7 +363,17 @@ export default function AdminDashboard() {
     if (!res.ok) return;
     const data = await res.json() as { messages: InboxMessage[] };
     if (requestId === inboxThreadRequestRef.current) {
-      setInboxMessages(data.messages ?? []);
+      setInboxMessages((current) => {
+        const merged = new Map<number, InboxMessage>();
+        (data.messages ?? []).forEach((message) => merged.set(message.id, message));
+        current.forEach((message) => {
+          const serverMessage = merged.get(message.id);
+          merged.set(message.id, serverMessage ? { ...message, ...serverMessage } : message);
+        });
+        return [...merged.values()].sort((a, b) =>
+          new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime() || a.id - b.id
+        );
+      });
     }
   }
 
@@ -524,20 +550,43 @@ export default function AdminDashboard() {
     const socket = getSocket();
     const authenticate = () => socket.emit("admin_auth", { password });
     const handleAdminAuth = () => {
-      if (adminTabRef.current === "inbox") void loadInbox(false);
+      if (adminTabRef.current !== "inbox") return;
+      void loadInbox(false);
+      const conversationId = selectedInboxConvIdRef.current;
+      if (conversationId) void loadInboxMessages(conversationId);
     };
-    const handleNewMessage = async (payload: { conversationId?: number }) => {
+    const handleNewMessage = async (payload: {
+      conversationId?: number;
+      message?: InboxMessage;
+      conversation?: { updatedAt: string; adminUnreadCount: number };
+    }) => {
       const conversationId = payload?.conversationId;
-      if (!conversationId) return;
+      const message = payload?.message;
+      if (!conversationId || !message) return;
+      if (inboxReceivedMessageIdsRef.current.has(message.id)) return;
+      inboxReceivedMessageIdsRef.current.add(message.id);
+      const latestMessageId = inboxLatestMessageIdByConversationRef.current.get(conversationId) ?? 0;
+      if (message.id <= latestMessageId) return;
+      inboxLatestMessageIdByConversationRef.current.set(conversationId, message.id);
 
       if (adminTabRef.current === "inbox" && selectedInboxConvIdRef.current === conversationId) {
-        await Promise.all([
-          loadInbox(false),
-          loadInboxMessages(conversationId),
-        ]);
-        if (adminTabRef.current !== "inbox" || selectedInboxConvIdRef.current !== conversationId) {
-          return;
-        }
+        setInboxMessages((current) =>
+          current.some((existing) => existing.id === message.id)
+            ? current
+            : [...current, message],
+        );
+        setInboxConvs((current) => current
+          .map((conversation) => conversation.id === conversationId
+            ? {
+                ...conversation,
+                updatedAt: payload.conversation?.updatedAt ?? message.createdAt,
+                adminUnreadCount: 0,
+                lastMessage: message.content,
+                lastFileType: message.fileType,
+                lastSenderType: message.senderType as "buyer" | "vendor",
+              }
+            : conversation)
+          .sort((a, b) => new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime()));
         const readRes = await fetch(`/api/admin/broadcast-inbox/${conversationId}/read`, {
           method: "POST",
           headers: { "Content-Type": "application/json" },
@@ -551,9 +600,34 @@ export default function AdminDashboard() {
         setTimeout(() => inboxBottomRef.current?.scrollIntoView({ behavior: "smooth" }), 100);
         return;
       }
-      await loadInbox(false);
+      const foundConversation = inboxConversationsRef.current.some(
+        (conversation) => conversation.id === conversationId,
+      );
+      setInboxConvs((current) => {
+        if (!foundConversation) return current;
+        return current
+          .map((conversation) => conversation.id === conversationId
+            ? {
+                ...conversation,
+                updatedAt: payload.conversation?.updatedAt ?? message.createdAt,
+                adminUnreadCount: payload.conversation?.adminUnreadCount
+                  ?? (conversation.adminUnreadCount + (message.senderType === "vendor" ? 1 : 0)),
+                lastMessage: message.content,
+                lastFileType: message.fileType,
+                lastSenderType: message.senderType as "buyer" | "vendor",
+              }
+            : conversation)
+          .sort((a, b) => new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime());
+      });
+      if (!foundConversation) {
+        await loadInbox(false);
+      }
     };
-    const handleNewMessageEvent = (payload: { conversationId?: number }) => {
+    const handleNewMessageEvent = (payload: {
+      conversationId?: number;
+      message?: InboxMessage;
+      conversation?: { updatedAt: string; adminUnreadCount: number };
+    }) => {
       void handleNewMessage(payload);
     };
 

@@ -43,7 +43,7 @@ test.before(async () => {
   ioServer = new Server(server, {
     path: "/api/socket.io",
     cors: { origin: "*", methods: ["GET", "POST"] },
-    transports: ["polling", "websocket"],
+    transports: ["websocket"],
   });
   setIo(ioServer);
   registerSocketHandlers(ioServer);

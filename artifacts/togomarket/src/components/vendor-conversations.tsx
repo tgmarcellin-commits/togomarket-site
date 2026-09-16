@@ -4,7 +4,7 @@ import { resolveImageUrl } from "@/lib/image";
 import { Badge } from "@/components/ui/badge";
 import { ChatWindow } from "@/components/chat-window";
 import { useSiteSettings } from "@/lib/site-settings";
-import { getSocket } from "@/lib/socket";
+import { getSocket, type RealtimeMessageEvent } from "@/lib/socket";
 import { SESSION_COOKIE_PASSWORD, vendorAuthHeaders } from "@/lib/vendor-auth";
 import type { VendorProfile } from "@workspace/api-client-react";
 
@@ -51,6 +51,10 @@ export function VendorConversations({ vendor, vendorPassword, onUnreadChange }: 
   const [openConv, setOpenConv] = useState<Conversation | null>(null);
   const [deletingId, setDeletingId] = useState<number | null>(null);
   const longPressTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const openConversationIdRef = useRef<number | null>(null);
+  const receivedMessageIdsRef = useRef(new Set<number>());
+  const latestMessageIdByConversationRef = useRef(new Map<number, number>());
+  openConversationIdRef.current = openConv?.id ?? null;
 
   const authHeaders = vendorAuthHeaders(vendor.phone, vendorPassword);
 
@@ -60,8 +64,21 @@ export function VendorConversations({ vendor, vendorPassword, onUnreadChange }: 
       const res = await fetch("/api/vendor/conversations", { headers: authHeaders, credentials: "include" });
       if (res.ok) {
         const data = uniqueConversations(await res.json() as Conversation[]);
-        setConversations(data);
-        onUnreadChange?.(data.reduce((sum, c) => sum + c.vendorUnreadCount, 0));
+        setConversations((current) => {
+          const currentById = new Map(current.map((conversation) => [conversation.id, conversation]));
+          const merged = data.map((conversation) => {
+            const live = currentById.get(conversation.id);
+            return live && new Date(live.updatedAt).getTime() > new Date(conversation.updatedAt).getTime()
+              ? live
+              : conversation;
+          });
+          current.forEach((conversation) => {
+            if (!merged.some((candidate) => candidate.id === conversation.id)) merged.push(conversation);
+          });
+          merged.sort((a, b) => new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime());
+          onUnreadChange?.(merged.reduce((sum, conversation) => sum + conversation.vendorUnreadCount, 0));
+          return merged;
+        });
       }
     } finally {
       setLoading(false); }
@@ -79,13 +96,55 @@ export function VendorConversations({ vendor, vendorPassword, onUnreadChange }: 
       fetchConversations();
     };
     sync();
-    const handler = () => { fetchConversations(); };
-    socket.on("new_message", handler);
+    const handleNewMessage = (payload: RealtimeMessageEvent) => {
+      if (receivedMessageIdsRef.current.has(payload.message.id)) return;
+      receivedMessageIdsRef.current.add(payload.message.id);
+      const latestMessageId = latestMessageIdByConversationRef.current.get(payload.conversationId) ?? 0;
+      if (payload.message.id <= latestMessageId) return;
+      latestMessageIdByConversationRef.current.set(payload.conversationId, payload.message.id);
+      setConversations((current) => {
+        const existing = current.find((conversation) => conversation.id === payload.conversationId);
+        if (!existing) {
+          void fetchConversations();
+          return current;
+        }
+        const isOpen = openConversationIdRef.current === payload.conversationId;
+        const next = current
+          .map((conversation) => conversation.id === payload.conversationId
+            ? {
+                ...conversation,
+                updatedAt: payload.conversation?.updatedAt ?? payload.message.createdAt,
+                vendorUnreadCount: isOpen
+                  ? 0
+                  : payload.conversation?.vendorUnreadCount
+                    ?? (payload.message.senderType === "buyer"
+                      ? conversation.vendorUnreadCount + 1
+                      : conversation.vendorUnreadCount),
+              }
+            : conversation)
+          .sort((a, b) => new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime());
+        onUnreadChange?.(next.reduce((sum, conversation) => sum + conversation.vendorUnreadCount, 0));
+        return next;
+      });
+    };
+    const handleMessagesRead = (payload: { conversationId?: number; readerRole?: string }) => {
+      if (!payload.conversationId || payload.readerRole !== "vendor") return;
+      setConversations((current) => {
+        const next = current.map((conversation) => conversation.id === payload.conversationId
+          ? { ...conversation, vendorUnreadCount: 0 }
+          : conversation);
+        onUnreadChange?.(next.reduce((sum, conversation) => sum + conversation.vendorUnreadCount, 0));
+        return next;
+      });
+    };
+    socket.on("new_message", handleNewMessage);
+    socket.on("messages_read", handleMessagesRead);
     socket.on("auth_ok", fetchConversations);
     socket.on("connect", sync);
     socket.on("reconnect", sync);
     return () => {
-      socket.off("new_message", handler);
+      socket.off("new_message", handleNewMessage);
+      socket.off("messages_read", handleMessagesRead);
       socket.off("auth_ok", fetchConversations);
       socket.off("connect", sync);
       socket.off("reconnect", sync);

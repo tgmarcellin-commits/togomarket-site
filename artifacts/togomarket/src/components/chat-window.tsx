@@ -268,7 +268,20 @@ export function ChatWindow({
         onConversationUnavailable?.();
         return;
       }
-      if (res.ok) setMessages(await res.json() as ChatMessage[]);
+      if (res.ok) {
+        const fetched = await res.json() as ChatMessage[];
+        setMessages((current) => {
+          const merged = new Map<number, ChatMessage>();
+          fetched.forEach((message) => merged.set(message.id, message));
+          current.forEach((message) => {
+            const serverMessage = merged.get(message.id);
+            merged.set(message.id, serverMessage ? { ...message, ...serverMessage } : message);
+          });
+          return [...merged.values()].sort((a, b) =>
+            new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime() || a.id - b.id
+          );
+        });
+      }
     } finally { setLoading(false); }
   }, [conversationId, auth, onConversationUnavailable]);
 
@@ -291,21 +304,30 @@ export function ChatWindow({
   useEffect(() => {
     if (!open || !conversationId) return;
     setConversationUnavailable(false);
-    fetchMessages();
-    void markMessagesRead();
 
     const socket = getSocket();
-    const joinPayload =
-      auth.kind === "buyer"
-        ? { conversationId, buyerToken: auth.buyerToken }
-        : { conversationId, buyerToken: "" };
-    socket.emit("join_conv", joinPayload);
+    const synchronize = async () => {
+      if (auth.kind === "buyer") {
+        await socket.timeout(5_000).emitWithAck("join_conv", {
+          conversationId,
+          buyerToken: auth.buyerToken,
+        }).catch(() => null);
+      }
+      await fetchMessages();
+      await markMessagesRead();
+    };
+    if (socket.connected) void synchronize();
+    socket.on("connect", synchronize);
+    if (auth.kind === "vendor") socket.on("auth_ok", synchronize);
 
     const onNew = (data: { conversationId: number; message: ChatMessage }) => {
       if (data.conversationId !== conversationId) return;
-      setMessages((prev) =>
-        prev.some((m) => m.id === data.message.id) ? prev : [...prev, data.message],
-      );
+      setMessages((prev) => {
+        if (prev.some((message) => message.id === data.message.id)) return prev;
+        return [...prev, data.message].sort((a, b) =>
+          new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime() || a.id - b.id
+        );
+      });
       if (data.message.senderType !== selfType) void markMessagesRead();
     };
     const onMessageRead = (data: {
@@ -352,6 +374,8 @@ export function ChatWindow({
     socket.on("message_edited", onEdited);
     socket.on("message_deleted", onDeleted);
     return () => {
+      socket.off("connect", synchronize);
+      if (auth.kind === "vendor") socket.off("auth_ok", synchronize);
       socket.off("new_message", onNew);
       socket.off("message_read", onMessageRead);
       socket.off("messages_read", onRead);

@@ -894,15 +894,24 @@ router.post("/admin/broadcast-inbox/:id/reply", async (req, res) => {
     content: content.trim(),
   }).returning(compatibleMessageInsertColumns);
 
-  await db.update(conversationsTable).set({
+  const [conversationState] = await db.update(conversationsTable).set({
     updatedAt: new Date(),
     vendorUnreadCount: sql`${conversationsTable.vendorUnreadCount} + 1`,
     vendorDeletedAt: null,
-  }).where(eq(conversationsTable.id, convId));
+  }).where(eq(conversationsTable.id, convId)).returning({
+    updatedAt: conversationsTable.updatedAt,
+    vendorUnreadCount: conversationsTable.vendorUnreadCount,
+    buyerUnreadCount: conversationsTable.buyerUnreadCount,
+    adminUnreadCount: conversationsTable.adminUnreadCount,
+  });
 
   try {
     const io = getIo();
-    io.to(`vendor:${conv.vendorId}`).emit("new_message", { conversationId: convId, message: msg });
+    io.to(`vendor:${conv.vendorId}`).emit("new_message", {
+      conversationId: convId,
+      message: msg,
+      conversation: conversationState,
+    });
   } catch { /* non-fatal */ }
 
   return res.status(201).json({ message: msg });
@@ -958,15 +967,24 @@ router.post(
       throw error;
     }
 
-    await db.update(conversationsTable).set({
+    const [conversationState] = await db.update(conversationsTable).set({
       updatedAt: new Date(),
       vendorUnreadCount: sql`${conversationsTable.vendorUnreadCount} + 1`,
       vendorDeletedAt: null,
-    }).where(eq(conversationsTable.id, convId));
+    }).where(eq(conversationsTable.id, convId)).returning({
+      updatedAt: conversationsTable.updatedAt,
+      vendorUnreadCount: conversationsTable.vendorUnreadCount,
+      buyerUnreadCount: conversationsTable.buyerUnreadCount,
+      adminUnreadCount: conversationsTable.adminUnreadCount,
+    });
 
     try {
       const io = getIo();
-      io.to(`vendor:${conv.vendorId}`).emit("new_message", { conversationId: convId, message: secureMessageFileUrl(msg) });
+      io.to(`vendor:${conv.vendorId}`).emit("new_message", {
+        conversationId: convId,
+        message: secureMessageFileUrl(msg),
+        conversation: conversationState,
+      });
     } catch { /* non-fatal */ }
 
     return res.status(201).json({ message: secureMessageFileUrl(msg) });

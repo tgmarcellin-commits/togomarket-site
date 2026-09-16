@@ -26,7 +26,7 @@ const httpServer = http.createServer(app);
 const io = new Server(httpServer, {
   path: "/api/socket.io",
   cors: { origin: "*", methods: ["GET", "POST"] },
-  transports: ["polling", "websocket"],
+  transports: ["websocket"],
 });
 
 setIo(io);

@@ -112,7 +112,8 @@ TogoMarket dispose d'un chat interne temps réel entre acheteurs et vendeurs :
 • Une même discussion peut concerner plusieurs annonces : le contexte actuel suit le dernier article consulté, tandis que chaque message conserve et affiche son annonce d'origine lorsqu'elle est connue
 • Dans Messages, un vendeur connecté peut utiliser simultanément « Mes clients » pour sa boutique et « Mes achats » lorsqu'il contacte d'autres vendeurs
 • La conversation s'ouvre dans un drawer en bas de l'écran
-• Les messages sont envoyés en temps réel via Socket.io
+• Les messages sont envoyés en temps réel via Socket.io avec transport WebSocket uniquement, sans rafraîchissement périodique
+• Dès qu'un message est enregistré, le fil ouvert, l'ordre des conversations et les compteurs non lus sont mis à jour instantanément ; après une reconnexion, le client fusionne les données persistées sans perdre les événements reçus
 • Chaque message envoyé affiche son heure et un accusé de lecture : ✓ signifie envoyé ; pour les messages de l'acheteur, ✓✓ apparaît dès que le vendeur ouvre la conversation
 • Les conversations affichent les messages non lus en temps réel ; ouvrir une conversation les marque comme lus et le badge Messages additionne les non-lus des achats et des clients
 • Les types de messages supportés : texte, photos/images (JPEG/PNG), PDF, et messages vocaux (enregistrement audio)
