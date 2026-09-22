@@ -57,7 +57,7 @@ const frontendDistPath = path.resolve(__dirname, "../../togomarket/dist");
 app.use(express.static(frontendDistPath));
 
 // Route universelle (Catch-all) pour rediriger vers le frontend React (SPA)
-app.get("*", (_req, res) => {
+app.get("/*", (_req, res) => {
   res.sendFile(path.resolve(frontendDistPath, "index.html"));
 });
 // ------------------------------------------------------
