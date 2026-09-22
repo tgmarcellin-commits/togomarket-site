@@ -1691,6 +1691,6 @@ export function AdminModal({
           onClose={() => setViewerImages([])}
         />
       )}
-    </div>
+    </>
   );
-            }
+}
