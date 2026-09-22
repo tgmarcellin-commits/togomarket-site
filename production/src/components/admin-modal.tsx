@@ -1681,7 +1681,6 @@ export function AdminModal({
               Fermer
             </Button>
           </div>
-        )}
       </DialogContent>
     </Dialog>
 
