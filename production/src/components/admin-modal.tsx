@@ -1681,16 +1681,16 @@ export function AdminModal({
               Fermer
             </Button>
           </div>
-      </DialogContent>
-    </Dialog>
+        </DialogContent>
+      </Dialog>
 
-    {viewerImages.length > 0 && (
-      <ImageViewer
-        images={viewerImages}
-        startIndex={viewerIndex}
-        onClose={() => setViewerImages([])}
-      />
-    )}
+      {viewerImages.length > 0 && (
+        <ImageViewer
+          images={viewerImages}
+          startIndex={viewerIndex}
+          onClose={() => setViewerImages([])}
+        />
+      )}
     </>
   );
-}
+            }
