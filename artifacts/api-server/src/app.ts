@@ -1,3 +1,4 @@
+import path from "node:path";
 import express, { type Express } from "express";
 import cors from "cors";
 import pinoHttp from "pino-http";
@@ -50,6 +51,17 @@ app.get("/api/security/csrf-token", issueCsrfToken);
 app.use("/api", apiRateLimit);
 app.use("/api", csrfProtection);
 app.use("/api", router);
+
+// --- AJOUT : Servir le frontend React en production ---
+const frontendDistPath = path.resolve(__dirname, "../../togomarket/dist");
+app.use(express.static(frontendDistPath));
+
+// Route universelle (Catch-all) pour rediriger vers le frontend React (SPA)
+app.get("*", (_req, res) => {
+  res.sendFile(path.resolve(frontendDistPath, "index.html"));
+});
+// ------------------------------------------------------
+
 app.use(sanitizedErrorHandler);
 
 export default app;
