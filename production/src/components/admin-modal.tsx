@@ -772,6 +772,8 @@ export function AdminModal({
               >
                 <Calendar className="w-3 h-3" />
                 Évén.
+              </button>
+              <button
                 onClick={() => { setTab("sellers"); fetchSellers(storedPassword); }}
                 className={`flex-1 py-2 text-sm font-medium flex items-center justify-center gap-1.5 transition-colors ${
                   tab === "sellers" ? "bg-primary text-primary-foreground" : "bg-background hover:bg-muted"
