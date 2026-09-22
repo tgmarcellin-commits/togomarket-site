@@ -51,11 +51,9 @@ import {
 } from "@/components/ui/form";
 import { Input } from "@/components/ui/input";
 import { useToast } from "@/hooks/use-toast";
-<<<<<<< HEAD
 import { Settings, LogOut, CheckCircle, Trash2, Clock, KeyRound, Megaphone, Plus, RefreshCw, Users, UploadCloud, X, Eye, EyeOff, AlertTriangle, Calendar } from "lucide-react";
 import { resizeImage, resizeImageToBlob, resolveImageUrl } from "@/lib/image";
 import { uploadImageFile } from "@/lib/upload";
-=======
 import { Settings, LogOut, CheckCircle, Trash2, Clock, KeyRound, Store, UserPlus } from "lucide-react";
 
 function getBaseUrl(): string {
@@ -67,7 +65,6 @@ interface SellerRecord {
   firstName: string;
   phone: string;
 }
->>>>>>> ff327cc6faa65bc31cede8f1f72c866a500b59d5
 
 const loginSchema = z.object({
   password: z.string().min(1, "Mot de passe requis"),
@@ -90,7 +87,6 @@ const COMMISSION_OPTIONS = [
   { rate: 5, label: "5% (max 5 000 FCFA pour les articles > 100 000 FCFA)" },
 ];
 
-<<<<<<< HEAD
 function StorageCleanupSection({ password }: { password: string }) {
   const storageCleanup = useAdminStorageCleanup();
   const { toast } = useToast();
@@ -131,9 +127,7 @@ function StorageCleanupSection({ password }: { password: string }) {
 }
 
 type DashTab = "pending" | "vendors" | "publish" | "ads" | "events" | "settings";
-=======
 type DashTab = "pending" | "settings" | "sellers";
->>>>>>> ff327cc6faa65bc31cede8f1f72c866a500b59d5
 
 export function AdminModal({
   open,
@@ -150,7 +144,6 @@ export function AdminModal({
   const [viewerImages, setViewerImages] = useState<string[]>([]);
   const [viewerIndex, setViewerIndex] = useState(0);
 
-<<<<<<< HEAD
   const [allAds, setAllAds] = useState<Ad[]>([]);
   const [adsLoading, setAdsLoading] = useState(false);
   const [showAdForm, setShowAdForm] = useState(false);
@@ -466,7 +459,6 @@ export function AdminModal({
   const handleRenewWhatsApp = (ad: Ad) => {
     const msg = `Bonjour ${ad.advertiserName}, votre publicité sur TogoMarket a expiré. Souhaitez-vous la renouveler pour 1 000 FCFA/mois ?`;
     openWhatsApp(`https://wa.me/${ad.advertiserPhone.replace(/\D/g, "")}?text=${encodeURIComponent(msg)}`);
-=======
   const [sellers, setSellers] = useState<SellerRecord[]>([]);
   const [sellersLoading, setSellersLoading] = useState(false);
   const [newSellerFirstName, setNewSellerFirstName] = useState("");
@@ -535,7 +527,6 @@ export function AdminModal({
     } catch {
       toast({ title: "Erreur", description: "Impossible de supprimer.", variant: "destructive" });
     }
->>>>>>> ff327cc6faa65bc31cede8f1f72c866a500b59d5
   };
 
   const openViewer = (images: string[], index: number) => {
@@ -590,14 +581,11 @@ export function AdminModal({
                 onError: () => setPendingLoading(false),
               }
             );
-<<<<<<< HEAD
             getAllAds.mutate(
               { data: { password: data.password } },
               { onSuccess: (d) => setAllAds(d) }
             );
-=======
             fetchSellers(data.password);
->>>>>>> ff327cc6faa65bc31cede8f1f72c866a500b59d5
           } else {
             form.setError("password", { message: "Mot de passe incorrect" });
           }
@@ -750,7 +738,6 @@ export function AdminModal({
                 )}
               </button>
               <button
-<<<<<<< HEAD
                 onClick={() => { setTab("vendors"); refetchVendors(); }}
                 className={`py-2 text-[10px] font-medium flex items-center justify-center gap-0.5 transition-colors ${
                   tab === "vendors" ? "bg-primary text-primary-foreground" : "bg-background hover:bg-muted"
@@ -785,7 +772,6 @@ export function AdminModal({
               >
                 <Calendar className="w-3 h-3" />
                 Évén.
-=======
                 onClick={() => { setTab("sellers"); fetchSellers(storedPassword); }}
                 className={`flex-1 py-2 text-sm font-medium flex items-center justify-center gap-1.5 transition-colors ${
                   tab === "sellers" ? "bg-primary text-primary-foreground" : "bg-background hover:bg-muted"
@@ -793,7 +779,6 @@ export function AdminModal({
               >
                 <Store className="w-4 h-4" />
                 Boutiques
->>>>>>> ff327cc6faa65bc31cede8f1f72c866a500b59d5
               </button>
               <button
                 onClick={() => setTab("settings")}
@@ -898,7 +883,6 @@ export function AdminModal({
               </div>
             )}
 
-<<<<<<< HEAD
             {/* Tab: Vendeurs */}
             {tab === "vendors" && (
               <div className="space-y-3">
@@ -1511,7 +1495,6 @@ export function AdminModal({
                         </div>
                       );
                     })}
-=======
             {/* Tab: Boutiques / Vendeurs */}
             {tab === "sellers" && (
               <div className="space-y-4">
@@ -1572,7 +1555,6 @@ export function AdminModal({
                         </Button>
                       </div>
                     ))}
->>>>>>> ff327cc6faa65bc31cede8f1f72c866a500b59d5
                   </div>
                 )}
               </div>
