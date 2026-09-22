@@ -83,9 +83,6 @@ export default function Home() {
   const { lang, setLang } = useSiteSettings();
   const t = useT(lang);
 
-  const [searchMode, setSearchMode] = useState<SearchMode>("article");
-
-
   const [search, setSearch] = useState("");
   const [searchInput, setSearchInput] = useState("");
   const [sector, setSector] = useState<string | undefined>(undefined);
