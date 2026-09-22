@@ -53,7 +53,7 @@ app.use("/api", csrfProtection);
 app.use("/api", router);
 
 // --- AJOUT : Servir le frontend React en production ---
-const frontendDistPath = path.resolve(__dirname, "../../togomarket/dist");
+const frontendDistPath = path.resolve(__dirname, "../../togomarket/dist/public");
 app.use(express.static(frontendDistPath));
 
 // Route universelle (Catch-all) pour rediriger vers le frontend React (SPA)
