@@ -1,8 +1,8 @@
 #!/usr/bin/env node
-// Copy a PostgreSQL database into an EMPTY Neon database.
+// Copy a PostgreSQL database into an empty or explicitly replaceable Neon database.
 // URLs must be supplied as SOURCE_DATABASE_URL and TARGET_DATABASE_URL secrets.
 import { spawn } from "node:child_process";
-import { mkdtemp, rm } from "node:fs/promises";
+import { chmod, mkdir, mkdtemp, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 
@@ -41,6 +41,16 @@ SELECT count(*) FROM (
       AND t.typtype IN ('c', 'd', 'e', 'r', 'm')
 ) objects;
 `;
+const extensionQuery = `
+SELECT e.extname || '@' || n.nspname
+FROM pg_extension e JOIN pg_namespace n ON n.oid = e.extnamespace
+ORDER BY e.extname;`;
+
+const schemaQuery = `
+SELECT nspname FROM pg_namespace
+WHERE nspname NOT IN ('pg_catalog', 'information_schema')
+  AND nspname NOT LIKE 'pg_toast%'
+ORDER BY nspname;`;
 
 function connectionEnv(value) {
   if (!value) throw new Error("SOURCE_DATABASE_URL and TARGET_DATABASE_URL must both be set as secrets.");
@@ -67,7 +77,8 @@ function connectionEnv(value) {
 
 function run(command, args, connection, capture = false) {
   return new Promise((resolve, reject) => {
-    const child = spawn(command, args, {
+    const executable = process.env.PG_BIN_DIR ? join(process.env.PG_BIN_DIR, command) : command;
+    const child = spawn(executable, args, {
       env: { ...process.env, ...connection },
       stdio: ["ignore", capture ? "pipe" : "inherit", "pipe"],
     });
@@ -88,8 +99,8 @@ const psql = (connection, sql) =>
 
 async function main() {
   const mode = process.argv[2];
-  if (!["--check", "--migrate"].includes(mode) || process.argv.length !== 3) {
-    throw new Error("Usage: node scripts/migrate-neon.mjs --check|--migrate");
+  if (!["--check", "--migrate", "--replace-target"].includes(mode) || process.argv.length !== 3) {
+    throw new Error("Usage: node scripts/migrate-neon.mjs --check|--migrate|--replace-target");
   }
   const source = connectionEnv(process.env.SOURCE_DATABASE_URL);
   const target = connectionEnv(process.env.TARGET_DATABASE_URL);
@@ -104,12 +115,19 @@ async function main() {
   const targetObjectCount = Number(targetObjects);
   console.log(`Source PostgreSQL: ${sourceVersion}; target PostgreSQL: ${targetVersion}.`);
   console.log(`Target existing user objects: ${targetObjectCount}.`);
+  const clientVersion = await run("pg_dump", ["--version"], source, true);
+  if (Number(clientVersion.match(/(\d+)\./)?.[1]) < Number(targetVersion.match(/^(\d+)/)?.[1])) {
+    throw new Error(`pg_dump ${clientVersion} cannot back up target PostgreSQL ${targetVersion}. Set PG_BIN_DIR to PostgreSQL 18 client binaries.`);
+  }
   const sourceRows = await psql(source, query);
   console.log(`Source tables: ${sourceRows ? sourceRows.split("\n").length : 0}.`);
-  if (targetObjectCount !== 0) {
+  if (targetObjectCount !== 0 && mode !== "--replace-target") {
     const targetRows = await psql(target, query);
+    console.log(`Source table row counts:\n${sourceRows || "(none)"}`);
     console.log(`Target tables: ${targetRows ? targetRows.split("\n").length : 0}.`);
     console.log(`Target table row counts:\n${targetRows || "(none)"}`);
+    console.log(`Source extensions: ${await psql(source, extensionQuery)}; target extensions: ${await psql(target, extensionQuery)}.`);
+    console.log(`Source schemas: ${await psql(source, schemaQuery)}; target schemas: ${await psql(target, schemaQuery)}.`);
     throw new Error("Target is not empty. No changes made; do not overwrite existing objects without a separate review.");
   }
   if (mode === "--check") {
@@ -120,14 +138,29 @@ async function main() {
   const tempDir = await mkdtemp(join(tmpdir(), "neon-migration-"));
   try {
     const archive = join(tempDir, "database.dump");
+    if (mode === "--replace-target") {
+      const backupDir = join(".local", "backups");
+      await mkdir(backupDir, { recursive: true, mode: 0o700 });
+      const backup = join(backupDir, `neon-target-before-migration-${new Date().toISOString().replace(/[:.]/g, "-")}.dump`);
+      console.log("Backing up existing target before any changes...");
+      await run("pg_dump", ["--format=custom", "--no-owner", "--no-acl", "--file", backup], target);
+      await chmod(backup, 0o600);
+      await run("pg_restore", ["--file", "/dev/null", backup], target);
+      console.log(`Target backup verified: ${backup}`);
+    }
     console.log("Creating consistent source dump...");
     await run("pg_dump", ["--format=custom", "--no-owner", "--no-acl", "--file", archive], source);
-    // Re-check immediately before restoring, in case something was created after preflight.
-    if (Number(await psql(target, objectQuery)) !== 0) {
+    await run("pg_restore", ["--file", "/dev/null", archive], source);
+    // Re-check immediately before restoring; the restore itself is one transaction.
+    if (Number(await psql(target, objectQuery)) !== targetObjectCount) {
       throw new Error("Target changed after preflight; refusing to restore.");
     }
-    console.log("Restoring into empty target...");
-    await run("pg_restore", ["--exit-on-error", "--single-transaction", "--no-owner", "--no-acl", "--dbname", target.PGDATABASE, archive], target);
+    console.log(mode === "--replace-target" ? "Replacing target atomically..." : "Restoring into empty target...");
+    await run("pg_restore", [
+      "--exit-on-error", "--single-transaction", "--no-owner", "--no-acl",
+      ...(mode === "--replace-target" ? ["--clean", "--if-exists"] : []),
+      "--dbname", target.PGDATABASE, archive,
+    ], target);
     const targetRows = await psql(target, query);
     if (targetRows !== sourceRows) {
       throw new Error("Restore finished but table row counts differ. Inspect target before using it.");
