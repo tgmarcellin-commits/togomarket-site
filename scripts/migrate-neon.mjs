@@ -104,11 +104,14 @@ async function main() {
   const targetObjectCount = Number(targetObjects);
   console.log(`Source PostgreSQL: ${sourceVersion}; target PostgreSQL: ${targetVersion}.`);
   console.log(`Target existing user objects: ${targetObjectCount}.`);
-  if (targetObjectCount !== 0) {
-    throw new Error("Target is not empty. No changes made; do not overwrite existing objects without a separate review.");
-  }
   const sourceRows = await psql(source, query);
   console.log(`Source tables: ${sourceRows ? sourceRows.split("\n").length : 0}.`);
+  if (targetObjectCount !== 0) {
+    const targetRows = await psql(target, query);
+    console.log(`Target tables: ${targetRows ? targetRows.split("\n").length : 0}.`);
+    console.log(`Target table row counts:\n${targetRows || "(none)"}`);
+    throw new Error("Target is not empty. No changes made; do not overwrite existing objects without a separate review.");
+  }
   if (mode === "--check") {
     console.log("Preflight OK: target empty; ready for --migrate.");
     return;
