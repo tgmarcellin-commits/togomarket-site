@@ -1616,7 +1616,6 @@ export function AdminModal({
                         onChange={(e) => setWhatsappOrdersInput(e.target.value.replace(/\D/g, ""))}
                         className="h-9 text-sm"
                       />
-                    </div>
                     <Button
                       size="sm"
                       className="w-full"
