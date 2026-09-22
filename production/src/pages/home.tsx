@@ -9,13 +9,13 @@ import {
   type VendorProfile,
   type Listing,
 } from "@workspace/api-client-react";
-<<<<<<< HEAD
+
 import { Search, SearchIcon, LogIn, UserCircle2, Settings, Link2Off } from "lucide-react";
 import { useSiteSettings } from "@/lib/site-settings";
 import { useT } from "@/lib/i18n";
-=======
+
 import { Search, SearchIcon, Store } from "lucide-react";
->>>>>>> ff327cc6faa65bc31cede8f1f72c866a500b59d5
+ 
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { ListingCard } from "@/components/listing-card";
@@ -78,14 +78,14 @@ function getBaseUrl(): string {
 }
 
 export default function Home() {
-<<<<<<< HEAD
+  
   const { toast } = useToast();
   const { lang, setLang } = useSiteSettings();
   const t = useT(lang);
-=======
+
   const [searchMode, setSearchMode] = useState<SearchMode>("article");
 
->>>>>>> ff327cc6faa65bc31cede8f1f72c866a500b59d5
+
   const [search, setSearch] = useState("");
   const [searchInput, setSearchInput] = useState("");
   const [sector, setSector] = useState<string | undefined>(undefined);
@@ -384,7 +384,7 @@ export default function Home() {
         </div>
       </header>
 
-<<<<<<< HEAD
+
       {/* ── MARKETPLACE TAB (default) ─────────────────────────────────── */}
       {activeTab === "marketplace" && (
         <>
@@ -403,7 +403,7 @@ export default function Home() {
               <h1 className="text-3xl sm:text-5xl font-extrabold text-white mb-6 drop-shadow-md">
                 {t.tagline}
               </h1>
-=======
+
       {/* Hero Section */}
       <section className="relative h-[320px] sm:h-[420px] w-full flex items-center justify-center overflow-hidden">
         <div className="absolute inset-0 z-0">
@@ -498,7 +498,7 @@ export default function Home() {
           )}
         </div>
       </section>
->>>>>>> ff327cc6faa65bc31cede8f1f72c866a500b59d5
+
 
               {/* Mode tabs */}
               <div className="flex justify-center gap-1 mb-3 max-w-xs mx-auto bg-white/20 rounded-full p-1">
@@ -779,7 +779,7 @@ export default function Home() {
         </div>
       )}
 
-<<<<<<< HEAD
+
       {/* ── AI ASSISTANT ──────────────────────────────────────────────── */}
       <AiAssistant lang={lang} />
 
@@ -789,7 +789,7 @@ export default function Home() {
         onTabChange={setActiveTab}
         onSecretTap={(tab) => setSubAdminSection(tab)}
       />
-=======
+
       {/* Category Filter Bar — only in article mode */}
       {searchMode === "article" && (
         <div className="border-b bg-background sticky top-16 z-40">
@@ -936,7 +936,7 @@ export default function Home() {
           )
         )}
       </main>
->>>>>>> ff327cc6faa65bc31cede8f1f72c866a500b59d5
+
 
       {/* ── MODALS ────────────────────────────────────────────────────── */}
       <PublishModal
