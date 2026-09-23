@@ -19,6 +19,7 @@ import pushRouter from "./push";
 import vendorNotificationsRouter from "./vendor-notifications";
 import reviewsRouter from "./reviews";
 import deliveryRouter from "./delivery";
+import marketplaceRouter from "./marketplace";
 
 const router: IRouter = Router();
 
@@ -41,5 +42,6 @@ router.use(pushRouter);
 router.use(vendorNotificationsRouter);
 router.use(reviewsRouter);
 router.use(deliveryRouter);
+router.use(marketplaceRouter);
 
 export default router;
