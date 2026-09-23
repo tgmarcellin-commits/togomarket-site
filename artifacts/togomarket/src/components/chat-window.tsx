@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef, useCallback } from "react";
+import { Fragment, useState, useEffect, useRef, useCallback, useLayoutEffect } from "react";
 import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetDescription } from "@/components/ui/sheet";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -9,6 +9,7 @@ import {
 import { useSiteSettings } from "@/lib/site-settings";
 import { getSocket } from "@/lib/socket";
 import { resolveImageUrl } from "@/lib/image";
+import { getChatDaySeparatorLabel, getLocalDayKey } from "@/lib/chat-date-separators";
 import { vendorAuthHeaders } from "@/lib/vendor-auth";
 import type { BuyerIdentity } from "./buyer-identity-prompt";
 
@@ -238,11 +239,12 @@ export function ChatWindow({
   const mediaRecorderRef = useRef<MediaRecorder | null>(null);
   const audioChunksRef = useRef<Blob[]>([]);
   const recordingTimerRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  const hasScrolledInitiallyRef = useRef(false);
+  const previousConversationIdRef = useRef<number | null>(null);
+  const previousMessageCountRef = useRef(0);
 
   const selfType = auth.kind === "vendor" ? "vendor" : "buyer";
   const isAdminConversation = auth.kind === "vendor" && buyerIdentity.phone === "##007##";
-
-  const scrollToBottom = () => endRef.current?.scrollIntoView({ behavior: "smooth" });
 
   // ── Keyboard scroll fix ────────────────────────────────────────────────────
   // When the soft keyboard opens on mobile the scroll area can jump. We save
@@ -385,7 +387,37 @@ export function ChatWindow({
     };
   }, [open, conversationId, fetchMessages, markMessagesRead, selfType]);
 
-  useEffect(() => { scrollToBottom(); }, [messages]);
+  useLayoutEffect(() => {
+    if (!open) {
+      hasScrolledInitiallyRef.current = false;
+      previousConversationIdRef.current = null;
+      previousMessageCountRef.current = 0;
+      return;
+    }
+    if (previousConversationIdRef.current !== conversationId) {
+      hasScrolledInitiallyRef.current = false;
+      previousConversationIdRef.current = conversationId;
+      previousMessageCountRef.current = 0;
+    }
+  }, [open, conversationId]);
+
+  useLayoutEffect(() => {
+    if (!open) return;
+    const area = scrollAreaRef.current;
+    if (!area) return;
+
+    if (!hasScrolledInitiallyRef.current) {
+      area.scrollTop = area.scrollHeight;
+      hasScrolledInitiallyRef.current = true;
+      previousMessageCountRef.current = messages.length;
+      return;
+    }
+
+    if (messages.length > previousMessageCountRef.current) {
+      endRef.current?.scrollIntoView({ behavior: "smooth" });
+    }
+    previousMessageCountRef.current = messages.length;
+  }, [messages, open]);
 
   // ── Adaptation au clavier virtuel (mobile) ─────────────────────────────────
   // Quand le clavier s'ouvre, le viewport visuel rétrécit. Si l'utilisateur
@@ -774,6 +806,7 @@ export function ChatWindow({
   };
 
   const messageKeyCounts = new Map<string, number>();
+  let previousDayKey: string | null = null;
 
   return (
     <Sheet open={open} onOpenChange={(v) => { closeMenu(); onOpenChange(v); }}>
@@ -937,10 +970,26 @@ export function ChatWindow({
             </div>
           ) : (
             messages.map((m) => {
+              if (m.deletedAt) return null;
               const keyBase = `${m.id}:${m.createdAt}:${m.senderType}`;
               const occurrence = messageKeyCounts.get(keyBase) ?? 0;
               messageKeyCounts.set(keyBase, occurrence + 1);
-              return renderBubble(m, `${keyBase}:${occurrence}`);
+              const dayKey = getLocalDayKey(m.createdAt);
+              const showDaySeparator = previousDayKey !== dayKey;
+              previousDayKey = dayKey;
+              const itemKey = `${keyBase}:${occurrence}`;
+              return (
+                <Fragment key={itemKey}>
+                  {showDaySeparator && (
+                    <div className="flex justify-center py-1">
+                      <span className="rounded-full bg-muted px-3 py-1 text-[11px] text-muted-foreground">
+                        {getChatDaySeparatorLabel(m.createdAt, lang)}
+                      </span>
+                    </div>
+                  )}
+                  {renderBubble(m, itemKey)}
+                </Fragment>
+              );
             })
           )}
           <div ref={endRef} />
