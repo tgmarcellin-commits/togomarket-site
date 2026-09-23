@@ -8,9 +8,9 @@ import { isAdminAny } from "../lib/admin-auth";
 
 const router: IRouter = Router();
 
-const FEDAPAY_SECRET_KEY = process.env.FEDAPAY_SECRET_KEY ?? "";
-const FEDAPAY_PUBLIC_KEY = process.env.FEDAPAY_PUBLIC_KEY ?? "";
-const FEDAPAY_WEBHOOK_SECRET = process.env.FEDAPAY_WEBHOOK_SECRET ?? "";
+const FEDAPAY_SUBSCRIPTIONS_SECRET_KEY = process.env.FEDAPAY_SECRET_KEY ?? "";
+const FEDAPAY_SUBSCRIPTIONS_PUBLIC_KEY = process.env.FEDAPAY_PUBLIC_KEY ?? "";
+const FEDAPAY_SUBSCRIPTIONS_WEBHOOK_SECRET = process.env.FEDAPAY_WEBHOOK_SECRET ?? "";
 const EXPECTED_AMOUNT = 1000;
 const EXPECTED_CURRENCY = "XOF";
 const APP_URL = "https://togomarket.site";
@@ -29,7 +29,7 @@ function paymentRedirect(status: string, entityType?: EntityType): string {
 }
 
 function verifyWebhookSignature(rawBody: Buffer, header: string): boolean {
-  if (!FEDAPAY_WEBHOOK_SECRET) return false;
+  if (!FEDAPAY_SUBSCRIPTIONS_WEBHOOK_SECRET) return false;
   const fields = new Map(header.split(",").map((part) => {
     const separator = part.indexOf("=");
     return [part.slice(0, separator).trim(), part.slice(separator + 1).trim()];
@@ -38,7 +38,7 @@ function verifyWebhookSignature(rawBody: Buffer, header: string): boolean {
   const signature = fields.get("s");
   if (!Number.isFinite(timestamp) || !signature) return false;
   if (Math.abs(Math.floor(Date.now() / 1000) - timestamp) > 300) return false;
-  const expected = createHmac("sha256", FEDAPAY_WEBHOOK_SECRET)
+  const expected = createHmac("sha256", FEDAPAY_SUBSCRIPTIONS_WEBHOOK_SECRET)
     .update(`${timestamp}.${rawBody.toString("utf8")}`, "utf8")
     .digest("hex");
   const expectedBuffer = Buffer.from(expected);
@@ -47,7 +47,7 @@ function verifyWebhookSignature(rawBody: Buffer, header: string): boolean {
 }
 
 function getFedapayEnv(): "live" | "sandbox" {
-  return FEDAPAY_PUBLIC_KEY.startsWith("pk_live") ? "live" : "sandbox";
+  return FEDAPAY_SUBSCRIPTIONS_PUBLIC_KEY.startsWith("pk_live") ? "live" : "sandbox";
 }
 
 function getFedapayBaseUrl(): string {
@@ -313,7 +313,7 @@ router.post("/fedapay/create-transaction", async (req, res) => {
       transactionId: txId,
       widgetUrl,
       environment: getFedapayEnv(),
-      publicKey: FEDAPAY_PUBLIC_KEY,
+      publicKey: FEDAPAY_SUBSCRIPTIONS_PUBLIC_KEY,
     });
   } catch (err) {
     req.log.error({ err }, "Failed to create FedaPay transaction");
@@ -448,7 +448,7 @@ router.get("/fedapay/verify/:transactionId", async (req, res) => {
 
 router.get("/fedapay/config", async (_req, res) => {
   return res.json({
-    publicKey: FEDAPAY_PUBLIC_KEY,
+    publicKey: FEDAPAY_SUBSCRIPTIONS_PUBLIC_KEY,
     environment: getFedapayEnv(),
   });
 });

@@ -5,6 +5,7 @@ import { logger } from "./lib/logger";
 import { startRenewalReminderCron } from "./lib/renewal-reminder";
 import { startConversationsCleanupCron } from "./lib/conversations-cleanup";
 import { registerSocketHandlers, setIo } from "./lib/socket-io";
+import { startDeliveryAssignmentExpiryCron } from "./lib/delivery-assignment-expiry";
 
 const rawPort = process.env["PORT"];
 
@@ -41,4 +42,5 @@ httpServer.listen(port, (err?: Error) => {
   logger.info({ port }, "Server listening");
   startRenewalReminderCron();
   startConversationsCleanupCron();
+  startDeliveryAssignmentExpiryCron();
 });
