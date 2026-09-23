@@ -144,6 +144,10 @@ router.post("/delivery/assignments", async (req, res) => {
     .orderBy(desc(deliveryWorkflowJobsTable.updatedAt), desc(deliveryWorkflowJobsTable.createdAt))
     .limit(1);
 
+  if (existingJob && existingJob.acceptanceStatus === "accepted_by_driver") {
+    return res.status(409).json({ error: "Commande déjà verrouillée par un livreur." });
+  }
+
   const assignmentExpiresAt = new Date(Date.now() + ASSIGNMENT_TTL_MS);
   const [job] = existingJob
     ? await db

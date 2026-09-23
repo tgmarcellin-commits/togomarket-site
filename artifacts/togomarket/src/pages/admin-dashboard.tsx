@@ -2354,7 +2354,7 @@ export default function AdminDashboard() {
                             aria-label={`Livreur pour la commande ${order.id}`}
                             value={selectedDriverByOrder[order.id] ?? ""}
                             onChange={(event) => setSelectedDriverByOrder((current) => ({ ...current, [order.id]: event.target.value }))}
-                            disabled={availableDriversLoading}
+                            disabled={availableDriversLoading || assigningOrderId !== null || isAccepted}
                           >
                             <option value="">Choisir un livreur disponible…</option>
                             {availableDrivers.map((driver) => (
@@ -2366,7 +2366,7 @@ export default function AdminDashboard() {
                         </div>
                         <Button
                           onClick={() => { void handleAssignDriver(order); }}
-                          disabled={assigningOrderId === order.id || !selectedDriverByOrder[order.id]}
+                          disabled={isAccepted || assigningOrderId !== null || !selectedDriverByOrder[order.id]}
                         >
                           {assigningOrderId === order.id ? <RefreshCw className="w-4 h-4 mr-1.5 animate-spin" /> : <Truck className="w-4 h-4 mr-1.5" />}
                           {order.assignment ? "Réassigner le livreur" : "Assigner le livreur"}

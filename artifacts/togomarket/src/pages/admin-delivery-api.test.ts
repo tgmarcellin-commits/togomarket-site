@@ -29,6 +29,16 @@ test("loadAdminDeliveryOrders surfaces a clear error on failure", async () => {
   );
 });
 
+test("loadAdminDeliveryOrders falls back to an empty list when payload shape is unexpected", async () => {
+  assert.deepEqual(
+    await loadAdminDeliveryOrders("secret-code", async () => ({
+      ok: true,
+      json: async () => ({ orders: "invalid" }),
+    } as Response)),
+    [],
+  );
+});
+
 test("loadAdminAvailableDrivers uses admin header and returns parsed drivers", async () => {
   let request: { input?: string; headers?: HeadersInit } = {};
   const drivers = [{ id: 7, firstName: "Afi" }];
@@ -50,5 +60,15 @@ test("loadAdminAvailableDrivers surfaces a clear error on failure", async () => 
   await assert.rejects(
     () => loadAdminAvailableDrivers("secret-code", async () => ({ ok: false } as Response)),
     /Impossible de charger les livreurs disponibles\./,
+  );
+});
+
+test("loadAdminAvailableDrivers falls back to an empty list when payload shape is unexpected", async () => {
+  assert.deepEqual(
+    await loadAdminAvailableDrivers("secret-code", async () => ({
+      ok: true,
+      json: async () => ({ drivers: "invalid" }),
+    } as Response)),
+    [],
   );
 });
