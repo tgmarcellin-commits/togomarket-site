@@ -1,7 +1,6 @@
 import { Router, type IRouter, type Request, type Response, type NextFunction } from "express";
-import { Readable } from "stream";
 import { spawn } from "child_process";
-import { createReadStream, statSync } from "fs";
+import { statSync } from "fs";
 import { readFile, writeFile } from "fs/promises";
 import { unlink } from "fs/promises";
 import multer from "multer";
@@ -9,8 +8,8 @@ import {
   AdminStorageCleanupBody,
   AdminStorageCleanupResponse,
 } from "@workspace/api-zod";
-import { ObjectStorageService, ObjectNotFoundError } from "../lib/objectStorage";
 import { uploadCloudinaryImage, deleteCloudinaryImage, parseCloudinaryImageUrl } from "../lib/cloudinary-image";
+import { deleteCloudinaryMedia, listCloudinaryMedia, parseCloudinaryMediaUrl, uploadCloudinaryMedia } from "../lib/cloudinary-media";
 import {
   db,
   listingsTable,
@@ -23,8 +22,6 @@ import {
 import { and, eq, gt } from "drizzle-orm";
 import { isAdminAny, isSuperAdmin } from "../lib/admin-auth";
 import { validateFileBytes } from "../lib/file-security";
-import { getObjectAclPolicy } from "../lib/objectAcl";
-import { collectReferencedObjectPaths } from "../lib/storageCleanup";
 import { authenticateVendorRequest } from "../lib/vendor-auth";
 import { normalizePhone, phoneEq } from "../lib/phone";
 
@@ -128,8 +125,16 @@ async function generateVideoPoster(videoPath: string, adId: number): Promise<str
     const inputPath = `/tmp/ad-poster-${adId}-${Date.now()}.mp4`;
     const outputPath = `${inputPath}.jpg`;
     try {
-      const videoFile = await objectStorageService.getObjectEntityFile(videoPath);
-      const [videoBuffer] = await videoFile.download();
+      const parsed = parseCloudinaryMediaUrl(videoPath);
+      if (parsed?.resourceType !== "video" || parsed.deliveryType !== "upload") {
+        throw new Error("Video not stored on Cloudinary");
+      }
+      const videoResponse = await fetch(videoPath);
+      if (!videoResponse.ok || Number(videoResponse.headers.get("content-length")) > 50 * 1024 * 1024) {
+        throw new Error("Unable to download video for poster");
+      }
+      const videoBuffer = Buffer.from(await videoResponse.arrayBuffer());
+      if (videoBuffer.length > 50 * 1024 * 1024) throw new Error("Video too large for poster");
       await writeFile(inputPath, videoBuffer);
       await extractVideoPreviewFrame(inputPath, outputPath);
       const posterBuffer = await readFile(outputPath);
@@ -162,12 +167,11 @@ async function generateVideoPoster(videoPath: string, adId: number): Promise<str
 }
 
 const router: IRouter = Router();
-const objectStorageService = new ObjectStorageService();
 
 router.get("/storage/video-poster", async (req: Request, res: Response) => {
   const rawPath = typeof req.query.path === "string" ? req.query.path : "";
   const refreshRequested = req.query.refresh === "1";
-  if (!rawPath.startsWith("/objects/")) {
+  if (parseCloudinaryMediaUrl(rawPath)?.resourceType !== "video") {
     res.status(400).json({ error: "Chemin vidéo invalide" });
     return;
   }
@@ -196,7 +200,7 @@ router.get("/storage/video-poster", async (req: Request, res: Response) => {
     const cachedPoster = generatedVideoPosterCache.get(rawPath);
     if (cachedPoster) {
       res.setHeader("Cache-Control", "public, max-age=86400");
-        res.redirect(302, parseCloudinaryImageUrl(cachedPoster) ? cachedPoster : `/api/storage${cachedPoster}`);
+      res.redirect(302, parseCloudinaryImageUrl(cachedPoster) ? cachedPoster : `/api/storage${cachedPoster}`);
       return;
     }
   } else {
@@ -211,7 +215,7 @@ router.get("/storage/video-poster", async (req: Request, res: Response) => {
   } catch (error) {
     req.log.warn({ error, adId: ad.id }, "Unable to generate ad video poster");
     // A previously stored poster is still safer than a blank video frame if
-    // FFmpeg or object storage is temporarily unavailable.
+    // FFmpeg or Cloudinary is temporarily unavailable.
     if (ad.image) {
       res.setHeader("Cache-Control", "public, max-age=300");
       res.redirect(302, parseCloudinaryImageUrl(ad.image) ? ad.image : `/api/storage${ad.image}`);
@@ -264,7 +268,7 @@ async function requireUploadActor(req: Request, res: Response, next: NextFunctio
  *
  * Accept a raw video file (multipart/form-data, field "video").
  * If the file is > 30 MB, compress with ffmpeg (720p max, CRF 26, H.264+AAC).
- * Upload the result to object storage and return the objectPath.
+ * Upload the result to Cloudinary and return its HTTPS URL.
  */
 router.post(
   "/storage/uploads/video",
@@ -294,21 +298,17 @@ router.post(
         throw new Error("compressed_video_too_large");
       }
 
-      // Read compressed file into a buffer and upload to object storage
-      const chunks: Buffer[] = [];
-      await new Promise<void>((resolve, reject) => {
-        const stream = createReadStream(outputPath);
-        stream.on("data", (chunk) => chunks.push(Buffer.isBuffer(chunk) ? chunk : Buffer.from(chunk)));
-        stream.on("end", resolve);
-        stream.on("error", reject);
-      });
-      const buffer = Buffer.concat(chunks);
+      const buffer = await readFile(outputPath);
       validateFileBytes(buffer, "video/mp4", ["video"]);
 
-      const objectPath = await objectStorageService.uploadObjectEntity(buffer, "video/mp4", {
-        owner: String(res.locals.uploadOwner),
-        visibility: "public",
-      });
+      let objectPath: string;
+      try {
+        objectPath = await uploadCloudinaryMedia(buffer, "video", String(res.locals.uploadOwner));
+      } catch (error) {
+        req.log.warn({ err: error }, "Cloudinary video upload failed");
+        res.status(502).json({ error: "Envoi de la vidéo indisponible" });
+        return;
+      }
 
       req.log.info({ originalSize, compressedSize, objectPath }, "Video compressed and uploaded");
 
@@ -359,92 +359,20 @@ router.post("/storage/uploads/request-url", (_req: Request, res: Response) => {
   res.status(410).json({ error: "Les uploads directs sont désactivés pour des raisons de sécurité" });
 });
 
-/**
- * GET /storage/public-objects/*
- *
- * Serve public assets from PUBLIC_OBJECT_SEARCH_PATHS.
- * These are unconditionally public — no authentication or ACL checks.
- * IMPORTANT: Always provide this endpoint when object storage is set up.
- */
-router.get("/storage/public-objects/*filePath", async (req: Request, res: Response) => {
-  try {
-    const raw = req.params.filePath;
-    const filePath = Array.isArray(raw) ? raw.join("/") : raw;
-    const file = await objectStorageService.searchPublicObject(filePath);
-    if (!file) {
-      res.status(404).json({ error: "File not found" });
-      return;
-    }
-
-    const response = await objectStorageService.downloadObject(file);
-
-    res.status(response.status);
-    response.headers.forEach((value, key) => res.setHeader(key, value));
-
-    if (response.body) {
-      const nodeStream = Readable.fromWeb(response.body as ReadableStream<Uint8Array>);
-      nodeStream.pipe(res);
-    } else {
-      res.end();
-    }
-  } catch (error) {
-    req.log.error({ err: error }, "Error serving public object");
-    res.status(500).json({ error: "Failed to serve public object" });
-  }
+// Existing object-storage files cannot be served after the Google integration
+// is removed. Fail explicitly; never attempt a metadata-server fallback.
+router.get("/storage/public-objects/*filePath", (_req: Request, res: Response) => {
+  res.status(410).json({ error: "Ancien fichier indisponible après retrait de Google Storage" });
 });
-
-/**
- * GET /storage/objects/*
- *
- * Redirects to a time-limited signed GCS URL instead of proxying the stream.
- * This offloads bandwidth from Express, enables native Range request support
- * (video seeking, buffering) and scales without bottleneck.
- * Signed URLs expire after 1 hour — the browser/CDN can cache during that window.
- */
-router.get("/storage/objects/*path", async (req: Request, res: Response) => {
-  try {
-    const raw = req.params.path;
-    const wildcardPath = Array.isArray(raw) ? raw.join("/") : raw;
-    const objectPath = `/objects/${wildcardPath}`;
-
-    const objectFile = await objectStorageService.getObjectEntityFile(objectPath);
-    const policy = await getObjectAclPolicy(objectFile);
-    if (policy?.visibility !== "public") {
-      if (policy) {
-        res.status(403).json({ error: "Accès privé refusé" });
-        return;
-      }
-      // Legacy objects have no ACL metadata. Preserve public marketplace media,
-      // but never expose legacy chat attachments through the generic route.
-      const [privateMessage] = await db.select({ id: messagesTable.id })
-        .from(messagesTable)
-        .where(eq(messagesTable.fileUrl, objectPath))
-        .limit(1);
-      if (privateMessage) {
-        res.status(403).json({ error: "Accès privé refusé" });
-        return;
-      }
-    }
-    const signedUrl = await objectStorageService.signObjectEntityReadURL(objectPath, 600);
-
-    res.setHeader("Cache-Control", "private, max-age=600");
-    res.redirect(302, signedUrl);
-  } catch (error) {
-    if (error instanceof ObjectNotFoundError) {
-      req.log.warn({ err: error }, "Object not found");
-      res.status(404).json({ error: "Object not found" });
-      return;
-    }
-    req.log.error({ err: error }, "Error redirecting to signed object URL");
-    res.status(500).json({ error: "Failed to serve object" });
-  }
+router.get("/storage/objects/*path", (_req: Request, res: Response) => {
+  res.status(410).json({ error: "Ancien fichier indisponible après retrait de Google Storage" });
 });
 
 /**
  * POST /admin/storage/cleanup
  *
- * Find and delete orphan files in Object Storage only when no persisted
- * marketplace entity still references them.
+ * Delete orphan Cloudinary media only when no persisted marketplace entity
+ * still references it.
  */
 router.post("/admin/storage/cleanup", async (req: Request, res: Response) => {
   const parsed = AdminStorageCleanupBody.safeParse(req.body);
@@ -458,7 +386,7 @@ router.post("/admin/storage/cleanup", async (req: Request, res: Response) => {
   }
 
   try {
-    const allPaths = await objectStorageService.listAllObjectEntityPaths();
+    const allPaths = await listCloudinaryMedia();
 
     const [listings, ads, vendors, messages, services, events] = await Promise.all([
       db.select({ images: listingsTable.images }).from(listingsTable),
@@ -472,20 +400,20 @@ router.post("/admin/storage/cleanup", async (req: Request, res: Response) => {
       db.select({ flyerImage: eventsTable.flyerImage, videoPath: eventsTable.videoPath }).from(eventsTable),
     ]);
 
-    const usedPaths = collectReferencedObjectPaths({
-      listings,
-      ads,
-      vendors,
-      messages,
-      services,
-      events,
-    });
-
+    const usedPaths = new Set([
+      ...listings.flatMap((row) => row.images ?? []),
+      ...ads.flatMap((row) => [row.image, row.videoPath]),
+      ...vendors.map((row) => row.profilePhoto),
+      ...messages.map((row) => row.fileUrl),
+      ...services.flatMap((row) => [row.image, row.videoPath]),
+      ...events.flatMap((row) => [row.flyerImage, row.videoPath]),
+    ].filter((value): value is string => Boolean(value)).map((value) => value.startsWith("v:") ? value.slice(2) : value));
     const orphans = allPaths.filter((p) => !usedPaths.has(p));
-    await Promise.allSettled(orphans.map((p) => objectStorageService.deleteObjectEntity(p)));
+    const results = await Promise.allSettled(orphans.map(deleteCloudinaryMedia));
+    const deleted = results.filter((result) => result.status === "fulfilled").length;
 
-    req.log.info({ deleted: orphans.length }, "Storage cleanup completed");
-    res.json(AdminStorageCleanupResponse.parse({ deleted: orphans.length }));
+    req.log.info({ deleted, failed: orphans.length - deleted }, "Cloudinary cleanup completed");
+    res.json(AdminStorageCleanupResponse.parse({ deleted }));
   } catch (error) {
     req.log.error({ err: error }, "Storage cleanup failed");
     res.status(500).json({ error: "Cleanup failed" });

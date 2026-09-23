@@ -17,10 +17,9 @@ import { webpush, vapidReady } from "../lib/webpush";
 import { normalizePhone, phoneEq } from "../lib/phone";
 import { sendWhatsAppNotifNudge, canSendNudge, markNudgeSent } from "../lib/whatsapp-api";
 import { logger } from "../lib/logger";
-import { ObjectStorageService } from "../lib/objectStorage";
 import { validateFileBytes } from "../lib/file-security";
 import { secureMessageFileUrl, verifyMessageFileAccess } from "../lib/message-file-access";
-import { deleteCloudinaryImage, signedPrivateCloudinaryImageUrl, uploadCloudinaryImage } from "../lib/cloudinary-image";
+import { deleteCloudinaryMedia, signedPrivateCloudinaryMediaUrl, uploadCloudinaryMedia } from "../lib/cloudinary-media";
 import {
   compatibleMessageColumns,
   compatibleMessageInsertColumns,
@@ -42,7 +41,6 @@ const upload = multer({
   storage: multer.memoryStorage(),
   limits: { fileSize: 12 * 1024 * 1024, files: 1, fields: 2 },
 });
-const objectStorage = new ObjectStorageService();
 
 const router: IRouter = Router();
 
@@ -684,9 +682,11 @@ router.get("/conversations/:id/files/:messageId", async (req, res) => {
     res.status(404).json({ error: "Fichier introuvable" });
     return;
   }
-  const signedUrl = message.fileUrl.startsWith("/objects/")
-    ? await objectStorage.signObjectEntityReadURL(message.fileUrl, 300)
-    : signedPrivateCloudinaryImageUrl(message.fileUrl);
+  if (message.fileUrl.startsWith("/objects/")) {
+    res.status(410).json({ error: "Ancien fichier indisponible après retrait de Google Storage" });
+    return;
+  }
+  const signedUrl = signedPrivateCloudinaryMediaUrl(message.fileUrl);
   if (!signedUrl) { res.status(404).json({ error: "Fichier introuvable" }); return; }
   res.setHeader("Cache-Control", "private, max-age=300");
   res.redirect(302, signedUrl);
@@ -962,12 +962,7 @@ router.post(
     }
 
     const fileType = safeFile.kind;
-    const objectPath = fileType === "image"
-      ? await uploadCloudinaryImage(file.buffer, `conversation:${convId}`, true)
-      : await objectStorage.uploadObjectEntity(file.buffer, safeFile.contentType, {
-          owner: `conversation:${convId}`,
-          visibility: "private",
-        });
+    const objectPath = await uploadCloudinaryMedia(file.buffer, fileType, `conversation:${convId}`, true);
     let msg;
     try {
       const [storedMessage] = await db
@@ -982,8 +977,7 @@ router.post(
         .returning(compatibleMessageInsertColumns);
       msg = withMessageListingContext(storedMessage, conv);
     } catch (error) {
-      if (fileType === "image") await deleteCloudinaryImage(objectPath).catch(() => {});
-      else await objectStorage.deleteObjectEntity(objectPath).catch(() => {});
+      await deleteCloudinaryMedia(objectPath).catch(() => {});
       throw error;
     }
 

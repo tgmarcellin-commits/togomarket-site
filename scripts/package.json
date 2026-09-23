@@ -5,12 +5,9 @@
   "type": "module",
   "scripts": {
     "hello": "tsx ./src/hello.ts",
-    "migrate-images": "tsx ./src/migrateImages.ts",
-    "migrate-profile-photos": "tsx ./src/migrate-profile-photos.ts",
     "typecheck": "tsc -p tsconfig.json --noEmit"
   },
   "dependencies": {
-    "@google-cloud/storage": "^8.0.1",
     "@workspace/db": "workspace:*",
     "drizzle-orm": "catalog:"
   },

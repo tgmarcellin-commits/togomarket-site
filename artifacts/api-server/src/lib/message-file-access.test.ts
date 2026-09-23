@@ -35,11 +35,13 @@ test("authenticated Cloudinary attachments keep their permanent URLs out of API 
   const previous = process.env.CLOUDINARY_CLOUD_NAME;
   process.env.CLOUDINARY_CLOUD_NAME = "unit-test-cloud";
   try {
-    const url = "https://res.cloudinary.com/unit-test-cloud/image/authenticated/v123/togomarket/private/123e4567-e89b-42d3-a456-426614174000.png";
-    const message = { id: 12, conversationId: 42, fileUrl: url };
-    const secured = secureMessageFileUrl(message);
-    assert.match(secured.fileUrl, /^\/api\/conversations\/42\/files\/12\?access=/);
-    assert.equal(verifyMessageFileAccess(42, 12, decodeURIComponent(secured.fileUrl.split("access=")[1])), true);
+    for (const [resource, extension] of [["image", "png"], ["video", "wav"], ["raw", "pdf"]]) {
+      const url = `https://res.cloudinary.com/unit-test-cloud/${resource}/authenticated/v123/togomarket/private/123e4567-e89b-42d3-a456-426614174000.${extension}`;
+      const message = { id: 12, conversationId: 42, fileUrl: url };
+      const secured = secureMessageFileUrl(message);
+      assert.match(secured.fileUrl, /^\/api\/conversations\/42\/files\/12\?access=/);
+      assert.equal(verifyMessageFileAccess(42, 12, decodeURIComponent(secured.fileUrl.split("access=")[1])), true);
+    }
   } finally {
     if (previous === undefined) delete process.env.CLOUDINARY_CLOUD_NAME;
     else process.env.CLOUDINARY_CLOUD_NAME = previous;

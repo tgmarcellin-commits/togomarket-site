@@ -1,76 +1,34 @@
 import { and, eq, lt, ne } from "drizzle-orm";
 import {
-  adsTable,
   conversationsTable,
   db,
-  eventsTable,
-  listingsTable,
   messagesTable,
-  servicesTable,
-  vendorsTable,
 } from "@workspace/db";
 import { logger } from "./logger";
-import { ObjectStorageService } from "./objectStorage";
-import { collectReferencedObjectPaths } from "./storageCleanup";
+import { deleteCloudinaryMedia, parseCloudinaryMediaUrl } from "./cloudinary-media";
 
-const objectStorage = new ObjectStorageService();
 const BROADCAST_BUYER_PHONE = "##007##";
 const STORAGE_DELETE_BATCH_SIZE = 100;
 
-function normalizeObjectPath(fileUrl: string | null): string | null {
-  const normalized = fileUrl?.startsWith("v:") ? fileUrl.slice(2) : fileUrl;
-  return normalized?.startsWith("/objects/") ? normalized : null;
-}
-
-async function deleteUnreferencedAttachments(
-  currentCleanupPaths: string[],
-  cutoff: Date,
-): Promise<{
+async function deleteUnreferencedAttachments(currentCleanupPaths: string[]): Promise<{
   deletedCount: number;
   failedCount: number;
   referencedCount: number;
 }> {
-  const [staleObjectPaths, listings, ads, vendors, messages, services, events] =
-    await Promise.all([
-      objectStorage.listConversationCleanupCandidatePathsOlderThan(cutoff),
-      db.select({ images: listingsTable.images }).from(listingsTable),
-      db
-        .select({ image: adsTable.image, videoPath: adsTable.videoPath })
-        .from(adsTable),
-      db.select({ profilePhoto: vendorsTable.profilePhoto }).from(vendorsTable),
-      db.select({ fileUrl: messagesTable.fileUrl }).from(messagesTable),
-      db
-        .select({ image: servicesTable.image, videoPath: servicesTable.videoPath })
-        .from(servicesTable),
-      db
-        .select({
-          flyerImage: eventsTable.flyerImage,
-          videoPath: eventsTable.videoPath,
-        })
-        .from(eventsTable),
-    ]);
-  const referencedPaths = collectReferencedObjectPaths({
-    listings,
-    ads,
-    vendors,
-    messages,
-    services,
-    events,
-  });
-  const candidates = Array.from(
-    new Set([...currentCleanupPaths, ...staleObjectPaths]),
-  );
-  const deletable = candidates.filter(
-    (objectPath) => !referencedPaths.has(objectPath),
-  );
+  const candidates = Array.from(new Set(currentCleanupPaths))
+    .filter((path) => parseCloudinaryMediaUrl(path)?.deliveryType === "authenticated");
+  if (candidates.length === 0) return { deletedCount: 0, failedCount: 0, referencedCount: 0 };
+  const messages = await db.select({ fileUrl: messagesTable.fileUrl }).from(messagesTable);
+  const referencedPaths = new Set(messages.map((message) => message.fileUrl));
+  const deletable = candidates.filter((path) => !referencedPaths.has(path));
   let deletedCount = 0;
   let failedCount = 0;
 
   for (let offset = 0; offset < deletable.length; offset += STORAGE_DELETE_BATCH_SIZE) {
     const batch = deletable.slice(offset, offset + STORAGE_DELETE_BATCH_SIZE);
-    const { failed } = await objectStorage.deleteObjectEntities(batch);
-    failedCount += failed.length;
-    deletedCount += batch.length - failed.length;
+    const results = await Promise.allSettled(batch.map(deleteCloudinaryMedia));
+    deletedCount += results.filter((result) => result.status === "fulfilled").length;
+    failedCount += results.filter((result) => result.status === "rejected").length;
   }
 
   return {
@@ -131,19 +89,9 @@ export async function runConversationsCleanup(): Promise<void> {
             .delete(messagesTable)
             .where(eq(messagesTable.conversationId, id))
             .returning({ fileUrl: messagesTable.fileUrl });
-          const fileUrls = Array.from(
-            new Set(
-              removedMessages
-                .map(({ fileUrl }) => normalizeObjectPath(fileUrl))
-                .filter((fileUrl): fileUrl is string => fileUrl !== null),
-            ),
-          );
-
-          await Promise.all(
-            fileUrls.map((fileUrl) =>
-              objectStorage.markObjectEntityForConversationCleanup(fileUrl),
-            ),
-          );
+          const fileUrls = removedMessages
+            .map(({ fileUrl }) => fileUrl)
+            .filter((fileUrl): fileUrl is string => Boolean(fileUrl));
 
           const [removed] = await tx
             .delete(conversationsTable)
@@ -176,10 +124,7 @@ export async function runConversationsCleanup(): Promise<void> {
       }
     }
 
-    const storageCleanup = await deleteUnreferencedAttachments(
-      [...attachmentPaths],
-      fifteenDaysAgo,
-    );
+    const storageCleanup = await deleteUnreferencedAttachments([...attachmentPaths]);
     if (storageCleanup.failedCount > 0) {
       logger.warn(
         { count: storageCleanup.failedCount },

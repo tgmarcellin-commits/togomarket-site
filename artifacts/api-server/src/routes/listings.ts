@@ -28,18 +28,14 @@ import {
   UpdateTourismeListingParams,
 } from "@workspace/api-zod";
 import { logger } from "../lib/logger";
-import { normalizeObjectStoragePath, ObjectStorageService } from "../lib/objectStorage";
-import { deleteCloudinaryImage, isCloudinaryImageOwnedBy, parseCloudinaryImageUrl } from "../lib/cloudinary-image";
-import { getObjectAclPolicy } from "../lib/objectAcl";
+import { deleteCloudinaryMedia, isCloudinaryMediaOwnedBy, parseCloudinaryMediaUrl } from "../lib/cloudinary-media";
 import { isSuperAdmin } from "../lib/admin-auth";
 import { authenticateVendorRequest } from "../lib/vendor-auth";
-
-const objectStorage = new ObjectStorageService();
 
 const router: IRouter = Router();
 
 function storagePath(mediaPath: string): string {
-  return normalizeObjectStoragePath(mediaPath) ?? mediaPath;
+  return mediaPath.startsWith("v:") ? mediaPath.slice(2) : mediaPath;
 }
 
 async function vendorCanUseMedia(
@@ -52,23 +48,17 @@ async function vendorCanUseMedia(
   for (const mediaPath of mediaPaths) {
     const objectPath = storagePath(mediaPath);
     if (existingPaths.has(objectPath)) continue;
-    if (parseCloudinaryImageUrl(mediaPath)) {
+    const cloudinaryMedia = parseCloudinaryMediaUrl(objectPath);
+    if (cloudinaryMedia && ["image", "video"].includes(cloudinaryMedia.resourceType) &&
+        cloudinaryMedia.deliveryType === "upload") {
       try {
-        if (!await isCloudinaryImageOwnedBy(mediaPath, `vendor:${vendorId}`)) return false;
+        if (!await isCloudinaryMediaOwnedBy(objectPath, `vendor:${vendorId}`)) return false;
       } catch {
         return false;
       }
       continue;
     }
-    if (!normalizeObjectStoragePath(mediaPath)) return false;
-
-    try {
-      const objectFile = await objectStorage.getObjectEntityFile(objectPath);
-      const policy = await getObjectAclPolicy(objectFile);
-      if (policy?.owner !== `vendor:${vendorId}`) return false;
-    } catch {
-      return false;
-    }
+    return false;
   }
 
   return true;
@@ -97,12 +87,13 @@ async function deleteUnreferencedListingMedia(mediaPaths: string[]): Promise<{ f
   );
   const unreferencedPaths = Array.from(new Set(mediaPaths.map(storagePath)))
     .filter((path) => !referencedPaths.has(path));
-  const objectResult = await objectStorage.deleteObjectEntities(unreferencedPaths);
-  const cloudinaryPaths = unreferencedPaths.filter((path) => parseCloudinaryImageUrl(path)?.deliveryType === "upload");
-  const cloudinaryResults = await Promise.allSettled(cloudinaryPaths.map(deleteCloudinaryImage));
+  const cloudinaryPaths = unreferencedPaths.filter((path) => {
+    const parsed = parseCloudinaryMediaUrl(path);
+    return parsed?.deliveryType === "upload" && ["image", "video"].includes(parsed.resourceType);
+  });
+  const cloudinaryResults = await Promise.allSettled(cloudinaryPaths.map(deleteCloudinaryMedia));
   return {
     failed: [
-      ...objectResult.failed,
       ...cloudinaryResults.flatMap((result, index) => result.status === "rejected" ? [cloudinaryPaths[index]] : []),
     ],
   };

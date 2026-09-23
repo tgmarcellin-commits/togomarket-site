@@ -1,4 +1,4 @@
-- [Image storage migration](image-storage-migration.md) — images passées de base64 PostgreSQL vers Replit Object Storage ; anciens chemins commencent par `data:`, nouveaux par `/objects/uploads/`.
+- [Ancien stockage Google](image-storage-migration.md) — Google Storage retiré sur demande ; les chemins historiques `/objects/...` restent en base mais leur lecture répond 410.
 - [Version client Neon](neon-pg-client-version.md) — pg_dump doit être au moins aussi récent que la cible avant d'en sauvegarder ou remplacer les données.
 - [Scripts package DB access](scripts-db-deps.md) — le package scripts doit déclarer `drizzle-orm` ET `@workspace/db` dans ses dépendances pour accéder à la base via tsx.
 - [DB SSL production](db-ssl-prod.md) — ne jamais forcer SSL sur le pool pg en production avec le Helium local (sslmode=disable dans l'URL) ; laisser l'URL gérer le SSL.

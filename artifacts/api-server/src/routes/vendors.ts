@@ -19,8 +19,7 @@ import { normalizePhone, phoneEq } from "../lib/phone";
 import { getIo } from "../lib/socket-io";
 import { webpush, vapidReady } from "../lib/webpush";
 import { logger } from "../lib/logger";
-import { ObjectStorageService } from "../lib/objectStorage";
-import { uploadCloudinaryImage, deleteCloudinaryImage } from "../lib/cloudinary-image";
+import { uploadCloudinaryMedia, deleteCloudinaryMedia } from "../lib/cloudinary-media";
 import { validateFileBytes } from "../lib/file-security";
 import { secureMessageFileUrl } from "../lib/message-file-access";
 import {
@@ -37,7 +36,6 @@ const adminUpload = multer({
   storage: multer.memoryStorage(),
   limits: { fileSize: 12 * 1024 * 1024, files: 1, fields: 3 },
 });
-const adminObjectStorage = new ObjectStorageService();
 
 function getPhoneCountry(phone: string): string {
   const d = phone.replace(/\D/g, "");
@@ -950,12 +948,7 @@ router.post(
       .limit(1);
     if (!conv) return res.status(404).json({ error: "conversation not found" });
 
-    const objectPath = fileType === "image"
-      ? await uploadCloudinaryImage(file.buffer, `conversation:${convId}`, true)
-      : await adminObjectStorage.uploadObjectEntity(file.buffer, safeFile.contentType, {
-          owner: `conversation:${convId}`,
-          visibility: "private",
-        });
+    const objectPath = await uploadCloudinaryMedia(file.buffer, fileType, `conversation:${convId}`, true);
     let msg;
     try {
       [msg] = await db.insert(compatibleMessagesInsertTable).values({
@@ -966,8 +959,7 @@ router.post(
         content: null,
       }).returning(compatibleMessageInsertColumns);
     } catch (error) {
-      if (fileType === "image") await deleteCloudinaryImage(objectPath).catch(() => {});
-      else await adminObjectStorage.deleteObjectEntity(objectPath).catch(() => {});
+      await deleteCloudinaryMedia(objectPath).catch(() => {});
       throw error;
     }
 

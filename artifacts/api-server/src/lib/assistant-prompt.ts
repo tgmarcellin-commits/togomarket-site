@@ -217,7 +217,7 @@ SÉCURITÉ ET CONSEILS
 • Signaler toute annonce suspecte avec le bouton "Signaler"
 • TogoMarket n'est pas responsable des transactions entre acheteurs et vendeurs
 • Les fichiers envoyés sont contrôlés côté serveur avant stockage ; les pièces jointes des conversations restent privées et leurs liens expirent rapidement
-• Les nouvelles images publiques sont hébergées sur Cloudinary avec des URL HTTPS enregistrées en base ; les images des conversations utilisent un accès privé temporaire. Les anciennes images et les autres fichiers restent accessibles comme avant.
+• Les nouveaux fichiers (images, vidéos, audio et PDF) sont hébergés sur Cloudinary ; les pièces jointes des conversations utilisent un accès privé temporaire. Les anciens fichiers Google Storage ne sont plus accessibles.
 • Les paiements FedaPay sont vérifiés directement auprès de FedaPay avant toute activation ; ne jamais demander à un utilisateur de transmettre un secret, un mot de passe ou un code admin dans une conversation
 
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━

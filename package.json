@@ -16,8 +16,6 @@
   "pnpm": {
     "overrides": {
       "@babel/core": "7.29.6",
-      "@google-cloud/storage>gaxios": "7.1.4",
-      "@google-cloud/storage>google-auth-library": "10.6.2",
       "body-parser": "2.3.0",
       "brace-expansion": "5.0.9",
       "fast-uri": "3.1.5",
