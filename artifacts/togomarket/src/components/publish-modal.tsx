@@ -29,7 +29,7 @@ import {
 } from "@/components/ui/form";
 import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { resizeImageToBlob, resolveImageUrl, isVideoMedia, resolveMediaUrl } from "@/lib/image";
+import { resizeImageToBlob, resizeListingImageToBlob, resolveImageUrl, isVideoMedia, resolveMediaUrl } from "@/lib/image";
 import { uploadImageFile, uploadVideoFile } from "@/lib/upload";
 import { UploadCloud, X, Lock, AlertCircle, UserCircle2, Store, CreditCard, Loader2, Copy, Users, Video } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
@@ -139,7 +139,7 @@ export function PublishModal({
     try {
       const entries = await Promise.all(
         files.map(async (file) => {
-          const { blob, dataUrl } = await resizeImageToBlob(file);
+          const { blob, dataUrl } = await resizeListingImageToBlob(file);
           const objectPath = await uploadImageFile(blob, file.name, {
             vendorPhone: vendor?.phone ?? "",
             vendorPassword,
