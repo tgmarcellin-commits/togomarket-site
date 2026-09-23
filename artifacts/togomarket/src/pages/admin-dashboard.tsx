@@ -91,11 +91,13 @@ import {
   Paperclip,
   MoreVertical,
   Pencil,
+  Truck,
 } from "lucide-react";
 
 type DashTab =
   | "stats"
   | "pending"
+  | "delivery"
   | "vendors"
   | "ads"
   | "events"
@@ -127,6 +129,45 @@ interface InboxMessage {
   editedAt?: string | null;
   deletedAt?: string | null;
   createdAt: string;
+}
+
+interface DeliveryAdminOrder {
+  id: number;
+  firstName: string;
+  lastName: string;
+  phone: string;
+  description: string;
+  articlePriceLocked: number;
+  distanceLockedKm: number | null;
+  transportFeeLocked: number | null;
+  distanceSource: string | null;
+  status: string;
+  createdAt: string;
+  assignment: {
+    id: number;
+    driverId: number;
+    acceptanceStatus: string;
+    assignmentExpiresAt: string | null;
+    acceptedAt: string | null;
+    refusedAt: string | null;
+    driver: {
+      id: number;
+      firstName: string;
+      lastName: string;
+      phone: string;
+      isAvailable: boolean;
+    } | null;
+  } | null;
+}
+
+interface AvailableDriver {
+  id: number;
+  firstName: string;
+  lastName: string;
+  phone: string;
+  photoUrl: string | null;
+  whatsappNumber: string | null;
+  isAvailable: boolean;
 }
 
 function getInboxLastMessagePreview(conv: InboxConv): string {
@@ -267,7 +308,7 @@ export default function AdminDashboard() {
     if (session.role === "admin_stats") return "stats";
     // Superadmin / full admin: restore the last tab the user was on before refresh
     const saved = sessionStorage.getItem("tm_admin_tab") as DashTab | null;
-    const valid: DashTab[] = ["stats", "pending", "vendors", "ads", "events", "services", "settings", "accounts", "inbox"];
+    const valid: DashTab[] = ["stats", "pending", "delivery", "vendors", "ads", "events", "services", "settings", "accounts", "inbox"];
     if (saved && valid.includes(saved)) return saved;
     return "stats";
   };
@@ -284,6 +325,12 @@ export default function AdminDashboard() {
   const [viewerImages, setViewerImages] = useState<string[]>([]);
   const [viewerIndex, setViewerIndex] = useState(0);
   const [videoPlayerUrl, setVideoPlayerUrl] = useState<string | null>(null);
+  const [deliveryOrders, setDeliveryOrders] = useState<DeliveryAdminOrder[]>([]);
+  const [deliveryOrdersLoading, setDeliveryOrdersLoading] = useState(false);
+  const [availableDrivers, setAvailableDrivers] = useState<AvailableDriver[]>([]);
+  const [availableDriversLoading, setAvailableDriversLoading] = useState(false);
+  const [selectedDriverByOrder, setSelectedDriverByOrder] = useState<Record<number, string>>({});
+  const [assigningOrderId, setAssigningOrderId] = useState<number | null>(null);
 
   // ── INBOX ────────────────────────────────────────────────────
   const [inboxConvs, setInboxConvs] = useState<InboxConv[]>([]);
@@ -954,6 +1001,44 @@ export default function AdminDashboard() {
       .catch(() => setAccountsLoading(false));
   };
 
+  const loadDeliveryOrders = async () => {
+    setDeliveryOrdersLoading(true);
+    try {
+      const res = await fetch("/api/admin/delivery/orders", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ code: password }),
+      });
+      if (!res.ok) {
+        toast({ title: "Erreur", description: "Impossible de charger les commandes livraison.", variant: "destructive" });
+        return;
+      }
+      const data = await res.json() as { orders?: DeliveryAdminOrder[] };
+      setDeliveryOrders(Array.isArray(data.orders) ? data.orders : []);
+    } finally {
+      setDeliveryOrdersLoading(false);
+    }
+  };
+
+  const loadAvailableDrivers = async () => {
+    setAvailableDriversLoading(true);
+    try {
+      const res = await fetch("/api/drivers/available");
+      if (!res.ok) {
+        toast({ title: "Erreur", description: "Impossible de charger les livreurs disponibles.", variant: "destructive" });
+        return;
+      }
+      const data = await res.json() as AvailableDriver[];
+      setAvailableDrivers(Array.isArray(data) ? data : []);
+    } finally {
+      setAvailableDriversLoading(false);
+    }
+  };
+
+  const loadDeliveryDashboard = async () => {
+    await Promise.all([loadDeliveryOrders(), loadAvailableDrivers()]);
+  };
+
   useEffect(() => {
     if (isSuperAdmin) {
       loadStats();
@@ -973,12 +1058,42 @@ export default function AdminDashboard() {
       loadPending();
       loadPublishedListings(1, appliedPublishedListingsSearch);
     }
+    if (t === "delivery") void loadDeliveryDashboard();
     if (t === "vendors") loadVendors();
     if (t === "ads") loadAds();
     if (t === "events") loadEvents();
     if (t === "services") loadServices();
     if (t === "accounts") loadAccounts();
     if (t === "inbox") loadInbox();
+  };
+
+  const handleAssignDriver = async (order: DeliveryAdminOrder) => {
+    const selectedDriverId = Number(selectedDriverByOrder[order.id] ?? "");
+    if (!Number.isInteger(selectedDriverId) || selectedDriverId <= 0) {
+      toast({ title: "Livreur requis", description: "Sélectionnez un livreur avant de confirmer.", variant: "destructive" });
+      return;
+    }
+    setAssigningOrderId(order.id);
+    try {
+      const res = await fetch("/api/delivery/assignments", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          code: password,
+          orderId: order.id,
+          driverId: selectedDriverId,
+        }),
+      });
+      const data = await res.json().catch(() => null) as { error?: string } | null;
+      if (!res.ok) {
+        toast({ title: "Erreur", description: data?.error ?? "Impossible d'assigner le livreur.", variant: "destructive" });
+        return;
+      }
+      toast({ title: "Livreur assigné", description: "La demande a bien été envoyée au livreur." });
+      await loadDeliveryDashboard();
+    } finally {
+      setAssigningOrderId(null);
+    }
   };
 
   const handleApprove = (id: number) => {
@@ -1598,6 +1713,7 @@ export default function AdminDashboard() {
   const tabs: Array<{ key: DashTab; label: string; icon: React.ReactNode; roles?: string[] }> = [
     { key: "stats", label: "Statistiques", icon: <LayoutDashboard className="w-4 h-4" />, roles: ["superadmin", "admin_stats", "admin_pub", "admin_event", "admin_service"] },
     { key: "pending", label: "En attente", icon: <Clock className="w-4 h-4" />, roles: ["superadmin"] },
+    { key: "delivery", label: "Livraisons", icon: <Truck className="w-4 h-4" />, roles: ["superadmin"] },
     { key: "vendors", label: "Vendeurs", icon: <Users className="w-4 h-4" />, roles: ["superadmin"] },
     { key: "ads", label: "Publicités", icon: <Megaphone className="w-4 h-4" />, roles: ["superadmin", "admin_pub"] },
     { key: "events", label: "Événements", icon: <Calendar className="w-4 h-4" />, roles: ["superadmin", "admin_event"] },
@@ -2163,6 +2279,128 @@ export default function AdminDashboard() {
                 </DialogContent>
               </Dialog>
               </>
+            )}
+          </div>
+        )}
+
+        {/* ── LIVRAISONS ───────────────────────────────────────── */}
+        {tab === "delivery" && isSuperAdmin && (
+          <div className="space-y-4">
+            <div className="flex items-center justify-between gap-3">
+              <div>
+                <h2 className="text-lg font-bold">Livraisons ({deliveryOrders.length})</h2>
+                <p className="text-sm text-muted-foreground">
+                  Assignez un livreur aux commandes et suivez leur état.
+                </p>
+              </div>
+              <Button variant="outline" size="sm" onClick={() => { void loadDeliveryDashboard(); }} disabled={deliveryOrdersLoading || availableDriversLoading}>
+                <RefreshCw className={`w-3.5 h-3.5 mr-1.5 ${(deliveryOrdersLoading || availableDriversLoading) ? "animate-spin" : ""}`} />
+                Actualiser
+              </Button>
+            </div>
+
+            <div className="rounded-xl border bg-card p-4">
+              <div className="flex items-center justify-between gap-3">
+                <div>
+                  <p className="font-semibold text-sm">Livreurs disponibles</p>
+                  <p className="text-xs text-muted-foreground">Ces profils peuvent être sélectionnés pour une nouvelle commande.</p>
+                </div>
+                <span className="text-sm font-semibold text-primary">{availableDrivers.length}</span>
+              </div>
+              <div className="mt-3 flex flex-wrap gap-2">
+                {availableDrivers.length === 0 ? (
+                  <span className="text-sm text-muted-foreground">Aucun livreur disponible actuellement.</span>
+                ) : availableDrivers.map((driver) => (
+                  <span key={driver.id} className="inline-flex items-center gap-2 rounded-full border px-3 py-1 text-xs font-medium bg-primary/5 border-primary/20 text-primary">
+                    {driver.firstName} {driver.lastName}
+                  </span>
+                ))}
+              </div>
+            </div>
+
+            {deliveryOrdersLoading ? (
+              <div className="flex justify-center py-16"><RefreshCw className="w-6 h-6 animate-spin text-muted-foreground" /></div>
+            ) : deliveryOrders.length === 0 ? (
+              <div className="rounded-xl border bg-card p-8 text-center text-muted-foreground">
+                <Truck className="w-10 h-10 mx-auto mb-3 opacity-30" />
+                <p>Aucune commande livraison enregistrée.</p>
+              </div>
+            ) : (
+              <div className="space-y-3">
+                {deliveryOrders.map((order) => {
+                  const isAccepted = order.assignment?.acceptanceStatus === "accepted_by_driver";
+                  const currentDriverLabel = order.assignment?.driver
+                    ? `${order.assignment.driver.firstName} ${order.assignment.driver.lastName}`
+                    : "—";
+                  return (
+                    <div key={order.id} className="rounded-xl border bg-card p-4 space-y-4">
+                      <div className="flex flex-wrap items-start justify-between gap-3">
+                        <div className="space-y-1">
+                          <div className="flex items-center gap-2 flex-wrap">
+                            <h3 className="font-semibold">Commande #{order.id}</h3>
+                            <span className="text-xs rounded-full px-2 py-0.5 bg-muted text-muted-foreground">{order.status}</span>
+                            {order.assignment && (
+                              <span className={`text-xs rounded-full px-2 py-0.5 font-medium ${
+                                isAccepted ? "bg-green-100 text-green-700" : "bg-amber-100 text-amber-700"
+                              }`}>
+                                {order.assignment.acceptanceStatus}
+                              </span>
+                            )}
+                          </div>
+                          <p className="text-sm text-muted-foreground">{order.firstName} {order.lastName} — {order.phone}</p>
+                        </div>
+                        <div className="text-sm text-muted-foreground">
+                          {new Date(order.createdAt).toLocaleString("fr-FR")}
+                        </div>
+                      </div>
+
+                      <div className="grid gap-3 md:grid-cols-3 text-sm">
+                        <div className="rounded-lg border bg-muted/20 p-3">
+                          <p className="text-xs uppercase tracking-wide text-muted-foreground">Description</p>
+                          <p className="mt-1 font-medium text-foreground whitespace-pre-wrap">{order.description}</p>
+                        </div>
+                        <div className="rounded-lg border bg-muted/20 p-3">
+                          <p className="text-xs uppercase tracking-wide text-muted-foreground">Montants</p>
+                          <p className="mt-1 text-foreground">Article: <span className="font-medium">{new Intl.NumberFormat("fr-FR").format(order.articlePriceLocked)} FCFA</span></p>
+                          <p className="text-foreground">Transport: <span className="font-medium">{order.transportFeeLocked != null ? `${new Intl.NumberFormat("fr-FR").format(order.transportFeeLocked)} FCFA` : "—"}</span></p>
+                          <p className="text-foreground">Distance: <span className="font-medium">{order.distanceLockedKm != null ? `${order.distanceLockedKm} km` : "—"}</span></p>
+                        </div>
+                        <div className="rounded-lg border bg-muted/20 p-3">
+                          <p className="text-xs uppercase tracking-wide text-muted-foreground">Livreur actuel</p>
+                          <p className="mt-1 font-medium text-foreground">{currentDriverLabel}</p>
+                          <p className="text-foreground">{order.assignment?.driver?.phone ?? "—"}</p>
+                          {order.assignment?.assignmentExpiresAt && (
+                            <p className="text-xs text-muted-foreground mt-1">Expiration: {new Date(order.assignment.assignmentExpiresAt).toLocaleString("fr-FR")}</p>
+                          )}
+                        </div>
+                      </div>
+
+                      <div className="flex flex-col gap-2 md:flex-row md:items-center">
+                        <select
+                          className="h-10 rounded-md border bg-background px-3 text-sm"
+                          value={selectedDriverByOrder[order.id] ?? ""}
+                          onChange={(event) => setSelectedDriverByOrder((current) => ({ ...current, [order.id]: event.target.value }))}
+                          disabled={availableDriversLoading || isAccepted}
+                        >
+                          <option value="">Choisir un livreur disponible…</option>
+                          {availableDrivers.map((driver) => (
+                            <option key={driver.id} value={String(driver.id)}>
+                              {driver.firstName} {driver.lastName} — {driver.phone}
+                            </option>
+                          ))}
+                        </select>
+                        <Button
+                          onClick={() => { void handleAssignDriver(order); }}
+                          disabled={isAccepted || assigningOrderId === order.id || !selectedDriverByOrder[order.id]}
+                        >
+                          {assigningOrderId === order.id ? <RefreshCw className="w-4 h-4 mr-1.5 animate-spin" /> : <Truck className="w-4 h-4 mr-1.5" />}
+                          {order.assignment ? "Réassigner le livreur" : "Assigner le livreur"}
+                        </Button>
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
             )}
           </div>
         )}
