@@ -433,7 +433,7 @@ export default function DriverConnexion() {
 
                           {assignment.assignmentExpiresAt && (
                             <p className="text-xs text-muted-foreground">
-                              {isFrench ? "Expire le" : "Expires on"} {new Date(assignment.assignmentExpiresAt).toLocaleString("fr-FR")}
+                              {isFrench ? "Expire le" : "Expires on"} {new Date(assignment.assignmentExpiresAt).toLocaleString(isFrench ? "fr-FR" : "en-US")}
                             </p>
                           )}
 

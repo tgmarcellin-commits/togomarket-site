@@ -1,5 +1,5 @@
 import { Router, type IRouter } from "express";
-import { and, desc, eq, gt, inArray, lt } from "drizzle-orm";
+import { and, desc, eq, gt, inArray, isNotNull, lt, or } from "drizzle-orm";
 import {
   deliveryAuditLogsTable,
   db,
@@ -143,10 +143,6 @@ router.post("/delivery/assignments", async (req, res) => {
     .where(eq(deliveryWorkflowJobsTable.orderId, parsed.orderId))
     .limit(1);
 
-  if (existingJob && existingJob.acceptanceStatus === "accepted_by_driver") {
-    return res.status(409).json({ error: "Commande déjà verrouillée par un livreur." });
-  }
-
   const assignmentExpiresAt = new Date(Date.now() + ASSIGNMENT_TTL_MS);
   const [job] = existingJob
     ? await db
@@ -221,8 +217,8 @@ router.post("/delivery/assignments", async (req, res) => {
   });
 });
 
-router.post("/admin/delivery/orders", async (req, res) => {
-  const adminCode = String(req.body?.code ?? req.body?.password ?? "").trim();
+router.get("/admin/delivery/orders", async (req, res) => {
+  const adminCode = String(req.headers["x-admin-code"] ?? "").trim();
   if (!adminCode || !await verifyAdminCode(adminCode)) {
     return res.status(403).json({ error: "Accès administrateur requis." });
   }
@@ -242,6 +238,13 @@ router.post("/admin/delivery/orders", async (req, res) => {
       createdAt: ordersTable.createdAt,
     })
     .from(ordersTable)
+    .where(or(
+      inArray(ordersTable.status, ["ASSIGNED", "IN_TRANSIT", "DELIVERED", "RETURNING_TO_SELLER", "RETURN_AT_SELLER", "RETURN_CONFIRMED"]),
+      isNotNull(ordersTable.distanceLockedKm),
+      isNotNull(ordersTable.transportFeeLocked),
+      eq(ordersTable.buyerConsented, true),
+      eq(ordersTable.sellerConsented, true),
+    ))
     .orderBy(desc(ordersTable.createdAt))
     .limit(100);
 
@@ -485,12 +488,12 @@ router.post("/delivery/assignments/respond", async (req, res) => {
   if (job.driverId !== driver.id) {
     return res.status(403).json({ error: "Cette assignation n'appartient pas à ce livreur." });
   }
-  if (job.acceptanceStatus !== "pending_driver_response") {
-    return res.status(409).json({ error: "Assignation déjà traitée." });
-  }
   if (job.assignmentExpiresAt && job.assignmentExpiresAt.getTime() < Date.now()) {
     await db.update(deliveryWorkflowJobsTable).set({ acceptanceStatus: "expired", updatedAt: new Date() }).where(eq(deliveryWorkflowJobsTable.id, job.id));
     return res.status(409).json({ error: "Assignation expirée." });
+  }
+  if (job.acceptanceStatus !== "pending_driver_response") {
+    return res.status(409).json({ error: "Assignation déjà traitée." });
   }
   if (action === "refuse") {
     await db.update(deliveryWorkflowJobsTable).set({

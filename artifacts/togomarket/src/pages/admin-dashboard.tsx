@@ -1016,9 +1016,7 @@ export default function AdminDashboard() {
     setDeliveryOrdersLoading(true);
     try {
       const res = await fetch("/api/admin/delivery/orders", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ code: password }),
+        headers: { "x-admin-code": password },
       });
       if (!res.ok) {
         toast({ title: "Erreur", description: "Impossible de charger les commandes livraison.", variant: "destructive" });
@@ -2394,7 +2392,7 @@ export default function AdminDashboard() {
                           aria-label={`Livreur pour la commande ${order.id}`}
                           value={selectedDriverByOrder[order.id] ?? ""}
                           onChange={(event) => setSelectedDriverByOrder((current) => ({ ...current, [order.id]: event.target.value }))}
-                          disabled={availableDriversLoading || isAccepted}
+                          disabled={availableDriversLoading}
                         >
                           <option value="">Choisir un livreur disponible…</option>
                           {availableDrivers.map((driver) => (
@@ -2405,7 +2403,7 @@ export default function AdminDashboard() {
                         </select>
                         <Button
                           onClick={() => { void handleAssignDriver(order); }}
-                          disabled={isAccepted || assigningOrderId === order.id || !selectedDriverByOrder[order.id]}
+                          disabled={assigningOrderId === order.id || !selectedDriverByOrder[order.id]}
                         >
                           {assigningOrderId === order.id ? <RefreshCw className="w-4 h-4 mr-1.5 animate-spin" /> : <Truck className="w-4 h-4 mr-1.5" />}
                           {order.assignment ? "Réassigner le livreur" : "Assigner le livreur"}
