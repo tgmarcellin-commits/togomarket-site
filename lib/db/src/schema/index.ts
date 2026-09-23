@@ -9,4 +9,4 @@ export * from "./services";
 export * from "./sellers";
 export * from "./chat";
 export * from "./reviews";
-
+export * from "./marketplace";
