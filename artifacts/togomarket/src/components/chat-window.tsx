@@ -49,6 +49,7 @@ interface ChatWindowProps {
   onConversationUnavailable?: () => void;
   /** Called after the server confirms that the current participant read messages */
   onMessagesRead?: (conversationId: number) => void;
+  showAssignDriver?: boolean;
 }
 
 function authHeaders(auth: ChatAuth): Record<string, string> {
@@ -215,7 +216,7 @@ function BuyerPushPrompt({
 
 export function ChatWindow({
   open, onOpenChange, conversationId, buyerIdentity, vendorName, listingTitle, listingImage, auth,
-  onConversationDeleted, onConversationUnavailable, onMessagesRead,
+  onConversationDeleted, onConversationUnavailable, onMessagesRead, showAssignDriver = false,
 }: ChatWindowProps) {
   const { lang } = useSiteSettings();
   const [messages, setMessages] = useState<ChatMessage[]>([]);
@@ -875,14 +876,16 @@ export function ChatWindow({
                   {listingTitle ?? (lang === "fr" ? "Article sélectionné" : "Selected item")}
                 </p>
               </div>
-              <button
-                type="button"
-                className="ml-auto flex-shrink-0 inline-flex items-center gap-1.5 rounded-md border border-primary/30 bg-background/80 px-2.5 py-2 text-[11px] font-semibold text-primary shadow-sm whitespace-nowrap transition-colors hover:bg-background focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/50"
-                aria-label={lang === "fr" ? "Assigner livreur" : "Assign delivery driver"}
-              >
-                <Truck className="w-3.5 h-3.5" aria-hidden="true" />
-                {lang === "fr" ? "Assigner livreur" : "Assign driver"}
-              </button>
+              {showAssignDriver && (
+                <button
+                  type="button"
+                  className="ml-auto flex-shrink-0 inline-flex items-center gap-1.5 rounded-md border border-primary/30 bg-background/80 px-2.5 py-2 text-[11px] font-semibold text-primary shadow-sm whitespace-nowrap transition-colors hover:bg-background focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/50"
+                  aria-label={lang === "fr" ? "Assigner livreur" : "Assign delivery driver"}
+                >
+                  <Truck className="w-3.5 h-3.5" aria-hidden="true" />
+                  {lang === "fr" ? "Assigner livreur" : "Assign driver"}
+                </button>
+              )}
             </div>
           )}
         </SheetHeader>
