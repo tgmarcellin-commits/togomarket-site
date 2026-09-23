@@ -436,7 +436,6 @@ router.get("/driver-connexion/assignments", async (req, res) => {
       updatedAt: deliveryWorkflowJobsTable.updatedAt,
     })
     .from(deliveryWorkflowJobsTable)
-    .where(eq(deliveryWorkflowJobsTable.driverId, driver.id))
     .orderBy(
       deliveryWorkflowJobsTable.orderId,
       desc(deliveryWorkflowJobsTable.updatedAt),
