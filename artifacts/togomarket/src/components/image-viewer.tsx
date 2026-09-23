@@ -52,12 +52,13 @@ export function ImageViewer({ images, startIndex, onClose, footer }: ImageViewer
         className={`relative w-full flex items-center justify-center px-14 ${footer ? "flex-1 min-h-0 pt-12" : "h-full"}`}
         onClick={(e) => e.stopPropagation()}
       >
-        <img
-          src={resolveImageUrl(images[current])}
-          alt={`Photo ${current + 1}`}
-          className="max-w-full max-h-full object-contain select-none"
-          style={{ maxHeight: footer ? undefined : "90vh" }}
-        />
+        <div className={`w-full max-w-5xl aspect-[4/3] overflow-hidden bg-black rounded-lg ${footer ? "max-h-full" : "max-h-[90vh]"}`}>
+          <img
+            src={resolveImageUrl(images[current])}
+            alt={`Photo ${current + 1}`}
+            className="w-full h-full object-cover select-none"
+          />
+        </div>
 
         {/* Navigation */}
         {images.length > 1 && (

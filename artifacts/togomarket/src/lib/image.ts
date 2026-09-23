@@ -13,6 +13,35 @@ export const isVideoMedia = (path: string) =>
 export const resolveMediaUrl = (path: string) =>
   resolveImageUrl(path.startsWith("v:") ? path.slice(2) : path);
 
+export const LISTING_IMAGE_TARGET_RATIO = 4 / 3;
+export const LISTING_IMAGE_MAX_WIDTH = 1400;
+
+export interface CoverCropRect {
+  sx: number;
+  sy: number;
+  sw: number;
+  sh: number;
+}
+
+export function getCoverCropRect(sourceWidth: number, sourceHeight: number, targetRatio: number): CoverCropRect {
+  if (!(sourceWidth > 0) || !(sourceHeight > 0) || !(targetRatio > 0)) {
+    return { sx: 0, sy: 0, sw: Math.max(1, sourceWidth), sh: Math.max(1, sourceHeight) };
+  }
+  const sourceRatio = sourceWidth / sourceHeight;
+  if (sourceRatio > targetRatio) {
+    const sw = sourceHeight * targetRatio;
+    return { sx: (sourceWidth - sw) / 2, sy: 0, sw, sh: sourceHeight };
+  }
+  const sh = sourceWidth / targetRatio;
+  return { sx: 0, sy: (sourceHeight - sh) / 2, sw: sourceWidth, sh };
+}
+
+export function getCoverOutputSize(cropWidth: number, targetRatio: number, maxWidth: number): { width: number; height: number } {
+  const width = Math.max(1, Math.round(Math.min(cropWidth, maxWidth)));
+  const height = Math.max(1, Math.round(width / targetRatio));
+  return { width, height };
+}
+
 export function resizeImage(file: File): Promise<string> {
   return new Promise((resolve, reject) => {
     const reader = new FileReader();
@@ -90,6 +119,38 @@ export function resizeImageToBlob(file: File): Promise<{ blob: Blob; dataUrl: st
           },
           "image/jpeg",
           0.7
+        );
+      };
+      img.onerror = () => reject(new Error("Image load error"));
+      img.src = e.target?.result as string;
+    };
+    reader.onerror = () => reject(new Error("File read error"));
+    reader.readAsDataURL(file);
+  });
+}
+
+export function resizeListingImageToBlob(file: File): Promise<{ blob: Blob; dataUrl: string }> {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = (e) => {
+      const img = new Image();
+      img.onload = () => {
+        const crop = getCoverCropRect(img.width, img.height, LISTING_IMAGE_TARGET_RATIO);
+        const { width, height } = getCoverOutputSize(crop.sw, LISTING_IMAGE_TARGET_RATIO, LISTING_IMAGE_MAX_WIDTH);
+        const canvas = document.createElement("canvas");
+        canvas.width = width;
+        canvas.height = height;
+        const ctx = canvas.getContext("2d");
+        if (!ctx) return reject(new Error("Could not get canvas context"));
+        ctx.drawImage(img, crop.sx, crop.sy, crop.sw, crop.sh, 0, 0, width, height);
+        const dataUrl = canvas.toDataURL("image/jpeg", 0.82);
+        canvas.toBlob(
+          (blob) => {
+            if (!blob) return reject(new Error("Could not create blob"));
+            resolve({ blob, dataUrl });
+          },
+          "image/jpeg",
+          0.82
         );
       };
       img.onerror = () => reject(new Error("Image load error"));
