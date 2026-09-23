@@ -13,37 +13,63 @@ export const isVideoMedia = (path: string) =>
 export const resolveMediaUrl = (path: string) =>
   resolveImageUrl(path.startsWith("v:") ? path.slice(2) : path);
 
+export const STANDARD_IMAGE_RATIO = 4 / 3;
+export const STANDARD_IMAGE_MAX = 1400;
+
+function drawCroppedImage(img: HTMLImageElement, canvas: HTMLCanvasElement) {
+  const targetRatio = STANDARD_IMAGE_RATIO;
+  const targetWidth = STANDARD_IMAGE_MAX;
+  const targetHeight = Math.round(targetWidth / targetRatio);
+
+  const sourceRatio = img.width / img.height;
+  let cropX = 0;
+  let cropY = 0;
+  let cropWidth = img.width;
+  let cropHeight = img.height;
+
+  if (sourceRatio > targetRatio) {
+    cropWidth = img.height * targetRatio;
+    cropX = (img.width - cropWidth) / 2;
+  } else if (sourceRatio < targetRatio) {
+    cropHeight = img.width / targetRatio;
+    cropY = (img.height - cropHeight) / 2;
+  }
+
+  canvas.width = targetWidth;
+  canvas.height = targetHeight;
+
+  const ctx = canvas.getContext("2d");
+  if (!ctx) throw new Error("Could not get canvas context");
+
+  ctx.fillStyle = "#000000";
+  ctx.fillRect(0, 0, targetWidth, targetHeight);
+  ctx.drawImage(
+    img,
+    cropX,
+    cropY,
+    cropWidth,
+    cropHeight,
+    0,
+    0,
+    targetWidth,
+    targetHeight,
+  );
+}
+
 export function resizeImage(file: File): Promise<string> {
   return new Promise((resolve, reject) => {
     const reader = new FileReader();
     reader.onload = (e) => {
       const img = new Image();
       img.onload = () => {
-        const canvas = document.createElement("canvas");
-        let width = img.width;
-        let height = img.height;
-        const max = 800;
-
-        if (width > height) {
-          if (width > max) {
-            height = Math.round((height * max) / width);
-            width = max;
-          }
-        } else {
-          if (height > max) {
-            width = Math.round((width * max) / height);
-            height = max;
-          }
+        try {
+          const canvas = document.createElement("canvas");
+          drawCroppedImage(img, canvas);
+          const dataUrl = canvas.toDataURL("image/jpeg", 0.82);
+          resolve(dataUrl);
+        } catch (error) {
+          reject(error instanceof Error ? error : new Error("Image processing error"));
         }
-
-        canvas.width = width;
-        canvas.height = height;
-        const ctx = canvas.getContext("2d");
-        if (!ctx) return reject(new Error("Could not get canvas context"));
-
-        ctx.drawImage(img, 0, 0, width, height);
-        const dataUrl = canvas.toDataURL("image/jpeg", 0.7);
-        resolve(dataUrl);
       };
       img.onerror = () => reject(new Error("Image load error"));
       img.src = e.target?.result as string;
@@ -59,38 +85,21 @@ export function resizeImageToBlob(file: File): Promise<{ blob: Blob; dataUrl: st
     reader.onload = (e) => {
       const img = new Image();
       img.onload = () => {
-        const canvas = document.createElement("canvas");
-        let width = img.width;
-        let height = img.height;
-        const max = 800;
-
-        if (width > height) {
-          if (width > max) {
-            height = Math.round((height * max) / width);
-            width = max;
-          }
-        } else {
-          if (height > max) {
-            width = Math.round((width * max) / height);
-            height = max;
-          }
+        try {
+          const canvas = document.createElement("canvas");
+          drawCroppedImage(img, canvas);
+          canvas.toBlob(
+            (blob) => {
+              if (!blob) return reject(new Error("Could not create blob"));
+              const dataUrl = canvas.toDataURL("image/jpeg", 0.82);
+              resolve({ blob, dataUrl });
+            },
+            "image/jpeg",
+            0.82,
+          );
+        } catch (error) {
+          reject(error instanceof Error ? error : new Error("Image processing error"));
         }
-
-        canvas.width = width;
-        canvas.height = height;
-        const ctx = canvas.getContext("2d");
-        if (!ctx) return reject(new Error("Could not get canvas context"));
-
-        ctx.drawImage(img, 0, 0, width, height);
-        const dataUrl = canvas.toDataURL("image/jpeg", 0.7);
-        canvas.toBlob(
-          (blob) => {
-            if (!blob) return reject(new Error("Could not create blob"));
-            resolve({ blob, dataUrl });
-          },
-          "image/jpeg",
-          0.7
-        );
       };
       img.onerror = () => reject(new Error("Image load error"));
       img.src = e.target?.result as string;
@@ -178,3 +187,4 @@ export function extractVideoPoster(file: File): Promise<Blob> {
     video.load();
   });
 }
+

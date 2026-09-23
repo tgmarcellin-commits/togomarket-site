@@ -34,7 +34,7 @@ function ListingMediaSlide({ path, alt, onClick }: { path: string; alt: string; 
           src={resolveMediaUrl(path)}
           controls
           playsInline
-          className="w-full h-full object-contain"
+          className="w-full h-full object-cover"
           onClick={(e) => e.stopPropagation()}
         />
       </div>
@@ -181,8 +181,8 @@ export function ListingCard({ listing, isAdmin, adminPassword, commissionRate, w
 
   const handleReport = () => {
     const message = lang === "fr"
-      ? `🚨 Signalement d'article sur TogoMarket\n\nTitre: ${listing.name}\nPrix: ${new Intl.NumberFormat("fr-FR").format(listing.price)} FCFA\nLocalisation: ${listing.location}\nSecteur: ${listing.sector}\nID: #${listing.id}\n\nMerci de vérifier cet article.`
-      : `🚨 Item report on TogoMarket\n\nTitle: ${listing.name}\nPrice: ${new Intl.NumberFormat("fr-FR").format(listing.price)} FCFA\nLocation: ${listing.location}\nSector: ${listing.sector}\nID: #${listing.id}\n\nPlease review this item.`;
+      ? `🚨 Signalement d'article sur TogoMarket\n\nTitre: ${listing.name}\nPrix: ${new Intl.NumberFormat("fr-FR").format(listing.price)} FCFA\nLocalisation: ${listing.location}\nSecteur: ${listing.sector}\nLien: ${window.location.href}`
+      : `🚨 Item report on TogoMarket\n\nTitle: ${listing.name}\nPrice: ${new Intl.NumberFormat("fr-FR").format(listing.price)} FCFA\nLocation: ${listing.location}\nSector: ${listing.sector}\nLink: ${window.location.href}`;
     openWhatsApp(`https://wa.me/${whatsappCommission}?text=${encodeURIComponent(message)}`);
   };
 
@@ -223,7 +223,11 @@ export function ListingCard({ listing, isAdmin, adminPassword, commissionRate, w
         message?: string;
       } | null;
       if (!res.ok || !payload?.id || !payload.buyerToken) {
-        if (!identity && payload?.error === "buyer identity required") {
+        const requireBuyerIdentity = !identity && (
+          payload?.error === "buyer identity required" ||
+          payload?.error === "buyerKey required"
+        );
+        if (requireBuyerIdentity) {
           setIdentityPromptOpen(true);
           return;
         }
@@ -264,14 +268,10 @@ export function ListingCard({ listing, isAdmin, adminPassword, commissionRate, w
     const existingIdentity = loadBuyerIdentity();
     if (existingIdentity) {
       startChat(existingIdentity);
-    } else if (onOpenInMessages) {
-      // A connected vendor can use the authenticated account as buyer without
-      // maintaining a second local identity. Guests are prompted after the API
-      // reports that buyer identity is required.
-      startChat(null);
-    } else {
-      setIdentityPromptOpen(true);
+      return;
     }
+
+    setIdentityPromptOpen(true);
   };
 
   const handleIdentityConfirm = (identity: BuyerIdentity) => {
@@ -285,7 +285,7 @@ export function ListingCard({ listing, isAdmin, adminPassword, commissionRate, w
   return (
     <>
     <div className="group rounded-xl border bg-card text-card-foreground shadow-sm overflow-hidden flex flex-col h-full hover:shadow-md transition-all">
-      <div className="relative aspect-video w-full overflow-hidden bg-black group/img">
+      <div className="relative aspect-[4/3] w-full overflow-hidden bg-black group/img">
         <div className="flex w-full h-full overflow-x-auto snap-x snap-mandatory scrollbar-hide">
           {listing.images && listing.images.length > 0 ? (
             listing.images.map((img, i) => (
@@ -500,7 +500,6 @@ export function ListingCard({ listing, isAdmin, adminPassword, commissionRate, w
         listingImage={listingImage}
         auth={{ kind: "buyer", buyerToken }}
         onConversationDeleted={() => {
-          // Clear the stored session so the buyer won't re-open this deleted conversation
           const vid = listing.vendorId ?? 0;
           if (vid) {
             try { localStorage.removeItem(`tm_chat_${vid}_${listing.id}`); } catch {}

@@ -49,15 +49,16 @@ export function ImageViewer({ images, startIndex, onClose, footer }: ImageViewer
 
       {/* Image principale */}
       <div
-        className={`relative w-full flex items-center justify-center px-14 ${footer ? "flex-1 min-h-0 pt-12" : "h-full"}`}
+        className={`relative w-full flex items-center justify-center px-3 sm:px-10 ${footer ? "flex-1 min-h-0 pt-12" : "h-full"}`}
         onClick={(e) => e.stopPropagation()}
       >
-        <img
-          src={resolveImageUrl(images[current])}
-          alt={`Photo ${current + 1}`}
-          className="max-w-full max-h-full object-contain select-none"
-          style={{ maxHeight: footer ? undefined : "90vh" }}
-        />
+        <div className="relative w-full max-w-[1100px] aspect-[4/3] overflow-hidden rounded-xl bg-black/10 shadow-2xl">
+          <img
+            src={resolveImageUrl(images[current])}
+            alt={`Photo ${current + 1}`}
+            className="h-full w-full object-cover select-none"
+          />
+        </div>
 
         {/* Navigation */}
         {images.length > 1 && (
