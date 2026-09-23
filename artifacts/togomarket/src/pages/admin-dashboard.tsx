@@ -2381,7 +2381,7 @@ export default function AdminDashboard() {
                           disabled={isAccepted || hasPendingResponse || assigningOrderId !== null || !selectedDriverByOrder[order.id]}
                         >
                           {assigningOrderId === order.id ? <RefreshCw className="w-4 h-4 mr-1.5 animate-spin" /> : <Truck className="w-4 h-4 mr-1.5" />}
-                          {order.assignment ? "Réassigner le livreur" : "Assigner le livreur"}
+                          {order.assignment && !isAccepted && !hasPendingResponse ? "Réassigner le livreur" : "Assigner le livreur"}
                         </Button>
                       </div>
                     </div>

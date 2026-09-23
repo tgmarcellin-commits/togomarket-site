@@ -8,7 +8,10 @@ export function startDriverSessionPolling(
   timerApi?: DriverPollingTimerApi,
   delayMs = 30_000,
 ): () => void {
-  const resolvedTimerApi = timerApi ?? window;
+  const resolvedTimerApi = timerApi ?? (typeof window !== "undefined" ? window : null);
+  if (!resolvedTimerApi) {
+    return () => {};
+  }
   const intervalId = resolvedTimerApi.setInterval(() => {
     callback();
   }, delayMs);

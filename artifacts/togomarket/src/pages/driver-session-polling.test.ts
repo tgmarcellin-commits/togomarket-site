@@ -28,3 +28,11 @@ test("driver session polling registers and clears its interval", () => {
   stop();
   assert.equal(clearedId, 42);
 });
+
+test("driver session polling is a no-op without a browser timer api", () => {
+  const stop = startDriverSessionPolling(() => {
+    throw new Error("should not run");
+  }, undefined, 5_000);
+
+  assert.doesNotThrow(() => stop());
+});

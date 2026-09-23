@@ -441,10 +441,13 @@ router.get("/driver-connexion/assignments", async (req, res) => {
       deliveryWorkflowJobsTable.orderId,
       desc(deliveryWorkflowJobsTable.updatedAt),
       desc(deliveryWorkflowJobsTable.createdAt),
-    )
-    .limit(20);
+    );
 
-  if (latestJobs.length === 0) {
+  const driverJobs = latestJobs
+    .filter((job) => job.driverId === driver.id)
+    .slice(0, 20);
+
+  if (driverJobs.length === 0) {
     return res.json({ assignments: [] });
   }
 
@@ -462,12 +465,12 @@ router.get("/driver-connexion/assignments", async (req, res) => {
       createdAt: ordersTable.createdAt,
     })
     .from(ordersTable)
-    .where(inArray(ordersTable.id, latestJobs.map((job) => job.orderId)));
+    .where(inArray(ordersTable.id, driverJobs.map((job) => job.orderId)));
 
   const orderById = new Map(orders.map((order) => [order.id, order]));
 
   return res.json({
-    assignments: latestJobs.map((job) => ({
+    assignments: driverJobs.map((job) => ({
       id: job.id,
       orderId: job.orderId,
       acceptanceStatus: job.acceptanceStatus,
@@ -599,10 +602,20 @@ router.get("/drivers/available", async (_req, res) => {
     .from(driversTable)
     .where(eq(driversTable.isAvailable, true));
 
-  const activeDriverIds = await db.select({ driverId: deliveryWorkflowJobsTable.driverId })
+  const latestJobs = await db
+    .selectDistinctOn([deliveryWorkflowJobsTable.orderId], {
+      driverId: deliveryWorkflowJobsTable.driverId,
+      acceptanceStatus: deliveryWorkflowJobsTable.acceptanceStatus,
+    })
     .from(deliveryWorkflowJobsTable)
-    .where(eq(deliveryWorkflowJobsTable.acceptanceStatus, "accepted_by_driver"));
-  const busyIds = new Set(activeDriverIds.map((row) => row.driverId));
+    .orderBy(
+      deliveryWorkflowJobsTable.orderId,
+      desc(deliveryWorkflowJobsTable.updatedAt),
+      desc(deliveryWorkflowJobsTable.createdAt),
+    );
+  const busyIds = new Set(latestJobs
+    .filter((row) => ["pending_driver_response", "accepted_by_driver"].includes(row.acceptanceStatus))
+    .map((row) => row.driverId));
   const filtered = drivers.filter((driver) => !busyIds.has(driver.id));
   return res.json(filtered);
 });
