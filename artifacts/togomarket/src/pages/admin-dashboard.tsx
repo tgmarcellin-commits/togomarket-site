@@ -38,6 +38,12 @@ import {
   type AdminContactStat,
 } from "@workspace/api-client-react";
 import { loadAdminSession, clearAdminSession } from "./admin-login";
+import {
+  loadAdminAvailableDrivers,
+  loadAdminDeliveryOrders,
+  type AvailableDriver,
+  type DeliveryAdminOrder,
+} from "./admin-delivery-api";
 import { extractVideoPoster, resolveImageUrl, resizeImageToBlob, isVideoMedia, resolveMediaUrl } from "@/lib/image";
 import { uploadImageFile, uploadVideoFile } from "@/lib/upload";
 import { openWhatsApp } from "@/lib/whatsapp";
@@ -129,45 +135,6 @@ interface InboxMessage {
   editedAt?: string | null;
   deletedAt?: string | null;
   createdAt: string;
-}
-
-interface DeliveryAdminOrder {
-  id: number;
-  firstName: string;
-  lastName: string;
-  phone: string;
-  description: string;
-  articlePriceLocked: number;
-  distanceLockedKm: number | null;
-  transportFeeLocked: number | null;
-  distanceSource: string | null;
-  status: string;
-  createdAt: string;
-  assignment: {
-    id: number;
-    driverId: number;
-    acceptanceStatus: string;
-    assignmentExpiresAt: string | null;
-    acceptedAt: string | null;
-    refusedAt: string | null;
-    driver: {
-      id: number;
-      firstName: string;
-      lastName: string;
-      phone: string;
-      isAvailable: boolean;
-    } | null;
-  } | null;
-}
-
-interface AvailableDriver {
-  id: number;
-  firstName: string;
-  lastName: string;
-  phone: string;
-  photoUrl: string | null;
-  whatsappNumber: string | null;
-  isAvailable: boolean;
 }
 
 function getDeliveryAssignmentStatusLabel(status: string): string {
@@ -1015,15 +982,9 @@ export default function AdminDashboard() {
   const loadDeliveryOrders = async () => {
     setDeliveryOrdersLoading(true);
     try {
-      const res = await fetch("/api/admin/delivery/orders", {
-        headers: { "x-admin-code": password },
-      });
-      if (!res.ok) {
-        toast({ title: "Erreur", description: "Impossible de charger les commandes livraison.", variant: "destructive" });
-        return;
-      }
-      const data = await res.json() as { orders?: DeliveryAdminOrder[] };
-      setDeliveryOrders(Array.isArray(data.orders) ? data.orders : []);
+      setDeliveryOrders(await loadAdminDeliveryOrders(password));
+    } catch {
+      toast({ title: "Erreur", description: "Impossible de charger les commandes livraison.", variant: "destructive" });
     } finally {
       setDeliveryOrdersLoading(false);
     }
@@ -1032,15 +993,9 @@ export default function AdminDashboard() {
   const loadAvailableDrivers = async () => {
     setAvailableDriversLoading(true);
     try {
-      const res = await fetch("/api/drivers/available", {
-        headers: { "x-admin-code": password },
-      });
-      if (!res.ok) {
-        toast({ title: "Erreur", description: "Impossible de charger les livreurs disponibles.", variant: "destructive" });
-        return;
-      }
-      const data = await res.json() as AvailableDriver[];
-      setAvailableDrivers(Array.isArray(data) ? data : []);
+      setAvailableDrivers(await loadAdminAvailableDrivers(password));
+    } catch {
+      toast({ title: "Erreur", description: "Impossible de charger les livreurs disponibles.", variant: "destructive" });
     } finally {
       setAvailableDriversLoading(false);
     }
@@ -1088,9 +1043,11 @@ export default function AdminDashboard() {
     try {
       const res = await fetch("/api/delivery/assignments", {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers: {
+          "Content-Type": "application/json",
+          "x-admin-code": password,
+        },
         body: JSON.stringify({
-          code: password,
           orderId: order.id,
           driverId: selectedDriverId,
         }),
@@ -2387,20 +2344,26 @@ export default function AdminDashboard() {
                       </div>
 
                       <div className="flex flex-col gap-2 md:flex-row md:items-center">
-                        <select
-                          className="h-10 rounded-md border bg-background px-3 text-sm"
-                          aria-label={`Livreur pour la commande ${order.id}`}
-                          value={selectedDriverByOrder[order.id] ?? ""}
-                          onChange={(event) => setSelectedDriverByOrder((current) => ({ ...current, [order.id]: event.target.value }))}
-                          disabled={availableDriversLoading}
-                        >
-                          <option value="">Choisir un livreur disponible…</option>
-                          {availableDrivers.map((driver) => (
-                            <option key={driver.id} value={String(driver.id)}>
-                              {driver.firstName} {driver.lastName} — {driver.phone}
-                            </option>
-                          ))}
-                        </select>
+                        <div className="flex-1 space-y-1">
+                          <label htmlFor={`delivery-driver-${order.id}`} className="text-xs font-medium text-muted-foreground">
+                            Livreur disponible
+                          </label>
+                          <select
+                            id={`delivery-driver-${order.id}`}
+                            className="h-10 w-full rounded-md border bg-background px-3 text-sm"
+                            aria-label={`Livreur pour la commande ${order.id}`}
+                            value={selectedDriverByOrder[order.id] ?? ""}
+                            onChange={(event) => setSelectedDriverByOrder((current) => ({ ...current, [order.id]: event.target.value }))}
+                            disabled={availableDriversLoading}
+                          >
+                            <option value="">Choisir un livreur disponible…</option>
+                            {availableDrivers.map((driver) => (
+                              <option key={driver.id} value={String(driver.id)}>
+                                {driver.firstName} {driver.lastName} — {driver.phone}
+                              </option>
+                            ))}
+                          </select>
+                        </div>
                         <Button
                           onClick={() => { void handleAssignDriver(order); }}
                           disabled={assigningOrderId === order.id || !selectedDriverByOrder[order.id]}

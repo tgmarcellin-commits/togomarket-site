@@ -112,7 +112,7 @@ async function notifyDriverAssignment(
 }
 
 router.post("/delivery/assignments", async (req, res) => {
-  const adminCode = String(req.body?.code ?? req.body?.password ?? "").trim();
+  const adminCode = String(req.headers["x-admin-code"] ?? "").trim();
   if (!adminCode || !await verifyAdminCode(adminCode)) {
     return res.status(403).json({ error: "Accès administrateur requis." });
   }
@@ -141,6 +141,7 @@ router.post("/delivery/assignments", async (req, res) => {
     .select()
     .from(deliveryWorkflowJobsTable)
     .where(eq(deliveryWorkflowJobsTable.orderId, parsed.orderId))
+    .orderBy(desc(deliveryWorkflowJobsTable.updatedAt), desc(deliveryWorkflowJobsTable.createdAt))
     .limit(1);
 
   const assignmentExpiresAt = new Date(Date.now() + ASSIGNMENT_TTL_MS);
@@ -238,12 +239,14 @@ router.get("/admin/delivery/orders", async (req, res) => {
       createdAt: ordersTable.createdAt,
     })
     .from(ordersTable)
-    .where(or(
-      inArray(ordersTable.status, ["ASSIGNED", "IN_TRANSIT", "DELIVERED", "RETURNING_TO_SELLER", "RETURN_AT_SELLER", "RETURN_CONFIRMED"]),
-      isNotNull(ordersTable.distanceLockedKm),
-      isNotNull(ordersTable.transportFeeLocked),
-      eq(ordersTable.buyerConsented, true),
-      eq(ordersTable.sellerConsented, true),
+    .where(and(
+      inArray(ordersTable.status, ["PENDING", "ASSIGNED", "IN_TRANSIT"]),
+      or(
+        isNotNull(ordersTable.distanceLockedKm),
+        isNotNull(ordersTable.transportFeeLocked),
+        eq(ordersTable.buyerConsented, true),
+        eq(ordersTable.sellerConsented, true),
+      ),
     ))
     .orderBy(desc(ordersTable.createdAt))
     .limit(100);
