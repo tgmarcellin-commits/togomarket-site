@@ -26,8 +26,10 @@ import {
   isQrTokenUsable,
   normalizeIdempotencyKey,
 } from "../lib/marketplace-security";
+import { apiRateLimit } from "../lib/http-security";
 
 const router: IRouter = Router();
+router.use(apiRateLimit);
 
 async function appendAuditLog(args: {
   actorType: string;
