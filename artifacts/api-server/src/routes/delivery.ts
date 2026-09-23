@@ -18,6 +18,8 @@ import { computeLockedDeliveryPricing } from "../lib/distance-pricing";
 const router: IRouter = Router();
 const ASSIGNMENT_TTL_MS = 15 * 60 * 1000;
 const DRIVER_SESSION_TTL_MS = 24 * 60 * 60 * 1000;
+const WEBHOOK_RATE_LIMIT = { limit: 120, windowMs: 60_000 };
+const webhookRateEntries = new Map<string, { count: number; resetAt: number }>();
 
 type AssignDriverInput = {
   orderId: number;
@@ -55,6 +57,21 @@ function randomCode(digits: number): string {
   const min = Math.pow(10, digits - 1);
   const max = Math.pow(10, digits) - 1;
   return String(Math.floor(Math.random() * (max - min + 1)) + min);
+}
+
+function allowWebhookRequest(ip: string): boolean {
+  const now = Date.now();
+  const current = webhookRateEntries.get(ip);
+  const entry = !current || current.resetAt <= now
+    ? { count: 1, resetAt: now + WEBHOOK_RATE_LIMIT.windowMs }
+    : { count: current.count + 1, resetAt: current.resetAt };
+  webhookRateEntries.set(ip, entry);
+  if (webhookRateEntries.size > 20_000) {
+    for (const [key, value] of webhookRateEntries) {
+      if (value.resetAt <= now) webhookRateEntries.delete(key);
+    }
+  }
+  return entry.count <= WEBHOOK_RATE_LIMIT.limit;
 }
 
 async function notifyDriverAssignment(
@@ -277,6 +294,10 @@ router.post("/delivery/assignments/respond", async (req, res) => {
 });
 
 router.post("/fedapay-driver-callback", async (req, res) => {
+  const ip = req.ip || req.socket.remoteAddress || "unknown";
+  if (!allowWebhookRequest(ip)) {
+    return res.status(429).json({ error: "Trop de requêtes webhook." });
+  }
   const rawBody = (req as typeof req & { rawBody?: Buffer }).rawBody;
   const signature = typeof req.headers["x-fedapay-signature"] === "string" ? req.headers["x-fedapay-signature"] : undefined;
   if (!rawBody || !verifyFedapayDriverWebhookSignature(rawBody, signature)) {
