@@ -257,10 +257,26 @@ router.get("/admin/delivery/orders", async (req, res) => {
 
   const orderIds = orders.map((order) => order.id);
   const jobs = await db
-    .select()
+    .selectDistinctOn([deliveryWorkflowJobsTable.orderId], {
+      id: deliveryWorkflowJobsTable.id,
+      orderId: deliveryWorkflowJobsTable.orderId,
+      driverId: deliveryWorkflowJobsTable.driverId,
+      acceptanceStatus: deliveryWorkflowJobsTable.acceptanceStatus,
+      assignmentExpiresAt: deliveryWorkflowJobsTable.assignmentExpiresAt,
+      whatsappNotifiedAt: deliveryWorkflowJobsTable.whatsappNotifiedAt,
+      acceptedAt: deliveryWorkflowJobsTable.acceptedAt,
+      refusedAt: deliveryWorkflowJobsTable.refusedAt,
+      cancelledAt: deliveryWorkflowJobsTable.cancelledAt,
+      createdAt: deliveryWorkflowJobsTable.createdAt,
+      updatedAt: deliveryWorkflowJobsTable.updatedAt,
+    })
     .from(deliveryWorkflowJobsTable)
     .where(inArray(deliveryWorkflowJobsTable.orderId, orderIds))
-    .orderBy(desc(deliveryWorkflowJobsTable.updatedAt), desc(deliveryWorkflowJobsTable.createdAt));
+    .orderBy(
+      deliveryWorkflowJobsTable.orderId,
+      desc(deliveryWorkflowJobsTable.updatedAt),
+      desc(deliveryWorkflowJobsTable.createdAt),
+    );
 
   const driverIds = [...new Set(jobs.map((job) => job.driverId))];
   const drivers = driverIds.length > 0
@@ -276,12 +292,7 @@ router.get("/admin/delivery/orders", async (req, res) => {
       .where(inArray(driversTable.id, driverIds))
     : [];
 
-  const jobByOrderId = new Map<number, typeof jobs[number]>();
-  for (const job of jobs) {
-    if (!jobByOrderId.has(job.orderId)) {
-      jobByOrderId.set(job.orderId, job);
-    }
-  }
+  const jobByOrderId = new Map(jobs.map((job) => [job.orderId, job]));
   const driverById = new Map(drivers.map((driver) => [driver.id, driver]));
 
   return res.json({
@@ -412,24 +423,30 @@ router.get("/driver-connexion/assignments", async (req, res) => {
     return res.status(401).json({ error: "Session livreur invalide." });
   }
 
-  const jobs = await db
-    .select()
+  const latestJobs = await db
+    .selectDistinctOn([deliveryWorkflowJobsTable.orderId], {
+      id: deliveryWorkflowJobsTable.id,
+      orderId: deliveryWorkflowJobsTable.orderId,
+      driverId: deliveryWorkflowJobsTable.driverId,
+      acceptanceStatus: deliveryWorkflowJobsTable.acceptanceStatus,
+      assignmentExpiresAt: deliveryWorkflowJobsTable.assignmentExpiresAt,
+      acceptedAt: deliveryWorkflowJobsTable.acceptedAt,
+      refusedAt: deliveryWorkflowJobsTable.refusedAt,
+      createdAt: deliveryWorkflowJobsTable.createdAt,
+      updatedAt: deliveryWorkflowJobsTable.updatedAt,
+    })
     .from(deliveryWorkflowJobsTable)
     .where(eq(deliveryWorkflowJobsTable.driverId, driver.id))
-    .orderBy(desc(deliveryWorkflowJobsTable.updatedAt), desc(deliveryWorkflowJobsTable.createdAt))
+    .orderBy(
+      deliveryWorkflowJobsTable.orderId,
+      desc(deliveryWorkflowJobsTable.updatedAt),
+      desc(deliveryWorkflowJobsTable.createdAt),
+    )
     .limit(20);
 
-  if (jobs.length === 0) {
+  if (latestJobs.length === 0) {
     return res.json({ assignments: [] });
   }
-
-  const latestJobByOrderId = new Map<number, typeof jobs[number]>();
-  for (const job of jobs) {
-    if (!latestJobByOrderId.has(job.orderId)) {
-      latestJobByOrderId.set(job.orderId, job);
-    }
-  }
-  const latestJobs = [...latestJobByOrderId.values()];
 
   const orders = await db
     .select({
