@@ -6,7 +6,7 @@ const CSRF_COOKIE = "tm_csrf";
 const CSRF_HEADER = "x-csrf-token";
 const CSRF_TTL_MS = 8 * 60 * 60 * 1000;
 const UNSAFE_METHODS = new Set(["POST", "PUT", "PATCH", "DELETE"]);
-const WEBHOOK_PATHS = new Set(["/api/fedapay-callback"]);
+const WEBHOOK_PATHS = new Set(["/api/fedapay-callback", "/api/fedapay-driver-callback"]);
 
 function sessionSecret(): string {
   const secret = process.env.SESSION_SECRET?.trim();
