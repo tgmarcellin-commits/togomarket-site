@@ -29,6 +29,7 @@ import {
 } from "@workspace/api-zod";
 import { logger } from "../lib/logger";
 import { normalizeObjectStoragePath, ObjectStorageService } from "../lib/objectStorage";
+import { deleteCloudinaryImage, isCloudinaryImageOwnedBy, parseCloudinaryImageUrl } from "../lib/cloudinary-image";
 import { getObjectAclPolicy } from "../lib/objectAcl";
 import { isSuperAdmin } from "../lib/admin-auth";
 import { authenticateVendorRequest } from "../lib/vendor-auth";
@@ -51,6 +52,14 @@ async function vendorCanUseMedia(
   for (const mediaPath of mediaPaths) {
     const objectPath = storagePath(mediaPath);
     if (existingPaths.has(objectPath)) continue;
+    if (parseCloudinaryImageUrl(mediaPath)) {
+      try {
+        if (!await isCloudinaryImageOwnedBy(mediaPath, `vendor:${vendorId}`)) return false;
+      } catch {
+        return false;
+      }
+      continue;
+    }
     if (!normalizeObjectStoragePath(mediaPath)) return false;
 
     try {
@@ -88,7 +97,15 @@ async function deleteUnreferencedListingMedia(mediaPaths: string[]): Promise<{ f
   );
   const unreferencedPaths = Array.from(new Set(mediaPaths.map(storagePath)))
     .filter((path) => !referencedPaths.has(path));
-  return objectStorage.deleteObjectEntities(unreferencedPaths);
+  const objectResult = await objectStorage.deleteObjectEntities(unreferencedPaths);
+  const cloudinaryPaths = unreferencedPaths.filter((path) => parseCloudinaryImageUrl(path)?.deliveryType === "upload");
+  const cloudinaryResults = await Promise.allSettled(cloudinaryPaths.map(deleteCloudinaryImage));
+  return {
+    failed: [
+      ...objectResult.failed,
+      ...cloudinaryResults.flatMap((result, index) => result.status === "rejected" ? [cloudinaryPaths[index]] : []),
+    ],
+  };
 }
 
 function mapListing(

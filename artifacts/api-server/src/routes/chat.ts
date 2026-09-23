@@ -20,6 +20,7 @@ import { logger } from "../lib/logger";
 import { ObjectStorageService } from "../lib/objectStorage";
 import { validateFileBytes } from "../lib/file-security";
 import { secureMessageFileUrl, verifyMessageFileAccess } from "../lib/message-file-access";
+import { deleteCloudinaryImage, signedPrivateCloudinaryImageUrl, uploadCloudinaryImage } from "../lib/cloudinary-image";
 import {
   compatibleMessageColumns,
   compatibleMessageInsertColumns,
@@ -679,11 +680,14 @@ router.get("/conversations/:id/files/:messageId", async (req, res) => {
     .from(messagesTable)
     .where(and(eq(messagesTable.id, messageId), eq(messagesTable.conversationId, convId)))
     .limit(1);
-  if (!message?.fileUrl?.startsWith("/objects/")) {
+  if (!message?.fileUrl) {
     res.status(404).json({ error: "Fichier introuvable" });
     return;
   }
-  const signedUrl = await objectStorage.signObjectEntityReadURL(message.fileUrl, 300);
+  const signedUrl = message.fileUrl.startsWith("/objects/")
+    ? await objectStorage.signObjectEntityReadURL(message.fileUrl, 300)
+    : signedPrivateCloudinaryImageUrl(message.fileUrl);
+  if (!signedUrl) { res.status(404).json({ error: "Fichier introuvable" }); return; }
   res.setHeader("Cache-Control", "private, max-age=300");
   res.redirect(302, signedUrl);
 });
@@ -958,10 +962,12 @@ router.post(
     }
 
     const fileType = safeFile.kind;
-    const objectPath = await objectStorage.uploadObjectEntity(file.buffer, safeFile.contentType, {
-      owner: `conversation:${convId}`,
-      visibility: "private",
-    });
+    const objectPath = fileType === "image"
+      ? await uploadCloudinaryImage(file.buffer, `conversation:${convId}`, true)
+      : await objectStorage.uploadObjectEntity(file.buffer, safeFile.contentType, {
+          owner: `conversation:${convId}`,
+          visibility: "private",
+        });
     let msg;
     try {
       const [storedMessage] = await db
@@ -976,7 +982,8 @@ router.post(
         .returning(compatibleMessageInsertColumns);
       msg = withMessageListingContext(storedMessage, conv);
     } catch (error) {
-      await objectStorage.deleteObjectEntity(objectPath).catch(() => {});
+      if (fileType === "image") await deleteCloudinaryImage(objectPath).catch(() => {});
+      else await objectStorage.deleteObjectEntity(objectPath).catch(() => {});
       throw error;
     }
 

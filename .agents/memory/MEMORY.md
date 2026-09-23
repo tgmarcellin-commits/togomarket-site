@@ -20,3 +20,4 @@
 - [Connexion DB de publication](production-database-url.md) — la publication doit utiliser `DATABASE_URL` gérée par Replit ; l’ancien secret TogoMarket peut être refusé ou obsolète.
 - [Dérive du schéma production](production-schema-lag.md) — la base publiée peut manquer des colonnes récentes ; rendre les routes compatibles ou appliquer la migration via Publish.
 - [Conservation des publications](listing-retention.md) — ne jamais supprimer automatiquement les publications selon leur âge ; l’expiration vendeur doit seulement contrôler leur visibilité.
+- [Images privées Cloudinary](cloudinary-private-images.md) — leur `secure_url` « authenticated » peut contenir une signature permanente ; ne pas la stocker telle quelle pour le chat.

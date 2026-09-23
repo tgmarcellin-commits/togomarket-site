@@ -20,6 +20,7 @@ import { getIo } from "../lib/socket-io";
 import { webpush, vapidReady } from "../lib/webpush";
 import { logger } from "../lib/logger";
 import { ObjectStorageService } from "../lib/objectStorage";
+import { uploadCloudinaryImage, deleteCloudinaryImage } from "../lib/cloudinary-image";
 import { validateFileBytes } from "../lib/file-security";
 import { secureMessageFileUrl } from "../lib/message-file-access";
 import {
@@ -949,10 +950,12 @@ router.post(
       .limit(1);
     if (!conv) return res.status(404).json({ error: "conversation not found" });
 
-    const objectPath = await adminObjectStorage.uploadObjectEntity(file.buffer, safeFile.contentType, {
-      owner: `conversation:${convId}`,
-      visibility: "private",
-    });
+    const objectPath = fileType === "image"
+      ? await uploadCloudinaryImage(file.buffer, `conversation:${convId}`, true)
+      : await adminObjectStorage.uploadObjectEntity(file.buffer, safeFile.contentType, {
+          owner: `conversation:${convId}`,
+          visibility: "private",
+        });
     let msg;
     try {
       [msg] = await db.insert(compatibleMessagesInsertTable).values({
@@ -963,7 +966,8 @@ router.post(
         content: null,
       }).returning(compatibleMessageInsertColumns);
     } catch (error) {
-      await adminObjectStorage.deleteObjectEntity(objectPath).catch(() => {});
+      if (fileType === "image") await deleteCloudinaryImage(objectPath).catch(() => {});
+      else await adminObjectStorage.deleteObjectEntity(objectPath).catch(() => {});
       throw error;
     }
 

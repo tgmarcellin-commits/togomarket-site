@@ -9,6 +9,22 @@ test("vendor profile photos only persist upload object paths", () => {
   assert.equal(isValidProfilePhotoPath("/objects/uploads/photo-id/extra"), false);
 });
 
+test("vendor profile photos accept only public HTTPS Cloudinary images from this account", () => {
+  const previous = process.env.CLOUDINARY_CLOUD_NAME;
+  process.env.CLOUDINARY_CLOUD_NAME = "unit-test-cloud";
+  try {
+    const url = "https://res.cloudinary.com/unit-test-cloud/image/upload/v123/togomarket/public/123e4567-e89b-42d3-a456-426614174000.png";
+    assert.equal(isValidProfilePhotoPath(url), true);
+    assert.equal(normalizeProfilePhoto(` ${url} `), url);
+    assert.equal(isValidProfilePhotoPath(url.replace("https:", "http:")), false);
+    assert.equal(isValidProfilePhotoPath(url.replace("unit-test-cloud", "other-cloud")), false);
+    assert.equal(isValidProfilePhotoPath(url.replace("/public/", "/private/")), false);
+  } finally {
+    if (previous === undefined) delete process.env.CLOUDINARY_CLOUD_NAME;
+    else process.env.CLOUDINARY_CLOUD_NAME = previous;
+  }
+});
+
 test("legacy or invalid profile values are omitted from vendor responses", () => {
   assert.equal(normalizeProfilePhoto(" /objects/uploads/photo-id "), "/objects/uploads/photo-id");
   assert.equal(normalizeProfilePhoto("data:image/jpeg;base64,SGVsbG8="), null);

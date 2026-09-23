@@ -1,4 +1,5 @@
 import { createHmac, timingSafeEqual } from "node:crypto";
+import { parseCloudinaryImageUrl } from "./cloudinary-image";
 
 const ACCESS_TTL_MS = 5 * 60 * 1000;
 
@@ -17,7 +18,8 @@ export function secureMessageFileUrl<T extends {
   conversationId: number;
   fileUrl: string | null;
 }>(message: T): T {
-  if (!message.fileUrl?.startsWith("/objects/")) return message;
+  if (!message.fileUrl?.startsWith("/objects/") &&
+      parseCloudinaryImageUrl(message.fileUrl)?.deliveryType !== "authenticated") return message;
   const expires = Date.now() + ACCESS_TTL_MS;
   const payload = `${message.conversationId}.${message.id}.${expires}`;
   const access = `${expires}.${signature(payload)}`;

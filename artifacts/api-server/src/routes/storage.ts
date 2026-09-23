@@ -10,6 +10,7 @@ import {
   AdminStorageCleanupResponse,
 } from "@workspace/api-zod";
 import { ObjectStorageService, ObjectNotFoundError } from "../lib/objectStorage";
+import { uploadCloudinaryImage, deleteCloudinaryImage, parseCloudinaryImageUrl } from "../lib/cloudinary-image";
 import {
   db,
   listingsTable,
@@ -132,15 +133,18 @@ async function generateVideoPoster(videoPath: string, adId: number): Promise<str
       await writeFile(inputPath, videoBuffer);
       await extractVideoPreviewFrame(inputPath, outputPath);
       const posterBuffer = await readFile(outputPath);
-      const posterPath = await objectStorageService.uploadObjectEntity(posterBuffer, "image/jpeg", {
-        owner: "public-ad-poster",
-        visibility: "public",
-      });
-      const [updated] = await db
-        .update(adsTable)
-        .set({ image: posterPath })
-        .where(and(eq(adsTable.id, adId), eq(adsTable.videoPath, videoPath)))
-        .returning({ image: adsTable.image });
+      const posterPath = await uploadCloudinaryImage(posterBuffer, "public-ad-poster");
+      let updated;
+      try {
+        [updated] = await db
+          .update(adsTable)
+          .set({ image: posterPath })
+          .where(and(eq(adsTable.id, adId), eq(adsTable.videoPath, videoPath)))
+          .returning({ image: adsTable.image });
+      } catch (error) {
+        await deleteCloudinaryImage(posterPath).catch(() => {});
+        throw error;
+      }
       const resolvedPosterPath = updated?.image ?? posterPath;
       generatedVideoPosterCache.set(videoPath, resolvedPosterPath);
       return resolvedPosterPath;
@@ -192,7 +196,7 @@ router.get("/storage/video-poster", async (req: Request, res: Response) => {
     const cachedPoster = generatedVideoPosterCache.get(rawPath);
     if (cachedPoster) {
       res.setHeader("Cache-Control", "public, max-age=86400");
-      res.redirect(302, `/api/storage${cachedPoster}`);
+        res.redirect(302, parseCloudinaryImageUrl(cachedPoster) ? cachedPoster : `/api/storage${cachedPoster}`);
       return;
     }
   } else {
@@ -202,7 +206,7 @@ router.get("/storage/video-poster", async (req: Request, res: Response) => {
   try {
     const posterPath = await generateVideoPoster(ad.videoPath, ad.id);
     res.setHeader("Cache-Control", "public, max-age=86400");
-    res.redirect(302, `/api/storage${posterPath}`);
+    res.redirect(302, parseCloudinaryImageUrl(posterPath) ? posterPath : `/api/storage${posterPath}`);
     return;
   } catch (error) {
     req.log.warn({ error, adId: ad.id }, "Unable to generate ad video poster");
@@ -210,7 +214,7 @@ router.get("/storage/video-poster", async (req: Request, res: Response) => {
     // FFmpeg or object storage is temporarily unavailable.
     if (ad.image) {
       res.setHeader("Cache-Control", "public, max-age=300");
-      res.redirect(302, `/api/storage${ad.image}`);
+      res.redirect(302, parseCloudinaryImageUrl(ad.image) ? ad.image : `/api/storage${ad.image}`);
       return;
     }
     res.status(404).end();
@@ -335,15 +339,17 @@ router.post("/storage/uploads/image", requireUploadActor, imageUpload.single("im
   }
   try {
     const buffer = await readFile(file.path);
-    const safeFile = validateFileBytes(buffer, file.mimetype, ["image"]);
-    const objectPath = await objectStorageService.uploadObjectEntity(buffer, safeFile.contentType, {
-      owner: String(res.locals.uploadOwner),
-      visibility: "public",
-    });
+    try {
+      validateFileBytes(buffer, file.mimetype, ["image"]);
+    } catch {
+      res.status(400).json({ error: "Image invalide ou format non pris en charge" });
+      return;
+    }
+    const objectPath = await uploadCloudinaryImage(buffer, String(res.locals.uploadOwner));
     res.status(201).json({ objectPath });
   } catch (error) {
-    req.log.warn({ err: error }, "Image upload rejected");
-    res.status(400).json({ error: "Image invalide ou format non pris en charge" });
+    req.log.warn({ err: error }, "Cloudinary image upload failed");
+    res.status(502).json({ error: "Envoi de l'image indisponible" });
   } finally {
     await unlink(file.path).catch(() => {});
   }
