@@ -5,14 +5,15 @@ export type DriverPollingTimerApi = {
 
 export function startDriverSessionPolling(
   callback: () => void,
-  timerApi: DriverPollingTimerApi = window,
+  timerApi?: DriverPollingTimerApi,
   delayMs = 30_000,
 ): () => void {
-  const intervalId = timerApi.setInterval(() => {
+  const resolvedTimerApi = timerApi ?? window;
+  const intervalId = resolvedTimerApi.setInterval(() => {
     callback();
   }, delayMs);
 
   return () => {
-    timerApi.clearInterval(intervalId);
+    resolvedTimerApi.clearInterval(intervalId);
   };
 }

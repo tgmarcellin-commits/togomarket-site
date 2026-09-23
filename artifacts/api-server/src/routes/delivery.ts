@@ -416,12 +416,20 @@ router.get("/driver-connexion/assignments", async (req, res) => {
     .select()
     .from(deliveryWorkflowJobsTable)
     .where(eq(deliveryWorkflowJobsTable.driverId, driver.id))
-    .orderBy(desc(deliveryWorkflowJobsTable.createdAt))
+    .orderBy(desc(deliveryWorkflowJobsTable.updatedAt), desc(deliveryWorkflowJobsTable.createdAt))
     .limit(20);
 
   if (jobs.length === 0) {
     return res.json({ assignments: [] });
   }
+
+  const latestJobByOrderId = new Map<number, typeof jobs[number]>();
+  for (const job of jobs) {
+    if (!latestJobByOrderId.has(job.orderId)) {
+      latestJobByOrderId.set(job.orderId, job);
+    }
+  }
+  const latestJobs = [...latestJobByOrderId.values()];
 
   const orders = await db
     .select({
@@ -437,12 +445,12 @@ router.get("/driver-connexion/assignments", async (req, res) => {
       createdAt: ordersTable.createdAt,
     })
     .from(ordersTable)
-    .where(inArray(ordersTable.id, jobs.map((job) => job.orderId)));
+    .where(inArray(ordersTable.id, latestJobs.map((job) => job.orderId)));
 
   const orderById = new Map(orders.map((order) => [order.id, order]));
 
   return res.json({
-    assignments: jobs.map((job) => ({
+    assignments: latestJobs.map((job) => ({
       id: job.id,
       orderId: job.orderId,
       acceptanceStatus: job.acceptanceStatus,

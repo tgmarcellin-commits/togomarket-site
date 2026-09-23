@@ -2346,24 +2346,35 @@ export default function AdminDashboard() {
 
                       <div className="flex flex-col gap-2 md:flex-row md:items-center">
                         <div className="flex-1 space-y-1">
-                          <label htmlFor={`delivery-driver-${order.id}`} className="text-xs font-medium text-muted-foreground">
-                            Livreur disponible
-                          </label>
-                          <select
-                            id={`delivery-driver-${order.id}`}
-                            className="h-10 w-full rounded-md border bg-background px-3 text-sm"
-                            aria-label={`Livreur pour la commande ${order.id}`}
-                            value={selectedDriverByOrder[order.id] ?? ""}
-                            onChange={(event) => setSelectedDriverByOrder((current) => ({ ...current, [order.id]: event.target.value }))}
-                            disabled={availableDriversLoading || assigningOrderId !== null || isAccepted || hasPendingResponse}
-                          >
-                            <option value="">Choisir un livreur disponible…</option>
-                            {availableDrivers.map((driver) => (
-                              <option key={driver.id} value={String(driver.id)}>
-                                {driver.firstName} {driver.lastName} — {driver.phone}
-                              </option>
-                            ))}
-                          </select>
+                          {isAccepted || hasPendingResponse ? (
+                            <>
+                              <p className="text-xs font-medium text-muted-foreground">Livreur assigné</p>
+                              <div className="h-10 w-full rounded-md border bg-muted/20 px-3 text-sm flex items-center">
+                                {currentDriverLabel}
+                              </div>
+                            </>
+                          ) : (
+                            <>
+                              <label htmlFor={`delivery-driver-${order.id}`} className="text-xs font-medium text-muted-foreground">
+                                Livreur disponible
+                              </label>
+                              <select
+                                id={`delivery-driver-${order.id}`}
+                                className="h-10 w-full rounded-md border bg-background px-3 text-sm"
+                                aria-label={`Livreur pour la commande ${order.id}`}
+                                value={selectedDriverByOrder[order.id] ?? ""}
+                                onChange={(event) => setSelectedDriverByOrder((current) => ({ ...current, [order.id]: event.target.value }))}
+                                disabled={availableDriversLoading || assigningOrderId !== null}
+                              >
+                                <option value="">Choisir un livreur disponible…</option>
+                                {availableDrivers.map((driver) => (
+                                  <option key={driver.id} value={String(driver.id)}>
+                                    {driver.firstName} {driver.lastName} — {driver.phone}
+                                  </option>
+                                ))}
+                              </select>
+                            </>
+                          )}
                         </div>
                         <Button
                           onClick={() => { void handleAssignDriver(order); }}
