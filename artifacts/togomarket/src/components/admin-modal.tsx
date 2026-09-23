@@ -59,7 +59,7 @@ import {
 import { Input } from "@/components/ui/input";
 import { useToast } from "@/hooks/use-toast";
 import { Settings, LogOut, CheckCircle, Trash2, Clock, KeyRound, Megaphone, Plus, RefreshCw, Users, UploadCloud, X, Eye, EyeOff, AlertTriangle, Calendar, Briefcase, Search } from "lucide-react";
-import { resizeImage, resizeImageToBlob, resolveImageUrl } from "@/lib/image";
+import { resizeImage, resizeImageToBlob, resizeListingImageToBlob, resolveImageUrl } from "@/lib/image";
 import { uploadImageFile } from "@/lib/upload";
 
 const loginSchema = z.object({
@@ -460,7 +460,7 @@ export function AdminModal({
     try {
       const entries = await Promise.all(
         files.map(async (f) => {
-          const { blob, dataUrl } = await resizeImageToBlob(f);
+          const { blob, dataUrl } = await resizeListingImageToBlob(f);
           const objectPath = await uploadImageFile(blob, f.name, { adminCode: storedPassword });
           return { dataUrl, objectPath };
         })

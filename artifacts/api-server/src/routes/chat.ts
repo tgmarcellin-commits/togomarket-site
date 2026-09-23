@@ -197,8 +197,12 @@ router.post("/conversations", async (req, res) => {
     ? `${vendorBuyer.firstName} ${vendorBuyer.lastName}`.trim()
     : buyerName?.trim();
   const resolvedBuyerPhone = vendorBuyer?.phone ?? buyerPhone?.trim();
-  if (!vendorId || !resolvedBuyerName || !resolvedBuyerPhone) {
-    res.status(400).json({ error: "vendorId and buyer identity required" });
+  if (!vendorId) {
+    res.status(400).json({ error: "vendorId required" });
+    return;
+  }
+  if (!resolvedBuyerName || !resolvedBuyerPhone) {
+    res.status(400).json({ error: "buyer identity required" });
     return;
   }
   if (vendorBuyer?.id === Number(vendorId)) {

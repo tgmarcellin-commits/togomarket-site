@@ -13,6 +13,40 @@ export const isVideoMedia = (path: string) =>
 export const resolveMediaUrl = (path: string) =>
   resolveImageUrl(path.startsWith("v:") ? path.slice(2) : path);
 
+export const LISTING_IMAGE_TARGET_WIDTH = 1400;
+export const LISTING_IMAGE_TARGET_HEIGHT = 1050; // 4:3
+
+function drawCenteredCropToCanvas(
+  img: HTMLImageElement,
+  canvas: HTMLCanvasElement,
+  targetWidth: number,
+  targetHeight: number,
+) {
+  const sourceRatio = img.width / img.height;
+  const targetRatio = targetWidth / targetHeight;
+
+  let sx = 0;
+  let sy = 0;
+  let sw = img.width;
+  let sh = img.height;
+
+  if (sourceRatio > targetRatio) {
+    sw = img.height * targetRatio;
+    sx = (img.width - sw) / 2;
+  } else if (sourceRatio < targetRatio) {
+    sh = img.width / targetRatio;
+    sy = (img.height - sh) / 2;
+  }
+
+  canvas.width = targetWidth;
+  canvas.height = targetHeight;
+
+  const ctx = canvas.getContext("2d");
+  if (!ctx) throw new Error("Could not get canvas context");
+
+  ctx.drawImage(img, sx, sy, sw, sh, 0, 0, targetWidth, targetHeight);
+}
+
 export function resizeImage(file: File): Promise<string> {
   return new Promise((resolve, reject) => {
     const reader = new FileReader();
@@ -44,6 +78,41 @@ export function resizeImage(file: File): Promise<string> {
         ctx.drawImage(img, 0, 0, width, height);
         const dataUrl = canvas.toDataURL("image/jpeg", 0.7);
         resolve(dataUrl);
+      };
+      img.onerror = () => reject(new Error("Image load error"));
+      img.src = e.target?.result as string;
+    };
+    reader.onerror = () => reject(new Error("File read error"));
+    reader.readAsDataURL(file);
+  });
+}
+
+export function resizeListingImageToBlob(file: File): Promise<{ blob: Blob; dataUrl: string }> {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = (e) => {
+      const img = new Image();
+      img.onload = () => {
+        try {
+          const canvas = document.createElement("canvas");
+          drawCenteredCropToCanvas(
+            img,
+            canvas,
+            LISTING_IMAGE_TARGET_WIDTH,
+            LISTING_IMAGE_TARGET_HEIGHT,
+          );
+          canvas.toBlob(
+            (blob) => {
+              if (!blob) return reject(new Error("Could not create blob"));
+              const dataUrl = canvas.toDataURL("image/jpeg", 0.82);
+              resolve({ blob, dataUrl });
+            },
+            "image/jpeg",
+            0.82,
+          );
+        } catch (error) {
+          reject(error instanceof Error ? error : new Error("Image processing error"));
+        }
       };
       img.onerror = () => reject(new Error("Image load error"));
       img.src = e.target?.result as string;
