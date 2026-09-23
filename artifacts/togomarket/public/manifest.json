@@ -1,0 +1,46 @@
+{
+  "name": "TogoMarket",
+  "short_name": "TogoMarket",
+  "description": "Le marché qui vient à vous — annonces AgriMarket, Immobilier, Automobile et Divers au Togo",
+  "start_url": "/",
+  "scope": "/",
+  "display": "standalone",
+  "background_color": "#ffffff",
+  "theme_color": "#16a34a",
+  "orientation": "portrait-primary",
+  "lang": "fr",
+  "categories": ["shopping", "business", "lifestyle"],
+  "icons": [
+    {
+      "src": "/icon-192.png",
+      "sizes": "192x192",
+      "type": "image/png",
+      "purpose": "any"
+    },
+    {
+      "src": "/icon-512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "any maskable"
+    }
+  ],
+  "screenshots": [
+    {
+      "src": "/opengraph.jpg",
+      "sizes": "1200x630",
+      "type": "image/jpeg",
+      "form_factor": "wide",
+      "label": "TogoMarket — Marketplace"
+    }
+  ],
+  "shortcuts": [
+    {
+      "name": "Vendre",
+      "short_name": "Vendre",
+      "description": "Publier une annonce",
+      "url": "/?action=sell",
+      "icons": [{ "src": "/icon-192.png", "sizes": "192x192" }]
+    }
+  ],
+  "prefer_related_applications": false
+}

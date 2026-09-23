@@ -1,0 +1,74 @@
+uploads = []
+generated = []
+
+[[outputs]]
+id = "GTyOr6MRMblW6tEtNgKFY"
+uri = "file://exports/annonces.csv"
+type = "table"
+title = "Annonces TogoMarket"
+
+[[outputs]]
+id = "LJzcCJnJPItR9nrw2MH77"
+uri = "file://exports/commandes.csv"
+type = "table"
+title = "Commandes TogoMarket"
+
+[[outputs]]
+id = "AOjQAeJ0CMcyeLnnA6N3C"
+uri = "file://togomarket-pro.zip"
+type = "unspecified"
+title = "TogoMarket Pro — Code source complet"
+
+[[outputs]]
+id = "yVuoGnk67Q49WntYOFxcm"
+uri = "file://togomarket-data.zip"
+type = "unspecified"
+title = "TogoMarket — Dump base de données (.sql)"
+
+[[outputs]]
+id = "vkJQBlmY2t1ef45zCXL5i"
+uri = "file://togomarket-complet.zip"
+type = "unspecified"
+title = "TogoMarket — Code source + Base de données"
+
+[[outputs]]
+id = "9U83pLP64KF5kh98Xpg9B"
+uri = "file://togomarket_code.tar.gz"
+type = "unspecified"
+title = "Code source TogoMarket"
+
+[[outputs]]
+id = "bo1QIqXFLvA-03r0AHm78"
+uri = "file://togomarket_complet.tar.gz"
+type = "unspecified"
+title = "Code + Base de données TogoMarket (complet)"
+
+[[outputs]]
+id = "aAVyPCD-4MA2Ga4TOkJmh"
+uri = "file://togomarket_essentiel.tar.gz"
+type = "unspecified"
+title = "TogoMarket — Code + Base de données (version légère)"
+
+[[outputs]]
+id = "YqDJAhBRzd-ms2zP-bocA"
+uri = "file://togomarket-presentation.pdf"
+type = "pdf"
+title = "Présentation TogoMarket"
+
+[[outputs]]
+id = "RP6IvWgOi3Xld0Ebiwy5c"
+uri = "file://artifacts/togomarket/public/icon-512.png"
+type = "image"
+title = "Icône Play Store — 512x512"
+
+[[outputs]]
+id = "RgYN91SCh5UF_X-09sf2s"
+uri = "file://artifacts/togomarket/public/play-banner.png"
+type = "image"
+title = "Bannière Play Store — 1024x500"
+
+[[outputs]]
+id = "ycWV21bMvD4h7SRbbTub1"
+uri = "file://togomarket-play-store-images.zip"
+type = "unspecified"
+title = "Images Play Store (icône + bannière)"

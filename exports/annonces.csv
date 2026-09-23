@@ -1,0 +1,7 @@
+id,nom,prix,localisation,secteur,telephone,date_publication
+1,Toyota RAV4 2020,12500000,"Lomé, Bè",Automobile,90123456,2026-05-24
+2,Villa F4 à Tokoin,75000000,"Lomé, Tokoin",Immobilier,91234567,2026-05-24
+3,Sacs de riz 50kg (lot de 10),350000,Kpalimé,AgriMarket,92345678,2026-05-24
+4,iPhone 14 Pro Max 256Go,850000,"Lomé, Adidogomé",Divers,93456789,2026-05-24
+5,Terrain 500m² à Agoè,18000000,"Lomé, Agoè",Immobilier,94567890,2026-05-24
+6,Moto Honda CB300R,2800000,"Lomé, Cacaveli",Automobile,95678901,2026-05-24

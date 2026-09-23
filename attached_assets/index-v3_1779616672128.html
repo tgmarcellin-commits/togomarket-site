@@ -1,0 +1,385 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>TogoMarket - Plateforme Multi-Secteurs</title>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
+    <style>
+        :root { --primary-color: #2ecc71; --accent-color: #e67e22; --light-bg: #f5f6fa; --dark-bg: #2d3436; --order-color: #9b59b6; }
+        * { margin: 0; padding: 0; box-sizing: border-box; font-family: sans-serif; }
+        body { background-color: var(--light-bg); padding-bottom: 120px; } /* Marge pour éviter que le bandeau cache le footer */
+        
+        .navbar { display: flex; justify-content: space-between; align-items: center; padding: 15px 20px; background: #fff; position: sticky; top: 0; z-index: 100; box-shadow: 0 2px 5px rgba(0,0,0,0.1); }
+        .categories-bar { display: flex; gap: 10px; overflow-x: auto; padding: 10px 20px; background: white; border-bottom: 1px solid #ddd; }
+        .cat-btn { padding: 8px 15px; border: 1px solid #ddd; border-radius: 20px; background: #f1f2f6; cursor: pointer; white-space: nowrap; font-size: 13px; font-weight: bold; color: var(--dark-bg); }
+        .cat-btn.active { background: var(--primary-color); color: white; border-color: var(--primary-color); }
+        
+        .hero { background: linear-gradient(rgba(0,0,0,0.6), rgba(0,0,0,0.6)), url('https://images.unsplash.com/photo-1555529669-e69e7aa0ba9a?q=80&w=600') center/cover; padding: 30px 20px; text-align: center; color: white; }
+        .search-box { background: #fff; padding: 15px; border-radius: 8px; margin-top: 15px; box-shadow: 0 4px 6px rgba(0,0,0,0.1); }
+        .input-group { background: #f1f2f6; padding: 10px; margin-bottom: 10px; border-radius: 6px; display: flex; align-items: center; color: #7f8c8d; }
+        input, select, textarea { border: none; background: none; width: 100%; margin-left: 10px; outline: none; font-size: 15px; }
+        textarea { font-family: sans-serif; resize: none; height: 80px; }
+        
+        .products-section { padding: 20px; }
+        .products-grid { display: grid; gap: 20px; grid-template-columns: 1fr; }
+        
+        .product-card { background: white; border-radius: 12px; overflow: hidden; box-shadow: 0 4px 10px rgba(0,0,0,0.05); display: flex; flex-direction: column; position: relative; }
+        
+        .image-container { display: flex; overflow-x: auto; scroll-snap-type: x mandatory; background: #1e272e; height: 220px; }
+        .product-image { width: 100%; height: 220px; object-fit: contain; flex-shrink: 0; scroll-snap-align: start; }
+        .image-hint { position: absolute; top: 10px; right: 10px; background: rgba(0,0,0,0.7); color: white; padding: 4px 8px; border-radius: 12px; font-size: 11px; font-weight: bold; pointer-events: none; }
+        
+        .product-details { padding: 15px; flex-grow: 1; display: flex; flex-direction: column; justify-content: space-between; }
+        .product-details h3 { font-size: 17px; color: var(--dark-bg); margin-bottom: 5px; text-transform: capitalize; }
+        .price { color: var(--dark-bg); font-weight: bold; font-size: 18px; margin-bottom: 5px; }
+        .info-row { font-size: 13px; color: #7f8c8d; margin-bottom: 5px; display: flex; align-items: center; gap: 8px; }
+        
+        .badge { font-size:11px; padding:3px 8px; border-radius:4px; font-weight:bold; align-self:flex-start; margin-bottom:5px; }
+        .badge-AgriMarket { background: #e8f5e9; color: #2e7d32; }
+        .badge-Immobilier { background: #e1f5fe; color: #0288d1; }
+        .badge-Automobile { background: #fff3e0; color: #e65100; }
+        .badge-Divers { background: #f3e5f5; color: #7b1fa2; }
+        
+        .btn-pay { display: flex; align-items: center; justify-content: center; gap: 8px; background: var(--accent-color); color: white; padding: 12px; border-radius: 8px; text-decoration: none; font-weight: bold; margin-top: 10px; font-size: 14px; border: none; width: 100%; cursor: pointer; }
+        .warning-text { background: #fff3cd; color: #856404; font-size: 11px; padding: 8px; border-radius: 6px; margin-top: 10px; border: 1px solid #ffeeba; text-align: center; font-weight: bold; }
+        
+        .modal { display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.8); z-index: 1000; padding: 20px; overflow-y: auto; }
+        .modal-content { background: white; max-width: 450px; margin: 20px auto; padding: 20px; border-radius: 12px; }
+        .form-control { width: 100%; padding: 10px; margin-bottom: 10px; border: 1px solid #ccd1d9; border-radius: 6px; font-size: 15px; outline: none; background: #fff; }
+        
+        /* BANDEAU FIXE SÉCURISÉ POUR CLIENTS INTROUVABLES */
+        .bottom-order-bar { position: fixed; bottom: 0; left: 0; width: 100%; background: #ffffff; box-shadow: 0 -4px 15px rgba(0,0,0,0.15); padding: 12px 20px; z-index: 999; display: flex; justify-content: center; align-items: center; }
+        .btn-order-trigger { background: var(--order-color); color: white; border: none; padding: 12px 25px; border-radius: 30px; font-weight: bold; font-size: 14px; cursor: pointer; display: flex; align-items: center; gap: 8px; box-shadow: 0 4px 10px rgba(155, 89, 182, 0.4); width: 100%; max-width: 400px; justify-content: center; }
+
+        .btn-delete { background: #d63031; color: white; border: none; padding: 8px; font-weight: bold; border-radius: 4px; margin-top: 10px; cursor: pointer; display: none; }
+        .admin-info { background: #e0f7fa; color: #006064; padding: 8px; border-radius: 6px; margin-top: 10px; font-size: 12px; font-weight: bold; display: none; }
+        footer { text-align: center; padding: 30px; background: #2d3436; color: #b2bec3; font-size: 13px; margin-top: 4px; }
+        footer a { color: var(--primary-color); text-decoration: none; font-weight: bold; }
+
+        @media (min-width: 768px) { .products-grid { grid-template-columns: repeat(3, 1fr); } }
+    </style>
+</head>
+<body>
+
+    <header class="navbar">
+        <div class="logo"><strong>Togo</strong><span style="color:var(--primary-color)">Market</span></div>
+        <button onclick="document.getElementById('publishModal').style.display='block'" style="background:var(--primary-color); color:white; border:none; padding:10px 20px; border-radius:20px; font-weight:bold; cursor:pointer;"><i class="fa-solid fa-plus"></i> Vendre</button>
+    </header>
+
+    <div class="categories-bar">
+        <button class="cat-btn active" onclick="filterSector('all', this)">Tout voir</button>
+        <button class="cat-btn" onclick="filterSector('AgriMarket', this)"><i class="fa-solid fa-leaf"></i> AgriMarket</button>
+        <button class="cat-btn" onclick="filterSector('Immobilier', this)"><i class="fa-solid fa-building"></i> Immobilier</button>
+        <button class="cat-btn" onclick="filterSector('Automobile', this)"><i class="fa-solid fa-car"></i> Automobile</button>
+        <button class="cat-btn" onclick="filterSector('Divers', this)"><i class="fa-solid fa-box"></i> Divers</button>
+    </div>
+
+    <section class="hero">
+        <div class="search-box">
+            <div class="input-group">
+                <i class="fa-solid fa-search"></i>
+                <input type="text" id="searchInput" placeholder="Que cherchez-vous sur TogoMarket ?...">
+            </div>
+        </div>
+    </section>
+
+    <section class="products-section">
+        <div class="products-grid" id="productsGrid"></div>
+    </section>
+
+    <!-- BANDEAU FIXE EN BAS DE L'ÉCRAN -->
+    <div class="bottom-order-bar">
+        <button class="btn-order-trigger" onclick="document.getElementById('orderModal').style.display='block'">
+            <i class="fa-solid fa-magnifying-glass-blur"></i> Vous ne trouvez pas votre article ? Commandez ici !
+        </button>
+    </div>
+
+    <!-- MODALE : FORMULAIRE COMMANDE ARTICLE INTROUVABLE -->
+    <div id="orderModal" class="modal">
+        <div class="modal-content">
+            <h2 style="margin-bottom:15px; color:var(--order-color);"><i class="fa-solid fa-basket-shopping"></i> Commander un article spécifique</h2>
+            <p style="font-size:13px; color:#555; margin-bottom:15px;">Dites-nous ce que vous cherchez. L'équipe TogoMarket se chargera de le trouver pour vous !</p>
+            <form id="orderForm" onsubmit="event.preventDefault(); handleOrderSubmit();">
+                <div class="input-group" style="border: 1px solid #ccd1d9; background:#fff;">
+                    <i class="fa-solid fa-user"></i>
+                    <input type="text" id="clientLastName" placeholder="Votre Nom" required style="background:none; margin-left:10px;">
+                </div>
+                <div class="input-group" style="border: 1px solid #ccd1d9; background:#fff;">
+                    <i class="fa-solid fa-user"></i>
+                    <input type="text" id="clientFirstName" placeholder="Votre Prénom" required style="background:none; margin-left:10px;">
+                </div>
+                <div class="input-group" style="border: 1px solid #ccd1d9; background:#fff;">
+                    <i class="fa-solid fa-phone"></i>
+                    <input type="tel" id="clientPhone" placeholder="Votre numéro WhatsApp" required style="background:none; margin-left:10px;">
+                </div>
+                <div class="input-group" style="border: 1px solid #ccd1d9; align-items: flex-start; background:#fff;">
+                    <i class="fa-solid fa-pen" style="margin-top: 4px;"></i>
+                    <textarea id="clientDescription" placeholder="Décrivez précisément l'article que vous cherchez (Marque, taille, budget max, état...)" required style="background:none; margin-left:10px;"></textarea>
+                </div>
+                
+                <button type="submit" style="width:100%; padding:12px; background:var(--order-color); color:white; border:none; font-weight:bold; border-radius:6px; cursor:pointer; font-size:15px; margin-top:5px;">
+                    <i class="fa-brands fa-whatsapp"></i> Envoyer ma commande sur WhatsApp
+                </button>
+                <button type="button" onclick="document.getElementById('orderModal').style.display='none'" class="btn-pay" style="background:#eee; color:#555; margin-top:10px;">Annuler</button>
+            </form>
+        </div>
+    </div>
+
+    <!-- MODALE : PUBLICATION SECTEUR VENDEUR -->
+    <div id="publishModal" class="modal">
+        <div class="modal-content">
+            <h2 style="margin-bottom:15px;"><i class="fa-solid fa-bullhorn" style="color:var(--primary-color)"></i> Publier une annonce</h2>
+            <form id="sellerForm" onsubmit="event.preventDefault(); handleFormSubmit();">
+                <input type="text" id="itemName" class="form-control" placeholder="Titre de l'annonce (ex: Toyota RAV4, Villa...)" required>
+                <input type="number" id="itemPrice" class="form-control" placeholder="Prix de vente en FCFA" required>
+                <input type="text" id="itemLocation" class="form-control" placeholder="Ville ou Quartier précis (ex: Agoè)" required>
+                
+                <select id="itemSector" class="form-control" required>
+                    <option value="AgriMarket">AgriMarket</option>
+                    <option value="Immobilier">Immobilier (Terrain, Location...)</option>
+                    <option value="Automobile">Automobile (Vente, Location)</option>
+                    <option value="Divers">Divers (Autres articles)</option>
+                </select>
+
+                <input type="tel" id="itemPhone" class="form-control" placeholder="Votre numéro WhatsApp (ex: 90123456)" required>
+
+                <label style="font-size:13px; font-weight:bold; color:var(--dark-bg); display:block; margin-bottom:5px;">Photos de l'article (1 à 4 photos maximum) :</label>
+                <input type="file" id="itemImages" class="form-control" accept="image/*" multiple onchange="preProcessImages(this)" required>
+                
+                <p style="font-size:12px; color:#bf9100; font-weight:bold; margin-bottom:15px; background:#fff9db; padding:8px; border-radius:4px;">
+                    ⚠️ En publiant, vous acceptez que votre numéro soit masqué. Les acheteurs devront payer 5% de frais de mise en relation pour vous contacter.
+                </p>
+                
+                <button type="submit" id="submitBtn" style="width:100%; padding:12px; background:var(--primary-color); color:white; border:none; font-weight:bold; border-radius:6px; cursor:pointer;">Mettre en vente instantanément</button>
+                <button type="button" onclick="document.getElementById('publishModal').style.display='none'" class="btn-pay" style="background:#eee; color:#555; margin-top:10px;">Annuler</button>
+            </form>
+        </div>
+    </div>
+
+    <!-- MODALE : ESPACE ADMIN -->
+    <div id="adminModal" class="modal">
+        <div class="modal-content" style="max-width:350px;">
+            <h2>Espace Admin Sécurisé</h2>
+            <input type="password" id="adminPassword" class="form-control" placeholder="Code secret de gestion" style="margin-top:15px;">
+            <button onclick="checkAdminPassword()" style="width:100%; padding:10px; background:var(--dark-bg); color:white; border:none; font-weight:bold; border-radius:4px; cursor:pointer;">Se connecter</button>
+            <button type="button" onclick="document.getElementById('adminModal').style.display='none'" class="btn-pay" style="background:#eee; color:#555; margin-top:10px;">Fermer</button>
+        </div>
+    </div>
+
+    <footer>
+        <p>&copy; 2026 TogoMarket. Tous droits réservés.</p>
+        <p style="margin-top:10px;"><a href="#" onclick="event.preventDefault(); document.getElementById('adminModal').style.display='block';"><i class="fa-solid fa-lock"></i> Gérer la plateforme (Admin)</a></p>
+    </footer>
+
+    <script>
+        const MON_NUMERO_WHATSAPP = "22870703131"; 
+        const MOT_DE_PASSE_ADMIN = "17210"; 
+
+        let currentSector = 'all';
+        let isAdminConnected = false;
+        let globalProcessedImages = []; 
+
+        function cleanOldArticles() {
+            let articles = JSON.parse(localStorage.getItem('togomarche_articles')) || [];
+            const trenteJoursEnMs = 30 * 24 * 60 * 60 * 1000;
+            const maintenant = Date.now();
+            const articlesFiltres = articles.filter(art => {
+                const ageAnnonce = maintenant - (art.id || maintenant);
+                return ageAnnonce < trenteJoursEnMs;
+            });
+            if(articles.length !== articlesFiltres.length) {
+                localStorage.setItem('togomarche_articles', JSON.stringify(articlesFiltres));
+            }
+        }
+
+        function displayProducts() {
+            cleanOldArticles();
+            const grid = document.getElementById('productsGrid');
+            grid.innerHTML = '';
+            const articles = JSON.parse(localStorage.getItem('togomarche_articles')) || [];
+
+            articles.reverse().forEach(art => {
+                const commission = art.price * 0.05;
+                const card = document.createElement('div');
+                card.classList.add('product-card');
+                card.setAttribute('data-name', art.name.toLowerCase());
+                card.setAttribute('data-sector', art.sector);
+
+                let imagesHTML = '';
+                const imagesArray = Array.isArray(art.images) ? art.images : [art.image];
+                imagesArray.forEach(imgSrc => {
+                    imagesHTML += `<img src="${imgSrc}" class="product-image">`;
+                });
+
+                const hintHTML = imagesArray.length > 1 ? `<div class="image-hint"><i class="fa-solid fa-images"></i> 1/${imagesArray.length}</div>` : '';
+
+                card.innerHTML = `
+                    <div class="image-container">${imagesHTML}</div>
+                    ${hintHTML}
+                    <div class="product-details">
+                        <span class="badge badge-${art.sector}">${art.sector}</span>
+                        <h3>${art.name}</h3>
+                        <p class="price">${parseInt(art.price).toLocaleString()} FCFA</p>
+                        <div class="info-row"><i class="fa-solid fa-map-marker-alt"></i> Lieu: ${art.location}</div>
+                        <button class="btn-pay" onclick="requestContact('${art.name.replace(/'/g, "\\'")}', ${art.price})">
+                            <i class="fa-solid fa-lock-open"></i> Débloquer le Contact (Frais: ${commission.toLocaleString()} F)
+                        </button>
+                        <div class="warning-text"><i class="fa-solid fa-triangle-exclamation"></i> ATTENTION : Ne payez aucun article sans l'avoir vu.</div>
+                        <div class="admin-info" style="display: ${isAdminConnected ? 'block' : 'none'}"><i class="fa-solid fa-phone"></i> SECRET ADMIN : ${art.phone}</div>
+                        <button class="btn-delete" style="display: ${isAdminConnected ? 'block' : 'none'};" onclick="deleteArticle(${art.id})"><i class="fa-solid fa-trash"></i> Supprimer</button>
+                    </div>
+                `;
+                grid.appendChild(card);
+            });
+            filterArticles();
+        }
+
+        function filterArticles() {
+            const searchText = document.getElementById('searchInput').value.toLowerCase().trim();
+            document.querySelectorAll('.product-card').forEach(card => {
+                const matchName = card.dataset.name.includes(searchText);
+                const matchSector = (currentSector === 'all') || (card.dataset.sector === currentSector);
+                card.style.display = (matchName && matchSector) ? "flex" : "none";
+            });
+        }
+
+        function filterSector(sector, btn) {
+            currentSector = sector;
+            document.querySelectorAll('.cat-btn').forEach(b => b.classList.remove('active'));
+            btn.className = "cat-btn active";
+            filterArticles();
+        }
+
+        document.getElementById('searchInput').addEventListener('input', filterArticles);
+
+        function requestContact(title, price) {
+            const commission = price * 0.05;
+            const msg = `Bonjour TogoMarket, je souhaite débloquer le contact du vendeur pour l'annonce suivante :\n\n📌 Article : ${title}\n💰 Prix : ${price.toLocaleString()} FCFA\n\nJe m'apprête à faire le transfert T-Money/Flooz de ${commission.toLocaleString()} FCFA.`;
+            window.open(`https://wa.me/${MON_NUMERO_WHATSAPP}?text=${encodeURIComponent(msg)}`, '_blank');
+        }
+
+        // TRAITEMENT POUR LE FORMULAIRE DE COMMANDE DIRECTE
+        function handleOrderSubmit() {
+            const lastname = document.getElementById('clientLastName').value;
+            const firstname = document.getElementById('clientFirstName').value;
+            const phone = document.getElementById('clientPhone').value;
+            const description = document.getElementById('clientDescription').value;
+
+            const orderMsg = `🛒 *NOUVELLE COMMANDE EXPRESSE (Article Introuvable)*\n\n👤 *Client :* ${lastname} ${firstname}\n📞 *WhatsApp Client :* ${phone}\n\n📝 *Description de la demande :*\n${description}\n\nRecherche lancée via TogoMarket !`;
+
+            window.open(`https://wa.me/${MON_NUMERO_WHATSAPP}?text=${encodeURIComponent(orderMsg)}`, '_blank');
+            
+            document.getElementById('orderForm').reset();
+            document.getElementById('orderModal').style.display = 'none';
+        }
+
+        async function preProcessImages(inputElement) {
+            globalProcessedImages = [];
+            const files = inputElement.files;
+            const maxPhotos = Math.min(files.length, 4);
+            for (let i = 0; i < maxPhotos; i++) {
+                const base64Str = await readFileAsBase64(files[i]);
+                if (base64Str) globalProcessedImages.push(base64Str);
+            }
+        }
+
+        function readFileAsBase64(file) {
+            return new Promise((resolve) => {
+                const reader = new FileReader();
+                reader.readAsDataURL(file);
+                reader.onload = function(e) {
+                    const img = new Image();
+                    img.src = e.target.result;
+                    img.onload = function() {
+                        try {
+                            const canvas = document.createElement('canvas');
+                            let width = img.width;
+                            let height = img.height;
+                            const maxDim = 800;
+
+                            if (width > height && width > maxDim) { height *= maxDim / width; width = maxDim; } 
+                            else if (height > maxDim) { width *= maxDim / height; height = maxDim; }
+
+                            canvas.width = width; 
+                            canvas.height = height;
+                            const ctx = canvas.getContext('2d');
+                            ctx.drawImage(img, 0, 0, width, height);
+                            resolve(canvas.toDataURL('image/jpeg', 0.7));
+                        } catch(err) {
+                            resolve(e.target.result); 
+                        }
+                    };
+                    img.onerror = () => resolve(e.target.result);
+                };
+                reader.onerror = () => resolve("");
+            });
+        }
+
+        function handleFormSubmit() {
+            const btn = document.getElementById('submitBtn');
+            if (globalProcessedImages.length === 0) {
+                alert("Sélectionnez au moins une image et patienter une seconde.");
+                return;
+            }
+            btn.innerText = "Traitement...";
+            btn.disabled = true;
+
+            const name = document.getElementById('itemName').value;
+            const price = document.getElementById('itemPrice').value;
+            const location = document.getElementById('itemLocation').value;
+            const sector = document.getElementById('itemSector').value;
+            const phone = document.getElementById('itemPhone').value;
+
+            const newArticle = {
+                id: Date.now(),
+                name: name,
+                price: price,
+                location: location,
+                sector: sector,
+                phone: phone,
+                images: globalProcessedImages,
+                image: globalProcessedImages[0]
+            };
+
+            const articles = JSON.parse(localStorage.getItem('togomarche_articles')) || [];
+            articles.push(newArticle);
+            localStorage.setItem('togomarche_articles', JSON.stringify(articles));
+
+            const whatsappMsg = `🔔 NOUVELLE ANNONCE POSTÉE sur TogoMarket !\n\n📁 Secteur : ${sector}\n📌 Titre : ${name}\n💰 Prix : ${parseInt(price).toLocaleString()} FCFA\n📍 Lieu : ${location}\n📞 Vendeur : ${phone}`;
+            window.open(`https://wa.me/${MON_NUMERO_WHATSAPP}?text=${encodeURIComponent(whatsappMsg)}`, '_blank');
+
+            document.getElementById('sellerForm').reset();
+            globalProcessedImages = []; 
+            document.getElementById('publishModal').style.display = 'none';
+            btn.innerText = "Mettre en vente instantanément";
+            btn.disabled = false;
+            displayProducts();
+        }
+
+        function checkAdminPassword() {
+            const inputPass = document.getElementById('adminPassword').value;
+            if(inputPass === MOT_DE_PASSE_ADMIN) {
+                isAdminConnected = true;
+                alert("Connexion Admin réussie !");
+                document.getElementById('adminModal').style.display = 'none';
+                document.getElementById('adminPassword').value = '';
+                displayProducts();
+            } else {
+                alert("Mot de passe incorrect !");
+            }
+        }
+
+        function deleteArticle(id) {
+            if(confirm("Supprimer définitivement cette annonce ?")) {
+                let articles = JSON.parse(localStorage.getItem('togomarche_articles')) || [];
+                articles = articles.filter(art => art.id !== id);
+                localStorage.setItem('togomarche_articles', JSON.stringify(articles));
+                isAdminConnected = false;
+                displayProducts();
+            }
+        }
+        window.onload = displayProducts;
+    </script>
+</body>
+</html>

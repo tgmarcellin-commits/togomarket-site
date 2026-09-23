@@ -1,0 +1,23 @@
+- [Ancien stockage Google](image-storage-migration.md) — Google Storage retiré sur demande ; les chemins historiques `/objects/...` restent en base mais leur lecture répond 410.
+- [Version client Neon](neon-pg-client-version.md) — pg_dump doit être au moins aussi récent que la cible avant d'en sauvegarder ou remplacer les données.
+- [Scripts package DB access](scripts-db-deps.md) — le package scripts doit déclarer `drizzle-orm` ET `@workspace/db` dans ses dépendances pour accéder à la base via tsx.
+- [DB SSL production](db-ssl-prod.md) — ne jamais forcer SSL sur le pool pg en production avec le Helium local (sslmode=disable dans l'URL) ; laisser l'URL gérer le SSL.
+- [Mise à jour prompt assistante IA](assistant-prompt-rule.md) — mettre à jour `artifacts/api-server/src/lib/assistant-prompt.ts` à chaque nouvelle feature ; règle utilisateur explicite.
+- [Réactivité de l’assistante IA](assistant-stream-performance.md) — filtrer les sorties par segments avec une fenêtre de retenue et un timeout fournisseur, pas en bloquant tout le flux.
+- [Format des numéros béninois](benin-phone-format.md) — le 0 de « 01 » fait partie du numéro ; toujours passer par normalizePhone/phoneEq, jamais retirer les zéros de tête pour +229.
+- [Dérive spec OpenAPI](openapi-spec-drift.md) — après chaque codegen orval, des champs utilisés mais absents du YAML cassent le build ; corriger le spec, pas le code appelant.
+- [Admin password secrets](admin-password-secrets.md) — ADMIN_PASSWORD et SUB_ADMIN_PASSWORD sont des secrets requis (pas de fallback en dur) lus via `artifacts/api-server/src/lib/admin-auth.ts`.
+- [Contrat SMS Techsoft](techsoft-sms-contract.md) — l’endpoint Techsoft exige un champ `recipient` pour accepter l’envoi d’un OTP.
+- [Intégrité des paiements FedaPay](fedapay-payment-integrity.md) — toute activation doit correspondre à une transaction persistée ; les liens de rappel doivent être signés et expirants.
+- [CSRF sur clients intégrés](csrf-embedded-clients.md) — valider le jeton HMAC en en-tête et l’origine sans rendre les mutations dépendantes d’un cookie parfois bloqué.
+- [Sessions vendeur et sockets](vendor-session-sockets.md) — les sessions opaques pilotent aussi l’identité Socket.io ; resynchroniser seulement après l’accusé `auth_ok`.
+- [Fusion des conversations](conversation-merge-proof.md) — ne fusionner des fils historiques qu’avec preuve par jetons opaques, jamais avec le téléphone ou le nom.
+- [FFmpeg en publication](ffmpeg-deployment.md) — tout transcodage serveur exige FFmpeg dans les dépendances Nix de la publication, pas seulement dans le PATH de développement.
+- [Intégrité des catalogues Tourisme](tourisme-catalog-integrity.md) — traiter les anciens catalogues multi-lignes comme un groupe logique et attribuer tout nouvel upload à son vendeur.
+- [Autorité des badges non lus](unread-badge-authority.md) — un seul propriétaire client, réponses réseau séquencées et totaux dérivés des messages réellement non lus.
+- [Migration des photos vendeur](profile-photo-migration-order.md) — migrer et vérifier les anciens formats avant de les masquer dans les réponses API.
+- [Base dédiée et tests navigateur](dedicated-db-browser-tests.md) — les injections DB génériques du testeur ne peuplent pas la base TogoMarket configurée séparément.
+- [Connexion DB de publication](production-database-url.md) — la publication doit utiliser `DATABASE_URL` gérée par Replit ; l’ancien secret TogoMarket peut être refusé ou obsolète.
+- [Dérive du schéma production](production-schema-lag.md) — la base publiée peut manquer des colonnes récentes ; rendre les routes compatibles ou appliquer la migration via Publish.
+- [Conservation des publications](listing-retention.md) — ne jamais supprimer automatiquement les publications selon leur âge ; l’expiration vendeur doit seulement contrôler leur visibilité.
+- [Images privées Cloudinary](cloudinary-private-images.md) — leur `secure_url` « authenticated » peut contenir une signature permanente ; ne pas la stocker telle quelle pour le chat.

@@ -1,0 +1,2275 @@
+openapi: 3.1.0
+info:
+  title: Api
+  version: 0.1.0
+  description: TogoMarket API
+servers:
+  - url: /api
+    description: Base API path
+tags:
+  - name: Storage
+    description: Object storage upload and serving endpoints.
+  - name: health
+    description: Health operations
+  - name: listings
+    description: Marketplace listing operations
+  - name: orders
+    description: Custom order operations
+  - name: admin
+    description: Admin operations
+  - name: stats
+    description: Statistics operations
+  - name: ads
+    description: Advertisement operations
+  - name: vendors
+    description: Vendor account operations
+  - name: events
+    description: Event operations
+  - name: services
+    description: Services (emploi) operations
+paths:
+  /storage/uploads/request-url:
+    post:
+      tags: [Storage]
+      operationId: requestUploadUrl
+      summary: Request a presigned URL for file upload
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/UploadUrlRequest'
+      responses:
+        '200':
+          description: Presigned upload URL generated.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/UploadUrlResponse'
+        '400':
+          description: Missing or invalid required fields.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+        '500':
+          description: Failed to generate upload URL.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+  /storage/public-objects/{filePath}:
+    get:
+      tags: [Storage]
+      operationId: getPublicObject
+      summary: Serve a public asset
+      parameters:
+        - name: filePath
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Object content.
+          content:
+            '*/*':
+              schema:
+                type: string
+                format: binary
+        '404':
+          description: Not found.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+  /storage/objects/{objectPath}:
+    get:
+      tags: [Storage]
+      operationId: getStorageObject
+      summary: Serve an object entity
+      parameters:
+        - name: objectPath
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Object content.
+          content:
+            '*/*':
+              schema:
+                type: string
+                format: binary
+        '404':
+          description: Not found.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+  /healthz:
+    get:
+      operationId: healthCheck
+      tags: [health]
+      summary: Health check
+      responses:
+        "200":
+          description: Healthy
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/HealthStatus"
+
+  /listings:
+    get:
+      operationId: getListings
+      tags: [listings]
+      summary: Get paginated listings
+      parameters:
+        - name: sector
+          in: query
+          required: false
+          schema:
+            type: string
+        - name: search
+          in: query
+          required: false
+          schema:
+            type: string
+        - name: page
+          in: query
+          required: false
+          schema:
+            type: integer
+            minimum: 1
+            default: 1
+        - name: limit
+          in: query
+          required: false
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 100
+            default: 20
+        - name: shopNumber
+          in: query
+          required: false
+          schema:
+            type: integer
+            minimum: 1
+      responses:
+        "200":
+          description: Paginated list of listings
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ListingsPage"
+    post:
+      operationId: createListing
+      tags: [listings]
+      summary: Create a new listing
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/ListingInput"
+      responses:
+        "201":
+          description: Listing created
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Listing"
+
+  /listings/{listingId}:
+    patch:
+      operationId: updateTourismeListing
+      tags: [listings, vendors]
+      summary: Update a Tourisme catalog owned by the vendor
+      parameters:
+        - name: listingId
+          in: path
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/VendorUpdateTourismeInput"
+      responses:
+        "200":
+          description: Updated Tourisme catalog
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Listing"
+        "400":
+          description: Invalid listing or request
+        "401":
+          description: Invalid credentials
+        "403":
+          description: Not owner of this listing
+        "404":
+          description: Listing not found
+
+  /listings/update-price:
+    post:
+      operationId: vendorUpdateListingPrice
+      tags: [listings, vendors]
+      summary: Update a listing price (vendor only)
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/VendorUpdatePriceInput"
+      responses:
+        "200":
+          description: Updated listing
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Listing"
+        "401":
+          description: Invalid credentials
+        "403":
+          description: Not owner of this listing
+        "404":
+          description: Listing not found
+
+  /listings/{listingId}/reviews:
+    get:
+      operationId: getListingReviews
+      tags: [reviews]
+      summary: Get reviews for a listing
+      parameters:
+        - name: listingId
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: Reviews for the listing
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ReviewsList"
+    post:
+      operationId: createListingReview
+      tags: [reviews]
+      summary: Create a review on a listing
+      parameters:
+        - name: listingId
+          in: path
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/ReviewInput"
+      responses:
+        "201":
+          description: Review created (editToken returned once)
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ReviewCreateResult"
+        "404":
+          description: Listing not found
+
+  /reviews/update:
+    post:
+      operationId: updateReview
+      tags: [reviews]
+      summary: Update own review (author only, via editToken)
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/ReviewUpdateInput"
+      responses:
+        "200":
+          description: Updated review
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Review"
+        "403":
+          description: Not the author
+        "404":
+          description: Review not found
+
+  /reviews/delete:
+    post:
+      operationId: deleteReview
+      tags: [reviews]
+      summary: Delete a review (author via editToken, or admin via password)
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/ReviewDeleteInput"
+      responses:
+        "200":
+          description: Deleted
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/DeleteResult"
+        "403":
+          description: Not allowed
+        "404":
+          description: Review not found
+
+  /listings/vendor-delete:
+    post:
+      operationId: vendorDeleteListing
+      tags: [listings, vendors]
+      summary: Delete a listing owned by the vendor
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/VendorDeleteListingInput"
+      responses:
+        "200":
+          description: Deleted
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/DeleteResult"
+        "401":
+          description: Invalid credentials
+        "403":
+          description: Not owner of this listing
+        "404":
+          description: Listing not found
+
+  /admin/listings/create:
+    post:
+      operationId: adminCreateListing
+      tags: [admin]
+      summary: Create and publish a listing directly (admin only)
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/AdminCreateListingInput"
+      responses:
+        "201":
+          description: Listing created and published
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Listing"
+        "403":
+          description: Forbidden
+
+  /admin/listings/delete:
+    post:
+      operationId: adminDeleteListing
+      tags: [admin]
+      summary: Delete a listing (admin only)
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/AdminDeleteInput"
+      responses:
+        "200":
+          description: Deleted
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/DeleteResult"
+        "403":
+          description: Forbidden
+
+  /orders:
+    post:
+      operationId: createOrder
+      tags: [orders]
+      summary: Submit a custom order request
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/OrderInput"
+      responses:
+        "201":
+          description: Order submitted
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Order"
+
+  /admin/verify:
+    post:
+      operationId: verifyAdmin
+      tags: [admin]
+      summary: Verify admin password
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/AdminVerifyInput"
+      responses:
+        "200":
+          description: Verification result
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AdminVerifyResult"
+
+  /admin/listings/approve:
+    post:
+      operationId: adminApproveListing
+      tags: [admin]
+      summary: Approve a pending listing (admin only)
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/AdminApproveInput"
+      responses:
+        "200":
+          description: Approved
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/DeleteResult"
+        "403":
+          description: Forbidden
+
+  /admin/listings/pending:
+    post:
+      operationId: adminGetPendingListings
+      tags: [admin]
+      summary: Get listings pending approval (admin only)
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/AdminPasswordInput"
+      responses:
+        "200":
+          description: Pending listings
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/Listing"
+        "403":
+          description: Forbidden
+
+  /admin/listings/manage:
+    post:
+      operationId: adminGetListings
+      tags: [admin, listings]
+      summary: Get all published listings for paginated admin management
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/AdminListingsQueryInput"
+      responses:
+        "200":
+          description: Published listings and the complete pinned listing set
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AdminListingsPage"
+        "403":
+          description: Forbidden
+
+  /admin/settings:
+    get:
+      operationId: getAdminSettings
+      tags: [admin]
+      summary: Get platform settings
+      responses:
+        "200":
+          description: Settings
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/PlatformSettings"
+    post:
+      operationId: updateAdminSettings
+      tags: [admin]
+      summary: Update platform settings (admin only)
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/UpdateSettingsInput"
+      responses:
+        "200":
+          description: Updated settings
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/PlatformSettings"
+        "403":
+          description: Forbidden
+
+  /admin/sub-admin-verify:
+    post:
+      operationId: verifySubAdmin
+      tags: [admin]
+      summary: Verify sub-admin password
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/SubAdminVerifyInput"
+      responses:
+        "200":
+          description: Verification result
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/SubAdminVerifyResponse"
+
+  /ads:
+    get:
+      operationId: getActiveAds
+      tags: [ads]
+      summary: Get active advertisements
+      responses:
+        "200":
+          description: List of active ads
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/Ad"
+
+  /admin/ads:
+    post:
+      operationId: adminCreateAd
+      tags: [admin, ads]
+      summary: Create a new advertisement (admin only)
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/AdminCreateAdInput"
+      responses:
+        "201":
+          description: Ad created
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Ad"
+        "403":
+          description: Forbidden
+
+  /admin/ads/all:
+    post:
+      operationId: adminGetAllAds
+      tags: [admin, ads]
+      summary: Get all ads including expired (admin only)
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/AdminPasswordInput"
+      responses:
+        "200":
+          description: All ads
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/Ad"
+        "403":
+          description: Forbidden
+
+  /admin/ads/delete:
+    post:
+      operationId: adminDeleteAd
+      tags: [admin, ads]
+      summary: Delete an advertisement (admin only)
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/AdminDeleteInput"
+      responses:
+        "200":
+          description: Deleted
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/DeleteResult"
+        "403":
+          description: Forbidden
+
+  /admin/listings/pin:
+    post:
+      operationId: adminPinListing
+      tags: [admin, listings]
+      summary: Toggle pin status of a listing (admin only) — pinned listings appear first
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/AdminPinListingInput"
+      responses:
+        "200":
+          description: Updated listing pinned state
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Listing"
+        "403":
+          description: Forbidden
+        "404":
+          description: Listing not found
+
+  /admin/ads/pin:
+    post:
+      operationId: adminPinAd
+      tags: [admin, ads]
+      summary: Toggle pin status of an ad (max 5 pinned per category, admin only)
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/AdminPinAdInput"
+      responses:
+        "200":
+          description: Updated ad
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Ad"
+        "400":
+          description: Max 5 pinned ads per category reached
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorEnvelope"
+        "403":
+          description: Forbidden
+        "404":
+          description: Ad not found
+
+  /stats:
+    get:
+      operationId: getStats
+      tags: [stats]
+      summary: Get marketplace statistics
+      responses:
+        "200":
+          description: Stats
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/MarketStats"
+
+  /vendors/register:
+    post:
+      operationId: vendorRegister
+      tags: [vendors]
+      summary: Register a new vendor account (sends OTP through the configured provider)
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/VendorRegisterInput"
+      responses:
+        "201":
+          description: Vendor registered, OTP delivery status
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/VendorRegisterResult"
+        "409":
+          description: Phone number already registered and verified
+
+  /vendors/verify-otp:
+    post:
+      operationId: vendorVerifyOtp
+      tags: [vendors]
+      summary: Verify OTP to activate the account
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/VendorVerifyOtpInput"
+      responses:
+        "200":
+          description: OTP valid, returns vendor profile
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/VendorProfile"
+        "400":
+          description: Invalid or expired OTP
+        "404":
+          description: Vendor not found
+
+  /vendors/resend-otp:
+    post:
+      operationId: vendorResendOtp
+      tags: [vendors]
+      summary: Resend OTP through the configured provider
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/VendorResendOtpInput"
+      responses:
+        "200":
+          description: OTP resent
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/VendorResendOtpResult"
+        "404":
+          description: Vendor not found
+        "429":
+          description: Too many requests, please wait before retrying
+
+  /vendors/request-manual-activation:
+    post:
+      operationId: vendorRequestManualActivation
+      tags: [vendors]
+      summary: Request manual account activation (fallback when OTP not received)
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/VendorRequestManualActivationInput"
+      responses:
+        "200":
+          description: Request recorded, admin notified
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/SuccessResult"
+        "400":
+          description: Account already verified
+        "404":
+          description: Vendor not found
+
+  /vendors/shop-status:
+    get:
+      operationId: getShopStatus
+      tags: [vendors]
+      summary: Check whether a shop link (publish code) is still active
+      parameters:
+        - name: vendorId
+          in: query
+          required: true
+          schema:
+            type: integer
+        - name: code
+          in: query
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Shop status
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ShopStatusResponse"
+        "400":
+          description: Missing or invalid parameters
+
+  /vendors/login:
+    post:
+      operationId: vendorLogin
+      tags: [vendors]
+      summary: Login as a vendor
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/VendorLoginInput"
+      responses:
+        "200":
+          description: Vendor profile with publish code status
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/VendorProfile"
+        "401":
+          description: Invalid credentials
+
+  /vendors/profile/update:
+    post:
+      operationId: vendorUpdateProfile
+      tags: [vendors]
+      summary: Update vendor profile photo
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/VendorProfileUpdateInput"
+      responses:
+        "200":
+          description: Updated profile
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/VendorProfile"
+        "401":
+          description: Invalid credentials
+
+  /vendors/profile/update-name:
+    post:
+      operationId: vendorUpdateName
+      tags: [vendors]
+      summary: Update vendor first name and last name
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/VendorUpdateNameInput"
+      responses:
+        "200":
+          description: Updated profile
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/VendorProfile"
+        "401":
+          description: Invalid credentials
+
+  /vendors/profile/change-password:
+    post:
+      operationId: vendorChangePassword
+      tags: [vendors]
+      summary: Change vendor password
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/VendorChangePasswordInput"
+      responses:
+        "200":
+          description: Password changed
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/DeleteResult"
+        "401":
+          description: Invalid credentials
+
+  /vendors/sector/{sector}:
+    get:
+      operationId: getVendorsBySector
+      tags: [vendors]
+      summary: Get vendors with published listings in a given sector
+      parameters:
+        - name: sector
+          in: path
+          required: true
+          schema:
+            type: string
+            enum: [Tourisme, AgriMarket, Immobilier, Automobile, Repas, Divers]
+      responses:
+        "200":
+          description: List of vendors in that sector
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/VendorInSector"
+        "400":
+          description: Invalid sector
+
+  /vendors/listings:
+    post:
+      operationId: vendorGetListings
+      tags: [vendors]
+      summary: Get listings owned by the vendor
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/VendorAuthInput"
+      responses:
+        "200":
+          description: Vendor listings
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/Listing"
+        "401":
+          description: Invalid credentials
+
+  /admin/vendors:
+    post:
+      operationId: adminGetVendors
+      tags: [admin, vendors]
+      summary: Get all vendor accounts (admin only)
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/AdminPasswordInput"
+      responses:
+        "200":
+          description: All vendors
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/VendorProfile"
+        "403":
+          description: Forbidden
+
+  /admin/vendors/activate:
+    post:
+      operationId: adminActivateVendor
+      tags: [admin, vendors]
+      summary: Activate a vendor account and generate first free publish code (admin only)
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/AdminActivateVendorInput"
+      responses:
+        "200":
+          description: Activated with generated code
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AdminActivateVendorResult"
+        "403":
+          description: Forbidden
+
+  /admin/vendors/generate-code:
+    post:
+      operationId: adminGenerateVendorCode
+      tags: [admin, vendors]
+      summary: Generate a new publish code for a vendor (admin only, after payment)
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/AdminActivateVendorInput"
+      responses:
+        "200":
+          description: New code generated
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AdminActivateVendorResult"
+        "403":
+          description: Forbidden
+
+  /admin/storage/cleanup:
+    post:
+      operationId: adminStorageCleanup
+      tags: [admin]
+      summary: Find and delete orphan files in Object Storage (admin only)
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/AdminPasswordInput'
+      responses:
+        '200':
+          description: Cleanup result
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/StorageCleanupResult'
+        '403':
+          description: Forbidden
+
+  /admin/vendors/reset-password:
+    post:
+      operationId: adminResetVendorPassword
+      tags: [admin, vendors]
+      summary: Reset a vendor's password (admin only)
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/AdminResetVendorPasswordInput"
+      responses:
+        "200":
+          description: Password reset
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/SuccessResult"
+        "403":
+          description: Forbidden
+        "404":
+          description: Vendor not found
+
+  /admin/vendors/delete:
+    post:
+      operationId: adminDeleteVendor
+      tags: [admin, vendors]
+      summary: Delete a vendor account and all their data (admin only)
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/AdminActivateVendorInput"
+      responses:
+        "200":
+          description: Vendor deleted
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/SuccessResult"
+        "403":
+          description: Forbidden
+        "404":
+          description: Vendor not found
+
+  /events:
+    get:
+      operationId: getEvents
+      tags: [events]
+      summary: Get all events
+      responses:
+        "200":
+          description: List of events
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/Event"
+
+  /admin/events:
+    post:
+      operationId: adminCreateEvent
+      tags: [admin, events]
+      summary: Create a new event (admin only)
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/AdminCreateEventInput"
+      responses:
+        "201":
+          description: Event created
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Event"
+        "403":
+          description: Forbidden
+
+  /admin/events/delete:
+    post:
+      operationId: adminDeleteEvent
+      tags: [admin, events]
+      summary: Delete an event (admin only)
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/AdminDeleteInput"
+      responses:
+        "200":
+          description: Deleted
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/DeleteResult"
+        "403":
+          description: Forbidden
+
+  /admin/events/whatsapp:
+    post:
+      operationId: adminUpdateEventWhatsapp
+      tags: [admin, events]
+      summary: Update an event WhatsApp number (admin only)
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/AdminUpdateEventWhatsappInput"
+      responses:
+        "200":
+          description: Event updated
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Event"
+        "400":
+          description: Invalid WhatsApp number
+        "403":
+          description: Forbidden
+        "404":
+          description: Event not found
+
+  /services:
+    get:
+      operationId: getServices
+      tags: [services]
+      summary: Get all active services
+      responses:
+        "200":
+          description: List of active services
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/Service"
+
+  /admin/services:
+    post:
+      operationId: adminCreateService
+      tags: [admin, services]
+      summary: Create a new service offer (admin/sub-admin)
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/AdminCreateServiceInput"
+      responses:
+        "201":
+          description: Service created
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Service"
+        "403":
+          description: Forbidden
+
+  /admin/services/all:
+    post:
+      operationId: adminGetAllServices
+      tags: [admin, services]
+      summary: Get all services including expired (admin/sub-admin)
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/AdminPasswordInput"
+      responses:
+        "200":
+          description: All services
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/Service"
+        "403":
+          description: Forbidden
+
+  /admin/services/delete:
+    post:
+      operationId: adminDeleteService
+      tags: [admin, services]
+      summary: Delete a service (admin/sub-admin)
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/AdminDeleteInput"
+      responses:
+        "200":
+          description: Deleted
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/DeleteResult"
+        "403":
+          description: Forbidden
+
+  /contact-requests:
+    post:
+      tags: [listings]
+      operationId: createContactRequest
+      summary: Record a buyer contact unlock request
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ContactRequestInput'
+      responses:
+        '200':
+          description: Request recorded.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SuccessResult'
+        '404':
+          description: Listing not found.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+        '500':
+          description: Internal error.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+
+  /vendor/contact-requests:
+    post:
+      tags: [vendors]
+      operationId: getVendorContactRequests
+      summary: Get contact request stats for a vendor's listings
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/VendorLoginInput'
+      responses:
+        '200':
+          description: Stats per listing.
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/ContactRequestStat'
+        '403':
+          description: Unauthorized.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+
+  /admin/contact-requests/stats:
+    post:
+      tags: [admin]
+      operationId: getAdminContactStats
+      summary: Get all contact request stats (admin)
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/AdminVerifyInput'
+      responses:
+        '200':
+          description: Stats per listing.
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/AdminContactStat'
+        '403':
+          description: Forbidden.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+
+components:
+  schemas:
+    ListingsPage:
+      type: object
+      required: [items, total, page, hasMore]
+      properties:
+        items:
+          type: array
+          items:
+            $ref: "#/components/schemas/Listing"
+        total:
+          type: integer
+        page:
+          type: integer
+        hasMore:
+          type: boolean
+        vendorName:
+          type: string
+          description: Name of the vendor when searching by shop number (present even if no listings)
+
+    AdminListingsPage:
+      type: object
+      required: [items, pinnedItems, total, page, hasMore]
+      properties:
+        items:
+          type: array
+          items:
+            $ref: "#/components/schemas/Listing"
+        pinnedItems:
+          type: array
+          description: Complete set of pinned published listings, independent of the current page and search
+          items:
+            $ref: "#/components/schemas/Listing"
+        total:
+          type: integer
+        page:
+          type: integer
+        hasMore:
+          type: boolean
+
+    Ad:
+      type: object
+      required: [id, advertiserName, advertiserPhone, message, startDate, endDate]
+      properties:
+        id:
+          type: integer
+        advertiserName:
+          type: string
+        advertiserPhone:
+          type: string
+        message:
+          type: string
+        image:
+          type: ["string", "null"]
+        videoPath:
+          type: ["string", "null"]
+        startDate:
+          type: string
+        endDate:
+          type: string
+        isPublished:
+          type: ["boolean", "null"]
+        category:
+          type: string
+        isPinned:
+          type: ["boolean", "null"]
+          description: "Épinglée en haut de sa catégorie (max 5 par catégorie)"
+
+    AdminPinListingInput:
+      type: object
+      required: [id, password]
+      properties:
+        id:
+          type: integer
+        password:
+          type: string
+
+    AdminPinAdInput:
+      type: object
+      required: [id, password]
+      properties:
+        id:
+          type: integer
+        password:
+          type: string
+
+    AdminCreateAdInput:
+      type: object
+      required: [password, advertiserName, advertiserPhone, message]
+      properties:
+        password:
+          type: string
+        advertiserName:
+          type: string
+        advertiserPhone:
+          type: string
+        message:
+          type: string
+        image:
+          type: string
+        videoPath:
+          type: string
+        category:
+          type: string
+
+    Event:
+      type: object
+      required: [id, title, description, date, endDate, location, whatsappPhone, createdAt]
+      properties:
+        id:
+          type: integer
+        title:
+          type: string
+        description:
+          type: string
+        flyerImage:
+          type: ["string", "null"]
+        videoPath:
+          type: ["string", "null"]
+        date:
+          type: string
+        endDate:
+          type: ["string", "null"]
+        location:
+          type: string
+        whatsappPhone:
+          type: ["string", "null"]
+        ticketLink:
+          type: ["string", "null"]
+        ticketPrice:
+          type: ["string", "null"]
+        createdAt:
+          type: string
+        isPublished:
+          type: ["boolean", "null"]
+
+    AdminCreateEventInput:
+      type: object
+      required: [password, title, description, date, location, whatsappPhone]
+      properties:
+        password:
+          type: string
+        title:
+          type: string
+        description:
+          type: string
+        flyerImage:
+          type: string
+        videoPath:
+          type: string
+        date:
+          type: string
+        endDate:
+          type: string
+        location:
+          type: string
+        whatsappPhone:
+          type: string
+          minLength: 8
+        ticketLink:
+          type: string
+        ticketPrice:
+          type: string
+
+    AdminUpdateEventWhatsappInput:
+      type: object
+      required: [password, id, whatsappPhone]
+      properties:
+        password:
+          type: string
+        id:
+          type: integer
+        whatsappPhone:
+          type: string
+          minLength: 8
+
+    HealthStatus:
+      type: object
+      required: [status]
+      properties:
+        status:
+          type: string
+
+    Listing:
+      type: object
+      required: [id, name, price, location, country, sector, createdAt, images, approved]
+      properties:
+        id:
+          type: integer
+        name:
+          type: string
+        price:
+          type: number
+        location:
+          type: string
+        country:
+          type: string
+          default: "Togo"
+        sector:
+          type: string
+        images:
+          type: array
+          items:
+            type: string
+        createdAt:
+          type: string
+        phone:
+          type: ["string", "null"]
+        approved:
+          type: boolean
+        vendorId:
+          type: ["integer", "null"]
+        promoPrice:
+          type: ["number", "null"]
+        description:
+          type: ["string", "null"]
+        avgRating:
+          type: ["number", "null"]
+        reviewCount:
+          type: integer
+          default: 0
+        pinned:
+          type: boolean
+          default: false
+
+    Review:
+      type: object
+      required: [id, listingId, buyerName, rating, comment, createdAt]
+      properties:
+        id:
+          type: integer
+        listingId:
+          type: integer
+        buyerName:
+          type: string
+        rating:
+          type: integer
+        comment:
+          type: string
+        createdAt:
+          type: string
+
+    ReviewInput:
+      type: object
+      required: [buyerName, buyerPhone, rating]
+      properties:
+        buyerName:
+          type: string
+          minLength: 2
+        buyerPhone:
+          type: string
+          minLength: 8
+        rating:
+          type: integer
+          minimum: 1
+          maximum: 5
+        comment:
+          type: string
+
+    ReviewCreateResult:
+      type: object
+      required: [review, editToken]
+      properties:
+        review:
+          $ref: "#/components/schemas/Review"
+        editToken:
+          type: string
+
+    ReviewUpdateInput:
+      type: object
+      required: [id, editToken, rating]
+      properties:
+        id:
+          type: integer
+        editToken:
+          type: string
+        rating:
+          type: integer
+          minimum: 1
+          maximum: 5
+        comment:
+          type: string
+
+    ReviewDeleteInput:
+      type: object
+      required: [id]
+      properties:
+        id:
+          type: integer
+        editToken:
+          type: string
+        password:
+          type: string
+
+    ReviewsList:
+      type: object
+      required: [items, avgRating, count]
+      properties:
+        items:
+          type: array
+          items:
+            $ref: "#/components/schemas/Review"
+        avgRating:
+          type: ["number", "null"]
+        count:
+          type: integer
+
+    ListingInput:
+      type: object
+      required: [name, price, location, country, sector, images, vendorPhone, vendorPassword]
+      properties:
+        name:
+          type: string
+        price:
+          type: number
+        location:
+          type: string
+        country:
+          type: string
+        sector:
+          type: string
+          enum: [Tourisme, AgriMarket, Immobilier, Automobile, Repas, Divers]
+        images:
+          type: array
+          items:
+            type: string
+          maxItems: 10
+        vendorPhone:
+          type: string
+        vendorPassword:
+          type: string
+        description:
+          type: string
+
+    VendorUpdatePriceInput:
+      type: object
+      required: [id, phone, password, newPrice]
+      properties:
+        id:
+          type: integer
+        phone:
+          type: string
+        password:
+          type: string
+        newPrice:
+          type: number
+        promoPrice:
+          type: ["number", "null"]
+        description:
+          type: ["string", "null"]
+
+    VendorUpdateTourismeInput:
+      type: object
+      required: [phone, password, name, description, images]
+      properties:
+        phone:
+          type: string
+        password:
+          type: string
+        name:
+          type: string
+          minLength: 3
+        description:
+          type: string
+          maxLength: 1000
+        images:
+          type: array
+          items:
+            type: string
+          maxItems: 10
+
+    VendorDeleteListingInput:
+      type: object
+      required: [id, phone, password]
+      properties:
+        id:
+          type: integer
+        phone:
+          type: string
+        password:
+          type: string
+
+    VendorAuthInput:
+      type: object
+      required: [phone, password]
+      properties:
+        phone:
+          type: string
+        password:
+          type: string
+
+    VendorUpdateNameInput:
+      type: object
+      required: [phone, password, firstName, lastName]
+      properties:
+        phone:
+          type: string
+        password:
+          type: string
+        firstName:
+          type: string
+        lastName:
+          type: string
+        shopName:
+          type: ["string", "null"]
+
+    VendorChangePasswordInput:
+      type: object
+      required: [phone, oldPassword, newPassword]
+      properties:
+        phone:
+          type: string
+        oldPassword:
+          type: string
+        newPassword:
+          type: string
+
+    DeleteResult:
+      type: object
+      required: [success]
+      properties:
+        success:
+          type: boolean
+
+    Order:
+      type: object
+      required: [id, lastName, firstName, phone, description, createdAt]
+      properties:
+        id:
+          type: integer
+        lastName:
+          type: string
+        firstName:
+          type: string
+        phone:
+          type: string
+        description:
+          type: string
+        createdAt:
+          type: string
+
+    OrderInput:
+      type: object
+      required: [lastName, firstName, phone, description]
+      properties:
+        lastName:
+          type: string
+        firstName:
+          type: string
+        phone:
+          type: string
+        description:
+          type: string
+
+    AdminDeleteInput:
+      type: object
+      required: [id, password]
+      properties:
+        id:
+          type: integer
+        password:
+          type: string
+
+    AdminCreateListingInput:
+      type: object
+      required: [password, name, price, location, sector, phone, images]
+      properties:
+        password:
+          type: string
+        name:
+          type: string
+        price:
+          type: number
+        location:
+          type: string
+        sector:
+          type: string
+        phone:
+          type: string
+        images:
+          type: array
+          items:
+            type: string
+
+    AdminVerifyInput:
+      type: object
+      required: [password]
+      properties:
+        password:
+          type: string
+
+    AdminVerifyResult:
+      type: object
+      required: [success]
+      properties:
+        success:
+          type: boolean
+
+    AdminApproveInput:
+      type: object
+      required: [id, password]
+      properties:
+        id:
+          type: integer
+        password:
+          type: string
+
+    AdminPasswordInput:
+      type: object
+      required: [password]
+      properties:
+        password:
+          type: string
+
+    AdminListingsQueryInput:
+      type: object
+      required: [password]
+      properties:
+        password:
+          type: string
+        page:
+          type: integer
+          minimum: 1
+          default: 1
+        limit:
+          type: integer
+          minimum: 1
+          maximum: 100
+          default: 20
+        search:
+          type: string
+
+    PlatformSettings:
+      type: object
+      required: [commissionRate, whatsappCommission, whatsappOrders, whatsappAds, whatsappServices, otpProvider, whatsappValidation, adVideoPlaybackMode]
+      properties:
+        commissionRate:
+          type: integer
+        whatsappCommission:
+          type: string
+        whatsappOrders:
+          type: string
+        whatsappAds:
+          type: string
+        whatsappServices:
+          type: string
+        otpProvider:
+          type: string
+          enum: [WHATSAPP, TECHSOFT, MANUAL]
+        whatsappValidation:
+          type: string
+        adVideoPlaybackMode:
+          type: string
+          enum: [AUTOPLAY, ECONOMICAL]
+
+    UpdateSettingsInput:
+      type: object
+      required: [password, commissionRate, whatsappCommission, whatsappOrders]
+      properties:
+        password:
+          type: string
+        commissionRate:
+          type: integer
+        whatsappCommission:
+          type: string
+        whatsappOrders:
+          type: string
+        subAdminPassword:
+          type: string
+        whatsappAds:
+          type: string
+        whatsappServices:
+          type: string
+        otpProvider:
+          type: string
+          enum: [WHATSAPP, TECHSOFT, MANUAL]
+        whatsappValidation:
+          type: string
+        adVideoPlaybackMode:
+          type: string
+          enum: [AUTOPLAY, ECONOMICAL]
+
+    Service:
+      type: object
+      required: [id, type, title, description, contact, quartier, ville, createdAt, expiresAt]
+      properties:
+        id:
+          type: integer
+        type:
+          type: string
+        title:
+          type: string
+        description:
+          type: string
+        contact:
+          type: string
+        quartier:
+          type: string
+        ville:
+          type: string
+        image:
+          type: string
+          nullable: true
+        videoPath:
+          type: ["string", "null"]
+        createdAt:
+          type: string
+        expiresAt:
+          type: string
+        isPublished:
+          type: ["boolean", "null"]
+
+    AdminCreateServiceInput:
+      type: object
+      required: [password, type, title, description, contact, quartier, ville]
+      properties:
+        password:
+          type: string
+        type:
+          type: string
+        title:
+          type: string
+        description:
+          type: string
+        contact:
+          type: string
+        quartier:
+          type: string
+        ville:
+          type: string
+        image:
+          type: string
+        videoPath:
+          type: string
+
+    SubAdminVerifyInput:
+      type: object
+      required: [password]
+      properties:
+        password:
+          type: string
+
+    SubAdminVerifyResponse:
+      type: object
+      required: [valid]
+      properties:
+        valid:
+          type: boolean
+
+    MarketStats:
+      type: object
+      required: [total, bysector]
+      properties:
+        total:
+          type: integer
+        bysector:
+          type: array
+          items:
+            $ref: "#/components/schemas/SectorStat"
+
+    SectorStat:
+      type: object
+      required: [sector, count]
+      properties:
+        sector:
+          type: string
+        count:
+          type: integer
+
+    VendorPublishCode:
+      type: object
+      required: [code, endDate, daysLeft]
+      properties:
+        code:
+          type: string
+        endDate:
+          type: string
+        daysLeft:
+          type: integer
+
+    VendorProfile:
+      type: object
+      required: [id, firstName, lastName, phone, verified, createdAt]
+      properties:
+        id:
+          type: integer
+        firstName:
+          type: string
+        lastName:
+          type: string
+        phone:
+          type: string
+        verified:
+          type: boolean
+        profilePhoto:
+          type: ["string", "null"]
+        createdAt:
+          type: string
+        publishCode:
+          oneOf:
+            - $ref: "#/components/schemas/VendorPublishCode"
+            - type: "null"
+        expiryDate:
+          type: ["string", "null"]
+        isPublished:
+          type: boolean
+        paymentStatus:
+          type: string
+        validationMethod:
+          type: string
+        daysUntilExpiry:
+          type: ["integer", "null"]
+        referralDaysEarned:
+          type: integer
+        shopName:
+          type: ["string", "null"]
+
+    StorageCleanupResult:
+      type: object
+      required: [deleted]
+      properties:
+        deleted:
+          type: integer
+
+    VendorRegisterInput:
+      type: object
+      required: [firstName, lastName, phone, password]
+      properties:
+        firstName:
+          type: string
+        lastName:
+          type: string
+        shopName:
+          type: ["string", "null"]
+        phone:
+          type: string
+        password:
+          type: string
+        referredBy:
+          type: ["integer", "null"]
+        profilePhoto:
+          type: ["string", "null"]
+        wantsNotifications:
+          type: boolean
+
+    VendorInSector:
+      type: object
+      required: [id, firstName, lastName]
+      properties:
+        id:
+          type: integer
+        firstName:
+          type: string
+        lastName:
+          type: string
+        shopName:
+          type: ["string", "null"]
+        profilePhoto:
+          type: ["string", "null"]
+
+    VendorRegisterResult:
+      type: object
+      required: [id, firstName, lastName, phone, provider, sent]
+      properties:
+        id:
+          type: integer
+        firstName:
+          type: string
+        lastName:
+          type: string
+        phone:
+          type: string
+        provider:
+          type: string
+          enum: [WHATSAPP, TECHSOFT, MANUAL]
+        sent:
+          type: boolean
+
+    VendorVerifyOtpInput:
+      type: object
+      required: [phone, code]
+      properties:
+        phone:
+          type: string
+        code:
+          type: string
+
+    VendorResendOtpInput:
+      type: object
+      required: [phone]
+      properties:
+        phone:
+          type: string
+
+    VendorResendOtpResult:
+      type: object
+      required: [success, provider, sent]
+      properties:
+        success:
+          type: boolean
+        provider:
+          type: string
+          enum: [WHATSAPP, TECHSOFT, MANUAL]
+        sent:
+          type: boolean
+
+    VendorRequestManualActivationInput:
+      type: object
+      required: [phone]
+      properties:
+        phone:
+          type: string
+
+    VendorLoginInput:
+      type: object
+      required: [phone, password]
+      properties:
+        phone:
+          type: string
+        password:
+          type: string
+
+    VendorProfileUpdateInput:
+      type: object
+      required: [phone, password]
+      properties:
+        phone:
+          type: string
+        password:
+          type: string
+        profilePhoto:
+          type: ["string", "null"]
+
+    AdminActivateVendorInput:
+      type: object
+      required: [password, vendorId]
+      properties:
+        password:
+          type: string
+        vendorId:
+          type: integer
+
+    AdminActivateVendorResult:
+      type: object
+      required: [success, code, vendorPhone]
+      properties:
+        success:
+          type: boolean
+        code:
+          type: string
+        vendorPhone:
+          type: string
+
+    UploadUrlRequest:
+      type: object
+      required: [name, size, contentType]
+      properties:
+        name:
+          type: string
+          minLength: 1
+        size:
+          type: integer
+          minimum: 1
+        contentType:
+          type: string
+          minLength: 1
+    UploadUrlResponse:
+      type: object
+      required: [uploadURL, objectPath]
+      properties:
+        uploadURL:
+          type: string
+          format: uri
+        objectPath:
+          type: string
+        metadata:
+          $ref: '#/components/schemas/UploadUrlRequest'
+    AdminResetVendorPasswordInput:
+      type: object
+      required: [password, vendorPhone, newPassword]
+      properties:
+        password:
+          type: string
+        vendorPhone:
+          type: string
+        newPassword:
+          type: string
+          minLength: 6
+
+    SuccessResult:
+      type: object
+      required: [success]
+      properties:
+        success:
+          type: boolean
+
+    ErrorEnvelope:
+      type: object
+      required: [error]
+      properties:
+        error:
+          type: string
+
+    ContactRequestInput:
+      type: object
+      required: [listingId, buyerName, buyerPhone]
+      properties:
+        listingId:
+          type: integer
+        buyerName:
+          type: string
+        buyerPhone:
+          type: string
+
+    ContactRequestStat:
+      type: object
+      required: [listingId, listingName, count]
+      properties:
+        listingId:
+          type: integer
+        listingName:
+          type: string
+        count:
+          type: integer
+
+    AdminContactStat:
+      type: object
+      required: [listingId, listingName, vendorPhone, count]
+      properties:
+        listingId:
+          type: integer
+        listingName:
+          type: string
+        vendorPhone:
+          type: string
+        count:
+          type: integer
+
+    ShopStatusResponse:
+      type: object
+      required: [active, exists]
+      properties:
+        active:
+          type: boolean
+        exists:
+          type: boolean
+        vendorId:
+          type: integer
+        firstName:
+          type: ["string", "null"]
