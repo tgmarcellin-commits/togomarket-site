@@ -1,5 +1,5 @@
 import { Router, type IRouter } from "express";
-import { and, desc, eq, gt, lt } from "drizzle-orm";
+import { and, desc, eq, gt, inArray, lt } from "drizzle-orm";
 import {
   deliveryAuditLogsTable,
   db,
@@ -14,6 +14,7 @@ import { normalizePhone } from "../lib/phone";
 import { paymentWebhookEventHash, verifyFedapayDriverWebhookSignature } from "../lib/fedapay-driver-webhook";
 import { sendWhatsAppText } from "../lib/whatsapp-api";
 import { computeLockedDeliveryPricing } from "../lib/distance-pricing";
+import { verifyAdminCode } from "../lib/admin-auth";
 
 const router: IRouter = Router();
 const ASSIGNMENT_TTL_MS = 15 * 60 * 1000;
@@ -59,6 +60,24 @@ function randomCode(digits: number): string {
   return String(Math.floor(Math.random() * (max - min + 1)) + min);
 }
 
+function parseBearerToken(authorization: string | undefined): string | null {
+  if (!authorization) return null;
+  const [scheme, token] = authorization.split(" ");
+  if (scheme?.toLowerCase() !== "bearer" || !token?.trim()) return null;
+  return token.trim();
+}
+
+async function authenticateDriverSession(authorization: string | undefined) {
+  const token = parseBearerToken(authorization);
+  if (!token) return null;
+  const now = new Date();
+  const [driver] = await db.select().from(driversTable).where(and(
+    eq(driversTable.otpSessionTokenHash, token),
+    gt(driversTable.otpSessionExpiresAt, now),
+  )).limit(1);
+  return driver ?? null;
+}
+
 function allowWebhookRequest(ip: string): boolean {
   const now = Date.now();
   const current = webhookRateEntries.get(ip);
@@ -89,6 +108,10 @@ async function notifyDriverAssignment(
 }
 
 router.post("/delivery/assignments", async (req, res) => {
+  const adminCode = String(req.body?.code ?? req.body?.password ?? "").trim();
+  if (!adminCode || !await verifyAdminCode(adminCode)) {
+    return res.status(403).json({ error: "Accès administrateur requis." });
+  }
   const parsed = parseAssignDriverBody(req.body as Record<string, unknown>);
   if (!parsed) return res.status(400).json({ error: "Requête invalide." });
 
@@ -194,6 +217,78 @@ router.post("/delivery/assignments", async (req, res) => {
   });
 });
 
+router.post("/admin/delivery/orders", async (req, res) => {
+  const adminCode = String(req.body?.code ?? req.body?.password ?? "").trim();
+  if (!adminCode || !await verifyAdminCode(adminCode)) {
+    return res.status(403).json({ error: "Accès administrateur requis." });
+  }
+
+  const orders = await db
+    .select({
+      id: ordersTable.id,
+      firstName: ordersTable.firstName,
+      lastName: ordersTable.lastName,
+      phone: ordersTable.phone,
+      description: ordersTable.description,
+      articlePriceLocked: ordersTable.articlePriceLocked,
+      distanceLockedKm: ordersTable.distanceLockedKm,
+      transportFeeLocked: ordersTable.transportFeeLocked,
+      distanceSource: ordersTable.distanceSource,
+      status: ordersTable.status,
+      createdAt: ordersTable.createdAt,
+    })
+    .from(ordersTable)
+    .orderBy(desc(ordersTable.createdAt))
+    .limit(100);
+
+  if (orders.length === 0) {
+    return res.json({ orders: [] });
+  }
+
+  const orderIds = orders.map((order) => order.id);
+  const jobs = await db
+    .select()
+    .from(deliveryWorkflowJobsTable)
+    .where(inArray(deliveryWorkflowJobsTable.orderId, orderIds));
+
+  const driverIds = [...new Set(jobs.map((job) => job.driverId))];
+  const drivers = driverIds.length > 0
+    ? await db
+      .select({
+        id: driversTable.id,
+        firstName: driversTable.firstName,
+        lastName: driversTable.lastName,
+        phone: driversTable.phone,
+        isAvailable: driversTable.isAvailable,
+      })
+      .from(driversTable)
+      .where(inArray(driversTable.id, driverIds))
+    : [];
+
+  const jobByOrderId = new Map(jobs.map((job) => [job.orderId, job]));
+  const driverById = new Map(drivers.map((driver) => [driver.id, driver]));
+
+  return res.json({
+    orders: orders.map((order) => {
+      const job = jobByOrderId.get(order.id) ?? null;
+      const driver = job ? driverById.get(job.driverId) ?? null : null;
+      return {
+        ...order,
+        createdAt: order.createdAt.toISOString(),
+        assignment: !job ? null : {
+          id: job.id,
+          driverId: job.driverId,
+          acceptanceStatus: job.acceptanceStatus,
+          assignmentExpiresAt: job.assignmentExpiresAt?.toISOString() ?? null,
+          acceptedAt: job.acceptedAt?.toISOString() ?? null,
+          refusedAt: job.refusedAt?.toISOString() ?? null,
+          driver,
+        },
+      };
+    }),
+  });
+});
+
 router.post("/driver-connexion/request-otp", async (req, res) => {
   if (typeof req.body?.phone !== "string" || req.body.phone.trim().length < 8) {
     return res.status(400).json({ error: "Numéro invalide." });
@@ -254,15 +349,120 @@ router.post("/driver-connexion/verify-otp", async (req, res) => {
     otpSessionExpiresAt: new Date(Date.now() + DRIVER_SESSION_TTL_MS),
     updatedAt: new Date(),
   }).where(eq(driversTable.id, driver.id));
-  return res.json({ token: sessionToken, driverId: driver.id });
+  return res.json({
+    token: sessionToken,
+    driverId: driver.id,
+    driver: {
+      id: driver.id,
+      firstName: driver.firstName,
+      lastName: driver.lastName,
+      phone: driver.phone,
+      isAvailable: driver.isAvailable,
+    },
+  });
+});
+
+router.get("/driver-connexion/session", async (req, res) => {
+  const driver = await authenticateDriverSession(req.headers.authorization);
+  if (!driver) {
+    return res.status(401).json({ error: "Session livreur invalide." });
+  }
+  return res.json({
+    driver: {
+      id: driver.id,
+      firstName: driver.firstName,
+      lastName: driver.lastName,
+      phone: driver.phone,
+      isAvailable: driver.isAvailable,
+    },
+  });
+});
+
+router.get("/driver-connexion/assignments", async (req, res) => {
+  const driver = await authenticateDriverSession(req.headers.authorization);
+  if (!driver) {
+    return res.status(401).json({ error: "Session livreur invalide." });
+  }
+
+  const jobs = await db
+    .select()
+    .from(deliveryWorkflowJobsTable)
+    .where(eq(deliveryWorkflowJobsTable.driverId, driver.id))
+    .orderBy(desc(deliveryWorkflowJobsTable.createdAt))
+    .limit(20);
+
+  if (jobs.length === 0) {
+    return res.json({ assignments: [] });
+  }
+
+  const orders = await db
+    .select({
+      id: ordersTable.id,
+      firstName: ordersTable.firstName,
+      lastName: ordersTable.lastName,
+      phone: ordersTable.phone,
+      description: ordersTable.description,
+      articlePriceLocked: ordersTable.articlePriceLocked,
+      distanceLockedKm: ordersTable.distanceLockedKm,
+      transportFeeLocked: ordersTable.transportFeeLocked,
+      status: ordersTable.status,
+      createdAt: ordersTable.createdAt,
+    })
+    .from(ordersTable)
+    .where(inArray(ordersTable.id, jobs.map((job) => job.orderId)));
+
+  const orderById = new Map(orders.map((order) => [order.id, order]));
+
+  return res.json({
+    assignments: jobs.map((job) => ({
+      id: job.id,
+      orderId: job.orderId,
+      acceptanceStatus: job.acceptanceStatus,
+      assignmentExpiresAt: job.assignmentExpiresAt?.toISOString() ?? null,
+      acceptedAt: job.acceptedAt?.toISOString() ?? null,
+      refusedAt: job.refusedAt?.toISOString() ?? null,
+      createdAt: job.createdAt.toISOString(),
+      updatedAt: job.updatedAt.toISOString(),
+      order: (() => {
+        const order = orderById.get(job.orderId);
+        if (!order) return null;
+        return {
+          ...order,
+          createdAt: order.createdAt.toISOString(),
+        };
+      })(),
+    })),
+  });
+});
+
+router.post("/driver-connexion/availability", async (req, res) => {
+  const driver = await authenticateDriverSession(req.headers.authorization);
+  if (!driver) {
+    return res.status(401).json({ error: "Session livreur invalide." });
+  }
+  if (typeof req.body?.isAvailable !== "boolean") {
+    return res.status(400).json({ error: "Requête invalide." });
+  }
+  await db.update(driversTable).set({
+    isAvailable: req.body.isAvailable,
+    updatedAt: new Date(),
+  }).where(eq(driversTable.id, driver.id));
+  return res.json({ success: true, driverId: driver.id, isAvailable: req.body.isAvailable });
 });
 
 router.post("/delivery/assignments/respond", async (req, res) => {
+  const driver = await authenticateDriverSession(req.headers.authorization);
+  if (!driver) {
+    return res.status(401).json({ error: "Session livreur invalide." });
+  }
   const deliveryJobId = asIntegerPositive(req.body?.deliveryJobId);
   const action = req.body?.action === "accept" || req.body?.action === "refuse" ? req.body.action : null;
   if (!deliveryJobId || !action) return res.status(400).json({ error: "Requête invalide." });
   const [job] = await db.select().from(deliveryWorkflowJobsTable).where(eq(deliveryWorkflowJobsTable.id, deliveryJobId)).limit(1);
   if (!job) return res.status(404).json({ error: "Assignation introuvable." });
+  if (job.driverId !== driver.id) {
+    return res.status(403).json({ error: "Cette assignation n'appartient pas à ce livreur." });
+  }
   if (job.acceptanceStatus !== "pending_driver_response") {
     return res.status(409).json({ error: "Assignation déjà traitée." });
   }
