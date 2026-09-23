@@ -285,7 +285,7 @@ export function ListingCard({ listing, isAdmin, adminPassword, commissionRate, w
   return (
     <>
     <div className="group rounded-xl border bg-card text-card-foreground shadow-sm overflow-hidden flex flex-col h-full hover:shadow-md transition-all">
-      <div className="relative aspect-video w-full overflow-hidden bg-black group/img">
+      <div className="relative aspect-[4/3] w-full overflow-hidden bg-black group/img">
         <div className="flex w-full h-full overflow-x-auto snap-x snap-mandatory scrollbar-hide">
           {listing.images && listing.images.length > 0 ? (
             listing.images.map((img, i) => (
