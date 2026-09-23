@@ -1,4 +1,4 @@
-import { db, auditLogsTable, platformSettingsTable } from "@workspace/db";
+import { db, deliveryAuditLogsTable, platformSettingsTable } from "@workspace/db";
 
 const FCFA_PER_KM = 50;
 const FALLBACK_COEFFICIENT_PERMILLE = 1250;
@@ -99,7 +99,7 @@ export async function computeLockedDeliveryPricing(input: {
   const correctedKm = (baseKm * coefficientPermille) / 1000;
   const distanceLockedKm = toIntegerKm(correctedKm);
 
-  await db.insert(auditLogsTable).values({
+  await db.insert(deliveryAuditLogsTable).values({
     actorType: "system",
     actorId: "distance-pricing",
     action: "distance_fallback_haversine",

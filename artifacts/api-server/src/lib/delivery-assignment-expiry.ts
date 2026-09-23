@@ -1,5 +1,5 @@
 import { and, eq, lte } from "drizzle-orm";
-import { db, deliveryJobsTable } from "@workspace/db";
+import { db, deliveryWorkflowJobsTable } from "@workspace/db";
 import { logger } from "./logger";
 
 const ASSIGNMENT_EXPIRY_INTERVAL_MS = 60_000;
@@ -9,16 +9,16 @@ let assignmentExpiryTimer: NodeJS.Timeout | undefined;
 export async function expirePendingAssignments(): Promise<number> {
   const now = new Date();
   const expiredRows = await db
-    .update(deliveryJobsTable)
+    .update(deliveryWorkflowJobsTable)
     .set({
       acceptanceStatus: "expired",
       updatedAt: now,
     })
     .where(and(
-      eq(deliveryJobsTable.acceptanceStatus, "pending_driver_response"),
-      lte(deliveryJobsTable.assignmentExpiresAt, now),
+      eq(deliveryWorkflowJobsTable.acceptanceStatus, "pending_driver_response"),
+      lte(deliveryWorkflowJobsTable.assignmentExpiresAt, now),
     ))
-    .returning({ id: deliveryJobsTable.id });
+    .returning({ id: deliveryWorkflowJobsTable.id });
   return expiredRows.length;
 }
 

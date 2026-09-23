@@ -51,7 +51,7 @@ export const driversTable = pgTable("drivers", {
   updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
 });
 
-export const deliveryJobsTable = pgTable(
+export const deliveryWorkflowJobsTable = pgTable(
   "delivery_jobs",
   {
     id: serial("id").primaryKey(),
@@ -132,7 +132,7 @@ export const ledgerEntriesTable = pgTable("ledger_entries", {
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
 });
 
-export const withdrawalTicketsTable = pgTable("withdrawal_tickets", {
+export const deliveryWithdrawalTicketsTable = pgTable("withdrawal_tickets", {
   id: serial("id").primaryKey(),
   ownerType: walletOwnerTypeEnum("owner_type").notNull(),
   ownerId: integer("owner_id").notNull(),
@@ -154,7 +154,7 @@ export const withdrawalTicketsTable = pgTable("withdrawal_tickets", {
 export const payoutsFedapayTable = pgTable("payouts_fedapay", {
   id: serial("id").primaryKey(),
   withdrawalTicketId: integer("withdrawal_ticket_id")
-    .references(() => withdrawalTicketsTable.id, { onDelete: "set null" }),
+    .references(() => deliveryWithdrawalTicketsTable.id, { onDelete: "set null" }),
   fedapayPayoutId: text("fedapay_payout_id"),
   merchantReference: text("merchant_reference").notNull().unique(),
   transactionId: text("transaction_id"),
@@ -218,7 +218,7 @@ export const disputesTable = pgTable("disputes", {
   updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
 });
 
-export const auditLogsTable = pgTable("audit_logs", {
+export const deliveryAuditLogsTable = pgTable("audit_logs", {
   id: serial("id").primaryKey(),
   actorType: text("actor_type").notNull(),
   actorId: text("actor_id"),

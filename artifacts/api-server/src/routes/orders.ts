@@ -1,5 +1,5 @@
 import { Router, type IRouter } from "express";
-import { db, ordersTable, auditLogsTable } from "@workspace/db";
+import { db, ordersTable, deliveryAuditLogsTable } from "@workspace/db";
 import { CreateOrderBody } from "@workspace/api-zod";
 import { computeLockedDeliveryPricing } from "../lib/distance-pricing";
 
@@ -13,7 +13,7 @@ router.post("/orders", async (req, res): Promise<void> => {
   const forbiddenClientPricingFields = ["distanceLockedKm", "transportFeeLocked", "distanceActualKm", "distanceSource"];
   const forbiddenFields = forbiddenClientPricingFields.filter((field) => Object.prototype.hasOwnProperty.call(req.body, field));
   if (forbiddenFields.length > 0) {
-    await db.insert(auditLogsTable).values({
+    await db.insert(deliveryAuditLogsTable).values({
       actorType: "buyer",
       action: "order_payload_rejected_locked_fields",
       metadata: { forbiddenFields },

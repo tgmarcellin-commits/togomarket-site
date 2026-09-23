@@ -1,9 +1,9 @@
 import { Router, type IRouter } from "express";
 import { and, desc, eq, gt, lt } from "drizzle-orm";
 import {
-  auditLogsTable,
+  deliveryAuditLogsTable,
   db,
-  deliveryJobsTable,
+  deliveryWorkflowJobsTable,
   driversTable,
   otpCodesTable,
   ordersTable,
@@ -102,9 +102,9 @@ router.post("/delivery/assignments", async (req, res) => {
   }
 
   const activeCourse = await db
-    .select({ id: deliveryJobsTable.id })
-    .from(deliveryJobsTable)
-    .where(and(eq(deliveryJobsTable.driverId, driver.id), eq(deliveryJobsTable.acceptanceStatus, "accepted_by_driver")))
+    .select({ id: deliveryWorkflowJobsTable.id })
+    .from(deliveryWorkflowJobsTable)
+    .where(and(eq(deliveryWorkflowJobsTable.driverId, driver.id), eq(deliveryWorkflowJobsTable.acceptanceStatus, "accepted_by_driver")))
     .limit(1);
   if (activeCourse.length > 0) {
     return res.status(400).json({ error: "Livreur déjà en course." });
@@ -112,8 +112,8 @@ router.post("/delivery/assignments", async (req, res) => {
 
   const [existingJob] = await db
     .select()
-    .from(deliveryJobsTable)
-    .where(eq(deliveryJobsTable.orderId, parsed.orderId))
+    .from(deliveryWorkflowJobsTable)
+    .where(eq(deliveryWorkflowJobsTable.orderId, parsed.orderId))
     .limit(1);
 
   if (existingJob && existingJob.acceptanceStatus === "accepted_by_driver") {
@@ -123,7 +123,7 @@ router.post("/delivery/assignments", async (req, res) => {
   const assignmentExpiresAt = new Date(Date.now() + ASSIGNMENT_TTL_MS);
   const [job] = existingJob
     ? await db
-      .update(deliveryJobsTable)
+      .update(deliveryWorkflowJobsTable)
       .set({
         driverId: parsed.driverId,
         acceptanceStatus: "pending_driver_response",
@@ -133,10 +133,10 @@ router.post("/delivery/assignments", async (req, res) => {
         refusedAt: null,
         updatedAt: new Date(),
       })
-      .where(eq(deliveryJobsTable.id, existingJob.id))
+      .where(eq(deliveryWorkflowJobsTable.id, existingJob.id))
       .returning()
     : await db
-      .insert(deliveryJobsTable)
+      .insert(deliveryWorkflowJobsTable)
       .values({
         orderId: parsed.orderId,
         driverId: parsed.driverId,
@@ -178,12 +178,12 @@ router.post("/delivery/assignments", async (req, res) => {
     deliveryStatus: status,
   });
 
-  await db.update(deliveryJobsTable)
+  await db.update(deliveryWorkflowJobsTable)
     .set({
       whatsappNotifiedAt: new Date(),
       updatedAt: new Date(),
     })
-    .where(eq(deliveryJobsTable.id, job.id));
+    .where(eq(deliveryWorkflowJobsTable.id, job.id));
 
   return res.status(201).json({
     id: job.id,
@@ -261,30 +261,30 @@ router.post("/delivery/assignments/respond", async (req, res) => {
   const deliveryJobId = asIntegerPositive(req.body?.deliveryJobId);
   const action = req.body?.action === "accept" || req.body?.action === "refuse" ? req.body.action : null;
   if (!deliveryJobId || !action) return res.status(400).json({ error: "Requête invalide." });
-  const [job] = await db.select().from(deliveryJobsTable).where(eq(deliveryJobsTable.id, deliveryJobId)).limit(1);
+  const [job] = await db.select().from(deliveryWorkflowJobsTable).where(eq(deliveryWorkflowJobsTable.id, deliveryJobId)).limit(1);
   if (!job) return res.status(404).json({ error: "Assignation introuvable." });
   if (job.acceptanceStatus !== "pending_driver_response") {
     return res.status(409).json({ error: "Assignation déjà traitée." });
   }
   if (job.assignmentExpiresAt && job.assignmentExpiresAt.getTime() < Date.now()) {
-    await db.update(deliveryJobsTable).set({ acceptanceStatus: "expired", updatedAt: new Date() }).where(eq(deliveryJobsTable.id, job.id));
+    await db.update(deliveryWorkflowJobsTable).set({ acceptanceStatus: "expired", updatedAt: new Date() }).where(eq(deliveryWorkflowJobsTable.id, job.id));
     return res.status(409).json({ error: "Assignation expirée." });
   }
   if (action === "refuse") {
-    await db.update(deliveryJobsTable).set({
+    await db.update(deliveryWorkflowJobsTable).set({
       acceptanceStatus: "refused_by_driver",
       refusedAt: new Date(),
       updatedAt: new Date(),
-    }).where(eq(deliveryJobsTable.id, job.id));
+    }).where(eq(deliveryWorkflowJobsTable.id, job.id));
     return res.json({ status: "refused_by_driver" });
   }
-  await db.update(deliveryJobsTable).set({
+  await db.update(deliveryWorkflowJobsTable).set({
     acceptanceStatus: "accepted_by_driver",
     acceptedAt: new Date(),
     updatedAt: new Date(),
-  }).where(eq(deliveryJobsTable.id, job.id));
+  }).where(eq(deliveryWorkflowJobsTable.id, job.id));
   await db.update(ordersTable).set({ status: "IN_TRANSIT" }).where(eq(ordersTable.id, job.orderId));
-  await db.insert(auditLogsTable).values({
+  await db.insert(deliveryAuditLogsTable).values({
     actorType: "driver",
     actorId: String(job.driverId),
     orderId: job.orderId,
@@ -342,9 +342,9 @@ router.get("/drivers/available", async (_req, res) => {
     .from(driversTable)
     .where(eq(driversTable.isAvailable, true));
 
-  const activeDriverIds = await db.select({ driverId: deliveryJobsTable.driverId })
-    .from(deliveryJobsTable)
-    .where(eq(deliveryJobsTable.acceptanceStatus, "accepted_by_driver"));
+  const activeDriverIds = await db.select({ driverId: deliveryWorkflowJobsTable.driverId })
+    .from(deliveryWorkflowJobsTable)
+    .where(eq(deliveryWorkflowJobsTable.acceptanceStatus, "accepted_by_driver"));
   const busyIds = new Set(activeDriverIds.map((row) => row.driverId));
   const filtered = drivers.filter((driver) => !busyIds.has(driver.id));
   return res.json(filtered);
