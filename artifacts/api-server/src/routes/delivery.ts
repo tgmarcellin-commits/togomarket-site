@@ -253,7 +253,8 @@ router.post("/admin/delivery/orders", async (req, res) => {
   const jobs = await db
     .select()
     .from(deliveryWorkflowJobsTable)
-    .where(inArray(deliveryWorkflowJobsTable.orderId, orderIds));
+    .where(inArray(deliveryWorkflowJobsTable.orderId, orderIds))
+    .orderBy(desc(deliveryWorkflowJobsTable.updatedAt), desc(deliveryWorkflowJobsTable.createdAt));
 
   const driverIds = [...new Set(jobs.map((job) => job.driverId))];
   const drivers = driverIds.length > 0
@@ -269,7 +270,12 @@ router.post("/admin/delivery/orders", async (req, res) => {
       .where(inArray(driversTable.id, driverIds))
     : [];
 
-  const jobByOrderId = new Map(jobs.map((job) => [job.orderId, job]));
+  const jobByOrderId = new Map<number, typeof jobs[number]>();
+  for (const job of jobs) {
+    if (!jobByOrderId.has(job.orderId)) {
+      jobByOrderId.set(job.orderId, job);
+    }
+  }
   const driverById = new Map(drivers.map((driver) => [driver.id, driver]));
 
   return res.json({

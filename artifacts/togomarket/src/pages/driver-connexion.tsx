@@ -290,8 +290,9 @@ export default function DriverConnexion() {
           {step !== "session" && (
             <div className="space-y-3">
               <div className="space-y-2">
-                <label className="text-sm font-medium">{isFrench ? "Numéro WhatsApp" : "WhatsApp number"}</label>
+                <label htmlFor="driver-phone" className="text-sm font-medium">{isFrench ? "Numéro WhatsApp" : "WhatsApp number"}</label>
                 <Input
+                  id="driver-phone"
                   value={phone}
                   onChange={(event) => setPhone(event.target.value)}
                   placeholder="+228 XX XX XX XX"
@@ -299,12 +300,13 @@ export default function DriverConnexion() {
               </div>
 
               {step === "otp" && (
-                <div className="space-y-2">
-                  <label className="text-sm font-medium">{isFrench ? "Code OTP" : "OTP code"}</label>
-                  <Input
-                    value={otp}
-                    onChange={(event) => setOtp(event.target.value.replace(/\D/g, "").slice(0, 6))}
-                    placeholder="123456"
+              <div className="space-y-2">
+                <label htmlFor="driver-otp" className="text-sm font-medium">{isFrench ? "Code OTP" : "OTP code"}</label>
+                <Input
+                  id="driver-otp"
+                  value={otp}
+                  onChange={(event) => setOtp(event.target.value.replace(/\D/g, "").slice(0, 6))}
+                  placeholder="123456"
                     inputMode="numeric"
                   />
                 </div>
@@ -322,7 +324,15 @@ export default function DriverConnexion() {
                       {loading ? <RefreshCw className="w-4 h-4 mr-2 animate-spin" /> : null}
                       {isFrench ? "Se connecter" : "Sign in"}
                     </Button>
-                    <Button type="button" variant="outline" onClick={() => setStep("phone")} disabled={loading}>
+                    <Button
+                      type="button"
+                      variant="outline"
+                      onClick={() => {
+                        setOtp("");
+                        setStep("phone");
+                      }}
+                      disabled={loading}
+                    >
                       {isFrench ? "Changer de numéro" : "Change number"}
                     </Button>
                   </>

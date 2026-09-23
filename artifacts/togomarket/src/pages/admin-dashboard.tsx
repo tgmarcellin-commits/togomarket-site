@@ -2391,6 +2391,7 @@ export default function AdminDashboard() {
                       <div className="flex flex-col gap-2 md:flex-row md:items-center">
                         <select
                           className="h-10 rounded-md border bg-background px-3 text-sm"
+                          aria-label={`Livreur pour la commande ${order.id}`}
                           value={selectedDriverByOrder[order.id] ?? ""}
                           onChange={(event) => setSelectedDriverByOrder((current) => ({ ...current, [order.id]: event.target.value }))}
                           disabled={availableDriversLoading || isAccepted}
