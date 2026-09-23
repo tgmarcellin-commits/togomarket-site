@@ -2296,6 +2296,7 @@ export default function AdminDashboard() {
             ) : (
               <div className="space-y-3">
                 {deliveryOrders.map((order) => {
+                  const hasPendingResponse = order.assignment?.acceptanceStatus === "pending_driver_response";
                   const isAccepted = order.assignment?.acceptanceStatus === "accepted_by_driver";
                   const currentDriverLabel = order.assignment?.driver
                     ? `${order.assignment.driver.firstName} ${order.assignment.driver.lastName}`
@@ -2354,7 +2355,7 @@ export default function AdminDashboard() {
                             aria-label={`Livreur pour la commande ${order.id}`}
                             value={selectedDriverByOrder[order.id] ?? ""}
                             onChange={(event) => setSelectedDriverByOrder((current) => ({ ...current, [order.id]: event.target.value }))}
-                            disabled={availableDriversLoading || assigningOrderId !== null || isAccepted}
+                            disabled={availableDriversLoading || assigningOrderId !== null || isAccepted || hasPendingResponse}
                           >
                             <option value="">Choisir un livreur disponible…</option>
                             {availableDrivers.map((driver) => (
@@ -2366,7 +2367,7 @@ export default function AdminDashboard() {
                         </div>
                         <Button
                           onClick={() => { void handleAssignDriver(order); }}
-                          disabled={isAccepted || assigningOrderId !== null || !selectedDriverByOrder[order.id]}
+                          disabled={isAccepted || hasPendingResponse || assigningOrderId !== null || !selectedDriverByOrder[order.id]}
                         >
                           {assigningOrderId === order.id ? <RefreshCw className="w-4 h-4 mr-1.5 animate-spin" /> : <Truck className="w-4 h-4 mr-1.5" />}
                           {order.assignment ? "Réassigner le livreur" : "Assigner le livreur"}

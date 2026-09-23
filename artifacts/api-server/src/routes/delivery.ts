@@ -245,12 +245,8 @@ router.get("/admin/delivery/orders", async (req, res) => {
     .from(ordersTable)
     .where(and(
       inArray(ordersTable.status, ["PENDING", "ASSIGNED", "IN_TRANSIT"]),
-      or(
-        isNotNull(ordersTable.distanceLockedKm),
-        isNotNull(ordersTable.transportFeeLocked),
-        eq(ordersTable.buyerConsented, true),
-        eq(ordersTable.sellerConsented, true),
-      ),
+      isNotNull(ordersTable.distanceLockedKm),
+      isNotNull(ordersTable.transportFeeLocked),
     ))
     .orderBy(desc(ordersTable.createdAt))
     .limit(100);

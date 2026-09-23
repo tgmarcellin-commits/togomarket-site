@@ -3,6 +3,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { useSiteSettings } from "@/lib/site-settings";
 import { RefreshCw, LogOut, Truck, CheckCircle2, XCircle } from "lucide-react";
+import { startDriverSessionPolling } from "./driver-session-polling";
 
 const STORAGE_KEY = "tm_driver_session_token";
 
@@ -130,10 +131,10 @@ export default function DriverConnexion() {
     };
 
     void run();
-    const intervalId = window.setInterval(() => { void run(); }, 30_000);
+    const stopPolling = startDriverSessionPolling(() => { void run(); });
     return () => {
       cancelled = true;
-      window.clearInterval(intervalId);
+      stopPolling();
     };
   }, [token, loadSession]);
 
