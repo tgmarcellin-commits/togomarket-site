@@ -1,5 +1,5 @@
 import { Router, type IRouter, type Request } from "express";
-import { and, avg, count, desc, eq, gt, inArray, isNotNull, lt, ne, or } from "drizzle-orm";
+import { and, avg, count, desc, eq, gt, inArray, isNotNull, lt, ne, or, sql } from "drizzle-orm";
 import {
   conversationDeliveryOrdersTable,
   conversationsTable,
@@ -94,7 +94,8 @@ async function buildAvailableDriversWithRatings() {
       isAvailable: driversTable.isAvailable,
     })
     .from(driversTable)
-    .where(eq(driversTable.isAvailable, true));
+    .where(eq(driversTable.isAvailable, true))
+    .limit(50);
 
   if (drivers.length === 0) return [];
 
@@ -566,6 +567,7 @@ router.post("/delivery/conversations/:conversationId/price-confirmation", async 
 
   if (state.priceState.status === "matched" && !state.orderId && state.priceState.buyerAmount !== null) {
     await db.transaction(async (tx) => {
+      await tx.execute(sql`SELECT id FROM conversations WHERE id = ${identity.conversationId} FOR UPDATE`);
       const [existingMapping] = await tx
         .select({ orderId: conversationDeliveryOrdersTable.orderId })
         .from(conversationDeliveryOrdersTable)
@@ -685,7 +687,6 @@ router.post("/delivery/conversations/:conversationId/proposals", async (req, res
     },
   }).returning();
 
-  await db.update(ordersTable).set({ status: "ASSIGNED" }).where(eq(ordersTable.id, state.orderId));
   const status = await notifyDriverAssignment(normalizePhone(driver.whatsappNumber || driver.phone), state.orderId);
   await db.insert(whatsappNotificationsTable).values({
     recipientPhone: normalizePhone(driver.whatsappNumber || driver.phone),
@@ -1000,16 +1001,6 @@ router.post("/delivery/assignments/respond", async (req, res) => {
     if (conversationOrder) await emitConversationDeliveryState(conversationOrder.conversationId);
     return res.status(409).json({ error: "Assignation expirée." });
   }
-  const orderAssignments = await db
-    .select({
-      id: deliveryWorkflowJobsTable.id,
-      acceptanceStatus: deliveryWorkflowJobsTable.acceptanceStatus,
-    })
-    .from(deliveryWorkflowJobsTable)
-    .where(eq(deliveryWorkflowJobsTable.orderId, job.orderId));
-  if (hasAcceptedAssignmentConflict(job.id, orderAssignments)) {
-    return res.status(409).json({ error: "Commande déjà verrouillée par un autre livreur." });
-  }
   if (job.acceptanceStatus !== "pending_driver_response") {
     return res.status(409).json({ error: "Assignation déjà traitée." });
   }
@@ -1027,21 +1018,48 @@ router.post("/delivery/assignments/respond", async (req, res) => {
     if (conversationOrder) await emitConversationDeliveryState(conversationOrder.conversationId);
     return res.json({ status: "refused_by_driver" });
   }
-  await db.update(deliveryWorkflowJobsTable).set({
-    acceptanceStatus: "accepted_by_driver",
-    acceptedAt: new Date(),
-    updatedAt: new Date(),
-  }).where(eq(deliveryWorkflowJobsTable.id, job.id));
-  await db.update(deliveryWorkflowJobsTable).set({
-    acceptanceStatus: "cancelled_by_reassignment",
-    cancelledAt: new Date(),
-    updatedAt: new Date(),
-  }).where(and(
-    eq(deliveryWorkflowJobsTable.orderId, job.orderId),
-    ne(deliveryWorkflowJobsTable.id, job.id),
-    eq(deliveryWorkflowJobsTable.acceptanceStatus, "pending_driver_response"),
-  ));
-  await db.update(ordersTable).set({ status: "IN_TRANSIT" }).where(eq(ordersTable.id, job.orderId));
+  const accepted = await db.transaction(async (tx) => {
+    const [acceptedJob] = await tx.update(deliveryWorkflowJobsTable).set({
+      acceptanceStatus: "accepted_by_driver",
+      acceptedAt: new Date(),
+      updatedAt: new Date(),
+    }).where(and(
+      eq(deliveryWorkflowJobsTable.id, job.id),
+      eq(deliveryWorkflowJobsTable.acceptanceStatus, "pending_driver_response"),
+      sql`NOT EXISTS (
+        SELECT 1 FROM delivery_jobs dj
+        WHERE dj.order_id = ${job.orderId}
+          AND dj.id <> ${job.id}
+          AND dj.acceptance_status = 'accepted_by_driver'
+      )`,
+    )).returning({ id: deliveryWorkflowJobsTable.id });
+    if (!acceptedJob) return null;
+
+    await tx.update(deliveryWorkflowJobsTable).set({
+      acceptanceStatus: "cancelled_by_reassignment",
+      cancelledAt: new Date(),
+      updatedAt: new Date(),
+    }).where(and(
+      eq(deliveryWorkflowJobsTable.orderId, job.orderId),
+      ne(deliveryWorkflowJobsTable.id, job.id),
+      eq(deliveryWorkflowJobsTable.acceptanceStatus, "pending_driver_response"),
+    ));
+    await tx.update(ordersTable).set({ status: "IN_TRANSIT" }).where(eq(ordersTable.id, job.orderId));
+    return acceptedJob;
+  });
+  if (!accepted) {
+    const orderAssignments = await db
+      .select({
+        id: deliveryWorkflowJobsTable.id,
+        acceptanceStatus: deliveryWorkflowJobsTable.acceptanceStatus,
+      })
+      .from(deliveryWorkflowJobsTable)
+      .where(eq(deliveryWorkflowJobsTable.orderId, job.orderId));
+    if (hasAcceptedAssignmentConflict(job.id, orderAssignments)) {
+      return res.status(409).json({ error: "Commande déjà verrouillée par un autre livreur." });
+    }
+    return res.status(409).json({ error: "Assignation déjà traitée." });
+  }
   await db.insert(deliveryAuditLogsTable).values({
     actorType: "driver",
     actorId: String(job.driverId),
