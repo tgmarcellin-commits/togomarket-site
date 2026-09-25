@@ -91,6 +91,16 @@ export const conversationDeliveryOrdersTable = pgTable(
     createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
     updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
   },
+  (t) => ({
+    conversationCreatedIdx: index("conversation_delivery_orders_conversation_created_idx").on(
+      t.conversationId,
+      t.createdAt,
+    ),
+    orderCreatedIdx: index("conversation_delivery_orders_order_created_idx").on(
+      t.orderId,
+      t.createdAt,
+    ),
+  }),
 );
 
 export const orderPriceConfirmationsTable = pgTable(

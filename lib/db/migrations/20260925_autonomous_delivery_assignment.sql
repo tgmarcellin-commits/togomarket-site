@@ -35,6 +35,12 @@ DROP CONSTRAINT IF EXISTS conversation_delivery_orders_conversation_unique;
 ALTER TABLE conversation_delivery_orders
 DROP CONSTRAINT IF EXISTS conversation_delivery_orders_order_unique;
 
+CREATE INDEX IF NOT EXISTS conversation_delivery_orders_conversation_created_idx
+  ON conversation_delivery_orders (conversation_id, created_at DESC);
+
+CREATE INDEX IF NOT EXISTS conversation_delivery_orders_order_created_idx
+  ON conversation_delivery_orders (order_id, created_at DESC);
+
 CREATE TABLE IF NOT EXISTS order_price_confirmations (
   id serial PRIMARY KEY,
   conversation_id integer NOT NULL REFERENCES conversations(id) ON DELETE CASCADE,

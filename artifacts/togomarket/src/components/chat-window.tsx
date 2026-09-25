@@ -490,7 +490,7 @@ export function ChatWindow({
       if (data.conversationId !== conversationId) return;
       if (data.priceConfirmation) setDeliveryPriceState(data.priceConfirmation);
       setDeliveryOrderPaymentEnabled(Boolean(data.order?.paymentEnabled));
-      if (data.priceConfirmation?.status === "matched") void fetchAvailableDrivers();
+      if (assignPanelOpen && data.priceConfirmation?.status === "matched") void fetchAvailableDrivers();
     };
 
     const onDeleted = (data: { messageId: number }) => {
@@ -516,7 +516,7 @@ export function ChatWindow({
       socket.off("message_deleted", onDeleted);
       socket.off("message_hidden_me", onHiddenMe);
     };
-  }, [open, conversationId, fetchMessages, markMessagesRead, selfType, showAssignDriver, fetchDeliveryState, fetchAvailableDrivers]);
+  }, [open, conversationId, fetchMessages, markMessagesRead, selfType, showAssignDriver, fetchDeliveryState, fetchAvailableDrivers, assignPanelOpen]);
 
   useEffect(() => {
     if (!assignPanelOpen || !showAssignDriver) return;

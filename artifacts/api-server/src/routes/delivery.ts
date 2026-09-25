@@ -479,6 +479,7 @@ router.post("/delivery/assignments", async (req, res) => {
     .select({ conversationId: conversationDeliveryOrdersTable.conversationId })
     .from(conversationDeliveryOrdersTable)
     .where(eq(conversationDeliveryOrdersTable.orderId, parsed.orderId))
+    .orderBy(desc(conversationDeliveryOrdersTable.createdAt))
     .limit(1);
   if (conversationOrder) await emitConversationDeliveryState(conversationOrder.conversationId);
 
@@ -1028,6 +1029,7 @@ router.post("/delivery/assignments/respond", async (req, res) => {
       .select({ conversationId: conversationDeliveryOrdersTable.conversationId })
       .from(conversationDeliveryOrdersTable)
       .where(eq(conversationDeliveryOrdersTable.orderId, job.orderId))
+      .orderBy(desc(conversationDeliveryOrdersTable.createdAt))
       .limit(1);
     if (conversationOrder) await emitConversationDeliveryState(conversationOrder.conversationId);
     return res.status(409).json({ error: "Assignation expirée." });
@@ -1045,6 +1047,7 @@ router.post("/delivery/assignments/respond", async (req, res) => {
       .select({ conversationId: conversationDeliveryOrdersTable.conversationId })
       .from(conversationDeliveryOrdersTable)
       .where(eq(conversationDeliveryOrdersTable.orderId, job.orderId))
+      .orderBy(desc(conversationDeliveryOrdersTable.createdAt))
       .limit(1);
     if (conversationOrder) await emitConversationDeliveryState(conversationOrder.conversationId);
     return res.json({ status: "refused_by_driver" });
@@ -1101,6 +1104,7 @@ router.post("/delivery/assignments/respond", async (req, res) => {
     .select({ conversationId: conversationDeliveryOrdersTable.conversationId })
     .from(conversationDeliveryOrdersTable)
     .where(eq(conversationDeliveryOrdersTable.orderId, job.orderId))
+    .orderBy(desc(conversationDeliveryOrdersTable.createdAt))
     .limit(1);
   if (conversationOrder) {
     await emitConversationDeliveryState(conversationOrder.conversationId);
