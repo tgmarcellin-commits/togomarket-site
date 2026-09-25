@@ -17,5 +17,5 @@ export function isDriverBusyForAssignment(
 }
 
 export function isOrderAssignableStatus(status: string): boolean {
-  return status === "PENDING" || status === "ASSIGNED";
+  return status === "PENDING" || status === "ASSIGNED" || status === "IN_TRANSIT";
 }

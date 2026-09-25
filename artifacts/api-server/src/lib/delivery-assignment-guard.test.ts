@@ -40,7 +40,7 @@ test("isDriverBusyForAssignment ignores expired and closed assignments", () => {
 test("isOrderAssignableStatus only allows assignable order states", () => {
   assert.equal(isOrderAssignableStatus("PENDING"), true);
   assert.equal(isOrderAssignableStatus("ASSIGNED"), true);
-  assert.equal(isOrderAssignableStatus("IN_TRANSIT"), false);
+  assert.equal(isOrderAssignableStatus("IN_TRANSIT"), true);
   assert.equal(isOrderAssignableStatus("DELIVERED"), false);
   assert.equal(isOrderAssignableStatus("CANCELLED"), false);
 });
