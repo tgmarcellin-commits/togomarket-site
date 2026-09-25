@@ -311,6 +311,7 @@ export function VendorConversations({ vendor, vendorPassword, onUnreadChange }: 
           listingTitle={openConv.listingTitle}
           listingImage={openConv.listingImage}
           auth={{ kind: "vendor", phone: vendor.phone, password: vendorPassword }}
+          showAssignDriver
           onConversationDeleted={() => {
             setConversations((prev) => {
               const next = prev.filter((c) => c.id !== openConv.id);

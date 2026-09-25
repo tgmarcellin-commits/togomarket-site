@@ -4,7 +4,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import {
   Send, MessageCircle, ShoppingBag, Paperclip, Bell, Truck,
-  Pencil, Trash2, X, Check, FileText, Eraser, Mic, StopCircle, MoreVertical,
+  Pencil, Trash2, X, Check, FileText, Eraser, Mic, StopCircle, MoreVertical, Star,
 } from "lucide-react";
 import { useSiteSettings } from "@/lib/site-settings";
 import { getSocket } from "@/lib/socket";
@@ -28,6 +28,25 @@ interface ChatMessage {
   readByVendorAt: string | null;
   readAt: string | null;
   createdAt: string;
+}
+
+interface DeliveryPriceConfirmationState {
+  buyerAmount: number | null;
+  vendorAmount: number | null;
+  status: "pending" | "matched" | "mismatch";
+}
+
+interface DeliveryConversationDriver {
+  id: number;
+  firstName: string;
+  lastName: string;
+  phone: string;
+  photoUrl: string | null;
+  coverageZone: string | null;
+  whatsappNumber: string | null;
+  isAvailable: boolean;
+  ratingAverage: number;
+  ratingCount: number;
 }
 
 type ChatAuth =
@@ -55,6 +74,10 @@ interface ChatWindowProps {
 function authHeaders(auth: ChatAuth): Record<string, string> {
   if (auth.kind === "buyer") return { "x-buyer-token": auth.buyerToken };
   return vendorAuthHeaders(auth.phone, auth.password);
+}
+
+function jsonAuthHeaders(auth: ChatAuth): Record<string, string> {
+  return { "Content-Type": "application/json", ...authHeaders(auth) };
 }
 
 function canEditOrDelete(msg: ChatMessage): boolean {
@@ -233,6 +256,19 @@ export function ChatWindow({
   const [isRecording, setIsRecording] = useState(false);
   const [recordingDuration, setRecordingDuration] = useState(0);
   const [conversationUnavailable, setConversationUnavailable] = useState(false);
+  const [assignPanelOpen, setAssignPanelOpen] = useState(false);
+  const [priceInput, setPriceInput] = useState("");
+  const [priceSubmitting, setPriceSubmitting] = useState(false);
+  const [driverSubmittingId, setDriverSubmittingId] = useState<number | null>(null);
+  const [deliveryError, setDeliveryError] = useState<string | null>(null);
+  const [deliveryPriceState, setDeliveryPriceState] = useState<DeliveryPriceConfirmationState>({
+    buyerAmount: null,
+    vendorAmount: null,
+    status: "pending",
+  });
+  const [deliveryOrderPaymentEnabled, setDeliveryOrderPaymentEnabled] = useState(false);
+  const [availableDrivers, setAvailableDrivers] = useState<DeliveryConversationDriver[]>([]);
+  const [driversLoading, setDriversLoading] = useState(false);
   const endRef = useRef<HTMLDivElement>(null);
   const scrollAreaRef = useRef<HTMLDivElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -304,6 +340,86 @@ export function ChatWindow({
     );
   }, [conversationId, auth, onMessagesRead]);
 
+  const fetchDeliveryState = useCallback(async () => {
+    if (!conversationId || !showAssignDriver) return;
+    const res = await fetch(`/api/delivery/conversations/${conversationId}/state`, {
+      headers: authHeaders(auth),
+    });
+    if (!res.ok) return;
+    const data = await res.json() as {
+      priceConfirmation?: DeliveryPriceConfirmationState;
+      order?: { paymentEnabled?: boolean } | null;
+    };
+    if (data.priceConfirmation) setDeliveryPriceState(data.priceConfirmation);
+    setDeliveryOrderPaymentEnabled(Boolean(data.order?.paymentEnabled));
+  }, [conversationId, auth, showAssignDriver]);
+
+  const fetchAvailableDrivers = useCallback(async () => {
+    if (!conversationId || !showAssignDriver) return;
+    setDriversLoading(true);
+    try {
+      const res = await fetch(`/api/delivery/conversations/${conversationId}/drivers`, {
+        headers: authHeaders(auth),
+      });
+      if (!res.ok) {
+        setAvailableDrivers([]);
+        return;
+      }
+      const data = await res.json() as { drivers?: DeliveryConversationDriver[] };
+      setAvailableDrivers(Array.isArray(data.drivers) ? data.drivers : []);
+    } finally {
+      setDriversLoading(false);
+    }
+  }, [conversationId, auth, showAssignDriver]);
+
+  const submitPriceConfirmation = useCallback(async () => {
+    const amount = Number.parseInt(priceInput.trim(), 10);
+    if (!Number.isInteger(amount) || amount < 0) {
+      setDeliveryError(lang === "fr" ? "Montant invalide." : "Invalid amount.");
+      return;
+    }
+    setPriceSubmitting(true);
+    setDeliveryError(null);
+    try {
+      const res = await fetch(`/api/delivery/conversations/${conversationId}/price-confirmation`, {
+        method: "POST",
+        headers: jsonAuthHeaders(auth),
+        body: JSON.stringify({ amountFcfa: amount }),
+      });
+      if (!res.ok) {
+        const data = await res.json().catch(() => ({})) as { error?: string };
+        setDeliveryError(data.error ?? (lang === "fr" ? "Confirmation impossible." : "Could not confirm price."));
+        return;
+      }
+      setPriceInput("");
+      await fetchDeliveryState();
+      await fetchAvailableDrivers();
+    } finally {
+      setPriceSubmitting(false);
+    }
+  }, [auth, conversationId, fetchAvailableDrivers, fetchDeliveryState, lang, priceInput]);
+
+  const proposeDriver = useCallback(async (driverId: number) => {
+    setDriverSubmittingId(driverId);
+    setDeliveryError(null);
+    try {
+      const res = await fetch(`/api/delivery/conversations/${conversationId}/proposals`, {
+        method: "POST",
+        headers: jsonAuthHeaders(auth),
+        body: JSON.stringify({ driverId }),
+      });
+      if (!res.ok) {
+        const data = await res.json().catch(() => ({})) as { error?: string };
+        setDeliveryError(data.error ?? (lang === "fr" ? "Proposition impossible." : "Could not propose driver."));
+        return;
+      }
+      await fetchDeliveryState();
+      await fetchAvailableDrivers();
+    } finally {
+      setDriverSubmittingId(null);
+    }
+  }, [auth, conversationId, fetchAvailableDrivers, fetchDeliveryState, lang]);
+
   useEffect(() => {
     if (!open || !conversationId) return;
     setConversationUnavailable(false);
@@ -318,6 +434,7 @@ export function ChatWindow({
       }
       await fetchMessages();
       await markMessagesRead();
+      if (showAssignDriver) await fetchDeliveryState();
     };
     if (socket.connected) void synchronize();
     socket.on("connect", synchronize);
@@ -364,6 +481,16 @@ export function ChatWindow({
       setMessages((prev) => prev.filter((m) => m.id !== data.messageId));
     };
     socket.on("message_hidden_me", onHiddenMe);
+    const onDeliveryState = (data: {
+      conversationId?: number;
+      priceConfirmation?: DeliveryPriceConfirmationState;
+      order?: { paymentEnabled?: boolean } | null;
+    }) => {
+      if (data.conversationId !== conversationId) return;
+      if (data.priceConfirmation) setDeliveryPriceState(data.priceConfirmation);
+      setDeliveryOrderPaymentEnabled(Boolean(data.order?.paymentEnabled));
+      if (data.priceConfirmation?.status === "matched") void fetchAvailableDrivers();
+    };
 
     const onDeleted = (data: { messageId: number }) => {
       setMessages((prev) =>
@@ -374,6 +501,7 @@ export function ChatWindow({
     socket.on("new_message", onNew);
     socket.on("message_read", onMessageRead);
     socket.on("messages_read", onRead);
+    socket.on("delivery_assignment_state", onDeliveryState);
     socket.on("message_edited", onEdited);
     socket.on("message_deleted", onDeleted);
     return () => {
@@ -382,11 +510,20 @@ export function ChatWindow({
       socket.off("new_message", onNew);
       socket.off("message_read", onMessageRead);
       socket.off("messages_read", onRead);
+      socket.off("delivery_assignment_state", onDeliveryState);
       socket.off("message_edited", onEdited);
       socket.off("message_deleted", onDeleted);
       socket.off("message_hidden_me", onHiddenMe);
     };
-  }, [open, conversationId, fetchMessages, markMessagesRead, selfType]);
+  }, [open, conversationId, fetchMessages, markMessagesRead, selfType, showAssignDriver, fetchDeliveryState, fetchAvailableDrivers]);
+
+  useEffect(() => {
+    if (!assignPanelOpen || !showAssignDriver) return;
+    void fetchDeliveryState();
+    if (deliveryPriceState.status === "matched") {
+      void fetchAvailableDrivers();
+    }
+  }, [assignPanelOpen, showAssignDriver, deliveryPriceState.status, fetchDeliveryState, fetchAvailableDrivers]);
 
   useLayoutEffect(() => {
     if (!open) {
@@ -879,6 +1016,10 @@ export function ChatWindow({
               {showAssignDriver && (
                 <button
                   type="button"
+                  onClick={() => {
+                    setAssignPanelOpen((current) => !current);
+                    setDeliveryError(null);
+                  }}
                   className="ml-auto flex-shrink-0 inline-flex items-center gap-1.5 rounded-md border border-primary/30 bg-background/80 px-2.5 py-2 text-[11px] font-semibold text-primary shadow-sm whitespace-nowrap transition-colors hover:bg-background focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/50"
                   aria-label={lang === "fr" ? "Assigner livreur" : "Assign delivery driver"}
                 >
@@ -889,6 +1030,89 @@ export function ChatWindow({
             </div>
           )}
         </SheetHeader>
+
+        {showAssignDriver && assignPanelOpen && (
+          <div className="mx-4 mt-3 rounded-xl border border-primary/20 bg-primary/5 p-3 space-y-3">
+            <p className="text-xs font-semibold text-primary">
+              {lang === "fr" ? "Confirmation prix + choix livreur" : "Price confirmation + driver selection"}
+            </p>
+            <div className="grid grid-cols-2 gap-2 text-xs">
+              <div className="rounded-lg border bg-background px-2.5 py-2">
+                <p className="text-muted-foreground">{lang === "fr" ? "Acheteur" : "Buyer"}</p>
+                <p className="font-semibold">{deliveryPriceState.buyerAmount != null ? `${new Intl.NumberFormat("fr-FR").format(deliveryPriceState.buyerAmount)} FCFA` : "—"}</p>
+              </div>
+              <div className="rounded-lg border bg-background px-2.5 py-2">
+                <p className="text-muted-foreground">{lang === "fr" ? "Vendeur" : "Seller"}</p>
+                <p className="font-semibold">{deliveryPriceState.vendorAmount != null ? `${new Intl.NumberFormat("fr-FR").format(deliveryPriceState.vendorAmount)} FCFA` : "—"}</p>
+              </div>
+            </div>
+            <div className="flex items-center gap-2">
+              <Input
+                value={priceInput}
+                onChange={(event) => setPriceInput(event.target.value)}
+                inputMode="numeric"
+                placeholder={lang === "fr" ? "Votre montant (FCFA)" : "Your amount (FCFA)"}
+                className="h-9"
+              />
+              <Button size="sm" className="h-9" onClick={submitPriceConfirmation} disabled={priceSubmitting}>
+                {lang === "fr" ? "Valider" : "Confirm"}
+              </Button>
+            </div>
+            {deliveryPriceState.status === "mismatch" && (
+              <p className="text-xs text-destructive">
+                {lang === "fr"
+                  ? "Montants différents : corrigez puis recommencez la confirmation."
+                  : "Different amounts: update and confirm again."}
+              </p>
+            )}
+            {deliveryError && <p className="text-xs text-destructive">{deliveryError}</p>}
+            {deliveryPriceState.status === "matched" && (
+              <div className="space-y-2">
+                <p className="text-xs font-medium text-foreground">
+                  {lang === "fr" ? "Livreurs disponibles" : "Available drivers"}
+                </p>
+                {driversLoading ? (
+                  <p className="text-xs text-muted-foreground">{lang === "fr" ? "Chargement..." : "Loading..."}</p>
+                ) : availableDrivers.length === 0 ? (
+                  <p className="text-xs text-muted-foreground">{lang === "fr" ? "Aucun livreur libre pour le moment." : "No free driver right now."}</p>
+                ) : (
+                  <div className="space-y-2 max-h-44 overflow-y-auto pr-1">
+                    {availableDrivers.map((driver) => (
+                      <div key={driver.id} className="rounded-lg border bg-background px-2.5 py-2 flex items-center gap-2">
+                        <div className="w-9 h-9 rounded-full bg-muted overflow-hidden flex items-center justify-center text-xs font-semibold">
+                          {driver.photoUrl ? <img src={resolveImageUrl(driver.photoUrl)} alt="" className="w-full h-full object-cover" /> : `${driver.firstName[0] ?? ""}${driver.lastName[0] ?? ""}`}
+                        </div>
+                        <div className="flex-1 min-w-0">
+                          <p className="text-xs font-semibold truncate">{driver.firstName} {driver.lastName}</p>
+                          <p className="text-[11px] text-muted-foreground truncate">
+                            {driver.coverageZone || (lang === "fr" ? "Zone non précisée" : "No zone provided")}
+                          </p>
+                          <p className="text-[11px] text-muted-foreground flex items-center gap-1">
+                            <Star className="w-3 h-3 fill-current text-amber-500" />
+                            {driver.ratingAverage.toFixed(1)} ({driver.ratingCount})
+                          </p>
+                        </div>
+                        <Button
+                          size="sm"
+                          className="h-8 text-[11px]"
+                          disabled={driverSubmittingId === driver.id}
+                          onClick={() => { void proposeDriver(driver.id); }}
+                        >
+                          {lang === "fr" ? "Choisir" : "Pick"}
+                        </Button>
+                      </div>
+                    ))}
+                  </div>
+                )}
+                <p className="text-[11px] text-muted-foreground">
+                  {deliveryOrderPaymentEnabled
+                    ? (lang === "fr" ? "Livreur accepté : paiement autorisé." : "Driver accepted: payment now enabled.")
+                    : (lang === "fr" ? "Paiement bloqué tant qu'aucun livreur n'a accepté." : "Payment stays blocked until a driver accepts.")}
+                </p>
+              </div>
+            )}
+          </div>
+        )}
 
         {auth.kind === "buyer" && (
           <BuyerPushPrompt
