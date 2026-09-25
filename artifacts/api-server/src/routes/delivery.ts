@@ -147,9 +147,11 @@ router.post("/delivery/assignments", async (req, res) => {
       assignmentExpiresAt: deliveryWorkflowJobsTable.assignmentExpiresAt,
     })
     .from(deliveryWorkflowJobsTable)
+    .innerJoin(ordersTable, eq(deliveryWorkflowJobsTable.orderId, ordersTable.id))
     .where(and(
       eq(deliveryWorkflowJobsTable.driverId, driver.id),
       inArray(deliveryWorkflowJobsTable.acceptanceStatus, ["accepted_by_driver", "pending_driver_response"]),
+      inArray(ordersTable.status, ["ASSIGNED", "IN_TRANSIT"]),
     ));
   if (isDriverBusyForAssignment(driverActiveJobs)) {
     return res.status(400).json({ error: "Livreur déjà en course." });
