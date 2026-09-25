@@ -91,10 +91,6 @@ export const conversationDeliveryOrdersTable = pgTable(
     createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
     updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
   },
-  (t) => ({
-    uniqueConversationOrder: unique("conversation_delivery_orders_conversation_unique").on(t.conversationId),
-    uniqueOrderConversation: unique("conversation_delivery_orders_order_unique").on(t.orderId),
-  }),
 );
 
 export const orderPriceConfirmationsTable = pgTable(

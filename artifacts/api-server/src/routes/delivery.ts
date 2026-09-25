@@ -166,6 +166,7 @@ async function getConversationDeliveryState(conversationId: number) {
     .select({ orderId: conversationDeliveryOrdersTable.orderId })
     .from(conversationDeliveryOrdersTable)
     .where(eq(conversationDeliveryOrdersTable.conversationId, conversationId))
+    .orderBy(desc(conversationDeliveryOrdersTable.createdAt))
     .limit(1);
 
   const confirmations = await db
@@ -561,9 +562,26 @@ router.post("/delivery/conversations/:conversationId/price-confirmation", async 
       const [existingMapping] = await tx
         .select({ orderId: conversationDeliveryOrdersTable.orderId })
         .from(conversationDeliveryOrdersTable)
-        .where(eq(conversationDeliveryOrdersTable.conversationId, identity.conversationId))
+        .innerJoin(ordersTable, eq(conversationDeliveryOrdersTable.orderId, ordersTable.id))
+        .where(and(
+          eq(conversationDeliveryOrdersTable.conversationId, identity.conversationId),
+          inArray(ordersTable.status, ["PENDING", "ASSIGNED", "IN_TRANSIT", "RETURNING_TO_SELLER"]),
+        ))
+        .orderBy(desc(conversationDeliveryOrdersTable.createdAt))
         .limit(1);
       if (existingMapping) return;
+
+      const confirmations = await tx
+        .select({
+          actorType: orderPriceConfirmationsTable.actorType,
+          amountFcfa: orderPriceConfirmationsTable.amountFcfa,
+        })
+        .from(orderPriceConfirmationsTable)
+        .where(eq(orderPriceConfirmationsTable.conversationId, identity.conversationId));
+      const lockedPriceState = getPriceConfirmationState(confirmations
+        .filter((row): row is { actorType: "buyer" | "vendor"; amountFcfa: number } =>
+          row.actorType === "buyer" || row.actorType === "vendor"));
+      if (lockedPriceState.status !== "matched" || lockedPriceState.buyerAmount === null) return;
 
       const [vendor] = await tx
         .select({
@@ -580,23 +598,16 @@ router.post("/delivery/conversations/:conversationId/price-confirmation", async 
           lastName: vendor?.lastName ?? "Vendeur",
           phone: state.conversation.buyerPhone,
           description: state.conversation.listingTitle ?? "Commande créée depuis Messages",
-          articlePriceLocked: state.priceState.buyerAmount,
+          articlePriceLocked: lockedPriceState.buyerAmount,
           status: "PENDING",
         })
         .returning({ id: ordersTable.id });
       if (!createdOrder) return;
 
-      const [mapping] = await tx
-        .insert(conversationDeliveryOrdersTable)
-        .values({
-          conversationId: identity.conversationId,
-          orderId: createdOrder.id,
-        })
-        .onConflictDoNothing()
-        .returning({ id: conversationDeliveryOrdersTable.id });
-      if (!mapping) {
-        await tx.delete(ordersTable).where(eq(ordersTable.id, createdOrder.id));
-      }
+      await tx.insert(conversationDeliveryOrdersTable).values({
+        conversationId: identity.conversationId,
+        orderId: createdOrder.id,
+      });
     });
   }
 
@@ -691,6 +702,7 @@ router.post("/delivery/conversations/:conversationId/proposals", async (req, res
       acceptedAt: null,
       refusedAt: null,
       cancelledAt: null,
+      whatsappNotifiedAt: null,
       updatedAt: new Date(),
     },
     where: inArray(deliveryWorkflowJobsTable.acceptanceStatus, [

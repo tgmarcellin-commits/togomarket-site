@@ -26,10 +26,14 @@ CREATE TABLE IF NOT EXISTS conversation_delivery_orders (
   conversation_id integer NOT NULL REFERENCES conversations(id) ON DELETE CASCADE,
   order_id integer NOT NULL REFERENCES orders(id) ON DELETE CASCADE,
   created_at timestamptz NOT NULL DEFAULT now(),
-  updated_at timestamptz NOT NULL DEFAULT now(),
-  CONSTRAINT conversation_delivery_orders_conversation_unique UNIQUE (conversation_id),
-  CONSTRAINT conversation_delivery_orders_order_unique UNIQUE (order_id)
+  updated_at timestamptz NOT NULL DEFAULT now()
 );
+
+ALTER TABLE conversation_delivery_orders
+DROP CONSTRAINT IF EXISTS conversation_delivery_orders_conversation_unique;
+
+ALTER TABLE conversation_delivery_orders
+DROP CONSTRAINT IF EXISTS conversation_delivery_orders_order_unique;
 
 CREATE TABLE IF NOT EXISTS order_price_confirmations (
   id serial PRIMARY KEY,

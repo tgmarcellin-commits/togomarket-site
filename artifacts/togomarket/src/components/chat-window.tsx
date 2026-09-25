@@ -352,6 +352,7 @@ export function ChatWindow({
     };
     if (data.priceConfirmation) setDeliveryPriceState(data.priceConfirmation);
     setDeliveryOrderPaymentEnabled(Boolean(data.order?.paymentEnabled));
+    return data.priceConfirmation;
   }, [conversationId, auth, showAssignDriver]);
 
   const fetchAvailableDrivers = useCallback(async () => {
@@ -392,8 +393,8 @@ export function ChatWindow({
         return;
       }
       setPriceInput("");
-      await fetchDeliveryState();
-      await fetchAvailableDrivers();
+      const state = await fetchDeliveryState();
+      if (state?.status === "matched") await fetchAvailableDrivers();
     } finally {
       setPriceSubmitting(false);
     }
@@ -413,8 +414,8 @@ export function ChatWindow({
         setDeliveryError(data.error ?? (lang === "fr" ? "Proposition impossible." : "Could not propose driver."));
         return;
       }
-      await fetchDeliveryState();
-      await fetchAvailableDrivers();
+      const state = await fetchDeliveryState();
+      if (state?.status === "matched") await fetchAvailableDrivers();
     } finally {
       setDriverSubmittingId(null);
     }
@@ -519,11 +520,11 @@ export function ChatWindow({
 
   useEffect(() => {
     if (!assignPanelOpen || !showAssignDriver) return;
-    void fetchDeliveryState();
-    if (deliveryPriceState.status === "matched") {
-      void fetchAvailableDrivers();
-    }
-  }, [assignPanelOpen, showAssignDriver, deliveryPriceState.status, fetchDeliveryState, fetchAvailableDrivers]);
+    void (async () => {
+      const state = await fetchDeliveryState();
+      if (state?.status === "matched") await fetchAvailableDrivers();
+    })();
+  }, [assignPanelOpen, showAssignDriver, fetchDeliveryState, fetchAvailableDrivers]);
 
   useLayoutEffect(() => {
     if (!open) {
