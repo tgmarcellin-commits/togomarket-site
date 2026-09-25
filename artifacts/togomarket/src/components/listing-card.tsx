@@ -499,6 +499,7 @@ export function ListingCard({ listing, isAdmin, adminPassword, commissionRate, w
         listingTitle={listing.name}
         listingImage={listingImage}
         auth={{ kind: "buyer", buyerToken }}
+        showAssignDriver
         onConversationDeleted={() => {
           const vid = listing.vendorId ?? 0;
           if (vid) {

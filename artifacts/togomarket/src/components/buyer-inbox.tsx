@@ -675,6 +675,7 @@ export function BuyerInbox({ identity, pendingConvId, onClearPending, onUnreadCh
           listingTitle={openConv.listingTitle}
           listingImage={openConv.listingImage}
           auth={{ kind: "buyer", buyerToken: openConv.buyerToken }}
+          showAssignDriver
           onMessagesRead={handleMessagesRead}
           onConversationDeleted={() => {
             // Remove from local sessions

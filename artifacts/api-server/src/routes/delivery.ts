@@ -1,14 +1,19 @@
-import { Router, type IRouter } from "express";
-import { and, desc, eq, gt, inArray, isNotNull, lt, ne, or } from "drizzle-orm";
+import { Router, type IRouter, type Request } from "express";
+import { and, avg, count, desc, eq, gt, inArray, isNotNull, lt, ne, or, sql } from "drizzle-orm";
 import {
+  conversationDeliveryOrdersTable,
+  conversationsTable,
   deliveryAuditLogsTable,
   db,
   deliveryWorkflowJobsTable,
   driverSessionsTable,
   driversTable,
   otpCodesTable,
+  orderPriceConfirmationsTable,
   ordersTable,
   paymentWebhooksTable,
+  ratingsTable,
+  vendorsTable,
   whatsappNotificationsTable,
 } from "@workspace/db";
 import { normalizePhone } from "../lib/phone";
@@ -19,6 +24,15 @@ import { verifyAdminCode } from "../lib/admin-auth";
 import { createDriverSessionToken, isDriverSessionTokenMatch, parseBearerToken } from "../lib/driver-session";
 import { hashOpaqueToken } from "../lib/marketplace-security";
 import { isDriverBusyForAssignment, isOrderAssignableStatus } from "../lib/delivery-assignment-guard";
+import {
+  getBusyDriverIds,
+  getPriceConfirmationState,
+  hasAcceptedAssignmentConflict,
+  mergeDriverRatings,
+} from "../lib/delivery-autonomous-flow";
+import { authenticateVendorRequest } from "../lib/vendor-auth";
+import { resolveBuyerConversationId } from "../lib/conversation-access";
+import { getIo } from "../lib/socket-io";
 
 const router: IRouter = Router();
 const ASSIGNMENT_TTL_MS = 15 * 60 * 1000;
@@ -34,6 +48,221 @@ type AssignDriverInput = {
   dropoffLatitude?: number;
   dropoffLongitude?: number;
 };
+
+type DeliveryConversationIdentity =
+  | { role: "buyer"; conversationId: number }
+  | { role: "vendor"; conversationId: number; vendorId: number };
+
+async function resolveDeliveryConversationIdentity(
+  req: Pick<Request, "headers" | "params">,
+): Promise<DeliveryConversationIdentity | null> {
+  const requestedConversationId = Number.parseInt(req.params.conversationId ?? "", 10);
+  if (!Number.isInteger(requestedConversationId) || requestedConversationId <= 0) return null;
+
+  const buyerToken = typeof req.headers["x-buyer-token"] === "string" ? req.headers["x-buyer-token"] : undefined;
+  if (buyerToken) {
+    const canonicalId = await resolveBuyerConversationId(requestedConversationId, buyerToken);
+    if (!canonicalId) return null;
+    return { role: "buyer", conversationId: canonicalId };
+  }
+
+  const vendor = await authenticateVendorRequest(
+    req as Parameters<typeof authenticateVendorRequest>[0],
+  );
+  if (!vendor) return null;
+  const [conversation] = await db
+    .select({ id: conversationsTable.id })
+    .from(conversationsTable)
+    .where(and(
+      eq(conversationsTable.id, requestedConversationId),
+      eq(conversationsTable.vendorId, vendor.id),
+    ))
+    .limit(1);
+  if (!conversation) return null;
+  return { role: "vendor", conversationId: conversation.id, vendorId: vendor.id };
+}
+
+async function buildAvailableDriversWithRatings() {
+  const drivers = await db
+    .select({
+      id: driversTable.id,
+      firstName: driversTable.firstName,
+      lastName: driversTable.lastName,
+      phone: driversTable.phone,
+      photoUrl: driversTable.photoUrl,
+      coverageZone: driversTable.coverageZone,
+      whatsappNumber: driversTable.whatsappNumber,
+      isAvailable: driversTable.isAvailable,
+    })
+    .from(driversTable)
+    .where(eq(driversTable.isAvailable, true))
+    .limit(50);
+
+  if (drivers.length === 0) return [];
+
+  const activeAssignments = await db
+    .select({
+      driverId: deliveryWorkflowJobsTable.driverId,
+      acceptanceStatus: deliveryWorkflowJobsTable.acceptanceStatus,
+      assignmentExpiresAt: deliveryWorkflowJobsTable.assignmentExpiresAt,
+    })
+    .from(deliveryWorkflowJobsTable)
+    .innerJoin(ordersTable, eq(deliveryWorkflowJobsTable.orderId, ordersTable.id))
+    .where(and(
+      inArray(deliveryWorkflowJobsTable.driverId, drivers.map((driver) => driver.id)),
+      inArray(deliveryWorkflowJobsTable.acceptanceStatus, ["accepted_by_driver", "pending_driver_response"]),
+      inArray(ordersTable.status, ["PENDING", "ASSIGNED", "IN_TRANSIT"]),
+    ));
+
+  const assignmentsByDriver = new Map<number, Array<{ acceptanceStatus: string; assignmentExpiresAt: Date | null }>>();
+  for (const assignment of activeAssignments) {
+    const current = assignmentsByDriver.get(assignment.driverId) ?? [];
+    current.push({
+      acceptanceStatus: assignment.acceptanceStatus,
+      assignmentExpiresAt: assignment.assignmentExpiresAt,
+    });
+    assignmentsByDriver.set(assignment.driverId, current);
+  }
+  const busyIds = getBusyDriverIds(drivers.map((driver) => ({
+    id: driver.id,
+    assignments: assignmentsByDriver.get(driver.id) ?? [],
+  })));
+
+  const ratings = await db
+    .select({
+      driverId: deliveryWorkflowJobsTable.driverId,
+      averageRating: avg(ratingsTable.stars),
+      ratingCount: count(ratingsTable.id),
+    })
+    .from(deliveryWorkflowJobsTable)
+    .innerJoin(ratingsTable, eq(ratingsTable.orderId, deliveryWorkflowJobsTable.orderId))
+    .where(eq(deliveryWorkflowJobsTable.acceptanceStatus, "accepted_by_driver"))
+    .groupBy(deliveryWorkflowJobsTable.driverId);
+  return mergeDriverRatings(
+    drivers.filter((driver) => !busyIds.has(driver.id)),
+    ratings.map((rating) => ({
+      driverId: rating.driverId,
+      averageRating: rating.averageRating ? Number(rating.averageRating) : 0,
+      ratingCount: Number(rating.ratingCount),
+    })),
+  );
+}
+
+async function getConversationDeliveryState(conversationId: number) {
+  const [conversation] = await db
+    .select({
+      id: conversationsTable.id,
+      vendorId: conversationsTable.vendorId,
+      buyerName: conversationsTable.buyerName,
+      buyerPhone: conversationsTable.buyerPhone,
+      listingTitle: conversationsTable.listingTitle,
+    })
+    .from(conversationsTable)
+    .where(eq(conversationsTable.id, conversationId))
+    .limit(1);
+  if (!conversation) return null;
+
+  const [conversationOrder] = await db
+    .select({ orderId: conversationDeliveryOrdersTable.orderId })
+    .from(conversationDeliveryOrdersTable)
+    .where(eq(conversationDeliveryOrdersTable.conversationId, conversationId))
+    .orderBy(desc(conversationDeliveryOrdersTable.createdAt))
+    .limit(1);
+
+  const confirmations = await db
+    .select({
+      actorType: orderPriceConfirmationsTable.actorType,
+      amountFcfa: orderPriceConfirmationsTable.amountFcfa,
+      confirmedAt: orderPriceConfirmationsTable.confirmedAt,
+    })
+    .from(orderPriceConfirmationsTable)
+    .where(eq(orderPriceConfirmationsTable.conversationId, conversationId));
+  const normalizedConfirmations = confirmations
+    .filter((row): row is { actorType: "buyer" | "vendor"; amountFcfa: number; confirmedAt: Date } =>
+      (row.actorType === "buyer" || row.actorType === "vendor"))
+    .map((row) => row);
+  const priceState = getPriceConfirmationState(normalizedConfirmations.map((row) => ({
+    actorType: row.actorType,
+    amountFcfa: row.amountFcfa,
+  })));
+
+  const assignments = conversationOrder
+    ? await db
+      .select({
+        id: deliveryWorkflowJobsTable.id,
+        driverId: deliveryWorkflowJobsTable.driverId,
+        acceptanceStatus: deliveryWorkflowJobsTable.acceptanceStatus,
+        assignmentExpiresAt: deliveryWorkflowJobsTable.assignmentExpiresAt,
+        acceptedAt: deliveryWorkflowJobsTable.acceptedAt,
+        refusedAt: deliveryWorkflowJobsTable.refusedAt,
+        cancelledAt: deliveryWorkflowJobsTable.cancelledAt,
+        updatedAt: deliveryWorkflowJobsTable.updatedAt,
+      })
+      .from(deliveryWorkflowJobsTable)
+      .where(eq(deliveryWorkflowJobsTable.orderId, conversationOrder.orderId))
+      .orderBy(desc(deliveryWorkflowJobsTable.updatedAt), desc(deliveryWorkflowJobsTable.createdAt))
+    : [];
+  const hasAcceptedDriver = assignments.some((assignment) => assignment.acceptanceStatus === "accepted_by_driver");
+
+  const [order] = conversationOrder
+    ? await db
+      .select({
+        id: ordersTable.id,
+        status: ordersTable.status,
+        articlePriceLocked: ordersTable.articlePriceLocked,
+        transportFeeLocked: ordersTable.transportFeeLocked,
+      })
+      .from(ordersTable)
+      .where(eq(ordersTable.id, conversationOrder.orderId))
+      .limit(1)
+    : [];
+
+  return {
+    conversation,
+    order: order ?? null,
+    orderId: conversationOrder?.orderId ?? null,
+    priceState,
+    confirmations: normalizedConfirmations.map((row) => ({
+      actorType: row.actorType,
+      amountFcfa: row.amountFcfa,
+      confirmedAt: row.confirmedAt.toISOString(),
+    })),
+    hasAcceptedDriver,
+    assignments: assignments.map((assignment) => ({
+      ...assignment,
+      assignmentExpiresAt: assignment.assignmentExpiresAt?.toISOString() ?? null,
+      acceptedAt: assignment.acceptedAt?.toISOString() ?? null,
+      refusedAt: assignment.refusedAt?.toISOString() ?? null,
+      cancelledAt: assignment.cancelledAt?.toISOString() ?? null,
+      updatedAt: assignment.updatedAt.toISOString(),
+    })),
+  };
+}
+
+async function emitConversationDeliveryState(conversationId: number) {
+  const state = await getConversationDeliveryState(conversationId);
+  if (!state) return;
+  try {
+    const io = getIo();
+    const payload = {
+      conversationId,
+      orderId: state.orderId,
+      priceConfirmation: state.priceState,
+      confirmations: state.confirmations,
+      order: state.order
+        ? {
+          ...state.order,
+          paymentEnabled: state.hasAcceptedDriver,
+        }
+        : null,
+      assignments: state.assignments,
+    };
+    io.to(`conv:${conversationId}`).emit("delivery_assignment_state", payload);
+    io.to(`vendor:${state.conversation.vendorId}`).emit("delivery_assignment_state", payload);
+  } catch {
+    // socket server may be unavailable in scripts/tests
+  }
+}
 
 function asIntegerPositive(value: unknown): number | null {
   if (typeof value !== "number" || !Number.isInteger(value) || value <= 0) return null;
@@ -194,6 +423,16 @@ router.post("/delivery/assignments", async (req, res) => {
       })
       .returning();
 
+  await db.update(deliveryWorkflowJobsTable).set({
+    acceptanceStatus: "cancelled_by_reassignment",
+    cancelledAt: new Date(),
+    updatedAt: new Date(),
+  }).where(and(
+    eq(deliveryWorkflowJobsTable.orderId, parsed.orderId),
+    ne(deliveryWorkflowJobsTable.id, job.id),
+    eq(deliveryWorkflowJobsTable.acceptanceStatus, "pending_driver_response"),
+  ));
+
   if (
     parsed.pickupLatitude !== undefined &&
     parsed.pickupLongitude !== undefined &&
@@ -227,12 +466,22 @@ router.post("/delivery/assignments", async (req, res) => {
     deliveryStatus: status,
   });
 
-  await db.update(deliveryWorkflowJobsTable)
-    .set({
-      whatsappNotifiedAt: new Date(),
-      updatedAt: new Date(),
-    })
-    .where(eq(deliveryWorkflowJobsTable.id, job.id));
+  if (status === "sent") {
+    await db.update(deliveryWorkflowJobsTable)
+      .set({
+        whatsappNotifiedAt: new Date(),
+        updatedAt: new Date(),
+      })
+      .where(eq(deliveryWorkflowJobsTable.id, job.id));
+  }
+
+  const [conversationOrder] = await db
+    .select({ conversationId: conversationDeliveryOrdersTable.conversationId })
+    .from(conversationDeliveryOrdersTable)
+    .where(eq(conversationDeliveryOrdersTable.orderId, parsed.orderId))
+    .orderBy(desc(conversationDeliveryOrdersTable.createdAt))
+    .limit(1);
+  if (conversationOrder) await emitConversationDeliveryState(conversationOrder.conversationId);
 
   return res.status(201).json({
     id: job.id,
@@ -241,6 +490,247 @@ router.post("/delivery/assignments", async (req, res) => {
     acceptanceStatus: job.acceptanceStatus,
     assignmentExpiresAt,
   });
+});
+
+router.get("/delivery/conversations/:conversationId/state", async (req, res) => {
+  const identity = await resolveDeliveryConversationIdentity(req);
+  if (!identity) return res.status(401).json({ error: "Accès conversation refusé." });
+
+  const state = await getConversationDeliveryState(identity.conversationId);
+  if (!state) return res.status(404).json({ error: "Conversation introuvable." });
+
+  return res.json({
+    conversationId: identity.conversationId,
+    orderId: state.orderId,
+    priceConfirmation: state.priceState,
+    confirmations: state.confirmations,
+    order: state.order
+      ? {
+        ...state.order,
+        paymentEnabled: state.hasAcceptedDriver,
+      }
+      : null,
+    assignments: state.assignments,
+  });
+});
+
+router.post("/delivery/conversations/:conversationId/price-confirmation", async (req, res) => {
+  const identity = await resolveDeliveryConversationIdentity(req);
+  if (!identity) return res.status(401).json({ error: "Accès conversation refusé." });
+  const amountFcfa = Number(req.body?.amountFcfa);
+  if (typeof amountFcfa !== "number" || !Number.isInteger(amountFcfa) || amountFcfa < 0) {
+    return res.status(400).json({ error: "Montant article invalide." });
+  }
+
+  const actorType = identity.role === "buyer" ? "buyer" : "vendor";
+
+  const [upserted] = await db
+    .insert(orderPriceConfirmationsTable)
+    .values({
+      conversationId: identity.conversationId,
+      actorType,
+      amountFcfa,
+      confirmedAt: new Date(),
+      updatedAt: new Date(),
+    })
+    .onConflictDoUpdate({
+      target: [orderPriceConfirmationsTable.conversationId, orderPriceConfirmationsTable.actorType],
+      set: {
+        amountFcfa,
+        confirmedAt: new Date(),
+        updatedAt: new Date(),
+      },
+    })
+    .returning({
+      id: orderPriceConfirmationsTable.id,
+    });
+  if (!upserted) return res.status(500).json({ error: "Impossible d'enregistrer la confirmation." });
+
+  const state = await getConversationDeliveryState(identity.conversationId);
+  if (!state) return res.status(404).json({ error: "Conversation introuvable." });
+
+  if (state.priceState.status === "mismatch") {
+    await emitConversationDeliveryState(identity.conversationId);
+    return res.status(409).json({
+      error: "Les montants saisis sont différents. Corrigez puis recommencez la confirmation.",
+      code: "PRICE_MISMATCH",
+    });
+  }
+
+  if (state.priceState.status === "matched" && !state.orderId && state.priceState.buyerAmount !== null) {
+    await db.transaction(async (tx) => {
+      await tx.execute(sql`SELECT id FROM conversations WHERE id = ${identity.conversationId} FOR UPDATE`);
+      const [existingMapping] = await tx
+        .select({ orderId: conversationDeliveryOrdersTable.orderId })
+        .from(conversationDeliveryOrdersTable)
+        .innerJoin(ordersTable, eq(conversationDeliveryOrdersTable.orderId, ordersTable.id))
+        .where(and(
+          eq(conversationDeliveryOrdersTable.conversationId, identity.conversationId),
+          inArray(ordersTable.status, ["PENDING", "ASSIGNED", "IN_TRANSIT", "RETURNING_TO_SELLER"]),
+        ))
+        .orderBy(desc(conversationDeliveryOrdersTable.createdAt))
+        .limit(1);
+      if (existingMapping) return;
+
+      const confirmations = await tx
+        .select({
+          actorType: orderPriceConfirmationsTable.actorType,
+          amountFcfa: orderPriceConfirmationsTable.amountFcfa,
+        })
+        .from(orderPriceConfirmationsTable)
+        .where(eq(orderPriceConfirmationsTable.conversationId, identity.conversationId));
+      const lockedPriceState = getPriceConfirmationState(confirmations
+        .filter((row): row is { actorType: "buyer" | "vendor"; amountFcfa: number } =>
+          row.actorType === "buyer" || row.actorType === "vendor"));
+      if (lockedPriceState.status !== "matched" || lockedPriceState.buyerAmount === null) return;
+
+      const [vendor] = await tx
+        .select({
+          lastName: vendorsTable.lastName,
+        })
+        .from(vendorsTable)
+        .where(eq(vendorsTable.id, state.conversation.vendorId))
+        .limit(1);
+
+      const [createdOrder] = await tx
+        .insert(ordersTable)
+        .values({
+          firstName: state.conversation.buyerName,
+          lastName: vendor?.lastName ?? "Vendeur",
+          phone: state.conversation.buyerPhone,
+          description: state.conversation.listingTitle ?? "Commande créée depuis Messages",
+          articlePriceLocked: lockedPriceState.buyerAmount,
+          status: "PENDING",
+        })
+        .returning({ id: ordersTable.id });
+      if (!createdOrder) return;
+
+      await tx.insert(conversationDeliveryOrdersTable).values({
+        conversationId: identity.conversationId,
+        orderId: createdOrder.id,
+      });
+    });
+  }
+
+  await emitConversationDeliveryState(identity.conversationId);
+  return res.json({ success: true });
+});
+
+router.get("/delivery/conversations/:conversationId/drivers", async (req, res) => {
+  const identity = await resolveDeliveryConversationIdentity(req);
+  if (!identity) return res.status(401).json({ error: "Accès conversation refusé." });
+
+  const state = await getConversationDeliveryState(identity.conversationId);
+  if (!state) return res.status(404).json({ error: "Conversation introuvable." });
+  if (state.priceState.status !== "matched") {
+    return res.status(409).json({ error: "Confirmez d'abord le prix article des deux côtés." });
+  }
+
+  const drivers = await buildAvailableDriversWithRatings();
+  return res.json({ drivers });
+});
+
+router.post("/delivery/conversations/:conversationId/proposals", async (req, res) => {
+  const identity = await resolveDeliveryConversationIdentity(req);
+  if (!identity) return res.status(401).json({ error: "Accès conversation refusé." });
+  const driverId = asIntegerPositive(req.body?.driverId);
+  if (!driverId) return res.status(400).json({ error: "Requête invalide." });
+
+  const state = await getConversationDeliveryState(identity.conversationId);
+  if (!state) return res.status(404).json({ error: "Conversation introuvable." });
+  if (state.priceState.status !== "matched" || !state.orderId) {
+    return res.status(409).json({ error: "Prix non confirmé. Assignez d'abord un montant identique." });
+  }
+  if (state.hasAcceptedDriver) {
+    return res.status(409).json({ error: "Commande déjà verrouillée par un livreur." });
+  }
+
+  const [driver] = await db
+    .select()
+    .from(driversTable)
+    .where(eq(driversTable.id, driverId))
+    .limit(1);
+  if (!driver || !driver.isAvailable) {
+    return res.status(400).json({ error: "Livreur indisponible." });
+  }
+
+  const driverActiveJobs = await db
+    .select({
+      acceptanceStatus: deliveryWorkflowJobsTable.acceptanceStatus,
+      assignmentExpiresAt: deliveryWorkflowJobsTable.assignmentExpiresAt,
+    })
+    .from(deliveryWorkflowJobsTable)
+    .innerJoin(ordersTable, eq(deliveryWorkflowJobsTable.orderId, ordersTable.id))
+    .where(and(
+      eq(deliveryWorkflowJobsTable.driverId, driver.id),
+      ne(deliveryWorkflowJobsTable.orderId, state.orderId),
+      inArray(deliveryWorkflowJobsTable.acceptanceStatus, ["accepted_by_driver", "pending_driver_response"]),
+      inArray(ordersTable.status, ["PENDING", "ASSIGNED", "IN_TRANSIT"]),
+    ));
+  if (isDriverBusyForAssignment(driverActiveJobs)) {
+    return res.status(409).json({ error: "Ce livreur a déjà une course en cours." });
+  }
+
+  const [existingDriverJob] = await db
+    .select({
+      id: deliveryWorkflowJobsTable.id,
+      orderId: deliveryWorkflowJobsTable.orderId,
+      driverId: deliveryWorkflowJobsTable.driverId,
+      acceptanceStatus: deliveryWorkflowJobsTable.acceptanceStatus,
+    })
+    .from(deliveryWorkflowJobsTable)
+    .where(and(
+      eq(deliveryWorkflowJobsTable.orderId, state.orderId),
+      eq(deliveryWorkflowJobsTable.driverId, driverId),
+    ))
+    .orderBy(desc(deliveryWorkflowJobsTable.updatedAt), desc(deliveryWorkflowJobsTable.createdAt))
+    .limit(1);
+  if (existingDriverJob?.acceptanceStatus === "accepted_by_driver") {
+    return res.status(200).json(existingDriverJob);
+  }
+
+  const assignmentExpiresAt = new Date(Date.now() + ASSIGNMENT_TTL_MS);
+  const [job] = await db.insert(deliveryWorkflowJobsTable).values({
+    orderId: state.orderId,
+    driverId,
+    acceptanceStatus: "pending_driver_response",
+    assignmentExpiresAt,
+  }).onConflictDoUpdate({
+    target: [deliveryWorkflowJobsTable.orderId, deliveryWorkflowJobsTable.driverId],
+    set: {
+      acceptanceStatus: "pending_driver_response",
+      assignmentExpiresAt,
+      acceptedAt: null,
+      refusedAt: null,
+      cancelledAt: null,
+      whatsappNotifiedAt: null,
+      updatedAt: new Date(),
+    },
+    where: inArray(deliveryWorkflowJobsTable.acceptanceStatus, [
+      "pending_driver_response",
+      "refused_by_driver",
+      "expired",
+      "cancelled_by_reassignment",
+    ]),
+  }).returning();
+  if (!job) {
+    return res.status(409).json({ error: "Cette proposition ne peut plus être rouverte." });
+  }
+
+  const status = await notifyDriverAssignment(normalizePhone(driver.whatsappNumber || driver.phone), state.orderId);
+  await db.insert(whatsappNotificationsTable).values({
+    recipientPhone: normalizePhone(driver.whatsappNumber || driver.phone),
+    messageContent: `Assignation commande #${state.orderId}`,
+    deliveryStatus: status,
+  });
+  if (status === "sent") {
+    await db.update(deliveryWorkflowJobsTable)
+      .set({ whatsappNotifiedAt: new Date(), updatedAt: new Date() })
+      .where(eq(deliveryWorkflowJobsTable.id, job.id));
+  }
+
+  await emitConversationDeliveryState(identity.conversationId);
+  return res.status(201).json({ id: job.id, orderId: job.orderId, driverId: job.driverId });
 });
 
 router.get("/admin/delivery/orders", async (req, res) => {
@@ -444,8 +934,8 @@ router.get("/driver-connexion/assignments", async (req, res) => {
     return res.status(401).json({ error: "Session livreur invalide." });
   }
 
-  const latestJobs = await db
-    .selectDistinctOn([deliveryWorkflowJobsTable.orderId], {
+  const driverJobs = await db
+    .select({
       id: deliveryWorkflowJobsTable.id,
       orderId: deliveryWorkflowJobsTable.orderId,
       driverId: deliveryWorkflowJobsTable.driverId,
@@ -457,15 +947,9 @@ router.get("/driver-connexion/assignments", async (req, res) => {
       updatedAt: deliveryWorkflowJobsTable.updatedAt,
     })
     .from(deliveryWorkflowJobsTable)
-    .orderBy(
-      deliveryWorkflowJobsTable.orderId,
-      desc(deliveryWorkflowJobsTable.updatedAt),
-      desc(deliveryWorkflowJobsTable.createdAt),
-    );
-
-  const driverJobs = latestJobs
-    .filter((job) => job.driverId === driver.id)
-    .slice(0, 20);
+    .where(eq(deliveryWorkflowJobsTable.driverId, driver.id))
+    .orderBy(desc(deliveryWorkflowJobsTable.updatedAt), desc(deliveryWorkflowJobsTable.createdAt))
+    .limit(20);
 
   if (driverJobs.length === 0) {
     return res.json({ assignments: [] });
@@ -541,6 +1025,13 @@ router.post("/delivery/assignments/respond", async (req, res) => {
   }
   if (job.assignmentExpiresAt && job.assignmentExpiresAt.getTime() < Date.now()) {
     await db.update(deliveryWorkflowJobsTable).set({ acceptanceStatus: "expired", updatedAt: new Date() }).where(eq(deliveryWorkflowJobsTable.id, job.id));
+    const [conversationOrder] = await db
+      .select({ conversationId: conversationDeliveryOrdersTable.conversationId })
+      .from(conversationDeliveryOrdersTable)
+      .where(eq(conversationDeliveryOrdersTable.orderId, job.orderId))
+      .orderBy(desc(conversationDeliveryOrdersTable.createdAt))
+      .limit(1);
+    if (conversationOrder) await emitConversationDeliveryState(conversationOrder.conversationId);
     return res.status(409).json({ error: "Assignation expirée." });
   }
   if (job.acceptanceStatus !== "pending_driver_response") {
@@ -552,20 +1043,72 @@ router.post("/delivery/assignments/respond", async (req, res) => {
       refusedAt: new Date(),
       updatedAt: new Date(),
     }).where(eq(deliveryWorkflowJobsTable.id, job.id));
+    const [conversationOrder] = await db
+      .select({ conversationId: conversationDeliveryOrdersTable.conversationId })
+      .from(conversationDeliveryOrdersTable)
+      .where(eq(conversationDeliveryOrdersTable.orderId, job.orderId))
+      .orderBy(desc(conversationDeliveryOrdersTable.createdAt))
+      .limit(1);
+    if (conversationOrder) await emitConversationDeliveryState(conversationOrder.conversationId);
     return res.json({ status: "refused_by_driver" });
   }
-  await db.update(deliveryWorkflowJobsTable).set({
-    acceptanceStatus: "accepted_by_driver",
-    acceptedAt: new Date(),
-    updatedAt: new Date(),
-  }).where(eq(deliveryWorkflowJobsTable.id, job.id));
-  await db.update(ordersTable).set({ status: "IN_TRANSIT" }).where(eq(ordersTable.id, job.orderId));
+  const accepted = await db.transaction(async (tx) => {
+    const [acceptedJob] = await tx.update(deliveryWorkflowJobsTable).set({
+      acceptanceStatus: "accepted_by_driver",
+      acceptedAt: new Date(),
+      updatedAt: new Date(),
+    }).where(and(
+      eq(deliveryWorkflowJobsTable.id, job.id),
+      eq(deliveryWorkflowJobsTable.acceptanceStatus, "pending_driver_response"),
+      sql`NOT EXISTS (
+        SELECT 1 FROM delivery_jobs dj
+        WHERE dj.order_id = ${job.orderId}
+          AND dj.id <> ${job.id}
+          AND dj.acceptance_status = 'accepted_by_driver'
+      )`,
+    )).returning({ id: deliveryWorkflowJobsTable.id });
+    if (!acceptedJob) return null;
+
+    await tx.update(deliveryWorkflowJobsTable).set({
+      acceptanceStatus: "cancelled_by_reassignment",
+      cancelledAt: new Date(),
+      updatedAt: new Date(),
+    }).where(and(
+      eq(deliveryWorkflowJobsTable.orderId, job.orderId),
+      ne(deliveryWorkflowJobsTable.id, job.id),
+      eq(deliveryWorkflowJobsTable.acceptanceStatus, "pending_driver_response"),
+    ));
+    await tx.update(ordersTable).set({ status: "IN_TRANSIT" }).where(eq(ordersTable.id, job.orderId));
+    return acceptedJob;
+  });
+  if (!accepted) {
+    const orderAssignments = await db
+      .select({
+        id: deliveryWorkflowJobsTable.id,
+        acceptanceStatus: deliveryWorkflowJobsTable.acceptanceStatus,
+      })
+      .from(deliveryWorkflowJobsTable)
+      .where(eq(deliveryWorkflowJobsTable.orderId, job.orderId));
+    if (hasAcceptedAssignmentConflict(job.id, orderAssignments)) {
+      return res.status(409).json({ error: "Commande déjà verrouillée par un autre livreur." });
+    }
+    return res.status(409).json({ error: "Assignation déjà traitée." });
+  }
   await db.insert(deliveryAuditLogsTable).values({
     actorType: "driver",
     actorId: String(job.driverId),
     orderId: job.orderId,
     action: "driver_acceptance_locked",
   });
+  const [conversationOrder] = await db
+    .select({ conversationId: conversationDeliveryOrdersTable.conversationId })
+    .from(conversationDeliveryOrdersTable)
+    .where(eq(conversationDeliveryOrdersTable.orderId, job.orderId))
+    .orderBy(desc(conversationDeliveryOrdersTable.createdAt))
+    .limit(1);
+  if (conversationOrder) {
+    await emitConversationDeliveryState(conversationOrder.conversationId);
+  }
   return res.json({ status: "accepted_by_driver", paymentPendingWebhookConfirmation: true });
 });
 
@@ -609,35 +1152,8 @@ router.get("/drivers/available", async (_req, res) => {
   if (!adminCode || !await verifyAdminCode(adminCode)) {
     return res.status(403).json({ error: "Accès administrateur requis." });
   }
-  const drivers = await db
-    .select({
-      id: driversTable.id,
-      firstName: driversTable.firstName,
-      lastName: driversTable.lastName,
-      phone: driversTable.phone,
-      photoUrl: driversTable.photoUrl,
-      whatsappNumber: driversTable.whatsappNumber,
-      isAvailable: driversTable.isAvailable,
-    })
-    .from(driversTable)
-    .where(eq(driversTable.isAvailable, true));
-
-  const latestJobs = await db
-    .selectDistinctOn([deliveryWorkflowJobsTable.orderId], {
-      driverId: deliveryWorkflowJobsTable.driverId,
-      acceptanceStatus: deliveryWorkflowJobsTable.acceptanceStatus,
-    })
-    .from(deliveryWorkflowJobsTable)
-    .orderBy(
-      deliveryWorkflowJobsTable.orderId,
-      desc(deliveryWorkflowJobsTable.updatedAt),
-      desc(deliveryWorkflowJobsTable.createdAt),
-    );
-  const busyIds = new Set(latestJobs
-    .filter((row) => ["pending_driver_response", "accepted_by_driver"].includes(row.acceptanceStatus))
-    .map((row) => row.driverId));
-  const filtered = drivers.filter((driver) => !busyIds.has(driver.id));
-  return res.json(filtered);
+  const drivers = await buildAvailableDriversWithRatings();
+  return res.json(drivers);
 });
 
 router.post("/drivers/:driverId/availability", async (req, res) => {

@@ -16,6 +16,7 @@ import {
 import { sql } from "drizzle-orm";
 import { ordersTable } from "./orders";
 import { vendorsTable } from "./vendors";
+import { conversationsTable } from "./chat";
 
 export const acceptanceStatusEnum = pgEnum("delivery_acceptance_status", [
   "pending_driver_response",
@@ -43,6 +44,7 @@ export const driversTable = pgTable("drivers", {
   lastName: text("last_name").notNull(),
   phone: text("phone").notNull().unique(),
   photoUrl: text("photo_url"),
+  coverageZone: text("coverage_zone"),
   whatsappNumber: text("whatsapp_number"),
   isAvailable: boolean("is_available").notNull().default(true),
   otpSessionTokenHash: text("otp_session_token_hash"),
@@ -71,8 +73,54 @@ export const deliveryWorkflowJobsTable = pgTable(
     updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
   },
   (t) => ({
-    uniqueOrderAssignment: unique("delivery_jobs_order_unique").on(t.orderId),
+    uniqueOrderDriverAssignment: unique("delivery_jobs_order_driver_unique").on(t.orderId, t.driverId),
     orderStatusIdx: index("delivery_jobs_order_status_idx").on(t.orderId, t.acceptanceStatus),
+  }),
+);
+
+export const conversationDeliveryOrdersTable = pgTable(
+  "conversation_delivery_orders",
+  {
+    id: serial("id").primaryKey(),
+    conversationId: integer("conversation_id")
+      .notNull()
+      .references(() => conversationsTable.id, { onDelete: "cascade" }),
+    orderId: integer("order_id")
+      .notNull()
+      .references(() => ordersTable.id, { onDelete: "cascade" }),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+    updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => ({
+    conversationCreatedIdx: index("conversation_delivery_orders_conversation_created_idx").on(
+      t.conversationId,
+      t.createdAt,
+    ),
+    orderCreatedIdx: index("conversation_delivery_orders_order_created_idx").on(
+      t.orderId,
+      t.createdAt,
+    ),
+  }),
+);
+
+export const orderPriceConfirmationsTable = pgTable(
+  "order_price_confirmations",
+  {
+    id: serial("id").primaryKey(),
+    conversationId: integer("conversation_id")
+      .notNull()
+      .references(() => conversationsTable.id, { onDelete: "cascade" }),
+    actorType: text("actor_type").notNull(),
+    amountFcfa: integer("amount_fcfa").notNull(),
+    confirmedAt: timestamp("confirmed_at", { withTimezone: true }).notNull().defaultNow(),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+    updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => ({
+    uniqueConversationActor: unique("order_price_confirmations_conversation_actor_unique").on(
+      t.conversationId,
+      t.actorType,
+    ),
   }),
 );
 
