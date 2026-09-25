@@ -1,5 +1,5 @@
 import { Router, type IRouter } from "express";
-import { and, desc, eq, gt, inArray, isNotNull, lt, or } from "drizzle-orm";
+import { and, desc, eq, gt, inArray, isNotNull, lt, ne, or } from "drizzle-orm";
 import {
   deliveryAuditLogsTable,
   db,
@@ -150,6 +150,7 @@ router.post("/delivery/assignments", async (req, res) => {
     .innerJoin(ordersTable, eq(deliveryWorkflowJobsTable.orderId, ordersTable.id))
     .where(and(
       eq(deliveryWorkflowJobsTable.driverId, driver.id),
+      ne(deliveryWorkflowJobsTable.orderId, parsed.orderId),
       inArray(deliveryWorkflowJobsTable.acceptanceStatus, ["accepted_by_driver", "pending_driver_response"]),
       inArray(ordersTable.status, ["PENDING", "ASSIGNED", "IN_TRANSIT"]),
     ));
