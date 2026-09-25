@@ -47,3 +47,22 @@ export function hasAcceptedAssignmentConflict(
       assignment.acceptanceStatus === "accepted_by_driver",
   );
 }
+
+export type DriverWithRatingBase = { id: number };
+
+export function mergeDriverRatings<T extends DriverWithRatingBase>(
+  drivers: T[],
+  ratings: Array<{ driverId: number; averageRating: number; ratingCount: number }>,
+): Array<T & { ratingAverage: number; ratingCount: number }> {
+  const ratingByDriver = new Map(
+    ratings.map((rating) => [rating.driverId, rating]),
+  );
+  return drivers.map((driver) => {
+    const rating = ratingByDriver.get(driver.id);
+    return {
+      ...driver,
+      ratingAverage: rating?.averageRating ?? 0,
+      ratingCount: rating?.ratingCount ?? 0,
+    };
+  });
+}

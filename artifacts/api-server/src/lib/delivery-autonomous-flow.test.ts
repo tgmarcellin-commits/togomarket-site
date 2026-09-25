@@ -2,6 +2,7 @@ import assert from "node:assert/strict";
 import test from "node:test";
 import {
   getBusyDriverIds,
+  mergeDriverRatings,
   getPriceConfirmationState,
   hasAcceptedAssignmentConflict,
 } from "./delivery-autonomous-flow";
@@ -76,4 +77,20 @@ test("assignment conflict detection rejects concurrent second acceptance", () =>
     ]),
     true,
   );
+});
+
+test("driver rating merge defaults unrated drivers to zero", () => {
+  const merged = mergeDriverRatings(
+    [
+      { id: 1, firstName: "Afi" },
+      { id: 2, firstName: "Kossi" },
+    ],
+    [
+      { driverId: 2, averageRating: 4.5, ratingCount: 8 },
+    ],
+  );
+  assert.deepEqual(merged, [
+    { id: 1, firstName: "Afi", ratingAverage: 0, ratingCount: 0 },
+    { id: 2, firstName: "Kossi", ratingAverage: 4.5, ratingCount: 8 },
+  ]);
 });

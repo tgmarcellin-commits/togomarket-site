@@ -28,6 +28,7 @@ import {
   getBusyDriverIds,
   getPriceConfirmationState,
   hasAcceptedAssignmentConflict,
+  mergeDriverRatings,
 } from "../lib/delivery-autonomous-flow";
 import { authenticateVendorRequest } from "../lib/vendor-auth";
 import { resolveBuyerConversationId } from "../lib/conversation-access";
@@ -137,26 +138,14 @@ async function buildAvailableDriversWithRatings() {
     .innerJoin(ratingsTable, eq(ratingsTable.orderId, deliveryWorkflowJobsTable.orderId))
     .where(eq(deliveryWorkflowJobsTable.acceptanceStatus, "accepted_by_driver"))
     .groupBy(deliveryWorkflowJobsTable.driverId);
-  const ratingByDriver = new Map(
-    ratings.map((rating) => [
-      rating.driverId,
-      {
-        averageRating: rating.averageRating ? Number(rating.averageRating) : 0,
-        ratingCount: Number(rating.ratingCount),
-      },
-    ]),
+  return mergeDriverRatings(
+    drivers.filter((driver) => !busyIds.has(driver.id)),
+    ratings.map((rating) => ({
+      driverId: rating.driverId,
+      averageRating: rating.averageRating ? Number(rating.averageRating) : 0,
+      ratingCount: Number(rating.ratingCount),
+    })),
   );
-
-  return drivers
-    .filter((driver) => !busyIds.has(driver.id))
-    .map((driver) => {
-      const rating = ratingByDriver.get(driver.id);
-      return {
-        ...driver,
-        ratingAverage: rating?.averageRating ?? 0,
-        ratingCount: rating?.ratingCount ?? 0,
-      };
-    });
 }
 
 async function getConversationDeliveryState(conversationId: number) {
@@ -704,7 +693,16 @@ router.post("/delivery/conversations/:conversationId/proposals", async (req, res
       cancelledAt: null,
       updatedAt: new Date(),
     },
+    where: inArray(deliveryWorkflowJobsTable.acceptanceStatus, [
+      "pending_driver_response",
+      "refused_by_driver",
+      "expired",
+      "cancelled_by_reassignment",
+    ]),
   }).returning();
+  if (!job) {
+    return res.status(409).json({ error: "Cette proposition ne peut plus être rouverte." });
+  }
 
   const status = await notifyDriverAssignment(normalizePhone(driver.whatsappNumber || driver.phone), state.orderId);
   await db.insert(whatsappNotificationsTable).values({
