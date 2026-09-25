@@ -565,30 +565,47 @@ router.post("/delivery/conversations/:conversationId/price-confirmation", async 
   }
 
   if (state.priceState.status === "matched" && !state.orderId && state.priceState.buyerAmount !== null) {
-    const [vendor] = await db
-      .select({
-        lastName: vendorsTable.lastName,
-      })
-      .from(vendorsTable)
-      .where(eq(vendorsTable.id, state.conversation.vendorId))
-      .limit(1);
-    const [createdOrder] = await db
-      .insert(ordersTable)
-      .values({
-        firstName: state.conversation.buyerName,
-        lastName: vendor?.lastName ?? "Vendeur",
-        phone: state.conversation.buyerPhone,
-        description: state.conversation.listingTitle ?? "Commande créée depuis Messages",
-        articlePriceLocked: state.priceState.buyerAmount,
-        status: "PENDING",
-      })
-      .returning({ id: ordersTable.id });
-    if (createdOrder) {
-      await db.insert(conversationDeliveryOrdersTable).values({
-        conversationId: identity.conversationId,
-        orderId: createdOrder.id,
-      });
-    }
+    await db.transaction(async (tx) => {
+      const [existingMapping] = await tx
+        .select({ orderId: conversationDeliveryOrdersTable.orderId })
+        .from(conversationDeliveryOrdersTable)
+        .where(eq(conversationDeliveryOrdersTable.conversationId, identity.conversationId))
+        .limit(1);
+      if (existingMapping) return;
+
+      const [vendor] = await tx
+        .select({
+          lastName: vendorsTable.lastName,
+        })
+        .from(vendorsTable)
+        .where(eq(vendorsTable.id, state.conversation.vendorId))
+        .limit(1);
+
+      const [createdOrder] = await tx
+        .insert(ordersTable)
+        .values({
+          firstName: state.conversation.buyerName,
+          lastName: vendor?.lastName ?? "Vendeur",
+          phone: state.conversation.buyerPhone,
+          description: state.conversation.listingTitle ?? "Commande créée depuis Messages",
+          articlePriceLocked: state.priceState.buyerAmount,
+          status: "PENDING",
+        })
+        .returning({ id: ordersTable.id });
+      if (!createdOrder) return;
+
+      const [mapping] = await tx
+        .insert(conversationDeliveryOrdersTable)
+        .values({
+          conversationId: identity.conversationId,
+          orderId: createdOrder.id,
+        })
+        .onConflictDoNothing()
+        .returning({ id: conversationDeliveryOrdersTable.id });
+      if (!mapping) {
+        await tx.delete(ordersTable).where(eq(ordersTable.id, createdOrder.id));
+      }
+    });
   }
 
   await emitConversationDeliveryState(identity.conversationId);
@@ -1024,7 +1041,7 @@ router.post("/delivery/assignments/respond", async (req, res) => {
     ne(deliveryWorkflowJobsTable.id, job.id),
     eq(deliveryWorkflowJobsTable.acceptanceStatus, "pending_driver_response"),
   ));
-  await db.update(ordersTable).set({ status: "ASSIGNED" }).where(eq(ordersTable.id, job.orderId));
+  await db.update(ordersTable).set({ status: "IN_TRANSIT" }).where(eq(ordersTable.id, job.orderId));
   await db.insert(deliveryAuditLogsTable).values({
     actorType: "driver",
     actorId: String(job.driverId),

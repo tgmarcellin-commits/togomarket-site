@@ -34,6 +34,19 @@ test("price confirmation state reports matched when both sides submit same amoun
   );
 });
 
+test("price confirmation state stays pending when only one side confirmed", () => {
+  assert.deepEqual(
+    getPriceConfirmationState([
+      { actorType: "buyer", amountFcfa: 10_000 },
+    ]),
+    {
+      buyerAmount: 10_000,
+      vendorAmount: null,
+      status: "pending",
+    },
+  );
+});
+
 test("busy driver filtering excludes accepted and unexpired pending jobs", () => {
   const now = new Date("2026-09-25T08:00:00.000Z");
   const busy = getBusyDriverIds([
