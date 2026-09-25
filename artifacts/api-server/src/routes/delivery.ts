@@ -141,19 +141,17 @@ router.post("/delivery/assignments", async (req, res) => {
     return res.status(409).json({ error: "Commande non éligible à l'assignation." });
   }
 
-  const latestDriverJobs = await db
-    .selectDistinctOn([deliveryWorkflowJobsTable.orderId], {
+  const driverActiveJobs = await db
+    .select({
       acceptanceStatus: deliveryWorkflowJobsTable.acceptanceStatus,
       assignmentExpiresAt: deliveryWorkflowJobsTable.assignmentExpiresAt,
     })
     .from(deliveryWorkflowJobsTable)
-    .where(eq(deliveryWorkflowJobsTable.driverId, driver.id))
-    .orderBy(
-      deliveryWorkflowJobsTable.orderId,
-      desc(deliveryWorkflowJobsTable.updatedAt),
-      desc(deliveryWorkflowJobsTable.createdAt),
-    );
-  if (isDriverBusyForAssignment(latestDriverJobs)) {
+    .where(and(
+      eq(deliveryWorkflowJobsTable.driverId, driver.id),
+      inArray(deliveryWorkflowJobsTable.acceptanceStatus, ["accepted_by_driver", "pending_driver_response"]),
+    ));
+  if (isDriverBusyForAssignment(driverActiveJobs)) {
     return res.status(400).json({ error: "Livreur déjà en course." });
   }
 
