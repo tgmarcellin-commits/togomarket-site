@@ -1,5 +1,5 @@
 import { Router, type IRouter } from "express";
-import { and, desc, eq, gt, inArray, isNotNull, lt, or } from "drizzle-orm";
+import { and, desc, eq, gt, inArray, isNotNull, lt, ne, or } from "drizzle-orm";
 import {
   deliveryAuditLogsTable,
   db,
@@ -18,6 +18,7 @@ import { computeLockedDeliveryPricing } from "../lib/distance-pricing";
 import { verifyAdminCode } from "../lib/admin-auth";
 import { createDriverSessionToken, isDriverSessionTokenMatch, parseBearerToken } from "../lib/driver-session";
 import { hashOpaqueToken } from "../lib/marketplace-security";
+import { isDriverBusyForAssignment, isOrderAssignableStatus } from "../lib/delivery-assignment-guard";
 
 const router: IRouter = Router();
 const ASSIGNMENT_TTL_MS = 15 * 60 * 1000;
@@ -128,12 +129,32 @@ router.post("/delivery/assignments", async (req, res) => {
     return res.status(400).json({ error: "Livreur indisponible." });
   }
 
-  const activeCourse = await db
-    .select({ id: deliveryWorkflowJobsTable.id })
-    .from(deliveryWorkflowJobsTable)
-    .where(and(eq(deliveryWorkflowJobsTable.driverId, driver.id), eq(deliveryWorkflowJobsTable.acceptanceStatus, "accepted_by_driver")))
+  const [order] = await db
+    .select({ id: ordersTable.id, status: ordersTable.status })
+    .from(ordersTable)
+    .where(eq(ordersTable.id, parsed.orderId))
     .limit(1);
-  if (activeCourse.length > 0) {
+  if (!order) {
+    return res.status(404).json({ error: "Commande introuvable." });
+  }
+  if (!isOrderAssignableStatus(order.status)) {
+    return res.status(409).json({ error: "Commande non éligible à l'assignation." });
+  }
+
+  const driverActiveJobs = await db
+    .select({
+      acceptanceStatus: deliveryWorkflowJobsTable.acceptanceStatus,
+      assignmentExpiresAt: deliveryWorkflowJobsTable.assignmentExpiresAt,
+    })
+    .from(deliveryWorkflowJobsTable)
+    .innerJoin(ordersTable, eq(deliveryWorkflowJobsTable.orderId, ordersTable.id))
+    .where(and(
+      eq(deliveryWorkflowJobsTable.driverId, driver.id),
+      ne(deliveryWorkflowJobsTable.orderId, parsed.orderId),
+      inArray(deliveryWorkflowJobsTable.acceptanceStatus, ["accepted_by_driver", "pending_driver_response"]),
+      inArray(ordersTable.status, ["PENDING", "ASSIGNED", "IN_TRANSIT"]),
+    ));
+  if (isDriverBusyForAssignment(driverActiveJobs)) {
     return res.status(400).json({ error: "Livreur déjà en course." });
   }
 
