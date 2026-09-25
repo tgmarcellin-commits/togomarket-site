@@ -476,12 +476,14 @@ router.post("/delivery/assignments", async (req, res) => {
     deliveryStatus: status,
   });
 
-  await db.update(deliveryWorkflowJobsTable)
-    .set({
-      whatsappNotifiedAt: new Date(),
-      updatedAt: new Date(),
-    })
-    .where(eq(deliveryWorkflowJobsTable.id, job.id));
+  if (status === "sent") {
+    await db.update(deliveryWorkflowJobsTable)
+      .set({
+        whatsappNotifiedAt: new Date(),
+        updatedAt: new Date(),
+      })
+      .where(eq(deliveryWorkflowJobsTable.id, job.id));
+  }
 
   const [conversationOrder] = await db
     .select({ conversationId: conversationDeliveryOrdersTable.conversationId })
@@ -557,7 +559,6 @@ router.post("/delivery/conversations/:conversationId/price-confirmation", async 
   if (!state) return res.status(404).json({ error: "Conversation introuvable." });
 
   if (state.priceState.status === "mismatch") {
-    await db.delete(orderPriceConfirmationsTable).where(eq(orderPriceConfirmationsTable.conversationId, identity.conversationId));
     await emitConversationDeliveryState(identity.conversationId);
     return res.status(409).json({
       error: "Les montants saisis sont différents. Corrigez puis recommencez la confirmation.",
@@ -669,6 +670,24 @@ router.post("/delivery/conversations/:conversationId/proposals", async (req, res
     return res.status(409).json({ error: "Ce livreur a déjà une course en cours." });
   }
 
+  const [existingDriverJob] = await db
+    .select({
+      id: deliveryWorkflowJobsTable.id,
+      orderId: deliveryWorkflowJobsTable.orderId,
+      driverId: deliveryWorkflowJobsTable.driverId,
+      acceptanceStatus: deliveryWorkflowJobsTable.acceptanceStatus,
+    })
+    .from(deliveryWorkflowJobsTable)
+    .where(and(
+      eq(deliveryWorkflowJobsTable.orderId, state.orderId),
+      eq(deliveryWorkflowJobsTable.driverId, driverId),
+    ))
+    .orderBy(desc(deliveryWorkflowJobsTable.updatedAt), desc(deliveryWorkflowJobsTable.createdAt))
+    .limit(1);
+  if (existingDriverJob?.acceptanceStatus === "accepted_by_driver") {
+    return res.status(200).json(existingDriverJob);
+  }
+
   const assignmentExpiresAt = new Date(Date.now() + ASSIGNMENT_TTL_MS);
   const [job] = await db.insert(deliveryWorkflowJobsTable).values({
     orderId: state.orderId,
@@ -693,9 +712,11 @@ router.post("/delivery/conversations/:conversationId/proposals", async (req, res
     messageContent: `Assignation commande #${state.orderId}`,
     deliveryStatus: status,
   });
-  await db.update(deliveryWorkflowJobsTable)
-    .set({ whatsappNotifiedAt: new Date(), updatedAt: new Date() })
-    .where(eq(deliveryWorkflowJobsTable.id, job.id));
+  if (status === "sent") {
+    await db.update(deliveryWorkflowJobsTable)
+      .set({ whatsappNotifiedAt: new Date(), updatedAt: new Date() })
+      .where(eq(deliveryWorkflowJobsTable.id, job.id));
+  }
 
   await emitConversationDeliveryState(identity.conversationId);
   return res.status(201).json({ id: job.id, orderId: job.orderId, driverId: job.driverId });
