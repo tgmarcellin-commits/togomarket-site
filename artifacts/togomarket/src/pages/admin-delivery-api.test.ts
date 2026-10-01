@@ -1,8 +1,10 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import {
+  loadAdminDrivers,
   loadAdminAvailableDrivers,
   loadAdminDeliveryOrders,
+  saveAdminDriver,
 } from "./admin-delivery-api";
 
 test("loadAdminDeliveryOrders uses admin header and returns parsed orders", async () => {
@@ -71,4 +73,30 @@ test("loadAdminAvailableDrivers falls back to an empty list when payload shape i
     } as Response)),
     [],
   );
+});
+
+test("admin driver listing uses the superadmin endpoint and admin code header", async () => {
+  let request: { url?: string; headers?: HeadersInit } = {};
+  const drivers = [{ id: 1, firstName: "Afi", idDocumentNumber: "private" }];
+  const result = await loadAdminDrivers("super-secret", async (url, init) => {
+    request = { url: String(url), headers: init?.headers };
+    return { ok: true, json: async () => ({ drivers }) } as Response;
+  });
+  assert.equal(request.url, "/api/admin/drivers");
+  assert.deepEqual(request.headers, { "x-admin-code": "super-secret" });
+  assert.deepEqual(result, drivers);
+});
+
+test("admin driver create and edit use distinct protected methods", async () => {
+  const requests: Array<{ url: string; method: string; body: string }> = [];
+  const fetchImpl = async (url: RequestInfo | URL, init?: RequestInit) => {
+    requests.push({ url: String(url), method: String(init?.method), body: String(init?.body) });
+    return { ok: true, json: async () => ({ driver: { id: 5, firstName: "Afi" } }) } as Response;
+  };
+  await saveAdminDriver("super-secret", { firstName: "Afi", lastName: "Doe", phone: "+22890000000" }, undefined, fetchImpl);
+  await saveAdminDriver("super-secret", { isAvailable: false }, 5, fetchImpl);
+  assert.deepEqual(requests.map(({ url, method }) => [url, method]), [
+    ["/api/admin/drivers", "POST"],
+    ["/api/admin/drivers/5", "PATCH"],
+  ]);
 });

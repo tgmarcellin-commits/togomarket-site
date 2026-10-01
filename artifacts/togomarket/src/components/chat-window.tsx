@@ -1,4 +1,4 @@
-import { Fragment, useState, useEffect, useRef, useCallback, useLayoutEffect } from "react";
+import { Fragment, useState, useEffect, useRef, useCallback, useLayoutEffect, useMemo } from "react";
 import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetDescription } from "@/components/ui/sheet";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -11,6 +11,14 @@ import { getSocket } from "@/lib/socket";
 import { resolveImageUrl } from "@/lib/image";
 import { getChatDaySeparatorLabel, getLocalDayKey } from "@/lib/chat-date-separators";
 import { vendorAuthHeaders } from "@/lib/vendor-auth";
+import {
+  DeliveryQrScanner,
+  DeliveryTrackingMap,
+  WalletSummary,
+} from "@/components/delivery-components";
+import { loadDeliveryLocations, type DeliveryLocation } from "@/lib/delivery-api";
+import { toPublicDeliveryDriver, type PublicDeliveryDriver } from "@/lib/delivery-ui";
+import { startDriverSessionPolling } from "@/pages/driver-session-polling";
 import type { BuyerIdentity } from "./buyer-identity-prompt";
 
 interface ChatMessage {
@@ -34,19 +42,6 @@ interface DeliveryPriceConfirmationState {
   buyerAmount: number | null;
   vendorAmount: number | null;
   status: "pending" | "matched" | "mismatch";
-}
-
-interface DeliveryConversationDriver {
-  id: number;
-  firstName: string;
-  lastName: string;
-  phone: string;
-  photoUrl: string | null;
-  coverageZone: string | null;
-  whatsappNumber: string | null;
-  isAvailable: boolean;
-  ratingAverage: number;
-  ratingCount: number;
 }
 
 type ChatAuth =
@@ -267,8 +262,13 @@ export function ChatWindow({
     status: "pending",
   });
   const [deliveryOrderPaymentEnabled, setDeliveryOrderPaymentEnabled] = useState(false);
-  const [availableDrivers, setAvailableDrivers] = useState<DeliveryConversationDriver[]>([]);
+  const [availableDrivers, setAvailableDrivers] = useState<PublicDeliveryDriver[]>([]);
   const [driversLoading, setDriversLoading] = useState(false);
+  const [deliveryOrderId, setDeliveryOrderId] = useState<number | null>(null);
+  const [deliveryOrderStatus, setDeliveryOrderStatus] = useState("");
+  const [acceptedDeliveryJobId, setAcceptedDeliveryJobId] = useState<number | null>(null);
+  const [deliveryLocations, setDeliveryLocations] = useState<DeliveryLocation[]>([]);
+  const [walletRefreshVersion, setWalletRefreshVersion] = useState(0);
   const endRef = useRef<HTMLDivElement>(null);
   const scrollAreaRef = useRef<HTMLDivElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -348,10 +348,15 @@ export function ChatWindow({
     if (!res.ok) return;
     const data = await res.json() as {
       priceConfirmation?: DeliveryPriceConfirmationState;
-      order?: { paymentEnabled?: boolean } | null;
+      orderId?: number | null;
+      order?: { paymentEnabled?: boolean; status?: string } | null;
+      assignments?: Array<{ id: number; acceptanceStatus: string }>;
     };
     if (data.priceConfirmation) setDeliveryPriceState(data.priceConfirmation);
     setDeliveryOrderPaymentEnabled(Boolean(data.order?.paymentEnabled));
+    setDeliveryOrderId(data.orderId ?? null);
+    setDeliveryOrderStatus(data.order?.status ?? "");
+    setAcceptedDeliveryJobId(data.assignments?.find((assignment) => assignment.acceptanceStatus === "accepted_by_driver")?.id ?? null);
     return data.priceConfirmation;
   }, [conversationId, auth, showAssignDriver]);
 
@@ -366,8 +371,8 @@ export function ChatWindow({
         setAvailableDrivers([]);
         return;
       }
-      const data = await res.json() as { drivers?: DeliveryConversationDriver[] };
-      setAvailableDrivers(Array.isArray(data.drivers) ? data.drivers : []);
+      const data = await res.json() as { drivers?: unknown[] };
+      setAvailableDrivers(Array.isArray(data.drivers) ? data.drivers.map(toPublicDeliveryDriver) : []);
     } finally {
       setDriversLoading(false);
     }
@@ -485,12 +490,24 @@ export function ChatWindow({
     const onDeliveryState = (data: {
       conversationId?: number;
       priceConfirmation?: DeliveryPriceConfirmationState;
-      order?: { paymentEnabled?: boolean } | null;
+      orderId?: number | null;
+      order?: { paymentEnabled?: boolean; status?: string } | null;
+      assignments?: Array<{ id: number; acceptanceStatus: string }>;
     }) => {
       if (data.conversationId !== conversationId) return;
       if (data.priceConfirmation) setDeliveryPriceState(data.priceConfirmation);
       setDeliveryOrderPaymentEnabled(Boolean(data.order?.paymentEnabled));
+      setDeliveryOrderId(data.orderId ?? null);
+      setDeliveryOrderStatus(data.order?.status ?? "");
+      setAcceptedDeliveryJobId(data.assignments?.find((assignment) => assignment.acceptanceStatus === "accepted_by_driver")?.id ?? null);
       if (assignPanelOpen && data.priceConfirmation?.status === "matched") void fetchAvailableDrivers();
+    };
+    const onDriverLocation = (location: DeliveryLocation) => {
+      if (location.deliveryJobId !== acceptedDeliveryJobId) return;
+      setDeliveryLocations((current) => [
+        ...current.filter((item) => item.id !== location.id),
+        location,
+      ].sort((left, right) => new Date(left.recordedAt).getTime() - new Date(right.recordedAt).getTime()).slice(-100));
     };
 
     const onDeleted = (data: { messageId: number }) => {
@@ -503,6 +520,7 @@ export function ChatWindow({
     socket.on("message_read", onMessageRead);
     socket.on("messages_read", onRead);
     socket.on("delivery_assignment_state", onDeliveryState);
+    socket.on("driver_location_update", onDriverLocation);
     socket.on("message_edited", onEdited);
     socket.on("message_deleted", onDeleted);
     return () => {
@@ -512,11 +530,47 @@ export function ChatWindow({
       socket.off("message_read", onMessageRead);
       socket.off("messages_read", onRead);
       socket.off("delivery_assignment_state", onDeliveryState);
+      socket.off("driver_location_update", onDriverLocation);
       socket.off("message_edited", onEdited);
       socket.off("message_deleted", onDeleted);
       socket.off("message_hidden_me", onHiddenMe);
     };
-  }, [open, conversationId, fetchMessages, markMessagesRead, selfType, showAssignDriver, fetchDeliveryState, fetchAvailableDrivers, assignPanelOpen]);
+  }, [open, conversationId, fetchMessages, markMessagesRead, selfType, showAssignDriver, fetchDeliveryState, fetchAvailableDrivers, assignPanelOpen, acceptedDeliveryJobId]);
+
+  const messageAuthHeaders = useMemo(
+    () => authHeaders(auth),
+    [auth.kind, auth.kind === "buyer" ? auth.buyerToken : auth.phone, auth.kind === "vendor" ? auth.password : ""],
+  );
+  const deliveryAuthHeaders = useMemo(
+    () => ({ ...messageAuthHeaders, "x-conversation-id": String(conversationId) }),
+    [conversationId, messageAuthHeaders],
+  );
+
+  useEffect(() => {
+    if (!open || !showAssignDriver || !acceptedDeliveryJobId) {
+      setDeliveryLocations([]);
+      return;
+    }
+    let active = true;
+    const refresh = async () => {
+      const locations = await loadDeliveryLocations(acceptedDeliveryJobId, {
+        ...messageAuthHeaders,
+        "x-conversation-id": String(conversationId),
+      });
+      if (active) setDeliveryLocations(locations);
+    };
+    void refresh();
+    const stopPolling = startDriverSessionPolling(() => { void refresh(); }, undefined, 15_000);
+    return () => {
+      active = false;
+      stopPolling();
+    };
+  }, [acceptedDeliveryJobId, conversationId, messageAuthHeaders, open, showAssignDriver]);
+
+  const refreshDeliveryAfterScan = useCallback(() => {
+    void fetchDeliveryState();
+    setWalletRefreshVersion((version) => version + 1);
+  }, [fetchDeliveryState]);
 
   useEffect(() => {
     if (!assignPanelOpen || !showAssignDriver) return;
@@ -837,6 +891,56 @@ export function ChatWindow({
                     onError={(event) => { event.currentTarget.style.display = "none"; }}
                   />
                 )}
+
+                {showAssignDriver && auth.kind === "buyer" && (
+                  <div className="mx-4 mt-3">
+                    <WalletSummary
+                      key={walletRefreshVersion}
+                      loadUrl={`/api/wallets/buyer/${conversationId}`}
+                      withdrawUrl="/api/wallets/withdraw"
+                      withdrawBody={{ ownerType: "buyer", ownerId: conversationId }}
+                      headers={deliveryAuthHeaders}
+                      phoneNumber={buyerIdentity.phone}
+                      language={lang === "fr" ? "fr" : "en"}
+                      onUpdated={refreshDeliveryAfterScan}
+                    />
+                  </div>
+                )}
+
+                {showAssignDriver && acceptedDeliveryJobId !== null && (
+                  <div className="mx-4 mt-3 space-y-3" data-testid="conversation-delivery-tracking">
+                    {deliveryOrderId !== null && (
+                      <p className="text-xs text-muted-foreground" role="status">
+                        {lang === "fr" ? `Commande #${deliveryOrderId} — ` : `Order #${deliveryOrderId} — `}
+                        {deliveryOrderStatus}
+                      </p>
+                    )}
+                    <DeliveryTrackingMap
+                      deliveryJobId={acceptedDeliveryJobId}
+                      acceptanceStatus="accepted_by_driver"
+                      orderStatus={deliveryOrderStatus}
+                      locations={deliveryLocations}
+                      role={auth.kind === "vendor" ? "seller" : "buyer"}
+                      language={lang === "fr" ? "fr" : "en"}
+                    />
+                    {auth.kind === "buyer" && ["ASSIGNED", "IN_TRANSIT"].includes(deliveryOrderStatus) && (
+                      <DeliveryQrScanner
+                        role="buyer"
+                        language={lang === "fr" ? "fr" : "en"}
+                        headers={deliveryAuthHeaders}
+                        onSuccess={refreshDeliveryAfterScan}
+                      />
+                    )}
+                    {auth.kind === "vendor" && ["RETURNING_TO_SELLER", "RETURN_AT_SELLER"].includes(deliveryOrderStatus) && (
+                      <DeliveryQrScanner
+                        role="seller"
+                        language={lang === "fr" ? "fr" : "en"}
+                        headers={deliveryAuthHeaders}
+                        onSuccess={refreshDeliveryAfterScan}
+                      />
+                    )}
+                  </div>
+                )}
               </div>
               <div className="min-w-0">
                 <p className={`text-[9px] uppercase tracking-wide leading-none mb-0.5 ${
@@ -1086,7 +1190,7 @@ export function ChatWindow({
                         <div className="flex-1 min-w-0">
                           <p className="text-xs font-semibold truncate">{driver.firstName} {driver.lastName}</p>
                           <p className="text-[11px] text-muted-foreground truncate">
-                            {driver.coverageZone || (lang === "fr" ? "Zone non précisée" : "No zone provided")}
+                            {driver.workZone || (lang === "fr" ? "Zone non précisée" : "No zone provided")}
                           </p>
                           <p className="text-[11px] text-muted-foreground flex items-center gap-1">
                             <Star className="w-3 h-3 fill-current text-amber-500" />

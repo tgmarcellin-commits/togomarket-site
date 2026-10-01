@@ -51,6 +51,8 @@ import { getSocket } from "@/lib/socket";
 import { ImageViewer } from "@/components/image-viewer";
 import { SmartVideo } from "@/components/smart-video";
 import { InboxMessageContent } from "@/components/inbox-message-content";
+import AdminDrivers from "@/pages/admin-drivers";
+import { AdminDeliverySupervisor } from "@/components/delivery-components";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import {
@@ -104,6 +106,7 @@ type DashTab =
   | "stats"
   | "pending"
   | "delivery"
+  | "drivers"
   | "vendors"
   | "ads"
   | "events"
@@ -286,7 +289,7 @@ export default function AdminDashboard() {
     if (session.role === "admin_stats") return "stats";
     // Superadmin / full admin: restore the last tab the user was on before refresh
     const saved = sessionStorage.getItem("tm_admin_tab") as DashTab | null;
-    const valid: DashTab[] = ["stats", "pending", "delivery", "vendors", "ads", "events", "services", "settings", "accounts", "inbox"];
+    const valid: DashTab[] = ["stats", "pending", "delivery", "drivers", "vendors", "ads", "events", "services", "settings", "accounts", "inbox"];
     if (saved && valid.includes(saved)) return saved;
     return "stats";
   };
@@ -1025,6 +1028,7 @@ export default function AdminDashboard() {
       loadPublishedListings(1, appliedPublishedListingsSearch);
     }
     if (t === "delivery") void loadDeliveryDashboard();
+    if (t === "drivers") void loadDeliveryDashboard();
     if (t === "vendors") loadVendors();
     if (t === "ads") loadAds();
     if (t === "events") loadEvents();
@@ -1682,6 +1686,7 @@ export default function AdminDashboard() {
     { key: "stats", label: "Statistiques", icon: <LayoutDashboard className="w-4 h-4" />, roles: ["superadmin", "admin_stats", "admin_pub", "admin_event", "admin_service"] },
     { key: "pending", label: "En attente", icon: <Clock className="w-4 h-4" />, roles: ["superadmin"] },
     { key: "delivery", label: "Livraisons", icon: <Truck className="w-4 h-4" />, roles: ["superadmin"] },
+    { key: "drivers", label: "Livreurs", icon: <Truck className="w-4 h-4" />, roles: ["superadmin"] },
     { key: "vendors", label: "Vendeurs", icon: <Users className="w-4 h-4" />, roles: ["superadmin"] },
     { key: "ads", label: "Publicités", icon: <Megaphone className="w-4 h-4" />, roles: ["superadmin", "admin_pub"] },
     { key: "events", label: "Événements", icon: <Calendar className="w-4 h-4" />, roles: ["superadmin", "admin_event"] },
@@ -2344,6 +2349,14 @@ export default function AdminDashboard() {
                         </div>
                       </div>
 
+                      {isAccepted && order.assignment && (
+                        <AdminDeliverySupervisor
+                          deliveryJobId={order.assignment.id}
+                          orderStatus={order.status}
+                          adminCode={password}
+                        />
+                      )}
+
                       <div className="flex flex-col gap-2 md:flex-row md:items-center">
                         <div className="flex-1 space-y-1">
                           {isAccepted || hasPendingResponse ? (
@@ -2390,6 +2403,10 @@ export default function AdminDashboard() {
               </div>
             )}
           </div>
+        )}
+
+        {tab === "drivers" && isSuperAdmin && (
+          <AdminDrivers adminCode={password} isSuperAdmin={isSuperAdmin} orders={deliveryOrders} />
         )}
 
         {/* ── VENDEURS ─────────────────────────────────────────── */}

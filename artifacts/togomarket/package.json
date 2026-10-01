@@ -45,7 +45,9 @@
     "@tailwindcss/typography": "^0.5.15",
     "@tailwindcss/vite": "catalog:",
     "@tanstack/react-query": "catalog:",
+    "@types/leaflet": "1.9.20",
     "@types/node": "catalog:",
+    "@types/qrcode": "1.5.5",
     "@types/react": "catalog:",
     "@types/react-dom": "catalog:",
     "@vitejs/plugin-react": "catalog:",
@@ -76,6 +78,8 @@
     "zod": "catalog:"
   },
   "dependencies": {
+    "leaflet": "1.9.4",
+    "qrcode": "1.5.4",
     "socket.io-client": "^4.8.3"
   }
 }

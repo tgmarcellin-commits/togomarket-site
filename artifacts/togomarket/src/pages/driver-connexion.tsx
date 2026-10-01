@@ -4,6 +4,22 @@ import { Input } from "@/components/ui/input";
 import { useSiteSettings } from "@/lib/site-settings";
 import { RefreshCw, LogOut, Truck, CheckCircle2, XCircle } from "lucide-react";
 import { startDriverSessionPolling } from "./driver-session-polling";
+import { resolveImageUrl } from "@/lib/image";
+import {
+  DeliveryQrDisplay,
+  DeliveryTrackingMap,
+  WalletSummary,
+} from "@/components/delivery-components";
+import {
+  canRequestDeliveryQr,
+  isLocationStale,
+  shouldTrackDelivery,
+  startAutomaticGpsTracking,
+  toDriverSafeAssignment,
+  type DriverSafeAssignment,
+  type GpsPositionLike,
+} from "@/lib/delivery-ui";
+import { loadDeliveryLocations, requestDriverDeliveryQr, type DeliveryLocation, type DeliveryQrToken } from "@/lib/delivery-api";
 
 const STORAGE_KEY = "tm_driver_session_token";
 
@@ -12,33 +28,16 @@ type DriverProfile = {
   firstName: string;
   lastName: string;
   phone: string;
+  photoUrl: string | null;
+  workZone: string;
   isAvailable: boolean;
 };
 
-type DriverAssignment = {
-  id: number;
-  orderId: number;
-  acceptanceStatus: string;
-  assignmentExpiresAt: string | null;
-  acceptedAt: string | null;
-  refusedAt: string | null;
-  createdAt: string;
-  updatedAt: string;
-  order: {
-    id: number;
-    firstName: string;
-    lastName: string;
-    phone: string;
-    description: string;
-    articlePriceLocked: number;
-    distanceLockedKm: number | null;
-    transportFeeLocked: number | null;
-    status: string;
-    createdAt: string;
-  } | null;
-};
+type DriverAssignment = DriverSafeAssignment;
 
-function authHeaders(token: string): HeadersInit {
+type GpsState = { status: "starting" | "active" | "denied" | "unavailable"; lastUpdate: string | null };
+
+function authHeaders(token: string): Record<string, string> {
   return { Authorization: "Bearer " + token };
 }
 
@@ -67,11 +66,24 @@ export default function DriverConnexion() {
   const [error, setError] = useState<string | null>(null);
   const [busyId, setBusyId] = useState<number | null>(null);
   const [availabilityLoading, setAvailabilityLoading] = useState(false);
+  const [gpsStates, setGpsStates] = useState<Record<number, GpsState>>({});
+  const [locations, setLocations] = useState<Record<number, DeliveryLocation[]>>({});
+  const [qrTokens, setQrTokens] = useState<Record<number, DeliveryQrToken>>({});
+  const [qrLoadingId, setQrLoadingId] = useState<number | null>(null);
+  const [qrError, setQrError] = useState<string | null>(null);
 
   const isFrench = lang === "fr";
+  const authHeadersForSession = useMemo(() => token ? authHeaders(token) as Record<string, string> : {}, [token]);
 
   const activeAssignments = useMemo(
     () => assignments.filter((assignment) => ["pending_driver_response", "accepted_by_driver"].includes(assignment.acceptanceStatus)),
+    [assignments],
+  );
+  const gpsAssignmentIds = useMemo(
+    () => assignments
+      .filter((assignment) => shouldTrackDelivery(assignment.acceptanceStatus, assignment.order?.status))
+      .map((assignment) => assignment.id)
+      .join(","),
     [assignments],
   );
 
@@ -80,6 +92,9 @@ export default function DriverConnexion() {
     setToken(null);
     setDriver(null);
     setAssignments([]);
+    setGpsStates({});
+    setLocations({});
+    setQrTokens({});
     setStep("phone");
     setPhone("");
     setOtp("");
@@ -100,9 +115,9 @@ export default function DriverConnexion() {
     }
 
     const sessionData = await sessionRes.json() as { driver: DriverProfile };
-    const assignmentsData = await assignmentsRes.json() as { assignments: DriverAssignment[] };
+    const assignmentsData = await assignmentsRes.json() as { assignments: unknown[] };
     setDriver(sessionData.driver);
-    setAssignments(assignmentsData.assignments ?? []);
+    setAssignments((assignmentsData.assignments ?? []).map(toDriverSafeAssignment));
     setStep("session");
   }, [isFrench, resetSession]);
 
@@ -137,6 +152,89 @@ export default function DriverConnexion() {
       stopPolling();
     };
   }, [token, loadSession]);
+
+  useEffect(() => {
+    if (!token || !gpsAssignmentIds) return;
+    const activeJobs = assignments.filter((assignment) =>
+      shouldTrackDelivery(assignment.acceptanceStatus, assignment.order?.status),
+    );
+    if (!navigator.geolocation) {
+      setGpsStates((current) => Object.fromEntries(activeJobs.map((job) => [
+        job.id,
+        { status: "unavailable", lastUpdate: current[job.id]?.lastUpdate ?? null },
+      ])));
+      return;
+    }
+
+    const stopWatchers = activeJobs.map((assignment) => {
+      setGpsStates((current) => ({
+        ...current,
+        [assignment.id]: { status: "starting", lastUpdate: current[assignment.id]?.lastUpdate ?? null },
+      }));
+      return startAutomaticGpsTracking(
+        navigator.geolocation,
+        (position) => {
+          void fetch(`/api/delivery/jobs/${assignment.id}/locations`, {
+            method: "POST",
+            headers: { "Content-Type": "application/json", ...authHeaders(token) },
+            body: JSON.stringify({
+              latitude: position.coords.latitude,
+              longitude: position.coords.longitude,
+              accuracy: position.coords.accuracy,
+              speed: position.coords.speed,
+              heading: position.coords.heading,
+              recordedAt: new Date(position.timestamp).toISOString(),
+            }),
+          }).then(async (response) => {
+            if (!response.ok) throw new Error("location-rejected");
+            const result = await response.json() as { throttled?: boolean };
+            if (!result.throttled) {
+              setGpsStates((current) => ({
+                ...current,
+                [assignment.id]: { status: "active", lastUpdate: new Date(position.timestamp).toISOString() },
+              }));
+            }
+          }).catch(() => {
+            setGpsStates((current) => ({
+              ...current,
+              [assignment.id]: { status: "unavailable", lastUpdate: current[assignment.id]?.lastUpdate ?? null },
+            }));
+          });
+        },
+        (error) => {
+          setGpsStates((current) => ({
+            ...current,
+            [assignment.id]: {
+              status: error.code === 1 ? "denied" : "unavailable",
+              lastUpdate: current[assignment.id]?.lastUpdate ?? null,
+            },
+          }));
+        },
+      );
+    });
+    return () => stopWatchers.forEach((stop) => stop());
+  }, [assignments, gpsAssignmentIds, token]);
+
+  useEffect(() => {
+    if (!token || !gpsAssignmentIds) return;
+    let active = true;
+    const refreshLocations = async () => {
+      const activeJobs = assignments.filter((assignment) =>
+        shouldTrackDelivery(assignment.acceptanceStatus, assignment.order?.status),
+      );
+      const entries = await Promise.all(activeJobs.map(async (assignment) => [
+        assignment.id,
+        await loadDeliveryLocations(assignment.id, authHeaders(token)),
+      ] as const));
+      if (active) setLocations((current) => ({ ...current, ...Object.fromEntries(entries) }));
+    };
+    void refreshLocations();
+    const stopPolling = startDriverSessionPolling(() => { void refreshLocations(); }, undefined, 10_000);
+    return () => {
+      active = false;
+      stopPolling();
+    };
+  }, [assignments, gpsAssignmentIds, token]);
 
   const requestOtp = async () => {
     setLoading(true);
@@ -267,6 +365,27 @@ export default function DriverConnexion() {
     }
   };
 
+  const requestQr = async (assignment: DriverAssignment, stage: "delivery" | "return") => {
+    if (!token || !navigator.geolocation) return;
+    setQrLoadingId(assignment.id);
+    setQrError(null);
+    try {
+      const position = await new Promise<GpsPositionLike["coords"]>((resolve, reject) => {
+        navigator.geolocation.getCurrentPosition(
+          ({ coords }) => resolve(coords),
+          () => reject(new Error(isFrench ? "Position GPS indisponible." : "GPS location unavailable.")),
+          { enableHighAccuracy: true, timeout: 15_000, maximumAge: 0 },
+        );
+      });
+      const qr = await requestDriverDeliveryQr(assignment.id, stage, token, position);
+      setQrTokens((current) => ({ ...current, [assignment.id]: qr }));
+    } catch (err) {
+      setQrError(err instanceof Error ? err.message : String(err));
+    } finally {
+      setQrLoadingId(null);
+    }
+  };
+
   return (
     <div className="min-h-screen bg-muted/30 py-8 px-4">
       <div className="mx-auto max-w-2xl space-y-4">
@@ -345,9 +464,17 @@ export default function DriverConnexion() {
           {step === "session" && driver && (
             <div className="space-y-4">
               <div className="flex flex-wrap items-center justify-between gap-3 rounded-xl border bg-muted/30 p-4">
-                <div>
-                  <p className="font-semibold">{driver.firstName} {driver.lastName}</p>
-                  <p className="text-sm text-muted-foreground">{driver.phone}</p>
+                <div className="flex items-center gap-3">
+                  <div className="h-14 w-14 overflow-hidden rounded-full bg-muted flex items-center justify-center">
+                    {driver.photoUrl
+                      ? <img src={resolveImageUrl(driver.photoUrl)} alt="" className="h-full w-full object-cover" />
+                      : <Truck className="h-6 w-6 text-muted-foreground" />}
+                  </div>
+                  <div>
+                    <p className="font-semibold">{driver.firstName} {driver.lastName}</p>
+                    <p className="text-sm text-muted-foreground">{driver.workZone}</p>
+                    <p className="text-xs text-muted-foreground">{driver.phone}</p>
+                  </div>
                 </div>
                 <div className="flex flex-wrap items-center gap-2">
                   <Button variant="outline" size="sm" onClick={refreshAssignments} disabled={loading}>
@@ -422,14 +549,10 @@ export default function DriverConnexion() {
                             </span>
                           </div>
 
-                          {assignment.order?.description && (
-                            <p className="text-sm leading-6">{assignment.order.description}</p>
-                          )}
-
                           <div className="grid gap-2 text-sm text-muted-foreground md:grid-cols-3">
-                            <p>{isFrench ? "Prix article" : "Item price"}: <span className="font-medium text-foreground">{new Intl.NumberFormat("fr-FR").format(assignment.order?.articlePriceLocked ?? 0)} FCFA</span></p>
-                            <p>{isFrench ? "Distance" : "Distance"}: <span className="font-medium text-foreground">{assignment.order?.distanceLockedKm ?? "—"} km</span></p>
-                            <p>{isFrench ? "Frais transport" : "Delivery fee"}: <span className="font-medium text-foreground">{assignment.order?.transportFeeLocked != null ? `${new Intl.NumberFormat("fr-FR").format(assignment.order.transportFeeLocked)} FCFA` : "—"}</span></p>
+                            <p>{isFrench ? "Distance vendeur → acheteur" : "Seller → buyer distance"}: <span className="font-medium text-foreground">{assignment.order?.distanceLockedKm ?? "—"} km</span></p>
+                            <p>{isFrench ? "Frais aller / paiement prévu" : "Outbound fee / expected payout"}: <span className="font-medium text-foreground">{assignment.order?.transportFeeLocked != null ? `${new Intl.NumberFormat("fr-FR").format(assignment.order.transportFeeLocked)} FCFA` : "—"}</span></p>
+                            <p>{isFrench ? "Frais retour possibles" : "Possible return fee"}: <span className="font-medium text-foreground">{assignment.order?.transportFeeLocked != null ? `${new Intl.NumberFormat("fr-FR").format(assignment.order.transportFeeLocked)} FCFA` : "—"}</span></p>
                           </div>
 
                           {assignment.assignmentExpiresAt && (
@@ -459,12 +582,75 @@ export default function DriverConnexion() {
                               </Button>
                             </div>
                           )}
+                          {accepted && (
+                            <div className="space-y-3">
+                              <p className="text-xs text-muted-foreground" role="status">
+                                {gpsStates[assignment.id]?.status === "active" && isLocationStale(gpsStates[assignment.id]?.lastUpdate)
+                                  ? (isFrench ? "Signal GPS reçu, mais position ancienne" : "GPS signal received, but location is stale")
+                                  : gpsStates[assignment.id]?.status === "active"
+                                  ? (isFrench ? "GPS actif automatiquement" : "GPS is active automatically")
+                                  : gpsStates[assignment.id]?.status === "denied"
+                                    ? (isFrench ? "Autorisation GPS refusée" : "GPS permission denied")
+                                    : gpsStates[assignment.id]?.status === "unavailable"
+                                      ? (isFrench ? "Signal GPS indisponible" : "GPS signal unavailable")
+                                      : (isFrench ? "Activation automatique du GPS…" : "Starting GPS automatically…")}
+                                {gpsStates[assignment.id]?.lastUpdate && ` · ${isFrench ? "Dernière mise à jour" : "Last update"} ${new Date(gpsStates[assignment.id]!.lastUpdate!).toLocaleTimeString(isFrench ? "fr-FR" : "en-US")}`}
+                              </p>
+                              <DeliveryTrackingMap
+                                deliveryJobId={assignment.id}
+                                acceptanceStatus={assignment.acceptanceStatus}
+                                orderStatus={assignment.order?.status ?? ""}
+                                locations={locations[assignment.id] ?? []}
+                                role="driver"
+                                language={isFrench ? "fr" : "en"}
+                              />
+                              {assignment.order && (
+                                <div className="flex flex-wrap gap-2">
+                                  {canRequestDeliveryQr("delivery", assignment.order.status) && (
+                                    <Button type="button" size="sm" variant="outline" disabled={qrLoadingId === assignment.id} onClick={() => { void requestQr(assignment, "delivery"); }}>
+                                      {isFrench ? "Demander le QR de livraison" : "Request delivery QR"}
+                                    </Button>
+                                  )}
+                                  {canRequestDeliveryQr("return", assignment.order.status) && (
+                                    <Button type="button" size="sm" variant="outline" disabled={qrLoadingId === assignment.id} onClick={() => { void requestQr(assignment, "return"); }}>
+                                      {isFrench ? "Demander le QR de retour" : "Request return QR"}
+                                    </Button>
+                                  )}
+                                </div>
+                              )}
+                              {qrError && <p className="text-xs text-destructive" role="alert">{qrError}</p>}
+                              {qrTokens[assignment.id] && (
+                                <DeliveryQrDisplay
+                                  rawToken={qrTokens[assignment.id]!.rawToken}
+                                  expiresAt={qrTokens[assignment.id]!.expiresAt}
+                                  language={isFrench ? "fr" : "en"}
+                                  onExpired={() => setQrTokens((current) => {
+                                    const qr = current[assignment.id];
+                                    return qr ? { ...current, [assignment.id]: { ...qr, rawToken: "" } } : current;
+                                  })}
+                                />
+                              )}
+                              {isLocationStale(gpsStates[assignment.id]?.lastUpdate) && gpsStates[assignment.id]?.lastUpdate && (
+                                <p className="text-xs text-amber-700">{isFrench ? "Votre dernière position GPS est ancienne." : "Your last GPS location is stale."}</p>
+                              )}
+                            </div>
+                          )}
                         </div>
                       );
                     })}
                   </div>
                 )}
               </div>
+              {token && (
+                <WalletSummary
+                  loadUrl="/api/driver-connexion/wallet"
+                  withdrawUrl="/api/driver-connexion/withdraw"
+                  withdrawBody={{}}
+                  headers={authHeadersForSession}
+                  phoneNumber={driver.phone}
+                  language={isFrench ? "fr" : "en"}
+                />
+              )}
             </div>
           )}
         </div>
