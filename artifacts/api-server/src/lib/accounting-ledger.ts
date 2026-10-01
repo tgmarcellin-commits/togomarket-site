@@ -1,6 +1,7 @@
 import { createHash } from "node:crypto";
 import { db, ledgerAccountsTable, ledgerEntriesTable } from "@workspace/db";
 import { eq, sql } from "drizzle-orm";
+import type { AnyPgColumn } from "drizzle-orm/pg-core";
 
 export type LedgerAccountType = "asset" | "liability" | "equity" | "revenue" | "expense";
 export type DbOrTx = any;
@@ -330,4 +331,28 @@ export async function getTrialBalance(tx: DbOrTx = db): Promise<{
     isBalanced: totalDebitSum === totalCreditSum,
     difference: Math.abs(totalDebitSum - totalCreditSum),
   };
+}
+
+const NUMERIC_METADATA_PATTERN = /^-?[0-9]+$/;
+
+/**
+ * Checks whether a jsonb metadata value is safe to cast to an integer.
+ * Legacy or partially migrated rows may store non-numeric or missing values
+ * for keys like orderId/driverId/walletId; casting those directly with
+ * `::int` crashes the query with a Postgres error (500). Exported so the
+ * guard regex can be unit-tested without a live database connection.
+ */
+export function isNumericMetadataValue(value: unknown): value is string {
+  return typeof value === "string" && NUMERIC_METADATA_PATTERN.test(value);
+}
+
+/**
+ * Builds a null-safe SQL filter comparing a jsonb metadata text field to an
+ * integer value. Uses a CASE expression (guaranteed short-circuit in
+ * PostgreSQL, unlike AND/OR) so rows with non-numeric or absent metadata
+ * values never reach the `::int` cast and cannot crash the query.
+ */
+export function buildSafeMetadataIntFilter(metadataColumn: AnyPgColumn, key: string, value: number) {
+  const pattern = NUMERIC_METADATA_PATTERN.source;
+  return sql`(CASE WHEN ${metadataColumn}->>${key} ~ ${pattern} THEN (${metadataColumn}->>${key})::int ELSE NULL END) = ${value}`;
 }

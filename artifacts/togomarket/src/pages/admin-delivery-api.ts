@@ -60,7 +60,8 @@ export async function loadAdminDeliveryOrders(adminCode: string, fetchImpl: Fetc
     headers: { "x-admin-code": adminCode },
   });
   if (!res.ok) {
-    throw new Error("Impossible de charger les commandes livraison.");
+    const errorData = await res.json().catch(() => ({})) as { error?: string };
+    throw new Error(errorData.error ?? "Impossible de charger les commandes livraison.");
   }
   const data = await res.json() as { orders?: DeliveryAdminOrder[] };
   return Array.isArray(data.orders) ? data.orders : [];
@@ -71,7 +72,8 @@ export async function loadAdminAvailableDrivers(adminCode: string, fetchImpl: Fe
     headers: { "x-admin-code": adminCode },
   });
   if (!res.ok) {
-    throw new Error("Impossible de charger les livreurs disponibles.");
+    const errorData = await res.json().catch(() => ({})) as { error?: string };
+    throw new Error(errorData.error ?? "Impossible de charger les livreurs disponibles.");
   }
 
   const data = await res.json() as AvailableDriver[];
@@ -82,7 +84,10 @@ export async function loadAdminDrivers(adminCode: string, fetchImpl: FetchLike =
   const response = await fetchImpl("/api/admin/drivers", {
     headers: { "x-admin-code": adminCode },
   });
-  if (!response.ok) throw new Error("Impossible de charger les livreurs.");
+  if (!response.ok) {
+    const errorData = await response.json().catch(() => ({})) as { error?: string };
+    throw new Error(errorData.error ?? "Impossible de charger les livreurs.");
+  }
   const result = await response.json() as { drivers?: AdminDriver[] };
   return Array.isArray(result.drivers) ? result.drivers : [];
 }
