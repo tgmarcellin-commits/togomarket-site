@@ -61,53 +61,56 @@ export async function expireUnpaidAcceptedAssignments(): Promise<number> {
       continue;
     }
 
-    // Guarded by the current acceptance status so a concurrent payment
-    // confirmation or driver response can never be clobbered (idempotent).
-    const [expiredJob] = await db
-      .update(deliveryWorkflowJobsTable)
-      .set({
-        acceptanceStatus: "cancelled_payment_timeout",
-        cancelledAt: now,
-        cancelReason: "payment_timeout",
-        updatedAt: now,
-      })
-      .where(and(
-        eq(deliveryWorkflowJobsTable.id, candidate.id),
-        eq(deliveryWorkflowJobsTable.acceptanceStatus, "accepted_by_driver"),
-      ))
-      .returning({ id: deliveryWorkflowJobsTable.id });
-    if (!expiredJob) continue;
+    const expired = await db.transaction(async (tx) => {
+      // The order update is the authoritative, idempotent gate: it only
+      // succeeds while the order is still unpaid and IN_TRANSIT. If a
+      // payment was confirmed concurrently (or the order already moved on),
+      // this matches zero rows and nothing else is mutated in this
+      // transaction, so the driver is never wrongly released from a mission
+      // that is actually proceeding normally.
+      const [reassignedOrder] = await tx.update(ordersTable)
+        .set({ status: "ASSIGNED" })
+        .where(and(
+          eq(ordersTable.id, candidate.orderId),
+          eq(ordersTable.status, "IN_TRANSIT"),
+          isNull(ordersTable.driverPaymentConfirmedAt),
+        ))
+        .returning({ id: ordersTable.id });
+      if (!reassignedOrder) return false;
 
-    await db.update(driversTable)
-      .set({ isAvailable: true, updatedAt: now })
-      .where(eq(driversTable.id, candidate.driverId));
+      // Guarded by the current acceptance status so a concurrent driver
+      // response (e.g. a refusal) can never be clobbered (idempotent).
+      const [expiredJob] = await tx
+        .update(deliveryWorkflowJobsTable)
+        .set({
+          acceptanceStatus: "cancelled_payment_timeout",
+          cancelledAt: now,
+          cancelReason: "payment_timeout",
+          updatedAt: now,
+        })
+        .where(and(
+          eq(deliveryWorkflowJobsTable.id, candidate.id),
+          eq(deliveryWorkflowJobsTable.acceptanceStatus, "accepted_by_driver"),
+        ))
+        .returning({ id: deliveryWorkflowJobsTable.id });
+      if (!expiredJob) return false;
 
-    const [reassignedOrder] = await db.update(ordersTable)
-      .set({ status: "ASSIGNED" })
-      .where(and(
-        eq(ordersTable.id, candidate.orderId),
-        eq(ordersTable.status, "IN_TRANSIT"),
-        isNull(ordersTable.driverPaymentConfirmedAt),
-      ))
-      .returning({ id: ordersTable.id });
-    if (!reassignedOrder) {
-      logger.warn(
-        { deliveryJobId: candidate.id, orderId: candidate.orderId, driverId: candidate.driverId },
-        "Payment timeout: order status could not be reverted to ASSIGNED (already changed concurrently); job cancelled and driver released, order left untouched for manual review",
-      );
-    }
+      await tx.update(driversTable)
+        .set({ isAvailable: true, updatedAt: now })
+        .where(eq(driversTable.id, candidate.driverId));
 
-    await db.insert(deliveryAuditLogsTable).values({
-      actorType: "system",
-      actorId: "delivery-assignment-expiry",
-      action: "delivery_payment_timeout_expired",
-      orderId: candidate.orderId,
-      metadata: {
-        deliveryJobId: candidate.id,
-        driverId: candidate.driverId,
-        orderReassigned: Boolean(reassignedOrder),
-      },
+      await tx.insert(deliveryAuditLogsTable).values({
+        actorType: "system",
+        actorId: "delivery-assignment-expiry",
+        action: "delivery_payment_timeout_expired",
+        orderId: candidate.orderId,
+        metadata: { deliveryJobId: candidate.id, driverId: candidate.driverId },
+      });
+
+      return true;
     });
+
+    if (!expired) continue;
 
     logger.warn(
       { deliveryJobId: candidate.id, orderId: candidate.orderId, driverId: candidate.driverId },
