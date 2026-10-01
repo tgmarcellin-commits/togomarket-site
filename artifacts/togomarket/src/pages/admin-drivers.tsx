@@ -5,7 +5,14 @@ import { Input } from "@/components/ui/input";
 import { AdminDeliverySupervisor } from "@/components/delivery-components";
 import { uploadImageFile } from "@/lib/upload";
 import { resolveImageUrl } from "@/lib/image";
-import { loadAdminDrivers, saveAdminDriver, type AdminDriver, type AdminDriverInput, type DeliveryAdminOrder } from "./admin-delivery-api";
+import {
+  loadAdminDrivers,
+  saveAdminDriver,
+  deleteAdminDriver,
+  type AdminDriver,
+  type AdminDriverInput,
+  type DeliveryAdminOrder,
+} from "./admin-delivery-api";
 
 type DriverForm = {
   firstName: string;
@@ -47,6 +54,8 @@ export default function AdminDrivers({
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [message, setMessage] = useState<string | null>(null);
+  const [deletingId, setDeletingId] = useState<number | null>(null);
+  const [confirmDeleteId, setConfirmDeleteId] = useState<number | null>(null);
 
   const refresh = async () => {
     setLoading(true);
@@ -124,6 +133,26 @@ export default function AdminDrivers({
     }
   };
 
+  const confirmDelete = async (driverId: number) => {
+    setDeletingId(driverId);
+    setError(null);
+    setMessage(null);
+    try {
+      await deleteAdminDriver(adminCode, driverId);
+      setConfirmDeleteId(null);
+      if (editingId === driverId) {
+        setEditingId(null);
+        setForm(emptyForm);
+      }
+      setMessage("Livreur supprimé.");
+      await refresh();
+    } catch (cause) {
+      setError(cause instanceof Error ? cause.message : String(cause));
+    } finally {
+      setDeletingId(null);
+    }
+  };
+
   return (
     <div className="space-y-4" data-testid="admin-driver-management">
       <div className="flex items-center justify-between gap-2">
@@ -171,6 +200,7 @@ export default function AdminDrivers({
               order.assignment?.driverId === driver.id
               && order.assignment.acceptanceStatus === "accepted_by_driver",
             );
+            const isConfirmingDelete = confirmDeleteId === driver.id;
             return (
               <article key={driver.id} className="rounded-xl border bg-card p-4 space-y-3">
                 <div className="flex flex-wrap items-center gap-3">
@@ -216,6 +246,48 @@ export default function AdminDrivers({
                     )}
                   </div>
                 </details>
+                <div className="border-t pt-3">
+                  {!isConfirmingDelete ? (
+                    <Button
+                      type="button"
+                      size="sm"
+                      variant="destructive"
+                      onClick={() => setConfirmDeleteId(driver.id)}
+                      data-testid={`delete-driver-${driver.id}`}
+                    >
+                      Supprimer le livreur
+                    </Button>
+                  ) : (
+                    <div className="space-y-2 rounded-lg border border-destructive/30 bg-destructive/5 p-3">
+                      <p className="text-sm font-medium text-destructive">
+                        Confirmer la suppression définitive de {driver.firstName} {driver.lastName} ?
+                      </p>
+                      <p className="text-xs text-muted-foreground">
+                        Cette action est irréversible. Le livreur ne pourra plus se connecter ni recevoir de nouvelles missions.
+                      </p>
+                      <div className="flex gap-2">
+                        <Button
+                          type="button"
+                          size="sm"
+                          variant="destructive"
+                          disabled={deletingId === driver.id}
+                          onClick={() => { void confirmDelete(driver.id); }}
+                        >
+                          {deletingId === driver.id ? "Suppression…" : "Oui, supprimer"}
+                        </Button>
+                        <Button
+                          type="button"
+                          size="sm"
+                          variant="outline"
+                          disabled={deletingId === driver.id}
+                          onClick={() => setConfirmDeleteId(null)}
+                        >
+                          Annuler
+                        </Button>
+                      </div>
+                    </div>
+                  )}
+                </div>
               </article>
             );
           })}
