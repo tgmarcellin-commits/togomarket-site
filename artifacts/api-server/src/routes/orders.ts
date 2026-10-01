@@ -10,7 +10,15 @@ function validCoordinate(value: unknown, min: number, max: number): value is num
 }
 
 router.post("/orders", async (req, res): Promise<void> => {
-  const forbiddenClientPricingFields = ["distanceLockedKm", "transportFeeLocked", "distanceActualKm", "distanceSource"];
+  const forbiddenClientPricingFields = [
+    "distanceLockedKm",
+    "transportFeeLocked",
+    "roundTripFeeLocked",
+    "distanceActualKm",
+    "distanceSource",
+    "settlementStatus",
+    "settlementRef",
+  ];
   const forbiddenFields = forbiddenClientPricingFields.filter((field) => Object.prototype.hasOwnProperty.call(req.body, field));
   if (forbiddenFields.length > 0) {
     await db.insert(deliveryAuditLogsTable).values({
@@ -68,7 +76,8 @@ router.post("/orders", async (req, res): Promise<void> => {
     })
     : null;
 
-  const [order] = await db
+    const roundTripFeeLocked = pricing ? 2 * pricing.transportFeeLocked : null;
+    const [order] = await db
     .insert(ordersTable)
     .values({
       lastName: parsed.data.lastName,
@@ -78,6 +87,7 @@ router.post("/orders", async (req, res): Promise<void> => {
       articlePriceLocked,
       distanceLockedKm: pricing?.distanceLockedKm,
       transportFeeLocked: pricing?.transportFeeLocked,
+      roundTripFeeLocked,
       distanceSource: pricing?.distanceSource,
     })
     .returning();
@@ -93,6 +103,7 @@ router.post("/orders", async (req, res): Promise<void> => {
     articlePriceLocked: order.articlePriceLocked,
     distanceLockedKm: order.distanceLockedKm,
     transportFeeLocked: order.transportFeeLocked,
+    roundTripFeeLocked: order.roundTripFeeLocked,
     distanceSource: order.distanceSource,
     createdAt: order.createdAt.toISOString(),
   });

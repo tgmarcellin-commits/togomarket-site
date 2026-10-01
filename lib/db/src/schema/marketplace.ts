@@ -83,7 +83,7 @@ export const deliveryDriverSessionsTable = pgTable("delivery_driver_sessions", {
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
 });
 
-export const deliveryJobsTable = pgTable("delivery_jobs", {
+export const deliveryJobsTable = pgTable("marketplace_delivery_jobs", {
   id: serial("id").primaryKey(),
   orderId: integer("order_id")
     .notNull()
@@ -114,7 +114,7 @@ export const deliveryQrTokensTable = pgTable("delivery_qr_tokens", {
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
 });
 
-export const withdrawalTicketsTable = pgTable("withdrawal_tickets", {
+export const withdrawalTicketsTable = pgTable("marketplace_withdrawal_tickets", {
   id: serial("id").primaryKey(),
   walletId: integer("wallet_id")
     .notNull()
@@ -126,7 +126,7 @@ export const withdrawalTicketsTable = pgTable("withdrawal_tickets", {
   processedAt: timestamp("processed_at", { withTimezone: true }),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
 }, (t) => ({
-  uniqueExternalReference: uniqueIndex("withdrawal_tickets_external_ref_unique").on(t.externalReference),
+  uniqueExternalReference: uniqueIndex("marketplace_withdrawal_tickets_external_ref_unique").on(t.externalReference),
 }));
 
 export const payoutWebhookEventsTable = pgTable("payout_webhook_events", {
@@ -168,7 +168,7 @@ export const marketplaceRefundsTable = pgTable("marketplace_refunds", {
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
 });
 
-export const auditLogsTable = pgTable("audit_logs", {
+export const auditLogsTable = pgTable("marketplace_audit_logs", {
   id: serial("id").primaryKey(),
   actorType: text("actor_type").notNull(),
   actorId: text("actor_id").notNull(),

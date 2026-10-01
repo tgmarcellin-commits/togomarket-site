@@ -2,6 +2,7 @@ import {
   bigint,
   boolean,
   check,
+  doublePrecision,
   index,
   integer,
   jsonb,
@@ -27,6 +28,7 @@ export const acceptanceStatusEnum = pgEnum("delivery_acceptance_status", [
 ]);
 
 export const walletOwnerTypeEnum = pgEnum("wallet_owner_type", ["seller", "driver", "buyer"]);
+export type WalletOwnerType = "seller" | "driver" | "buyer";
 export const withdrawalStatusEnum = pgEnum("withdrawal_status", [
   "pending_otp",
   "otp_verified",
@@ -45,6 +47,10 @@ export const driversTable = pgTable("drivers", {
   phone: text("phone").notNull().unique(),
   photoUrl: text("photo_url"),
   coverageZone: text("coverage_zone"),
+  workZone: text("work_zone"),
+  idDocumentNumber: text("id_document_number"),
+  idDocumentPhotoUrl: text("id_document_photo_url"),
+  isActive: boolean("is_active").notNull().default(true),
   whatsappNumber: text("whatsapp_number"),
   isAvailable: boolean("is_available").notNull().default(true),
   otpSessionTokenHash: text("otp_session_token_hash"),
@@ -131,6 +137,9 @@ export const virtualWalletsTable = pgTable(
     ownerType: walletOwnerTypeEnum("owner_type").notNull(),
     ownerId: integer("owner_id").notNull(),
     balance: bigint("balance", { mode: "number" }).notNull().default(0),
+    lockedBalance: bigint("locked_balance", { mode: "number" }).notNull().default(0),
+    pendingPayoutBalance: bigint("pending_payout_balance", { mode: "number" }).notNull().default(0),
+    paidOutBalance: bigint("paid_out_balance", { mode: "number" }).notNull().default(0),
     createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
     updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
   },
@@ -152,6 +161,8 @@ export const walletLedgerTable = pgTable("wallet_ledger", {
   entryType: text("entry_type").notNull(),
   amount: bigint("amount", { mode: "number" }).notNull(),
   direction: text("direction").notNull(), // debit | credit
+  balanceAfter: bigint("balance_after", { mode: "number" }),
+  settlementRef: text("settlement_ref"),
   immutableHash: text("immutable_hash").notNull().unique(),
   metadata: jsonb("metadata"),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
@@ -230,13 +241,20 @@ export const qrTokensTable = pgTable("qr_tokens", {
   orderId: integer("order_id")
     .notNull()
     .references(() => ordersTable.id, { onDelete: "cascade" }),
+  deliveryJobId: integer("delivery_job_id")
+    .references(() => deliveryWorkflowJobsTable.id, { onDelete: "cascade" }),
   driverId: integer("driver_id")
     .notNull()
     .references(() => driversTable.id, { onDelete: "cascade" }),
+  stage: text("stage").notNull().default("delivery"), // delivery | return
   tokenHash: text("token_hash").notNull().unique(),
   expiresAt: timestamp("expires_at", { withTimezone: true }).notNull(),
   usedAt: timestamp("used_at", { withTimezone: true }),
   sessionId: text("session_id"),
+  scannedByRole: text("scanned_by_role"), // buyer | seller
+  scannerLatitude: doublePrecision("scanner_latitude"),
+  scannerLongitude: doublePrecision("scanner_longitude"),
+  proximityMeters: doublePrecision("proximity_meters"),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
 });
 
@@ -309,6 +327,33 @@ export const locationsTable = pgTable("locations", {
   accuracyMeters: integer("accuracy_meters"),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
 });
+
+export const deliveryLocationsTable = pgTable(
+  "delivery_locations",
+  {
+    id: serial("id").primaryKey(),
+    deliveryJobId: integer("delivery_job_id")
+      .references(() => deliveryWorkflowJobsTable.id, { onDelete: "cascade" }),
+    orderId: integer("order_id")
+      .notNull()
+      .references(() => ordersTable.id, { onDelete: "cascade" }),
+    driverId: integer("driver_id")
+      .notNull()
+      .references(() => driversTable.id, { onDelete: "cascade" }),
+    latitude: doublePrecision("latitude").notNull(),
+    longitude: doublePrecision("longitude").notNull(),
+    accuracyMeters: doublePrecision("accuracy_meters"),
+    speed: doublePrecision("speed"),
+    heading: doublePrecision("heading"),
+    recordedAt: timestamp("recorded_at", { withTimezone: true }).notNull().defaultNow(),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => ({
+    jobCreatedAtIdx: index("delivery_locations_job_created_at_idx").on(t.deliveryJobId, t.createdAt),
+    orderCreatedAtIdx: index("delivery_locations_order_created_at_idx").on(t.orderId, t.createdAt),
+    driverCreatedAtIdx: index("delivery_locations_driver_created_at_idx").on(t.driverId, t.createdAt),
+  }),
+);
 
 export const deliveryConsentsTable = pgTable("delivery_consents", {
   id: serial("id").primaryKey(),

@@ -4,6 +4,7 @@ import {
   conversationDeliveryOrdersTable,
   conversationsTable,
   deliveryAuditLogsTable,
+  deliveryLocationsTable,
   db,
   deliveryWorkflowJobsTable,
   driverSessionsTable,
@@ -19,8 +20,8 @@ import {
 import { normalizePhone } from "../lib/phone";
 import { paymentWebhookEventHash, verifyFedapayDriverWebhookSignature } from "../lib/fedapay-driver-webhook";
 import { sendWhatsAppText } from "../lib/whatsapp-api";
-import { computeLockedDeliveryPricing } from "../lib/distance-pricing";
-import { verifyAdminCode } from "../lib/admin-auth";
+import { computeLockedDeliveryPricing, superadminCorrectOrderPricing } from "../lib/distance-pricing";
+import { isSuperAdmin, verifyAdminCode } from "../lib/admin-auth";
 import { createDriverSessionToken, isDriverSessionTokenMatch, parseBearerToken } from "../lib/driver-session";
 import { hashOpaqueToken } from "../lib/marketplace-security";
 import { isDriverBusyForAssignment, isOrderAssignableStatus } from "../lib/delivery-assignment-guard";
@@ -33,6 +34,10 @@ import {
 import { authenticateVendorRequest } from "../lib/vendor-auth";
 import { resolveBuyerConversationId } from "../lib/conversation-access";
 import { getIo } from "../lib/socket-io";
+import { ingestDriverLocation, canAccessLocation } from "../lib/gps-tracking";
+import { requestDeliveryQrToken, scanAndVerifyQrToken } from "../lib/qr-service";
+import { getWalletSummary, requestWalletWithdrawal } from "../lib/wallet-service";
+import { getTrialBalance } from "../lib/accounting-ledger";
 
 const router: IRouter = Router();
 const ASSIGNMENT_TTL_MS = 15 * 60 * 1000;
@@ -91,14 +96,13 @@ async function buildAvailableDriversWithRatings() {
       id: driversTable.id,
       firstName: driversTable.firstName,
       lastName: driversTable.lastName,
-      phone: driversTable.phone,
       photoUrl: driversTable.photoUrl,
+      workZone: driversTable.workZone,
       coverageZone: driversTable.coverageZone,
-      whatsappNumber: driversTable.whatsappNumber,
       isAvailable: driversTable.isAvailable,
     })
     .from(driversTable)
-    .where(eq(driversTable.isAvailable, true))
+    .where(and(eq(driversTable.isAvailable, true), eq(driversTable.isActive, true)))
     .limit(50);
 
   if (drivers.length === 0) return [];
@@ -141,7 +145,8 @@ async function buildAvailableDriversWithRatings() {
     .innerJoin(ratingsTable, eq(ratingsTable.orderId, deliveryWorkflowJobsTable.orderId))
     .where(eq(deliveryWorkflowJobsTable.acceptanceStatus, "accepted_by_driver"))
     .groupBy(deliveryWorkflowJobsTable.driverId);
-  return mergeDriverRatings(
+
+  const merged = mergeDriverRatings(
     drivers.filter((driver) => !busyIds.has(driver.id)),
     ratings.map((rating) => ({
       driverId: rating.driverId,
@@ -149,6 +154,17 @@ async function buildAvailableDriversWithRatings() {
       ratingCount: Number(rating.ratingCount),
     })),
   );
+
+  return merged.map((d) => ({
+    id: d.id,
+    firstName: d.firstName,
+    lastName: d.lastName,
+    photoUrl: d.photoUrl,
+    workZone: d.workZone || d.coverageZone || "Lomé",
+    isAvailable: d.isAvailable,
+    ratingAverage: d.ratingAverage,
+    ratingCount: d.ratingCount,
+  }));
 }
 
 async function getConversationDeliveryState(conversationId: number) {
@@ -926,7 +942,11 @@ router.get("/driver-connexion/session", async (req, res) => {
       firstName: driver.firstName,
       lastName: driver.lastName,
       phone: driver.phone,
+      whatsappNumber: driver.whatsappNumber,
+      photoUrl: driver.photoUrl,
+      workZone: driver.workZone || driver.coverageZone || "Lomé",
       isAvailable: driver.isAvailable,
+      isActive: driver.isActive,
     },
   });
 });
@@ -965,9 +985,9 @@ router.get("/driver-connexion/assignments", async (req, res) => {
       lastName: ordersTable.lastName,
       phone: ordersTable.phone,
       description: ordersTable.description,
-      articlePriceLocked: ordersTable.articlePriceLocked,
       distanceLockedKm: ordersTable.distanceLockedKm,
       transportFeeLocked: ordersTable.transportFeeLocked,
+      roundTripFeeLocked: ordersTable.roundTripFeeLocked,
       status: ordersTable.status,
       createdAt: ordersTable.createdAt,
     })
@@ -1177,6 +1197,517 @@ router.post("/drivers/:driverId/availability", async (req, res) => {
     updatedAt: new Date(),
   }).where(eq(driversTable.id, driverId));
   return res.json({ success: true });
+});
+
+// --- SUPERADMIN DRIVER MANAGEMENT ROUTES ---
+router.post("/admin/drivers", async (req, res) => {
+  const adminCode = String(req.headers["x-admin-code"] ?? req.body?.adminCode ?? "").trim();
+  if (!adminCode || !(await isSuperAdmin(adminCode))) {
+    return res.status(403).json({ error: "Accès refusé — rôle superadmin requis." });
+  }
+
+  const firstName = String(req.body?.firstName ?? "").trim();
+  const lastName = String(req.body?.lastName ?? "").trim();
+  const rawPhone = String(req.body?.phone ?? "").trim();
+
+  if (!firstName || !lastName || !rawPhone) {
+    return res.status(400).json({ error: "firstName, lastName et phone sont obligatoires." });
+  }
+
+  const phone = normalizePhone(rawPhone);
+  if (!phone || phone.length < 8) {
+    return res.status(400).json({ error: "Numéro de téléphone invalide." });
+  }
+
+  const [existing] = await db
+    .select({ id: driversTable.id })
+    .from(driversTable)
+    .where(eq(driversTable.phone, phone))
+    .limit(1);
+
+  if (existing) {
+    return res.status(409).json({ error: "Un livreur avec ce numéro de téléphone existe déjà." });
+  }
+
+  const whatsappNumber = req.body?.whatsappNumber ? normalizePhone(String(req.body.whatsappNumber)) : phone;
+  const photoUrl = req.body?.photoUrl ? String(req.body.photoUrl).trim() : null;
+  const workZone = req.body?.workZone ? String(req.body.workZone).trim() : (req.body?.coverageZone ? String(req.body.coverageZone).trim() : "Lomé");
+  const coverageZone = req.body?.coverageZone ? String(req.body.coverageZone).trim() : workZone;
+  const idDocumentNumber = req.body?.idDocumentNumber ? String(req.body.idDocumentNumber).trim() : null;
+  const idDocumentPhotoUrl = req.body?.idDocumentPhotoUrl ? String(req.body.idDocumentPhotoUrl).trim() : null;
+  const isActive = req.body?.isActive !== undefined ? Boolean(req.body.isActive) : true;
+  const isAvailable = req.body?.isAvailable !== undefined ? Boolean(req.body.isAvailable) : true;
+
+  const [driver] = await db
+    .insert(driversTable)
+    .values({
+      firstName,
+      lastName,
+      phone,
+      whatsappNumber,
+      photoUrl,
+      workZone,
+      coverageZone,
+      idDocumentNumber,
+      idDocumentPhotoUrl,
+      isActive,
+      isAvailable,
+    })
+    .returning();
+
+  await db.insert(deliveryAuditLogsTable).values({
+    actorType: "superadmin",
+    action: "admin_create_driver",
+    metadata: {
+      driverId: driver.id,
+      phone: driver.phone,
+      workZone: driver.workZone,
+      isActive: driver.isActive,
+    },
+  });
+
+  return res.status(201).json({ driver });
+});
+
+router.get("/admin/drivers", async (req, res) => {
+  const adminCode = String(req.headers["x-admin-code"] ?? req.query?.adminCode ?? "").trim();
+  if (!adminCode || !(await isSuperAdmin(adminCode))) {
+    return res.status(403).json({ error: "Accès refusé — rôle superadmin requis." });
+  }
+
+  const drivers = await db
+    .select()
+    .from(driversTable)
+    .orderBy(desc(driversTable.createdAt));
+
+  return res.json({ drivers });
+});
+
+router.patch("/admin/drivers/:driverId", async (req, res) => {
+  const adminCode = String(req.headers["x-admin-code"] ?? req.body?.adminCode ?? "").trim();
+  if (!adminCode || !(await isSuperAdmin(adminCode))) {
+    return res.status(403).json({ error: "Accès refusé — rôle superadmin requis." });
+  }
+
+  const driverId = Number(req.params.driverId);
+  if (!Number.isInteger(driverId) || driverId <= 0) {
+    return res.status(400).json({ error: "ID livreur invalide." });
+  }
+
+  const [existing] = await db
+    .select()
+    .from(driversTable)
+    .where(eq(driversTable.id, driverId))
+    .limit(1);
+
+  if (!existing) {
+    return res.status(404).json({ error: "Livreur introuvable." });
+  }
+
+  const updates: Partial<typeof driversTable.$inferInsert> = {
+    updatedAt: new Date(),
+  };
+
+  if (typeof req.body?.firstName === "string" && req.body.firstName.trim().length > 0) {
+    updates.firstName = req.body.firstName.trim();
+  }
+  if (typeof req.body?.lastName === "string" && req.body.lastName.trim().length > 0) {
+    updates.lastName = req.body.lastName.trim();
+  }
+  if (typeof req.body?.phone === "string") {
+    const normalized = normalizePhone(req.body.phone);
+    if (!normalized || normalized.length < 8) {
+      return res.status(400).json({ error: "Numéro de téléphone invalide." });
+    }
+    if (normalized !== existing.phone) {
+      const [duplicate] = await db
+        .select({ id: driversTable.id })
+        .from(driversTable)
+        .where(eq(driversTable.phone, normalized))
+        .limit(1);
+      if (duplicate) {
+        return res.status(409).json({ error: "Ce numéro de téléphone est déjà utilisé par un autre livreur." });
+      }
+      updates.phone = normalized;
+    }
+  }
+  if (typeof req.body?.whatsappNumber === "string") {
+    updates.whatsappNumber = normalizePhone(req.body.whatsappNumber);
+  }
+  if (req.body?.photoUrl !== undefined) {
+    updates.photoUrl = req.body.photoUrl ? String(req.body.photoUrl).trim() : null;
+  }
+  if (typeof req.body?.workZone === "string") {
+    updates.workZone = req.body.workZone.trim();
+  }
+  if (typeof req.body?.coverageZone === "string") {
+    updates.coverageZone = req.body.coverageZone.trim();
+  }
+  if (req.body?.idDocumentNumber !== undefined) {
+    updates.idDocumentNumber = req.body.idDocumentNumber ? String(req.body.idDocumentNumber).trim() : null;
+  }
+  if (req.body?.idDocumentPhotoUrl !== undefined) {
+    updates.idDocumentPhotoUrl = req.body.idDocumentPhotoUrl ? String(req.body.idDocumentPhotoUrl).trim() : null;
+  }
+  if (typeof req.body?.isActive === "boolean") {
+    updates.isActive = req.body.isActive;
+  }
+  if (typeof req.body?.isAvailable === "boolean") {
+    updates.isAvailable = req.body.isAvailable;
+  }
+
+  const [updatedDriver] = await db
+    .update(driversTable)
+    .set(updates)
+    .where(eq(driversTable.id, driverId))
+    .returning();
+
+  await db.insert(deliveryAuditLogsTable).values({
+    actorType: "superadmin",
+    action: "admin_update_driver",
+    metadata: {
+      driverId,
+      previous: {
+        firstName: existing.firstName,
+        lastName: existing.lastName,
+        phone: existing.phone,
+        workZone: existing.workZone,
+        isActive: existing.isActive,
+        isAvailable: existing.isAvailable,
+      },
+      updated: updates,
+    },
+  });
+
+  return res.json({ driver: updatedDriver });
+});
+
+router.patch("/admin/orders/:orderId/distance", async (req, res) => {
+  const adminCode = String(req.headers["x-admin-code"] ?? req.body?.adminCode ?? "").trim();
+  if (!adminCode || !(await isSuperAdmin(adminCode))) {
+    return res.status(403).json({ error: "Accès refusé — rôle superadmin requis." });
+  }
+
+  const orderId = Number(req.params.orderId);
+  if (!Number.isInteger(orderId) || orderId <= 0) {
+    return res.status(400).json({ error: "ID de commande invalide." });
+  }
+
+  const newDistanceKm = Number(req.body?.distanceLockedKm ?? req.body?.newDistanceKm);
+  const reason = String(req.body?.reason ?? "").trim();
+
+  if (!Number.isInteger(newDistanceKm) || newDistanceKm < 1) {
+    return res.status(400).json({ error: "distanceLockedKm doit être un entier >= 1." });
+  }
+  if (!reason) {
+    return res.status(400).json({ error: "Le motif de la correction est obligatoire." });
+  }
+
+  try {
+    const result = await superadminCorrectOrderPricing({
+      orderId,
+      newDistanceKm,
+      reason,
+    });
+    return res.json(result);
+  } catch (err) {
+    const message = err instanceof Error ? err.message : "Erreur correction distance";
+    return res.status(400).json({ error: message });
+  }
+});
+
+// --- GPS LOCATION INGESTION AND ACCESS ---
+router.post("/delivery/jobs/:deliveryJobId/locations", async (req, res) => {
+  const driver = await authenticateDriverSession(req.headers.authorization);
+  if (!driver) {
+    return res.status(401).json({ error: "Session livreur invalide." });
+  }
+
+  const deliveryJobId = Number(req.params.deliveryJobId);
+  if (!Number.isInteger(deliveryJobId) || deliveryJobId <= 0) {
+    return res.status(400).json({ error: "ID de mission invalide." });
+  }
+
+  const latitude = Number(req.body?.latitude);
+  const longitude = Number(req.body?.longitude);
+  const accuracy = req.body?.accuracy !== undefined && req.body?.accuracy !== null ? Number(req.body.accuracy) : null;
+  const speed = req.body?.speed !== undefined && req.body?.speed !== null ? Number(req.body.speed) : null;
+  const heading = req.body?.heading !== undefined && req.body?.heading !== null ? Number(req.body.heading) : null;
+  const recordedAt = req.body?.recordedAt;
+
+  try {
+    const result = await ingestDriverLocation({
+      deliveryJobId,
+      driverId: driver.id,
+      latitude,
+      longitude,
+      accuracy,
+      speed,
+      heading,
+      recordedAt,
+    });
+    return res.status(result.throttled ? 200 : 201).json(result);
+  } catch (err) {
+    const message = err instanceof Error ? err.message : "Erreur ingestion GPS";
+    return res.status(400).json({ error: message });
+  }
+});
+
+router.get("/delivery/jobs/:deliveryJobId/locations/latest", async (req, res) => {
+  const deliveryJobId = Number(req.params.deliveryJobId);
+  if (!Number.isInteger(deliveryJobId) || deliveryJobId <= 0) {
+    return res.status(400).json({ error: "ID de mission invalide." });
+  }
+
+  const adminCode = String(req.headers["x-admin-code"] ?? req.query?.adminCode ?? "").trim();
+  const isSuper = adminCode ? await isSuperAdmin(adminCode) : false;
+
+  const driver = await authenticateDriverSession(req.headers.authorization);
+
+  const vendorAuth = req.headers["x-vendor-id"] ?? req.query?.vendorId;
+  const vendorId = vendorAuth ? Number(vendorAuth) : 0;
+
+  const buyerConv = Number(req.headers["x-conversation-id"] ?? req.query?.conversationId ?? 0);
+
+  let hasAccess = isSuper;
+  if (!hasAccess && driver) {
+    hasAccess = await canAccessLocation({ deliveryJobId, actor: { role: "driver", driverId: driver.id } });
+  }
+  if (!hasAccess && vendorId > 0) {
+    hasAccess = await canAccessLocation({ deliveryJobId, actor: { role: "vendor", vendorId } });
+  }
+  if (!hasAccess && buyerConv > 0) {
+    hasAccess = await canAccessLocation({ deliveryJobId, actor: { role: "buyer", conversationId: buyerConv } });
+  }
+
+  if (!hasAccess) {
+    return res.status(403).json({ error: "Accès non autorisé à la position de cette livraison." });
+  }
+
+  const [location] = await db
+    .select()
+    .from(deliveryLocationsTable)
+    .where(eq(deliveryLocationsTable.deliveryJobId, deliveryJobId))
+    .orderBy(desc(deliveryLocationsTable.recordedAt), desc(deliveryLocationsTable.createdAt))
+    .limit(1);
+
+  if (!location) {
+    return res.status(404).json({ error: "Aucune position GPS enregistrée pour cette mission." });
+  }
+
+  return res.json({
+    id: location.id,
+    deliveryJobId: location.deliveryJobId,
+    orderId: location.orderId,
+    driverId: location.driverId,
+    latitude: location.latitude,
+    longitude: location.longitude,
+    accuracy: location.accuracyMeters,
+    speed: location.speed,
+    heading: location.heading,
+    recordedAt: location.recordedAt.toISOString(),
+  });
+});
+
+router.get("/delivery/jobs/:deliveryJobId/locations", async (req, res) => {
+  const deliveryJobId = Number(req.params.deliveryJobId);
+  if (!Number.isInteger(deliveryJobId) || deliveryJobId <= 0) {
+    return res.status(400).json({ error: "ID de mission invalide." });
+  }
+
+  const adminCode = String(req.headers["x-admin-code"] ?? req.query?.adminCode ?? "").trim();
+  const isSuper = adminCode ? await isSuperAdmin(adminCode) : false;
+
+  const driver = await authenticateDriverSession(req.headers.authorization);
+
+  const vendorAuth = req.headers["x-vendor-id"] ?? req.query?.vendorId;
+  const vendorId = vendorAuth ? Number(vendorAuth) : 0;
+
+  const buyerConv = Number(req.headers["x-conversation-id"] ?? req.query?.conversationId ?? 0);
+
+  let hasAccess = isSuper;
+  if (!hasAccess && driver) {
+    hasAccess = await canAccessLocation({ deliveryJobId, actor: { role: "driver", driverId: driver.id } });
+  }
+  if (!hasAccess && vendorId > 0) {
+    hasAccess = await canAccessLocation({ deliveryJobId, actor: { role: "vendor", vendorId } });
+  }
+  if (!hasAccess && buyerConv > 0) {
+    hasAccess = await canAccessLocation({ deliveryJobId, actor: { role: "buyer", conversationId: buyerConv } });
+  }
+
+  if (!hasAccess) {
+    return res.status(403).json({ error: "Accès non autorisé à l'historique GPS de cette livraison." });
+  }
+
+  const locations = await db
+    .select()
+    .from(deliveryLocationsTable)
+    .where(eq(deliveryLocationsTable.deliveryJobId, deliveryJobId))
+    .orderBy(desc(deliveryLocationsTable.recordedAt), desc(deliveryLocationsTable.createdAt))
+    .limit(100);
+
+  return res.json({
+    locations: locations.map((loc) => ({
+      id: loc.id,
+      deliveryJobId: loc.deliveryJobId,
+      orderId: loc.orderId,
+      driverId: loc.driverId,
+      latitude: loc.latitude,
+      longitude: loc.longitude,
+      accuracy: loc.accuracyMeters,
+      speed: loc.speed,
+      heading: loc.heading,
+      recordedAt: loc.recordedAt.toISOString(),
+    })),
+  });
+});
+
+// --- ON-DEMAND QR WORKFLOW (3-MIN TTL + PROXIMITY CHECK) ---
+router.post("/delivery/jobs/:deliveryJobId/qr/request", async (req, res) => {
+  const driver = await authenticateDriverSession(req.headers.authorization);
+  if (!driver) {
+    return res.status(401).json({ error: "Session livreur invalide." });
+  }
+
+  const deliveryJobId = Number(req.params.deliveryJobId);
+  if (!Number.isInteger(deliveryJobId) || deliveryJobId <= 0) {
+    return res.status(400).json({ error: "ID de mission invalide." });
+  }
+
+  const stage = req.body?.stage === "return" ? "return" : "delivery";
+  const currentLatitude = req.body?.latitude !== undefined ? Number(req.body.latitude) : undefined;
+  const currentLongitude = req.body?.longitude !== undefined ? Number(req.body.longitude) : undefined;
+
+  try {
+    const token = await requestDeliveryQrToken({
+      deliveryJobId,
+      driverId: driver.id,
+      stage,
+      currentLatitude,
+      currentLongitude,
+    });
+    return res.status(201).json(token);
+  } catch (err) {
+    const message = err instanceof Error ? err.message : "Erreur génération QR";
+    return res.status(400).json({ error: message });
+  }
+});
+
+router.post("/delivery/qr/scan", async (req, res) => {
+  const rawToken = String(req.body?.rawToken ?? req.body?.token ?? "").trim();
+  const scannerRole = String(req.body?.scannerRole ?? req.body?.role ?? "").trim() as "buyer" | "seller" | "driver";
+  const scannerLatitude = Number(req.body?.scannerLatitude ?? req.body?.latitude);
+  const scannerLongitude = Number(req.body?.scannerLongitude ?? req.body?.longitude);
+  const idempotencyKey = req.body?.idempotencyKey ? String(req.body.idempotencyKey) : undefined;
+
+  if (!rawToken) {
+    return res.status(400).json({ error: "Token QR requis." });
+  }
+  if (scannerRole !== "buyer" && scannerRole !== "seller" && scannerRole !== "driver") {
+    return res.status(400).json({ error: "Rôle du scanner invalide (doit être 'buyer' ou 'seller')." });
+  }
+
+  try {
+    const result = await scanAndVerifyQrToken({
+      rawToken,
+      scannerRole,
+      scannerLatitude,
+      scannerLongitude,
+      idempotencyKey,
+    });
+    return res.status(200).json(result);
+  } catch (err) {
+    const message = err instanceof Error ? err.message : "Erreur vérification QR";
+    return res.status(400).json({ error: message });
+  }
+});
+
+// --- WALLETS AND WITHDRAWALS ---
+router.get("/driver-connexion/wallet", async (req, res) => {
+  const driver = await authenticateDriverSession(req.headers.authorization);
+  if (!driver) {
+    return res.status(401).json({ error: "Session livreur invalide." });
+  }
+
+  const summary = await getWalletSummary("driver", driver.id);
+  return res.json(summary);
+});
+
+router.post("/driver-connexion/withdraw", async (req, res) => {
+  const driver = await authenticateDriverSession(req.headers.authorization);
+  if (!driver) {
+    return res.status(401).json({ error: "Session livreur invalide." });
+  }
+
+  const amount = Number(req.body?.amount);
+  const phoneNumber = String(req.body?.phoneNumber ?? driver.phone);
+
+  try {
+    const result = await requestWalletWithdrawal({
+      ownerType: "driver",
+      ownerId: driver.id,
+      amount,
+      phoneNumber,
+    });
+    return res.status(201).json(result);
+  } catch (err) {
+    const message = err instanceof Error ? err.message : "Erreur retrait portefeuille";
+    return res.status(400).json({ error: message });
+  }
+});
+
+router.get("/wallets/:ownerType/:ownerId", async (req, res) => {
+  const ownerType = req.params.ownerType;
+  const ownerId = Number(req.params.ownerId);
+
+  if (ownerType !== "buyer" && ownerType !== "seller" && ownerType !== "driver") {
+    return res.status(400).json({ error: "Type de propriétaire de portefeuille invalide." });
+  }
+  if (!Number.isInteger(ownerId) || ownerId <= 0) {
+    return res.status(400).json({ error: "ID propriétaire invalide." });
+  }
+
+  const summary = await getWalletSummary(ownerType, ownerId);
+  return res.json(summary);
+});
+
+router.post("/wallets/withdraw", async (req, res) => {
+  const ownerType = req.body?.ownerType;
+  const ownerId = Number(req.body?.ownerId);
+  const amount = Number(req.body?.amount);
+  const phoneNumber = String(req.body?.phoneNumber ?? "");
+
+  if (ownerType !== "buyer" && ownerType !== "seller" && ownerType !== "driver") {
+    return res.status(400).json({ error: "Type de propriétaire de portefeuille invalide." });
+  }
+  if (!Number.isInteger(ownerId) || ownerId <= 0) {
+    return res.status(400).json({ error: "ID propriétaire invalide." });
+  }
+
+  try {
+    const result = await requestWalletWithdrawal({
+      ownerType,
+      ownerId,
+      amount,
+      phoneNumber,
+    });
+    return res.status(201).json(result);
+  } catch (err) {
+    const message = err instanceof Error ? err.message : "Erreur retrait portefeuille";
+    return res.status(400).json({ error: message });
+  }
+});
+
+// --- DOUBLE-ENTRY ACCOUNTING TRIAL BALANCE ---
+router.get("/admin/comptabilite/trial-balance", async (req, res) => {
+  const adminCode = String(req.headers["x-admin-code"] ?? req.query?.adminCode ?? "").trim();
+  if (!adminCode || !(await isSuperAdmin(adminCode))) {
+    return res.status(403).json({ error: "Accès refusé — rôle superadmin requis." });
+  }
+
+  const trialBalance = await getTrialBalance();
+  return res.json(trialBalance);
 });
 
 export default router;

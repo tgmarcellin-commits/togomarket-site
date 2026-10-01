@@ -1,4 +1,5 @@
 import path from "node:path";
+import { fileURLToPath } from "node:url";
 import express, { type Express } from "express";
 import cors from "cors";
 import pinoHttp from "pino-http";
@@ -53,7 +54,8 @@ app.use("/api", csrfProtection);
 app.use("/api", router);
 
 // --- AJOUT : Servir le frontend React en production ---
-const frontendDistPath = path.resolve(__dirname, "../../togomarket/dist/public");
+const currentDir = path.dirname(fileURLToPath(import.meta.url));
+const frontendDistPath = path.resolve(currentDir, "../../togomarket/dist/public");
 app.use(express.static(frontendDistPath));
 
 // Route universelle (Catch-all) pour rediriger vers le frontend React (SPA)
