@@ -53,6 +53,9 @@ export const TEMPLATE_OTP_AUTH: string =
 export const TEMPLATE_NOTIF_NUDGE: string =
   process.env.WHATSAPP_TEMPLATE_NOTIF_NUDGE ?? "togomarket_notif_nudge";
 
+export const TEMPLATE_DRIVER_ASSIGNMENT: string =
+  process.env.WHATSAPP_UTILITY_TEMPLATE_NAME?.trim() || "driver_assignment_utility";
+
 // URL de base de l'application (utilisée dans les liens CTA)
 export const APP_BASE_URL: string =
   process.env.APP_BASE_URL ?? "https://togomarket.site";

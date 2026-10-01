@@ -13,7 +13,8 @@
     "test:message-file-access": "pnpm --filter @workspace/scripts exec tsx --test ../artifacts/api-server/src/lib/message-file-access.test.ts",
     "test:accounting-ledger-metadata": "pnpm --filter @workspace/scripts exec tsx --test ../artifacts/api-server/src/lib/accounting-ledger-metadata.test.ts",
     "test:route-errors": "pnpm --filter @workspace/scripts exec tsx --test ../artifacts/api-server/src/lib/route-errors.test.ts",
-    "test:admin-accounting": "pnpm --filter @workspace/scripts exec tsx --test ../artifacts/api-server/src/routes/admin-accounting.test.ts"
+    "test:admin-accounting": "pnpm --filter @workspace/scripts exec tsx --test ../artifacts/api-server/src/routes/admin-accounting.test.ts",
+    "test:whatsapp-api": "pnpm --filter @workspace/scripts exec tsx --test ../artifacts/api-server/src/lib/whatsapp-api.test.ts"
   },
   "dependencies": {
     "@google/generative-ai": "^0.24.1",
