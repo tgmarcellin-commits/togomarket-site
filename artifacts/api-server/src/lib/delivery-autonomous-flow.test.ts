@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import {
+  buildOrderCreationInput,
   getBusyDriverIds,
   mergeDriverRatings,
   getPriceConfirmationState,
@@ -76,6 +77,73 @@ test("assignment conflict detection rejects concurrent second acceptance", () =>
       { id: 15, acceptanceStatus: "pending_driver_response" },
     ]),
     true,
+  );
+});
+
+test("buyer confirmation then matching vendor confirmation unlocks order creation with a non-null amount", () => {
+  // Buyer confirms first: state stays "pending" and no order should be created yet.
+  const afterBuyer = getPriceConfirmationState([
+    { actorType: "buyer", amountFcfa: 500 },
+  ]);
+  assert.equal(afterBuyer.status, "pending");
+
+  // Vendor confirms the same amount: state becomes "matched" with a non-null buyerAmount,
+  // which is exactly the condition the price-confirmation route uses to auto-create the order.
+  const afterVendor = getPriceConfirmationState([
+    { actorType: "buyer", amountFcfa: 500 },
+    { actorType: "vendor", amountFcfa: 500 },
+  ]);
+  assert.equal(afterVendor.status, "matched");
+  assert.notEqual(afterVendor.buyerAmount, null);
+
+  const orderInput = buildOrderCreationInput({
+    buyerName: "Afi Buyer",
+    buyerPhone: "90000000",
+    listingTitle: "Sac à main",
+    vendorLastName: "Kodjo",
+    lockedBuyerAmount: afterVendor.buyerAmount!,
+  });
+  assert.deepEqual(orderInput, {
+    firstName: "Afi Buyer",
+    lastName: "Kodjo",
+    phone: "90000000",
+    description: "Sac à main",
+    articlePriceLocked: 500,
+  });
+});
+
+test("buildOrderCreationInput falls back to 'Vendeur' when vendor lastName is empty, blank or missing", () => {
+  const base = {
+    buyerName: "Afi Buyer",
+    buyerPhone: "90000000",
+    listingTitle: "Sac à main",
+    lockedBuyerAmount: 500,
+  };
+  assert.equal(buildOrderCreationInput({ ...base, vendorLastName: "" }).lastName, "Vendeur");
+  assert.equal(buildOrderCreationInput({ ...base, vendorLastName: "   " }).lastName, "Vendeur");
+  assert.equal(buildOrderCreationInput({ ...base, vendorLastName: null }).lastName, "Vendeur");
+  assert.equal(buildOrderCreationInput({ ...base, vendorLastName: undefined }).lastName, "Vendeur");
+  assert.equal(buildOrderCreationInput({ ...base, vendorLastName: "Kodjo" }).lastName, "Kodjo");
+});
+
+test("buildOrderCreationInput falls back to a default description when listingTitle is empty or missing", () => {
+  const base = {
+    buyerName: "Afi Buyer",
+    buyerPhone: "90000000",
+    vendorLastName: "Kodjo",
+    lockedBuyerAmount: 500,
+  };
+  assert.equal(
+    buildOrderCreationInput({ ...base, listingTitle: null }).description,
+    "Commande créée depuis Messages",
+  );
+  assert.equal(
+    buildOrderCreationInput({ ...base, listingTitle: "" }).description,
+    "Commande créée depuis Messages",
+  );
+  assert.equal(
+    buildOrderCreationInput({ ...base, listingTitle: "Sac à main" }).description,
+    "Sac à main",
   );
 });
 

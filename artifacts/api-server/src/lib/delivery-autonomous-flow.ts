@@ -24,6 +24,43 @@ export function getPriceConfirmationState(rows: PriceConfirmationRow[]): PriceCo
   };
 }
 
+export type OrderCreationInput = {
+  firstName: string;
+  lastName: string;
+  phone: string;
+  description: string;
+  articlePriceLocked: number;
+};
+
+const DEFAULT_VENDOR_LAST_NAME = "Vendeur";
+const DEFAULT_ORDER_DESCRIPTION = "Commande créée depuis Messages";
+
+/**
+ * Builds the values used to auto-create an `orders` row once buyer and
+ * vendor have confirmed the same price. Never lets an empty/whitespace-only
+ * string (e.g. a vendor with a blank `lastName`, not just `null`/`undefined`)
+ * slip through and trip the column's NOT NULL constraint, which previously
+ * made the order-creation transaction fail silently and left the price
+ * confirmation stuck as "matched" with no `orderId`.
+ */
+export function buildOrderCreationInput(params: {
+  buyerName: string;
+  buyerPhone: string;
+  listingTitle: string | null;
+  vendorLastName: string | null | undefined;
+  lockedBuyerAmount: number;
+}): OrderCreationInput {
+  const vendorLastName = params.vendorLastName?.trim();
+  const listingTitle = params.listingTitle?.trim();
+  return {
+    firstName: params.buyerName,
+    lastName: vendorLastName && vendorLastName.length > 0 ? vendorLastName : DEFAULT_VENDOR_LAST_NAME,
+    phone: params.buyerPhone,
+    description: listingTitle && listingTitle.length > 0 ? listingTitle : DEFAULT_ORDER_DESCRIPTION,
+    articlePriceLocked: params.lockedBuyerAmount,
+  };
+}
+
 export type DriverAvailabilitySnapshot = {
   id: number;
   assignments: Array<{ acceptanceStatus: string; assignmentExpiresAt: Date | null }>;
