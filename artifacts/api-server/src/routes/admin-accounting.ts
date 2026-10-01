@@ -519,46 +519,55 @@ router.get("/admin/operations/overview", async (req, res) => {
   // 4. GPS Freshness check on active missions
   const activeMissionOrders = allOrders.filter((o) => ["IN_TRANSIT", "RETURNING_TO_SELLER"].includes(o.status));
   const activeOrderIds = activeMissionOrders.map((o) => o.id);
+  const activeJobs = acceptedJobs.filter((j) => activeOrderIds.includes(j.orderId));
+  const activeJobIds = activeJobs.map((j) => j.id);
 
   let freshGpsCount = 0;
   let staleAlertCount = 0;
   let missingGpsCount = 0;
   const staleAlerts: Array<{ orderId: number; driverId: number; ageMinutes: number; lastRecordedAt: string | null }> = [];
 
-  for (const orderId of activeOrderIds) {
-    const job = acceptedJobs.find((j) => j.orderId === orderId);
-    if (!job) continue;
-
-    const [latestLoc] = await db
+  if (activeJobIds.length > 0) {
+    const locRows = await db
       .select({
+        deliveryJobId: deliveryLocationsTable.deliveryJobId,
         recordedAt: deliveryLocationsTable.recordedAt,
       })
       .from(deliveryLocationsTable)
-      .where(eq(deliveryLocationsTable.deliveryJobId, job.id))
-      .orderBy(desc(deliveryLocationsTable.recordedAt))
-      .limit(1);
+      .where(inArray(deliveryLocationsTable.deliveryJobId, activeJobIds))
+      .orderBy(desc(deliveryLocationsTable.recordedAt));
 
-    if (!latestLoc) {
-      missingGpsCount++;
-      staleAlerts.push({
-        orderId,
-        driverId: job.driverId,
-        ageMinutes: 999,
-        lastRecordedAt: null,
-      });
-    } else {
-      const recordedTime = new Date(latestLoc.recordedAt).getTime();
-      const ageMinutes = Math.round((now - recordedTime) / 60000);
-      if (latestLoc.recordedAt < tenMinutesAgo) {
-        staleAlertCount++;
+    const latestLocByJobId = new Map<number, Date>();
+    for (const loc of locRows) {
+      if (loc.deliveryJobId != null && !latestLocByJobId.has(loc.deliveryJobId)) {
+        latestLocByJobId.set(loc.deliveryJobId, loc.recordedAt);
+      }
+    }
+
+    for (const job of activeJobs) {
+      const recordedAt = latestLocByJobId.get(job.id);
+      if (!recordedAt) {
+        missingGpsCount++;
         staleAlerts.push({
-          orderId,
+          orderId: job.orderId,
           driverId: job.driverId,
-          ageMinutes,
-          lastRecordedAt: latestLoc.recordedAt.toISOString(),
+          ageMinutes: 999,
+          lastRecordedAt: null,
         });
       } else {
-        freshGpsCount++;
+        const recordedTime = new Date(recordedAt).getTime();
+        const ageMinutes = Math.round((now - recordedTime) / 60000);
+        if (recordedAt < tenMinutesAgo) {
+          staleAlertCount++;
+          staleAlerts.push({
+            orderId: job.orderId,
+            driverId: job.driverId,
+            ageMinutes,
+            lastRecordedAt: recordedAt.toISOString(),
+          });
+        } else {
+          freshGpsCount++;
+        }
       }
     }
   }
@@ -871,6 +880,12 @@ router.post("/admin/withdrawals/:ticketId/review", async (req, res) => {
     return res.status(404).json({ error: "Ticket de retrait introuvable." });
   }
 
+  if (ticket.status !== "withdrawal_review_required") {
+    return res.status(400).json({
+      error: `Ce ticket est au statut '${ticket.status}' et ne peut plus être révisé.`,
+    });
+  }
+
   if (action === "approve") {
     await db
       .update(deliveryWithdrawalTicketsTable)
@@ -1090,7 +1105,7 @@ router.get("/admin/orders/:orderId/audit", async (req, res) => {
     .leftJoin(debitAccountAlias, eq(ledgerEntriesTable.debitAccountId, debitAccountAlias.id))
     .leftJoin(creditAccountAlias, eq(ledgerEntriesTable.creditAccountId, creditAccountAlias.id))
     .where(
-      sql`(${ledgerEntriesTable.metadata}->>'orderId')::int = ${orderId} OR ${ledgerEntriesTable.journalReference} ILIKE ${`%_${orderId}%`}`,
+      sql`${ledgerEntriesTable.metadata}->>'orderId' = ${String(orderId)} OR ${ledgerEntriesTable.journalReference} ILIKE ${`%_${orderId}%`}`,
     )
     .orderBy(desc(ledgerEntriesTable.createdAt));
 
