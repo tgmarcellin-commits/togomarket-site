@@ -5,6 +5,7 @@ import {
   loadAdminAvailableDrivers,
   loadAdminDeliveryOrders,
   saveAdminDriver,
+  deleteAdminDriver,
 } from "./admin-delivery-api";
 
 test("loadAdminDeliveryOrders uses admin header and returns parsed orders", async () => {
@@ -99,4 +100,26 @@ test("admin driver create and edit use distinct protected methods", async () => 
     ["/api/admin/drivers", "POST"],
     ["/api/admin/drivers/5", "PATCH"],
   ]);
+});
+
+test("deleteAdminDriver calls the DELETE endpoint with admin header", async () => {
+  let request: { url?: string; method?: string; headers?: HeadersInit } = {};
+  await deleteAdminDriver("super-secret", 5, async (url, init) => {
+    request = { url: String(url), method: String(init?.method), headers: init?.headers };
+    return { ok: true, json: async () => ({ success: true }) } as Response;
+  });
+  assert.equal(request.url, "/api/admin/drivers/5");
+  assert.equal(request.method, "DELETE");
+  assert.deepEqual(request.headers, { "Content-Type": "application/json", "x-admin-code": "super-secret" });
+});
+
+test("deleteAdminDriver surfaces a clear error on failure", async () => {
+  await assert.rejects(
+    () =>
+      deleteAdminDriver("super-secret", 5, async () => ({
+        ok: false,
+        json: async () => ({ error: "Impossible de supprimer ce livreur : mission active." }),
+      } as Response)),
+    /mission active\./,
+  );
 });
