@@ -1,6 +1,10 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { isDriverBusyForAssignment, isOrderAssignableStatus } from "./delivery-assignment-guard";
+import {
+  hasActiveOrAcceptedMission,
+  isDriverBusyForAssignment,
+  isOrderAssignableStatus,
+} from "./delivery-assignment-guard";
 
 test("isDriverBusyForAssignment marks accepted assignments as busy", () => {
   assert.equal(
@@ -43,4 +47,43 @@ test("isOrderAssignableStatus only allows assignable order states", () => {
   assert.equal(isOrderAssignableStatus("IN_TRANSIT"), true);
   assert.equal(isOrderAssignableStatus("DELIVERED"), false);
   assert.equal(isOrderAssignableStatus("CANCELLED"), false);
+});
+
+test("hasActiveOrAcceptedMission blocks deletion when a pending mission is still active", () => {
+  assert.equal(
+    hasActiveOrAcceptedMission([
+      { acceptanceStatus: "pending_driver_response", orderStatus: "PENDING" },
+    ]),
+    true,
+  );
+});
+
+test("hasActiveOrAcceptedMission blocks deletion when an accepted mission is still active", () => {
+  assert.equal(
+    hasActiveOrAcceptedMission([
+      { acceptanceStatus: "accepted_by_driver", orderStatus: "IN_TRANSIT" },
+    ]),
+    true,
+  );
+});
+
+test("hasActiveOrAcceptedMission allows deletion when the related order is terminal", () => {
+  assert.equal(
+    hasActiveOrAcceptedMission([
+      { acceptanceStatus: "accepted_by_driver", orderStatus: "DELIVERED" },
+      { acceptanceStatus: "pending_driver_response", orderStatus: "RETURN_CONFIRMED" },
+    ]),
+    false,
+  );
+});
+
+test("hasActiveOrAcceptedMission allows deletion when missions are refused, expired or cancelled", () => {
+  assert.equal(
+    hasActiveOrAcceptedMission([
+      { acceptanceStatus: "refused_by_driver", orderStatus: "PENDING" },
+      { acceptanceStatus: "expired", orderStatus: "ASSIGNED" },
+      { acceptanceStatus: "cancelled_by_reassignment", orderStatus: "IN_TRANSIT" },
+    ]),
+    false,
+  );
 });

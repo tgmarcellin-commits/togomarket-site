@@ -24,7 +24,7 @@ import { computeLockedDeliveryPricing, superadminCorrectOrderPricing } from "../
 import { isSuperAdmin, verifyAdminCode } from "../lib/admin-auth";
 import { createDriverSessionToken, isDriverSessionTokenMatch, parseBearerToken } from "../lib/driver-session";
 import { hashOpaqueToken } from "../lib/marketplace-security";
-import { isDriverBusyForAssignment, isOrderAssignableStatus } from "../lib/delivery-assignment-guard";
+import { hasActiveOrAcceptedMission, isDriverBusyForAssignment, isOrderAssignableStatus } from "../lib/delivery-assignment-guard";
 import {
   getBusyDriverIds,
   getPriceConfirmationState,
@@ -1526,6 +1526,78 @@ router.patch("/admin/drivers/:driverId", async (req, res) => {
     logAndRespondInternalError(req, res, {
       route: "PATCH /admin/drivers/:driverId",
       message: "Impossible de mettre à jour ce livreur.",
+      err,
+      context: { driverId },
+    });
+    return;
+  }
+});
+
+router.delete("/admin/drivers/:driverId", async (req, res) => {
+  const adminCode = String(req.headers["x-admin-code"] ?? req.body?.adminCode ?? "").trim();
+  if (!adminCode || !(await isSuperAdmin(adminCode))) {
+    return res.status(403).json({ error: "Accès refusé — rôle superadmin requis." });
+  }
+
+  const driverId = Number(req.params.driverId);
+  if (!Number.isInteger(driverId) || driverId <= 0) {
+    return res.status(400).json({ error: "ID livreur invalide." });
+  }
+
+  try {
+    const [existing] = await db
+      .select()
+      .from(driversTable)
+      .where(eq(driversTable.id, driverId))
+      .limit(1);
+
+    if (!existing) {
+      return res.status(404).json({ error: "Livreur introuvable." });
+    }
+
+    const missions = await db
+      .select({
+        acceptanceStatus: deliveryWorkflowJobsTable.acceptanceStatus,
+        orderStatus: ordersTable.status,
+      })
+      .from(deliveryWorkflowJobsTable)
+      .innerJoin(ordersTable, eq(deliveryWorkflowJobsTable.orderId, ordersTable.id))
+      .where(
+        and(
+          eq(deliveryWorkflowJobsTable.driverId, driverId),
+          inArray(deliveryWorkflowJobsTable.acceptanceStatus, ["pending_driver_response", "accepted_by_driver"]),
+        ),
+      );
+
+    if (hasActiveOrAcceptedMission(missions)) {
+      return res.status(409).json({
+        error:
+          "Impossible de supprimer ce livreur : il a une mission de livraison active ou acceptée en cours. Attendez la fin de la mission ou réassignez-la avant de supprimer ce livreur.",
+      });
+    }
+
+    await db.delete(driversTable).where(eq(driversTable.id, driverId));
+
+    try {
+      await db.insert(deliveryAuditLogsTable).values({
+        actorType: "superadmin",
+        action: "admin_delete_driver",
+        metadata: {
+          driverId,
+          firstName: existing.firstName,
+          lastName: existing.lastName,
+          phone: existing.phone,
+        },
+      });
+    } catch (auditErr) {
+      console.error("Impossible d'enregistrer le journal d'audit de suppression du livreur.", auditErr);
+    }
+
+    return res.json({ success: true });
+  } catch (err) {
+    logAndRespondInternalError(req, res, {
+      route: "DELETE /admin/drivers/:driverId",
+      message: "Impossible de supprimer ce livreur.",
       err,
       context: { driverId },
     });

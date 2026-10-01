@@ -19,3 +19,22 @@ export function isDriverBusyForAssignment(
 export function isOrderAssignableStatus(status: string): boolean {
   return status === "PENDING" || status === "ASSIGNED" || status === "IN_TRANSIT";
 }
+
+type DriverMissionAssignment = {
+  acceptanceStatus: string;
+  orderStatus: string;
+};
+
+/**
+ * A driver cannot be safely deleted while engaged in a mission that is still
+ * pending the driver's response or already accepted, as long as the related
+ * order is still in an active (non-terminal) state.
+ */
+export function hasActiveOrAcceptedMission(assignments: DriverMissionAssignment[]): boolean {
+  return assignments.some(
+    (assignment) =>
+      (assignment.acceptanceStatus === "pending_driver_response" ||
+        assignment.acceptanceStatus === "accepted_by_driver") &&
+      isOrderAssignableStatus(assignment.orderStatus),
+  );
+}
