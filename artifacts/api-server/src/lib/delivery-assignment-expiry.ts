@@ -29,6 +29,13 @@ export async function expirePendingAssignments(): Promise<number> {
  * `PAYMENT_CONFIRMATION_TIMEOUT_MS` without a confirmed payment, the mission
  * is cancelled for payment timeout, the driver becomes available again, and
  * the order is put back into a reassignable state.
+ *
+ * The actual decision of *whether* an acceptance has timed out is delegated
+ * to `shouldExpireAcceptedAssignmentForPaymentTimeout`, which is covered by
+ * dedicated unit tests. This function itself is a thin DB-touching wrapper
+ * (query + transactional writes) and, like the pre-existing
+ * `expirePendingAssignments`, is not unit-tested directly because this repo
+ * has no local Postgres/test-DB harness to exercise real transactions.
  */
 export async function expireUnpaidAcceptedAssignments(): Promise<number> {
   const now = new Date();

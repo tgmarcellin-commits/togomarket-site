@@ -1,4 +1,4 @@
-import { pgEnum, pgTable, text, serial, timestamp, integer, boolean } from "drizzle-orm/pg-core";
+import { pgEnum, pgTable, text, serial, timestamp, integer, boolean, index } from "drizzle-orm/pg-core";
 import { createInsertSchema } from "drizzle-zod";
 import { z } from "zod/v4";
 
@@ -36,7 +36,9 @@ export const ordersTable = pgTable("orders", {
   sellerConsented: boolean("seller_consented").notNull().default(false),
   driverPaymentConfirmedAt: timestamp("driver_payment_confirmed_at", { withTimezone: true }),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
-});
+}, (t) => ({
+  statusPaymentConfirmedIdx: index("orders_status_payment_confirmed_idx").on(t.status, t.driverPaymentConfirmedAt),
+}));
 
 export const insertOrderSchema = createInsertSchema(ordersTable).omit({ id: true, createdAt: true });
 export type InsertOrder = z.infer<typeof insertOrderSchema>;

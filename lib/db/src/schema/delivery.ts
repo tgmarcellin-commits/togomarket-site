@@ -83,6 +83,7 @@ export const deliveryWorkflowJobsTable = pgTable(
   (t) => ({
     uniqueOrderDriverAssignment: unique("delivery_jobs_order_driver_unique").on(t.orderId, t.driverId),
     orderStatusIdx: index("delivery_jobs_order_status_idx").on(t.orderId, t.acceptanceStatus),
+    acceptanceStatusAcceptedAtIdx: index("delivery_jobs_acceptance_status_accepted_at_idx").on(t.acceptanceStatus, t.acceptedAt),
   }),
 );
 
