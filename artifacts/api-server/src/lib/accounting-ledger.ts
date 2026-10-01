@@ -331,3 +331,26 @@ export async function getTrialBalance(tx: DbOrTx = db): Promise<{
     difference: Math.abs(totalDebitSum - totalCreditSum),
   };
 }
+
+const NUMERIC_METADATA_PATTERN = /^-?[0-9]+$/;
+
+/**
+ * Checks whether a jsonb metadata value is safe to cast to an integer.
+ * Legacy or partially migrated rows may store non-numeric or missing values
+ * for keys like orderId/driverId/walletId; casting those directly with
+ * `::int` crashes the query with a Postgres error (500). Exported so the
+ * guard regex can be unit-tested without a live database connection.
+ */
+export function isNumericMetadataValue(value: unknown): value is string {
+  return typeof value === "string" && NUMERIC_METADATA_PATTERN.test(value);
+}
+
+/**
+ * Builds a null-safe SQL filter comparing a jsonb metadata text field to an
+ * integer value. Uses a CASE expression (guaranteed short-circuit in
+ * PostgreSQL, unlike AND/OR) so rows with non-numeric or absent metadata
+ * values never reach the `::int` cast and cannot crash the query.
+ */
+export function buildSafeMetadataIntFilter(metadataColumn: any, key: string, value: number) {
+  return sql`(CASE WHEN ${metadataColumn}->>${key} ~ '^-?[0-9]+$' THEN (${metadataColumn}->>${key})::int ELSE NULL END) = ${value}`;
+}

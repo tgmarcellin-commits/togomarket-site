@@ -34,7 +34,8 @@ import {
   isNotNull,
 } from "drizzle-orm";
 import { isSuperAdmin, isAdminAny } from "../lib/admin-auth";
-import { reverseJournalEntry, getTrialBalance } from "../lib/accounting-ledger";
+import { reverseJournalEntry, getTrialBalance, buildSafeMetadataIntFilter } from "../lib/accounting-ledger";
+import { logAndRespondInternalError } from "../lib/route-errors";
 
 const router: IRouter = Router();
 
@@ -288,6 +289,7 @@ async function buildGroupedJournals(targetRefs?: string[]): Promise<FormattedJou
 router.get("/admin/comptabilite/journals", async (req, res) => {
   if (!(await requireSuperAdmin(req, res))) return;
 
+  try {
   const journalType = String(req.query.journalType ?? "all").toLowerCase();
   const settlementStatus = String(req.query.settlementStatus ?? "all").toLowerCase();
   const orderId = req.query.orderId ? Number(req.query.orderId) : null;
@@ -304,17 +306,17 @@ router.get("/admin/comptabilite/journals", async (req, res) => {
   if (orderId) {
     sqlConditions.push(
       or(
-        sql`(${ledgerEntriesTable.metadata}->>'orderId')::int = ${orderId}`,
+        buildSafeMetadataIntFilter(ledgerEntriesTable.metadata, "orderId", orderId),
         sql`${ledgerEntriesTable.journalReference} ILIKE ${`%ORDER_${orderId}%`}`,
         sql`${ledgerEntriesTable.journalReference} ILIKE ${`%_${orderId}_%`}`
       )
     );
   }
   if (driverId) {
-    sqlConditions.push(sql`(${ledgerEntriesTable.metadata}->>'driverId')::int = ${driverId}`);
+    sqlConditions.push(buildSafeMetadataIntFilter(ledgerEntriesTable.metadata, "driverId", driverId));
   }
   if (walletId) {
-    sqlConditions.push(sql`(${ledgerEntriesTable.metadata}->>'walletId')::int = ${walletId}`);
+    sqlConditions.push(buildSafeMetadataIntFilter(ledgerEntriesTable.metadata, "walletId", walletId));
   }
   if (dateFrom) {
     sqlConditions.push(sql`${ledgerEntriesTable.createdAt} >= ${new Date(dateFrom)}`);
@@ -427,6 +429,21 @@ router.get("/admin/comptabilite/journals", async (req, res) => {
       hasMore: offset + limit < filtered.length,
     },
   });
+  } catch (err) {
+    logAndRespondInternalError(req, res, {
+      route: "GET /admin/comptabilite/journals",
+      message: "Impossible de charger les journaux comptables.",
+      err,
+      context: {
+        journalType: req.query.journalType,
+        settlementStatus: req.query.settlementStatus,
+        orderId: req.query.orderId,
+        driverId: req.query.driverId,
+        walletId: req.query.walletId,
+      },
+    });
+    return;
+  }
 });
 
 // --------------------------------------------------------------------------
@@ -450,16 +467,17 @@ router.post("/admin/comptabilite/reverse", async (req, res) => {
     return res.status(400).json({ error: "Impossible d'annuler directement une contre-passation (REV_)." });
   }
 
-  // Check if already reversed
-  const [alreadyReversed] = await db
-    .select({ id: ledgerEntriesTable.id })
-    .from(ledgerEntriesTable)
-    .where(eq(ledgerEntriesTable.journalReference, `REV_${journalReference}`))
-    .limit(1);
+  try {
+    // Check if already reversed
+    const [alreadyReversed] = await db
+      .select({ id: ledgerEntriesTable.id })
+      .from(ledgerEntriesTable)
+      .where(eq(ledgerEntriesTable.journalReference, `REV_${journalReference}`))
+      .limit(1);
 
-  if (alreadyReversed) {
-    return res.status(409).json({ error: "Cette écriture comptable a déjà été contre-passée / annulée." });
-  }
+    if (alreadyReversed) {
+      return res.status(409).json({ error: "Cette écriture comptable a déjà été contre-passée / annulée." });
+    }
 
   try {
     const result = await reverseJournalEntry({
@@ -488,6 +506,15 @@ router.post("/admin/comptabilite/reverse", async (req, res) => {
     const msg = err instanceof Error ? err.message : "Erreur lors de l'annulation comptable";
     return res.status(400).json({ error: msg });
   }
+  } catch (err) {
+    logAndRespondInternalError(req, res, {
+      route: "POST /admin/comptabilite/reverse",
+      message: "Impossible de contre-passer ce journal comptable.",
+      err,
+      context: { journalReference },
+    });
+    return;
+  }
 });
 
 // --------------------------------------------------------------------------
@@ -496,6 +523,7 @@ router.post("/admin/comptabilite/reverse", async (req, res) => {
 router.get("/admin/comptabilite/export", async (req, res) => {
   if (!(await requireSuperAdmin(req, res))) return;
 
+  try {
   const format = String(req.query.format ?? "csv").toLowerCase();
   const journals = await buildGroupedJournals();
 
@@ -562,6 +590,14 @@ router.get("/admin/comptabilite/export", async (req, res) => {
   res.setHeader("Content-Type", "text/csv; charset=utf-8");
   res.setHeader("Content-Disposition", `attachment; filename="grand-livre-${Date.now()}.csv"`);
   return res.send(lines.join("\r\n"));
+  } catch (err) {
+    logAndRespondInternalError(req, res, {
+      route: "GET /admin/comptabilite/export",
+      message: "Impossible de générer l'export comptable.",
+      err,
+    });
+    return;
+  }
 });
 
 // --------------------------------------------------------------------------
@@ -570,233 +606,290 @@ router.get("/admin/comptabilite/export", async (req, res) => {
 router.get("/admin/operations/overview", async (req, res) => {
   if (!(await requireAnyAdmin(req, res))) return;
 
-  const now = Date.now();
-  const tenMinutesAgo = new Date(now - 10 * 60 * 1000);
+  const degradedSections: string[] = [];
 
   // 1. Active missions & Order breakdown (pushed down to SQL)
-  const orderBreakdownRows = await db
-    .select({
-      status: ordersTable.status,
-      count: count(),
-    })
-    .from(ordersTable)
-    .groupBy(ordersTable.status);
+  let orderBreakdown: Record<string, number> = {};
+  let inTransitCount = 0;
+  let returningCount = 0;
+  let pendingResponseCount = 0;
+  let totalActiveMissions = 0;
+  try {
+    const now = Date.now();
+    const orderBreakdownRows = await db
+      .select({
+        status: ordersTable.status,
+        count: count(),
+      })
+      .from(ordersTable)
+      .groupBy(ordersTable.status);
 
-  const orderBreakdown: Record<string, number> = {};
-  for (const row of orderBreakdownRows) {
-    orderBreakdown[row.status] = Number(row.count);
+    for (const row of orderBreakdownRows) {
+      orderBreakdown[row.status] = Number(row.count);
+    }
+
+    inTransitCount = orderBreakdown["IN_TRANSIT"] ?? 0;
+    returningCount = (orderBreakdown["RETURNING_TO_SELLER"] ?? 0) + (orderBreakdown["RETURN_AT_SELLER"] ?? 0);
+
+    const [jobPendingStats] = await db
+      .select({
+        pendingResponseCount: sql<number>`coalesce(count(*) filter (where ${deliveryWorkflowJobsTable.acceptanceStatus} = 'pending_driver_response'), 0)`,
+      })
+      .from(deliveryWorkflowJobsTable);
+
+    pendingResponseCount = Number(jobPendingStats?.pendingResponseCount ?? 0);
+    totalActiveMissions = inTransitCount + returningCount + pendingResponseCount;
+  } catch (err) {
+    req.log?.error({ err, route: "GET /admin/operations/overview", section: "activeMissions" }, "Operations overview subsection failed");
+    degradedSections.push("activeMissions");
   }
 
-  const inTransitCount = orderBreakdown["IN_TRANSIT"] ?? 0;
-  const returningCount = (orderBreakdown["RETURNING_TO_SELLER"] ?? 0) + (orderBreakdown["RETURN_AT_SELLER"] ?? 0);
-
-  const [jobPendingStats] = await db
-    .select({
-      pendingResponseCount: sql<number>`coalesce(count(*) filter (where ${deliveryWorkflowJobsTable.acceptanceStatus} = 'pending_driver_response'), 0)`,
-    })
-    .from(deliveryWorkflowJobsTable);
-
-  const pendingResponseCount = Number(jobPendingStats?.pendingResponseCount ?? 0);
-  const totalActiveMissions = inTransitCount + returningCount + pendingResponseCount;
-
   // 2. Drivers status
-  const [driverStats] = await db
-    .select({
-      totalDrivers: count(),
-      activeDrivers: sql<number>`coalesce(count(*) filter (where ${driversTable.isActive} = true), 0)`,
-      inactiveDrivers: sql<number>`coalesce(count(*) filter (where ${driversTable.isActive} = false), 0)`,
-    })
-    .from(driversTable);
+  let totalDrivers = 0;
+  let activeDrivers = 0;
+  let inactiveDrivers = 0;
+  let availableDrivers = 0;
+  let busyDrivers = 0;
+  try {
+    const [driverStats] = await db
+      .select({
+        totalDrivers: count(),
+        activeDrivers: sql<number>`coalesce(count(*) filter (where ${driversTable.isActive} = true), 0)`,
+        inactiveDrivers: sql<number>`coalesce(count(*) filter (where ${driversTable.isActive} = false), 0)`,
+      })
+      .from(driversTable);
 
-  const totalDrivers = Number(driverStats?.totalDrivers ?? 0);
-  const activeDrivers = Number(driverStats?.activeDrivers ?? 0);
-  const inactiveDrivers = Number(driverStats?.inactiveDrivers ?? 0);
+    totalDrivers = Number(driverStats?.totalDrivers ?? 0);
+    activeDrivers = Number(driverStats?.activeDrivers ?? 0);
+    inactiveDrivers = Number(driverStats?.inactiveDrivers ?? 0);
 
-  // Determine busy vs available drivers via SQL join on active orders
-  const busyDriverRows = await db
-    .selectDistinct({ driverId: deliveryWorkflowJobsTable.driverId })
-    .from(deliveryWorkflowJobsTable)
-    .innerJoin(ordersTable, eq(deliveryWorkflowJobsTable.orderId, ordersTable.id))
-    .where(
-      and(
-        eq(deliveryWorkflowJobsTable.acceptanceStatus, "accepted_by_driver"),
-        inArray(ordersTable.status, ["IN_TRANSIT", "RETURNING_TO_SELLER", "RETURN_AT_SELLER", "ASSIGNED"])
-      )
-    );
-  const busyDriverIds = new Set(busyDriverRows.map((r) => r.driverId));
+    const availableDriversRow = await db
+      .select({
+        availableCount: sql<number>`coalesce(count(*) filter (where ${driversTable.isActive} = true and ${driversTable.isAvailable} = true and ${driversTable.id} not in (
+          select ${deliveryWorkflowJobsTable.driverId} from ${deliveryWorkflowJobsTable}
+          inner join ${ordersTable} on ${deliveryWorkflowJobsTable.orderId} = ${ordersTable.id}
+          where ${deliveryWorkflowJobsTable.acceptanceStatus} = 'accepted_by_driver'
+          and ${ordersTable.status} in ('IN_TRANSIT', 'RETURNING_TO_SELLER', 'RETURN_AT_SELLER', 'ASSIGNED')
+        )), 0)`,
+      })
+      .from(driversTable);
 
-  const availableDriversRow = await db
-    .select({
-      availableCount: sql<number>`coalesce(count(*) filter (where ${driversTable.isActive} = true and ${driversTable.isAvailable} = true and ${driversTable.id} not in (
-        select ${deliveryWorkflowJobsTable.driverId} from ${deliveryWorkflowJobsTable}
-        inner join ${ordersTable} on ${deliveryWorkflowJobsTable.orderId} = ${ordersTable.id}
-        where ${deliveryWorkflowJobsTable.acceptanceStatus} = 'accepted_by_driver'
-        and ${ordersTable.status} in ('IN_TRANSIT', 'RETURNING_TO_SELLER', 'RETURN_AT_SELLER', 'ASSIGNED')
-      )), 0)`,
-    })
-    .from(driversTable);
-
-  const availableDrivers = Number(availableDriversRow[0]?.availableCount ?? 0);
-  const busyDrivers = Math.max(0, activeDrivers - availableDrivers);
+    availableDrivers = Number(availableDriversRow[0]?.availableCount ?? 0);
+    busyDrivers = Math.max(0, activeDrivers - availableDrivers);
+  } catch (err) {
+    req.log?.error({ err, route: "GET /admin/operations/overview", section: "driverStatus" }, "Operations overview subsection failed");
+    degradedSections.push("driverStatus");
+  }
 
   // 3. Open disputes
-  const [openDisputes] = await db
-    .select({ count: count() })
-    .from(disputesTable)
-    .where(eq(disputesTable.status, "open"));
+  let openDisputesCount = 0;
+  try {
+    const [openDisputes] = await db
+      .select({ count: count() })
+      .from(disputesTable)
+      .where(eq(disputesTable.status, "open"));
+    openDisputesCount = Number(openDisputes?.count ?? 0);
+  } catch (err) {
+    req.log?.error({ err, route: "GET /admin/operations/overview", section: "disputes" }, "Operations overview subsection failed");
+    degradedSections.push("disputes");
+  }
 
   // 4. GPS Freshness check on active missions
-  const activeJobs = await db
-    .select({
-      id: deliveryWorkflowJobsTable.id,
-      orderId: deliveryWorkflowJobsTable.orderId,
-      driverId: deliveryWorkflowJobsTable.driverId,
-    })
-    .from(deliveryWorkflowJobsTable)
-    .innerJoin(ordersTable, eq(deliveryWorkflowJobsTable.orderId, ordersTable.id))
-    .where(
-      and(
-        eq(deliveryWorkflowJobsTable.acceptanceStatus, "accepted_by_driver"),
-        inArray(ordersTable.status, ["IN_TRANSIT", "RETURNING_TO_SELLER"])
-      )
-    );
-
   let freshGpsCount = 0;
   let staleAlertCount = 0;
   let missingGpsCount = 0;
-  const staleAlerts: Array<{ orderId: number; driverId: number; ageMinutes: number; lastRecordedAt: string | null }> = [];
-
-  if (activeJobs.length > 0) {
-    const activeJobIds = activeJobs.map((j) => j.id);
-    const locRows = await db
+  let staleAlerts: Array<{ orderId: number; driverId: number; ageMinutes: number; lastRecordedAt: string | null }> = [];
+  try {
+    const now = Date.now();
+    const tenMinutesAgo = new Date(now - 10 * 60 * 1000);
+    const activeJobs = await db
       .select({
-        deliveryJobId: deliveryLocationsTable.deliveryJobId,
-        recordedAt: deliveryLocationsTable.recordedAt,
+        id: deliveryWorkflowJobsTable.id,
+        orderId: deliveryWorkflowJobsTable.orderId,
+        driverId: deliveryWorkflowJobsTable.driverId,
       })
-      .from(deliveryLocationsTable)
-      .where(inArray(deliveryLocationsTable.deliveryJobId, activeJobIds))
-      .orderBy(desc(deliveryLocationsTable.recordedAt));
+      .from(deliveryWorkflowJobsTable)
+      .innerJoin(ordersTable, eq(deliveryWorkflowJobsTable.orderId, ordersTable.id))
+      .where(
+        and(
+          eq(deliveryWorkflowJobsTable.acceptanceStatus, "accepted_by_driver"),
+          inArray(ordersTable.status, ["IN_TRANSIT", "RETURNING_TO_SELLER"])
+        )
+      );
 
-    const latestLocByJobId = new Map<number, Date>();
-    for (const loc of locRows) {
-      if (loc.deliveryJobId != null && !latestLocByJobId.has(loc.deliveryJobId)) {
-        latestLocByJobId.set(loc.deliveryJobId, loc.recordedAt);
+    if (activeJobs.length > 0) {
+      const activeJobIds = activeJobs.map((j) => j.id);
+      const locRows = await db
+        .select({
+          deliveryJobId: deliveryLocationsTable.deliveryJobId,
+          recordedAt: deliveryLocationsTable.recordedAt,
+        })
+        .from(deliveryLocationsTable)
+        .where(inArray(deliveryLocationsTable.deliveryJobId, activeJobIds))
+        .orderBy(desc(deliveryLocationsTable.recordedAt));
+
+      const latestLocByJobId = new Map<number, Date>();
+      for (const loc of locRows) {
+        if (loc.deliveryJobId != null && !latestLocByJobId.has(loc.deliveryJobId)) {
+          latestLocByJobId.set(loc.deliveryJobId, loc.recordedAt);
+        }
       }
-    }
 
-    for (const job of activeJobs) {
-      const recordedAt = latestLocByJobId.get(job.id);
-      if (!recordedAt) {
-        missingGpsCount++;
-        staleAlerts.push({
-          orderId: job.orderId,
-          driverId: job.driverId,
-          ageMinutes: 999,
-          lastRecordedAt: null,
-        });
-      } else {
-        const recordedTime = new Date(recordedAt).getTime();
-        const ageMinutes = Math.round((now - recordedTime) / 60000);
-        if (recordedAt < tenMinutesAgo) {
-          staleAlertCount++;
+      for (const job of activeJobs) {
+        const recordedAt = latestLocByJobId.get(job.id);
+        if (!recordedAt) {
+          missingGpsCount++;
           staleAlerts.push({
             orderId: job.orderId,
             driverId: job.driverId,
-            ageMinutes,
-            lastRecordedAt: recordedAt.toISOString(),
+            ageMinutes: 999,
+            lastRecordedAt: null,
           });
         } else {
-          freshGpsCount++;
+          const recordedTime = new Date(recordedAt).getTime();
+          const ageMinutes = Math.round((now - recordedTime) / 60000);
+          if (recordedAt < tenMinutesAgo) {
+            staleAlertCount++;
+            staleAlerts.push({
+              orderId: job.orderId,
+              driverId: job.driverId,
+              ageMinutes,
+              lastRecordedAt: recordedAt.toISOString(),
+            });
+          } else {
+            freshGpsCount++;
+          }
         }
       }
     }
+  } catch (err) {
+    req.log?.error({ err, route: "GET /admin/operations/overview", section: "gpsHealth" }, "Operations overview subsection failed");
+    degradedSections.push("gpsHealth");
   }
 
   // 5. QR Token Health (SQL aggregation)
-  const [qrStats] = await db
-    .select({
-      totalIssued: count(),
-      used: sql<number>`coalesce(count(*) filter (where ${qrTokensTable.usedAt} is not null), 0)`,
-      activePending: sql<number>`coalesce(count(*) filter (where ${qrTokensTable.usedAt} is null and ${qrTokensTable.expiresAt} > now()), 0)`,
-      expired: sql<number>`coalesce(count(*) filter (where ${qrTokensTable.usedAt} is null and ${qrTokensTable.expiresAt} <= now()), 0)`,
-      failedProximityCount: sql<number>`coalesce(count(*) filter (where ${qrTokensTable.proximityMeters} is not null and ${qrTokensTable.proximityMeters} > 150), 0)`,
-      avgProximityMeters: sql<number | null>`round(avg(${qrTokensTable.proximityMeters}))`,
-    })
-    .from(qrTokensTable);
+  let totalQrIssued = 0;
+  let qrUsed = 0;
+  let qrActivePending = 0;
+  let qrExpired = 0;
+  let failedProximityCount = 0;
+  let avgProximityMeters: number | null = null;
+  try {
+    const [qrStats] = await db
+      .select({
+        totalIssued: count(),
+        used: sql<number>`coalesce(count(*) filter (where ${qrTokensTable.usedAt} is not null), 0)`,
+        activePending: sql<number>`coalesce(count(*) filter (where ${qrTokensTable.usedAt} is null and ${qrTokensTable.expiresAt} > now()), 0)`,
+        expired: sql<number>`coalesce(count(*) filter (where ${qrTokensTable.usedAt} is null and ${qrTokensTable.expiresAt} <= now()), 0)`,
+        failedProximityCount: sql<number>`coalesce(count(*) filter (where ${qrTokensTable.proximityMeters} is not null and ${qrTokensTable.proximityMeters} > 150), 0)`,
+        avgProximityMeters: sql<number | null>`round(avg(${qrTokensTable.proximityMeters}))`,
+      })
+      .from(qrTokensTable);
 
-  const totalQrIssued = Number(qrStats?.totalIssued ?? 0);
-  const qrUsed = Number(qrStats?.used ?? 0);
-  const qrActivePending = Number(qrStats?.activePending ?? 0);
-  const qrExpired = Number(qrStats?.expired ?? 0);
-  const failedProximityCount = Number(qrStats?.failedProximityCount ?? 0);
-  const avgProximityMeters = qrStats?.avgProximityMeters != null ? Number(qrStats.avgProximityMeters) : null;
+    totalQrIssued = Number(qrStats?.totalIssued ?? 0);
+    qrUsed = Number(qrStats?.used ?? 0);
+    qrActivePending = Number(qrStats?.activePending ?? 0);
+    qrExpired = Number(qrStats?.expired ?? 0);
+    failedProximityCount = Number(qrStats?.failedProximityCount ?? 0);
+    avgProximityMeters = qrStats?.avgProximityMeters != null ? Number(qrStats.avgProximityMeters) : null;
+  } catch (err) {
+    req.log?.error({ err, route: "GET /admin/operations/overview", section: "qrHealth" }, "Operations overview subsection failed");
+    degradedSections.push("qrHealth");
+  }
 
   // 6. Wallet movement and Payout health summary (SQL aggregation)
-  const [walletStats] = await db
-    .select({
-      totalAvailableBalance: sql<number>`coalesce(sum(${virtualWalletsTable.balance}), 0)`,
-      totalLockedBalance: sql<number>`coalesce(sum(${virtualWalletsTable.lockedBalance}), 0)`,
-      totalPendingPayoutBalance: sql<number>`coalesce(sum(${virtualWalletsTable.pendingPayoutBalance}), 0)`,
-      totalPaidOutBalance: sql<number>`coalesce(sum(${virtualWalletsTable.paidOutBalance}), 0)`,
-    })
-    .from(virtualWalletsTable);
+  let totalAvailableBalance = 0;
+  let totalLockedBalance = 0;
+  let totalPendingPayoutBalance = 0;
+  let totalPaidOutBalance = 0;
+  let pendingWithdrawalsCount = 0;
+  let pendingWithdrawalsAmount = 0;
+  let reviewRequiredCount = 0;
+  let failedWithdrawalsCount = 0;
+  try {
+    const [walletStats] = await db
+      .select({
+        totalAvailableBalance: sql<number>`coalesce(sum(${virtualWalletsTable.balance}), 0)`,
+        totalLockedBalance: sql<number>`coalesce(sum(${virtualWalletsTable.lockedBalance}), 0)`,
+        totalPendingPayoutBalance: sql<number>`coalesce(sum(${virtualWalletsTable.pendingPayoutBalance}), 0)`,
+        totalPaidOutBalance: sql<number>`coalesce(sum(${virtualWalletsTable.paidOutBalance}), 0)`,
+      })
+      .from(virtualWalletsTable);
 
-  const totalAvailableBalance = Number(walletStats?.totalAvailableBalance ?? 0);
-  const totalLockedBalance = Number(walletStats?.totalLockedBalance ?? 0);
-  const totalPendingPayoutBalance = Number(walletStats?.totalPendingPayoutBalance ?? 0);
-  const totalPaidOutBalance = Number(walletStats?.totalPaidOutBalance ?? 0);
+    totalAvailableBalance = Number(walletStats?.totalAvailableBalance ?? 0);
+    totalLockedBalance = Number(walletStats?.totalLockedBalance ?? 0);
+    totalPendingPayoutBalance = Number(walletStats?.totalPendingPayoutBalance ?? 0);
+    totalPaidOutBalance = Number(walletStats?.totalPaidOutBalance ?? 0);
 
-  const [withdrawalStats] = await db
-    .select({
-      pendingWithdrawalsCount: sql<number>`coalesce(count(*) filter (where ${deliveryWithdrawalTicketsTable.status} in ('pending_otp', 'otp_verified', 'withdrawal_reserved', 'withdrawal_review_required')), 0)`,
-      pendingWithdrawalsAmount: sql<number>`coalesce(sum(${deliveryWithdrawalTicketsTable.amount}) filter (where ${deliveryWithdrawalTicketsTable.status} in ('pending_otp', 'otp_verified', 'withdrawal_reserved', 'withdrawal_review_required')), 0)`,
-      reviewRequiredCount: sql<number>`coalesce(count(*) filter (where ${deliveryWithdrawalTicketsTable.status} = 'withdrawal_review_required'), 0)`,
-      failedWithdrawalsCount: sql<number>`coalesce(count(*) filter (where ${deliveryWithdrawalTicketsTable.status} = 'failed'), 0)`,
-    })
-    .from(deliveryWithdrawalTicketsTable);
+    const [withdrawalStats] = await db
+      .select({
+        pendingWithdrawalsCount: sql<number>`coalesce(count(*) filter (where ${deliveryWithdrawalTicketsTable.status} in ('pending_otp', 'otp_verified', 'withdrawal_reserved', 'withdrawal_review_required')), 0)`,
+        pendingWithdrawalsAmount: sql<number>`coalesce(sum(${deliveryWithdrawalTicketsTable.amount}) filter (where ${deliveryWithdrawalTicketsTable.status} in ('pending_otp', 'otp_verified', 'withdrawal_reserved', 'withdrawal_review_required')), 0)`,
+        reviewRequiredCount: sql<number>`coalesce(count(*) filter (where ${deliveryWithdrawalTicketsTable.status} = 'withdrawal_review_required'), 0)`,
+        failedWithdrawalsCount: sql<number>`coalesce(count(*) filter (where ${deliveryWithdrawalTicketsTable.status} = 'failed'), 0)`,
+      })
+      .from(deliveryWithdrawalTicketsTable);
 
-  const pendingWithdrawalsCount = Number(withdrawalStats?.pendingWithdrawalsCount ?? 0);
-  const pendingWithdrawalsAmount = Number(withdrawalStats?.pendingWithdrawalsAmount ?? 0);
-  const reviewRequiredCount = Number(withdrawalStats?.reviewRequiredCount ?? 0);
-  const failedWithdrawalsCount = Number(withdrawalStats?.failedWithdrawalsCount ?? 0);
+    pendingWithdrawalsCount = Number(withdrawalStats?.pendingWithdrawalsCount ?? 0);
+    pendingWithdrawalsAmount = Number(withdrawalStats?.pendingWithdrawalsAmount ?? 0);
+    reviewRequiredCount = Number(withdrawalStats?.reviewRequiredCount ?? 0);
+    failedWithdrawalsCount = Number(withdrawalStats?.failedWithdrawalsCount ?? 0);
+  } catch (err) {
+    req.log?.error({ err, route: "GET /admin/operations/overview", section: "walletHealth" }, "Operations overview subsection failed");
+    degradedSections.push("walletHealth");
+  }
 
   // 7. FedaPay Webhook Events Health (SQL aggregation + targeted single latest rows)
-  const [webhookStats] = await db
-    .select({
-      totalWebhooks: count(),
-      processedWebhooks: sql<number>`coalesce(count(*) filter (where ${paymentWebhooksTable.processed} = true), 0)`,
-      failedWebhooks: sql<number>`coalesce(count(*) filter (where ${paymentWebhooksTable.processed} = false), 0)`,
-    })
-    .from(paymentWebhooksTable);
+  let totalWebhooks = 0;
+  let processedWebhooks = 0;
+  let failedWebhooks = 0;
+  let lastReceivedAt: string | null = null;
+  let lastProcessedAt: string | null = null;
+  let lastEventName: string | null = null;
+  try {
+    const [webhookStats] = await db
+      .select({
+        totalWebhooks: count(),
+        processedWebhooks: sql<number>`coalesce(count(*) filter (where ${paymentWebhooksTable.processed} = true), 0)`,
+        failedWebhooks: sql<number>`coalesce(count(*) filter (where ${paymentWebhooksTable.processed} = false), 0)`,
+      })
+      .from(paymentWebhooksTable);
 
-  const [latestWebhook] = await db
-    .select({
-      id: paymentWebhooksTable.id,
-      eventName: paymentWebhooksTable.eventName,
-      processed: paymentWebhooksTable.processed,
-      processedAt: paymentWebhooksTable.processedAt,
-      createdAt: paymentWebhooksTable.createdAt,
-    })
-    .from(paymentWebhooksTable)
-    .orderBy(desc(paymentWebhooksTable.createdAt))
-    .limit(1);
+    const [latestWebhook] = await db
+      .select({
+        id: paymentWebhooksTable.id,
+        eventName: paymentWebhooksTable.eventName,
+        processed: paymentWebhooksTable.processed,
+        processedAt: paymentWebhooksTable.processedAt,
+        createdAt: paymentWebhooksTable.createdAt,
+      })
+      .from(paymentWebhooksTable)
+      .orderBy(desc(paymentWebhooksTable.createdAt))
+      .limit(1);
 
-  const [latestProcessed] = await db
-    .select({
-      id: paymentWebhooksTable.id,
-      eventName: paymentWebhooksTable.eventName,
-      processed: paymentWebhooksTable.processed,
-      processedAt: paymentWebhooksTable.processedAt,
-      createdAt: paymentWebhooksTable.createdAt,
-    })
-    .from(paymentWebhooksTable)
-    .where(and(eq(paymentWebhooksTable.processed, true), isNotNull(paymentWebhooksTable.processedAt)))
-    .orderBy(desc(paymentWebhooksTable.createdAt))
-    .limit(1);
+    const [latestProcessed] = await db
+      .select({
+        id: paymentWebhooksTable.id,
+        eventName: paymentWebhooksTable.eventName,
+        processed: paymentWebhooksTable.processed,
+        processedAt: paymentWebhooksTable.processedAt,
+        createdAt: paymentWebhooksTable.createdAt,
+      })
+      .from(paymentWebhooksTable)
+      .where(and(eq(paymentWebhooksTable.processed, true), isNotNull(paymentWebhooksTable.processedAt)))
+      .orderBy(desc(paymentWebhooksTable.createdAt))
+      .limit(1);
 
-  const totalWebhooks = Number(webhookStats?.totalWebhooks ?? 0);
-  const processedWebhooks = Number(webhookStats?.processedWebhooks ?? 0);
-  const failedWebhooks = Number(webhookStats?.failedWebhooks ?? 0);
+    totalWebhooks = Number(webhookStats?.totalWebhooks ?? 0);
+    processedWebhooks = Number(webhookStats?.processedWebhooks ?? 0);
+    failedWebhooks = Number(webhookStats?.failedWebhooks ?? 0);
+    lastReceivedAt = latestWebhook?.createdAt ? latestWebhook.createdAt.toISOString() : null;
+    lastProcessedAt = latestProcessed?.processedAt ? latestProcessed.processedAt.toISOString() : null;
+    lastEventName = latestWebhook?.eventName ?? null;
+  } catch (err) {
+    req.log?.error({ err, route: "GET /admin/operations/overview", section: "fedapayWebhooks" }, "Operations overview subsection failed");
+    degradedSections.push("fedapayWebhooks");
+  }
 
   return res.json({
     activeMissions: {
@@ -814,7 +907,7 @@ router.get("/admin/operations/overview", async (req, res) => {
     },
     orderBreakdown,
     disputes: {
-      openCount: Number(openDisputes?.count ?? 0),
+      openCount: openDisputesCount,
     },
     gpsHealth: {
       freshCount: freshGpsCount,
@@ -845,10 +938,11 @@ router.get("/admin/operations/overview", async (req, res) => {
       totalCount: totalWebhooks,
       processedCount: processedWebhooks,
       failedCount: failedWebhooks,
-      lastReceivedAt: latestWebhook?.createdAt ? latestWebhook.createdAt.toISOString() : null,
-      lastProcessedAt: latestProcessed?.processedAt ? latestProcessed.processedAt.toISOString() : null,
-      lastEventName: latestWebhook?.eventName ?? null,
+      lastReceivedAt,
+      lastProcessedAt,
+      lastEventName,
     },
+    ...(degradedSections.length > 0 ? { degradedSections } : {}),
   });
 });
 
@@ -858,6 +952,7 @@ router.get("/admin/operations/overview", async (req, res) => {
 router.get("/admin/wallets", async (req, res) => {
   if (!(await requireSuperAdmin(req, res))) return;
 
+  try {
   const ownerTypeFilter = String(req.query.ownerType ?? "all").toLowerCase();
   const search = String(req.query.search ?? "").trim().toLowerCase();
   const hasBalanceOnly = req.query.hasBalance === "true";
@@ -992,6 +1087,14 @@ router.get("/admin/wallets", async (req, res) => {
       totalPaidOut: Number(summary?.totalPaidOut ?? 0),
     },
   });
+  } catch (err) {
+    logAndRespondInternalError(req, res, {
+      route: "GET /admin/wallets",
+      message: "Impossible de charger les portefeuilles.",
+      err,
+    });
+    return;
+  }
 });
 
 // --------------------------------------------------------------------------
@@ -1000,6 +1103,7 @@ router.get("/admin/wallets", async (req, res) => {
 router.get("/admin/withdrawals", async (req, res) => {
   if (!(await requireSuperAdmin(req, res))) return;
 
+  try {
   const statusFilter = String(req.query.status ?? "all").toLowerCase();
   const ownerTypeFilter = String(req.query.ownerType ?? "all").toLowerCase();
   const limit = Math.min(Math.max(Number(req.query.limit ?? 200), 1), 500);
@@ -1050,6 +1154,14 @@ router.get("/admin/withdrawals", async (req, res) => {
       updatedAt: t.updatedAt.toISOString(),
     })),
   });
+  } catch (err) {
+    logAndRespondInternalError(req, res, {
+      route: "GET /admin/withdrawals",
+      message: "Impossible de charger les retraits.",
+      err,
+    });
+    return;
+  }
 });
 
 // --------------------------------------------------------------------------
@@ -1070,6 +1182,7 @@ router.post("/admin/withdrawals/:ticketId/review", async (req, res) => {
     return res.status(400).json({ error: "Action doit être 'approve' ou 'reject'." });
   }
 
+  try {
   const [ticket] = await db
     .select()
     .from(deliveryWithdrawalTicketsTable)
@@ -1134,6 +1247,15 @@ router.post("/admin/withdrawals/:ticketId/review", async (req, res) => {
   });
 
   return res.json({ success: true, status: "failed", reason });
+  } catch (err) {
+    logAndRespondInternalError(req, res, {
+      route: "POST /admin/withdrawals/:ticketId/review",
+      message: "Impossible de traiter cette révision de retrait.",
+      err,
+      context: { ticketId },
+    });
+    return;
+  }
 });
 
 // --------------------------------------------------------------------------
@@ -1147,6 +1269,7 @@ router.get("/admin/drivers/:driverId/history", async (req, res) => {
     return res.status(400).json({ error: "ID livreur invalide." });
   }
 
+  try {
   const [driver] = await db
     .select({
       id: driversTable.id,
@@ -1210,6 +1333,15 @@ router.get("/admin/drivers/:driverId/history", async (req, res) => {
       assignmentExpiresAt: j.assignmentExpiresAt?.toISOString() ?? null,
     })),
   });
+  } catch (err) {
+    logAndRespondInternalError(req, res, {
+      route: "GET /admin/drivers/:driverId/history",
+      message: "Impossible de charger l'historique de ce livreur.",
+      err,
+      context: { driverId },
+    });
+    return;
+  }
 });
 
 // --------------------------------------------------------------------------
@@ -1223,6 +1355,7 @@ router.get("/admin/orders/:orderId/audit", async (req, res) => {
     return res.status(400).json({ error: "ID de commande invalide." });
   }
 
+  try {
   const [order] = await db
     .select({
       id: ordersTable.id,
@@ -1337,6 +1470,15 @@ router.get("/admin/orders/:orderId/audit", async (req, res) => {
       createdAt: l.createdAt.toISOString(),
     })),
   });
+  } catch (err) {
+    logAndRespondInternalError(req, res, {
+      route: "GET /admin/orders/:orderId/audit",
+      message: "Impossible de charger l'audit de cette commande.",
+      err,
+      context: { orderId },
+    });
+    return;
+  }
 });
 
 export default router;
