@@ -81,7 +81,7 @@ async function createFedapayTransaction(opts: {
   const res = await fetch(`${baseUrl}/transactions`, {
     method: "POST",
     headers: {
-      Authorization: `Bearer ${FEDAPAY_SECRET_KEY}`,
+      Authorization: `Bearer ${FEDAPAY_SUBSCRIPTIONS_SECRET_KEY}`,
       "Content-Type": "application/json",
     },
     body: JSON.stringify({
@@ -131,7 +131,7 @@ async function verifyFedapayTransaction(transactionId: string): Promise<{
   try {
     const res = await fetch(`${baseUrl}/transactions/${transactionId}`, {
       headers: {
-        Authorization: `Bearer ${FEDAPAY_SECRET_KEY}`,
+        Authorization: `Bearer ${FEDAPAY_SUBSCRIPTIONS_SECRET_KEY}`,
         "Content-Type": "application/json",
       },
     });
