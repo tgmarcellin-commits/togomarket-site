@@ -38,6 +38,7 @@ import { ingestDriverLocation, canAccessLocation } from "../lib/gps-tracking";
 import { requestDeliveryQrToken, scanAndVerifyQrToken } from "../lib/qr-service";
 import { getWalletSummary, requestWalletWithdrawal } from "../lib/wallet-service";
 import { getTrialBalance } from "../lib/accounting-ledger";
+import { logAndRespondInternalError } from "../lib/route-errors";
 
 const router: IRouter = Router();
 const ASSIGNMENT_TTL_MS = 15 * 60 * 1000;
@@ -412,6 +413,7 @@ router.post("/delivery/assignments", async (req, res) => {
   const parsed = parseAssignDriverBody(req.body as Record<string, unknown>);
   if (!parsed) return res.status(400).json({ error: "Requête invalide." });
 
+  try {
   const [driver] = await db
     .select()
     .from(driversTable)
@@ -553,12 +555,22 @@ router.post("/delivery/assignments", async (req, res) => {
     acceptanceStatus: job.acceptanceStatus,
     assignmentExpiresAt,
   });
+  } catch (err) {
+    logAndRespondInternalError(req, res, {
+      route: "POST /delivery/assignments",
+      message: "Impossible d'assigner ce livreur à cette commande.",
+      err,
+      context: { orderId: parsed.orderId, driverId: parsed.driverId },
+    });
+    return;
+  }
 });
 
 router.get("/delivery/conversations/:conversationId/state", async (req, res) => {
   const identity = await resolveDeliveryConversationIdentity(req);
   if (!identity) return res.status(401).json({ error: "Accès conversation refusé." });
 
+  try {
   const state = await getConversationDeliveryState(identity.conversationId);
   if (!state) return res.status(404).json({ error: "Conversation introuvable." });
 
@@ -575,6 +587,15 @@ router.get("/delivery/conversations/:conversationId/state", async (req, res) => 
       : null,
     assignments: state.assignments,
   });
+  } catch (err) {
+    logAndRespondInternalError(req, res, {
+      route: "GET /delivery/conversations/:conversationId/state",
+      message: "Impossible de charger l'état de la livraison.",
+      err,
+      context: { conversationId: identity.conversationId },
+    });
+    return;
+  }
 });
 
 router.post("/delivery/conversations/:conversationId/price-confirmation", async (req, res) => {
@@ -587,6 +608,7 @@ router.post("/delivery/conversations/:conversationId/price-confirmation", async 
 
   const actorType = identity.role === "buyer" ? "buyer" : "vendor";
 
+  try {
   const [upserted] = await db
     .insert(orderPriceConfirmationsTable)
     .values({
@@ -677,12 +699,22 @@ router.post("/delivery/conversations/:conversationId/price-confirmation", async 
 
   await emitConversationDeliveryState(identity.conversationId);
   return res.json({ success: true });
+  } catch (err) {
+    logAndRespondInternalError(req, res, {
+      route: "POST /delivery/conversations/:conversationId/price-confirmation",
+      message: "Impossible d'enregistrer la confirmation de prix.",
+      err,
+      context: { conversationId: identity.conversationId },
+    });
+    return;
+  }
 });
 
 router.get("/delivery/conversations/:conversationId/drivers", async (req, res) => {
   const identity = await resolveDeliveryConversationIdentity(req);
   if (!identity) return res.status(401).json({ error: "Accès conversation refusé." });
 
+  try {
   const state = await getConversationDeliveryState(identity.conversationId);
   if (!state) return res.status(404).json({ error: "Conversation introuvable." });
   if (state.priceState.status !== "matched") {
@@ -691,6 +723,15 @@ router.get("/delivery/conversations/:conversationId/drivers", async (req, res) =
 
   const drivers = await buildAvailableDriversWithRatings();
   return res.json({ drivers });
+  } catch (err) {
+    logAndRespondInternalError(req, res, {
+      route: "GET /delivery/conversations/:conversationId/drivers",
+      message: "Impossible de charger les livreurs disponibles.",
+      err,
+      context: { conversationId: identity.conversationId },
+    });
+    return;
+  }
 });
 
 router.post("/delivery/conversations/:conversationId/proposals", async (req, res) => {
@@ -699,6 +740,7 @@ router.post("/delivery/conversations/:conversationId/proposals", async (req, res
   const driverId = asIntegerPositive(req.body?.driverId);
   if (!driverId) return res.status(400).json({ error: "Requête invalide." });
 
+  try {
   const state = await getConversationDeliveryState(identity.conversationId);
   if (!state) return res.status(404).json({ error: "Conversation introuvable." });
   if (state.priceState.status !== "matched" || !state.orderId) {
@@ -794,6 +836,15 @@ router.post("/delivery/conversations/:conversationId/proposals", async (req, res
 
   await emitConversationDeliveryState(identity.conversationId);
   return res.status(201).json({ id: job.id, orderId: job.orderId, driverId: job.driverId });
+  } catch (err) {
+    logAndRespondInternalError(req, res, {
+      route: "POST /delivery/conversations/:conversationId/proposals",
+      message: "Impossible de proposer ce livreur pour cette commande.",
+      err,
+      context: { conversationId: identity.conversationId, driverId },
+    });
+    return;
+  }
 });
 
 router.get("/admin/delivery/orders", async (req, res) => {
@@ -802,6 +853,7 @@ router.get("/admin/delivery/orders", async (req, res) => {
     return res.status(403).json({ error: "Accès administrateur requis." });
   }
 
+  try {
   const orders = await db
     .select({
       id: ordersTable.id,
@@ -888,6 +940,14 @@ router.get("/admin/delivery/orders", async (req, res) => {
       };
     }),
   });
+  } catch (err) {
+    logAndRespondInternalError(req, res, {
+      route: "GET /admin/delivery/orders",
+      message: "Impossible de charger les commandes livraison.",
+      err,
+    });
+    return;
+  }
 });
 
 router.post("/driver-connexion/request-otp", async (req, res) => {
@@ -1085,6 +1145,7 @@ router.post("/delivery/assignments/respond", async (req, res) => {
   const deliveryJobId = asIntegerPositive(req.body?.deliveryJobId);
   const action = req.body?.action === "accept" || req.body?.action === "refuse" ? req.body.action : null;
   if (!deliveryJobId || !action) return res.status(400).json({ error: "Requête invalide." });
+  try {
   const [job] = await db.select().from(deliveryWorkflowJobsTable).where(eq(deliveryWorkflowJobsTable.id, deliveryJobId)).limit(1);
   if (!job) return res.status(404).json({ error: "Assignation introuvable." });
   if (job.driverId !== driver.id) {
@@ -1177,6 +1238,15 @@ router.post("/delivery/assignments/respond", async (req, res) => {
     await emitConversationDeliveryState(conversationOrder.conversationId);
   }
   return res.json({ status: "accepted_by_driver", paymentPendingWebhookConfirmation: true });
+  } catch (err) {
+    logAndRespondInternalError(req, res, {
+      route: "POST /delivery/assignments/respond",
+      message: "Impossible de traiter votre réponse à cette assignation.",
+      err,
+      context: { deliveryJobId },
+    });
+    return;
+  }
 });
 
 router.post("/fedapay-driver-callback", async (req, res) => {
@@ -1219,8 +1289,17 @@ router.get("/drivers/available", async (_req, res) => {
   if (!adminCode || !await verifyAdminCode(adminCode)) {
     return res.status(403).json({ error: "Accès administrateur requis." });
   }
-  const drivers = await buildAvailableDriversWithRatings();
-  return res.json(drivers);
+  try {
+    const drivers = await buildAvailableDriversWithRatings();
+    return res.json(drivers);
+  } catch (err) {
+    logAndRespondInternalError(_req, res, {
+      route: "GET /drivers/available",
+      message: "Impossible de charger les livreurs disponibles.",
+      err,
+    });
+    return;
+  }
 });
 
 router.post("/drivers/:driverId/availability", async (req, res) => {
@@ -1263,6 +1342,7 @@ router.post("/admin/drivers", async (req, res) => {
     return res.status(400).json({ error: "Numéro de téléphone invalide." });
   }
 
+  try {
   const [existing] = await db
     .select({ id: driversTable.id })
     .from(driversTable)
@@ -1311,6 +1391,14 @@ router.post("/admin/drivers", async (req, res) => {
   });
 
   return res.status(201).json({ driver });
+  } catch (err) {
+    logAndRespondInternalError(req, res, {
+      route: "POST /admin/drivers",
+      message: "Impossible de créer ce livreur.",
+      err,
+    });
+    return;
+  }
 });
 
 router.get("/admin/drivers", async (req, res) => {
@@ -1319,12 +1407,21 @@ router.get("/admin/drivers", async (req, res) => {
     return res.status(403).json({ error: "Accès refusé — rôle superadmin requis." });
   }
 
-  const drivers = await db
-    .select()
-    .from(driversTable)
-    .orderBy(desc(driversTable.createdAt));
+  try {
+    const drivers = await db
+      .select()
+      .from(driversTable)
+      .orderBy(desc(driversTable.createdAt));
 
-  return res.json({ drivers });
+    return res.json({ drivers });
+  } catch (err) {
+    logAndRespondInternalError(req, res, {
+      route: "GET /admin/drivers",
+      message: "Impossible de charger les livreurs.",
+      err,
+    });
+    return;
+  }
 });
 
 router.patch("/admin/drivers/:driverId", async (req, res) => {
@@ -1338,6 +1435,7 @@ router.patch("/admin/drivers/:driverId", async (req, res) => {
     return res.status(400).json({ error: "ID livreur invalide." });
   }
 
+  try {
   const [existing] = await db
     .select()
     .from(driversTable)
@@ -1424,6 +1522,15 @@ router.patch("/admin/drivers/:driverId", async (req, res) => {
   });
 
   return res.json({ driver: updatedDriver });
+  } catch (err) {
+    logAndRespondInternalError(req, res, {
+      route: "PATCH /admin/drivers/:driverId",
+      message: "Impossible de mettre à jour ce livreur.",
+      err,
+      context: { driverId },
+    });
+    return;
+  }
 });
 
 router.patch("/admin/orders/:orderId/distance", async (req, res) => {
