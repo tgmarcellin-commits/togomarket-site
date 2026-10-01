@@ -79,7 +79,7 @@ export type LockedDistanceResult = {
   distanceSource: "ors_api" | "fallback_haversine";
 };
 
-/** Round-trip fee is always twice the outbound fee (see computeReturnPricing). */
+/** Round-trip fee is always twice the outbound fee. */
 function computeRoundTripFeeLocked(transportFeeLocked: number): number {
   return 2 * transportFeeLocked;
 }

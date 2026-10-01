@@ -40,7 +40,6 @@ export async function expireUnpaidAcceptedAssignments(): Promise<number> {
       orderId: deliveryWorkflowJobsTable.orderId,
       driverId: deliveryWorkflowJobsTable.driverId,
       acceptedAt: deliveryWorkflowJobsTable.acceptedAt,
-      orderStatus: ordersTable.status,
       driverPaymentConfirmedAt: ordersTable.driverPaymentConfirmedAt,
     })
     .from(deliveryWorkflowJobsTable)
@@ -48,6 +47,7 @@ export async function expireUnpaidAcceptedAssignments(): Promise<number> {
     .where(and(
       eq(deliveryWorkflowJobsTable.acceptanceStatus, "accepted_by_driver"),
       lte(deliveryWorkflowJobsTable.acceptedAt, cutoff),
+      eq(ordersTable.status, "IN_TRANSIT"),
       isNull(ordersTable.driverPaymentConfirmedAt),
     ));
 
