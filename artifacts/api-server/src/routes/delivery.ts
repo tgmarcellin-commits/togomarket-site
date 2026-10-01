@@ -38,7 +38,7 @@ import { ingestDriverLocation, canAccessLocation } from "../lib/gps-tracking";
 import { requestDeliveryQrToken, scanAndVerifyQrToken } from "../lib/qr-service";
 import { getWalletSummary, requestWalletWithdrawal } from "../lib/wallet-service";
 import { getTrialBalance } from "../lib/accounting-ledger";
-import { logAndRespondInternalError } from "../lib/route-errors";
+import { logAndRespondInternalError, respondToRouteError } from "../lib/route-errors";
 
 const router: IRouter = Router();
 const ASSIGNMENT_TTL_MS = 15 * 60 * 1000;
@@ -1562,8 +1562,12 @@ router.patch("/admin/orders/:orderId/distance", async (req, res) => {
     });
     return res.json(result);
   } catch (err) {
-    const message = err instanceof Error ? err.message : "Erreur correction distance";
-    return res.status(400).json({ error: message });
+    respondToRouteError(req, res, err, {
+      route: "PATCH /admin/orders/:orderId/distance",
+      message: "Impossible d'appliquer la correction de distance/prix.",
+      context: { orderId },
+    });
+    return;
   }
 });
 
@@ -1599,8 +1603,12 @@ router.post("/delivery/jobs/:deliveryJobId/locations", async (req, res) => {
     });
     return res.status(result.throttled ? 200 : 201).json(result);
   } catch (err) {
-    const message = err instanceof Error ? err.message : "Erreur ingestion GPS";
-    return res.status(400).json({ error: message });
+    respondToRouteError(req, res, err, {
+      route: "POST /delivery/jobs/:deliveryJobId/locations",
+      message: "Impossible d'enregistrer la position GPS.",
+      context: { deliveryJobId, driverId: driver.id },
+    });
+    return;
   }
 });
 
@@ -1698,8 +1706,12 @@ router.post("/delivery/jobs/:deliveryJobId/qr/request", async (req, res) => {
     });
     return res.status(201).json(token);
   } catch (err) {
-    const message = err instanceof Error ? err.message : "Erreur génération QR";
-    return res.status(400).json({ error: message });
+    respondToRouteError(req, res, err, {
+      route: "POST /delivery/jobs/:deliveryJobId/qr/request",
+      message: "Impossible de générer le code QR.",
+      context: { deliveryJobId, driverId: driver.id, stage },
+    });
+    return;
   }
 });
 
@@ -1774,8 +1786,12 @@ router.post("/delivery/qr/scan", async (req, res) => {
     });
     return res.status(200).json(result);
   } catch (err) {
-    const message = err instanceof Error ? err.message : "Erreur vérification QR";
-    return res.status(400).json({ error: message });
+    respondToRouteError(req, res, err, {
+      route: "POST /delivery/qr/scan",
+      message: "Impossible de vérifier ce code QR.",
+      context: { scannerRole: requestedRole },
+    });
+    return;
   }
 });
 
@@ -1808,8 +1824,12 @@ router.post("/driver-connexion/withdraw", async (req, res) => {
     });
     return res.status(201).json(result);
   } catch (err) {
-    const message = err instanceof Error ? err.message : "Erreur retrait portefeuille";
-    return res.status(400).json({ error: message });
+    respondToRouteError(req, res, err, {
+      route: "POST /driver-connexion/withdraw",
+      message: "Impossible de traiter cette demande de retrait.",
+      context: { ownerType: "driver", ownerId: driver.id },
+    });
+    return;
   }
 });
 
@@ -1856,8 +1876,12 @@ router.post("/wallets/withdraw", async (req, res) => {
     });
     return res.status(201).json(result);
   } catch (err) {
-    const message = err instanceof Error ? err.message : "Erreur retrait portefeuille";
-    return res.status(400).json({ error: message });
+    respondToRouteError(req, res, err, {
+      route: "POST /wallets/withdraw",
+      message: "Impossible de traiter cette demande de retrait.",
+      context: { ownerType, ownerId },
+    });
+    return;
   }
 });
 

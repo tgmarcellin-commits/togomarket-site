@@ -13,6 +13,7 @@ import {
   hashOpaqueToken,
 } from "./marketplace-security";
 import { settleDeliveredOrder, settleReturnedOrder } from "./settlement-service";
+import { BusinessRuleError } from "./route-errors";
 
 export const QR_TTL_SECONDS = 180; // Exactly 3 minutes
 export const MAX_PROXIMITY_METERS = 300; // 300m radius between scanner and driver
@@ -54,11 +55,11 @@ export async function requestDeliveryQrToken(params: {
     .limit(1);
 
   if (!job) {
-    throw new Error("Mission de livraison introuvable ou non assignée à ce livreur.");
+    throw new BusinessRuleError("Mission de livraison introuvable ou non assignée à ce livreur.");
   }
 
   if (job.acceptanceStatus !== "accepted_by_driver") {
-    throw new Error(`La mission doit être acceptée par le livreur (statut actuel: ${job.acceptanceStatus}).`);
+    throw new BusinessRuleError(`La mission doit être acceptée par le livreur (statut actuel: ${job.acceptanceStatus}).`);
   }
 
   // 2. Verify order status
@@ -69,12 +70,12 @@ export async function requestDeliveryQrToken(params: {
     .limit(1);
 
   if (!order) {
-    throw new Error(`Commande #${job.orderId} introuvable.`);
+    throw new BusinessRuleError(`Commande #${job.orderId} introuvable.`);
   }
 
   if (stage === "delivery") {
     if (order.status !== "IN_TRANSIT" && order.status !== "ASSIGNED") {
-      throw new Error(`Statut de commande invalide pour QR livraison: ${order.status}.`);
+      throw new BusinessRuleError(`Statut de commande invalide pour QR livraison: ${order.status}.`);
     }
   } else if (stage === "return") {
     if (
@@ -83,7 +84,7 @@ export async function requestDeliveryQrToken(params: {
       order.status !== "RETURNING_TO_SELLER" &&
       order.status !== "RETURN_AT_SELLER"
     ) {
-      throw new Error(`Statut de commande invalide pour QR retour: ${order.status}.`);
+      throw new BusinessRuleError(`Statut de commande invalide pour QR retour: ${order.status}.`);
     }
   }
 
@@ -156,7 +157,7 @@ export async function scanAndVerifyQrToken(params: {
   const { rawToken, scannerRole, scannerLatitude, scannerLongitude, idempotencyKey, authorizeScanner } = params;
 
   if (!rawToken || typeof rawToken !== "string") {
-    throw new Error("Token QR requis.");
+    throw new BusinessRuleError("Token QR requis.");
   }
 
   // Validate scanner coordinates
@@ -170,7 +171,7 @@ export async function scanAndVerifyQrToken(params: {
     scannerLongitude < -180 ||
     scannerLongitude > 180
   ) {
-    throw new Error("Coordonnées GPS du scanner invalides ou manquantes.");
+    throw new BusinessRuleError("Coordonnées GPS du scanner invalides ou manquantes.");
   }
 
   // Driver CANNOT self-confirm financial settlement
@@ -180,7 +181,7 @@ export async function scanAndVerifyQrToken(params: {
       action: "qr_scan_rejected_driver_self_confirmation",
       metadata: { reason: "Le livreur ne peut pas auto-confirmer le règlement financier" },
     });
-    throw new Error("Interdit: le livreur ne peut pas auto-confirmer la livraison ou le retour.");
+    throw new BusinessRuleError("Interdit: le livreur ne peut pas auto-confirmer la livraison ou le retour.");
   }
 
   const tokenHash = hashOpaqueToken(rawToken);
@@ -193,35 +194,35 @@ export async function scanAndVerifyQrToken(params: {
     .limit(1);
 
   if (!qrRecord) {
-    throw new Error("QR code invalide ou introuvable.");
+    throw new BusinessRuleError("QR code invalide ou introuvable.");
   }
   if (!(await authorizeScanner(qrRecord.orderId))) {
-    throw new Error("Accès refusé à cette validation de livraison.");
+    throw new BusinessRuleError("Accès refusé à cette validation de livraison.");
   }
 
   // Constant-time token verification
   if (!constantTimeHexEqual(tokenHash, qrRecord.tokenHash)) {
-    throw new Error("QR code falsifié.");
+    throw new BusinessRuleError("QR code falsifié.");
   }
 
   // Check single-use / replay protection
   if (qrRecord.usedAt !== null) {
-    throw new Error("Ce QR code a déjà été utilisé (protection anti-rejeu).");
+    throw new BusinessRuleError("Ce QR code a déjà été utilisé (protection anti-rejeu).");
   }
 
   // Check expiration (at most 3 minutes)
   const now = new Date();
   if (qrRecord.expiresAt.getTime() <= now.getTime()) {
-    throw new Error("Ce QR code a expiré (durée maximale de validité: 3 minutes).");
+    throw new BusinessRuleError("Ce QR code a expiré (durée maximale de validité: 3 minutes).");
   }
 
   // Role binding verification
   if (qrRecord.stage === "delivery" && scannerRole !== "buyer") {
-    throw new Error("Seul l'acheteur est autorisé à scanner le QR de livraison.");
+    throw new BusinessRuleError("Seul l'acheteur est autorisé à scanner le QR de livraison.");
   }
 
   if (qrRecord.stage === "return" && scannerRole !== "seller") {
-    throw new Error("Seul le vendeur est autorisé à scanner le QR de retour.");
+    throw new BusinessRuleError("Seul le vendeur est autorisé à scanner le QR de retour.");
   }
 
   // Retrieve latest trusted driver location for proximity verification
@@ -257,7 +258,7 @@ export async function scanAndVerifyQrToken(params: {
   }
 
   if (driverLat === null || driverLon === null) {
-    throw new Error("Position GPS du livreur introuvable pour la vérification de proximité.");
+    throw new BusinessRuleError("Position GPS du livreur introuvable pour la vérification de proximité.");
   }
 
   // Compute haversine proximity distance
@@ -277,7 +278,7 @@ export async function scanAndVerifyQrToken(params: {
         driverCoordinates: { lat: driverLat, lon: driverLon },
       },
     });
-    throw new Error(
+    throw new BusinessRuleError(
       `Échec de vérification de proximité: vous êtes à ${proximityDistanceMeters}m du livreur (maximum autorisé: ${MAX_PROXIMITY_METERS}m). Vous devez être face au livreur pour valider.`,
     );
   }

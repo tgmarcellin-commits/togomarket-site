@@ -9,6 +9,7 @@ import {
 } from "@workspace/db";
 import { and, desc, eq, inArray } from "drizzle-orm";
 import { getIo } from "./socket-io";
+import { BusinessRuleError } from "./route-errors";
 
 const GPS_THROTTLE_WINDOW_MS = 2000; // 2 seconds server-side throttle per job
 const lastGpsUpdateByJob = new Map<number, number>();
@@ -44,7 +45,7 @@ export async function ingestDriverLocation(input: IngestLocationInput) {
       action: "gps_update_malformed_rejected",
       metadata: { deliveryJobId, latitude, longitude, reason: "Coordonnées hors limites" },
     });
-    throw new Error("Coordonnées GPS invalides.");
+    throw new BusinessRuleError("Coordonnées GPS invalides.");
   }
 
   // 2. Validate timestamp if provided
@@ -76,11 +77,11 @@ export async function ingestDriverLocation(input: IngestLocationInput) {
     .limit(1);
 
   if (!job) {
-    throw new Error("Mission de livraison introuvable ou non assignée à ce livreur.");
+    throw new BusinessRuleError("Mission de livraison introuvable ou non assignée à ce livreur.");
   }
 
   if (job.acceptanceStatus !== "accepted_by_driver") {
-    throw new Error(`Mission non active (statut: ${job.acceptanceStatus}). Impossible de mettre à jour la position GPS.`);
+    throw new BusinessRuleError(`Mission non active (statut: ${job.acceptanceStatus}). Impossible de mettre à jour la position GPS.`);
   }
 
   // 4. Verify order is active
@@ -91,7 +92,7 @@ export async function ingestDriverLocation(input: IngestLocationInput) {
     .limit(1);
 
   if (!order || !["IN_TRANSIT", "ASSIGNED", "RETURNING_TO_SELLER", "RETURN_AT_SELLER"].includes(order.status)) {
-    throw new Error(`La commande associée n'est plus active (statut: ${order?.status ?? "inconnu"}). Mise à jour GPS refusée.`);
+    throw new BusinessRuleError(`La commande associée n'est plus active (statut: ${order?.status ?? "inconnu"}). Mise à jour GPS refusée.`);
   }
 
   // 5. Rate-limiting / throttling

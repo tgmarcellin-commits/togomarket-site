@@ -1,4 +1,5 @@
 import { db, deliveryAuditLogsTable, platformSettingsTable } from "@workspace/db";
+import { BusinessRuleError } from "./route-errors";
 
 export const FCFA_PER_KM = 50;
 const FALLBACK_COEFFICIENT_PERMILLE = 1250;
@@ -136,10 +137,10 @@ export async function superadminCorrectOrderPricing(input: {
 }) {
   const { orderId, newDistanceKm, reason } = input;
   if (!Number.isInteger(newDistanceKm) || newDistanceKm < 1) {
-    throw new Error("La distance corrigée doit être un entier en km >= 1.");
+    throw new BusinessRuleError("La distance corrigée doit être un entier en km >= 1.");
   }
   if (!reason || reason.trim().length === 0) {
-    throw new Error("Le motif de la correction est obligatoire pour l'audit.");
+    throw new BusinessRuleError("Le motif de la correction est obligatoire pour l'audit.");
   }
 
   const { ordersTable } = await import("@workspace/db");
@@ -152,7 +153,7 @@ export async function superadminCorrectOrderPricing(input: {
     .limit(1);
 
   if (!order) {
-    throw new Error(`Commande #${orderId} introuvable.`);
+    throw new BusinessRuleError(`Commande #${orderId} introuvable.`);
   }
 
   const transportFeeLocked = newDistanceKm * FCFA_PER_KM;

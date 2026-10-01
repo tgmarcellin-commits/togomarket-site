@@ -2,6 +2,7 @@ import { createHash } from "node:crypto";
 import { db, ledgerAccountsTable, ledgerEntriesTable } from "@workspace/db";
 import { eq, sql } from "drizzle-orm";
 import type { AnyPgColumn } from "drizzle-orm/pg-core";
+import { BusinessRuleError } from "./route-errors";
 
 export type LedgerAccountType = "asset" | "liability" | "equity" | "revenue" | "expense";
 export type DbOrTx = any;
@@ -95,11 +96,11 @@ export async function postBalancedJournalEntry(
   const { journalReference, legs, metadata } = params;
 
   if (!journalReference || journalReference.trim().length === 0) {
-    throw new Error("journalReference est requis");
+    throw new BusinessRuleError("journalReference est requis");
   }
 
   if (!legs || legs.length === 0) {
-    throw new Error("Au moins une écriture comptable est requise");
+    throw new BusinessRuleError("Au moins une écriture comptable est requise");
   }
 
   // Idempotency check: verify if this journalReference was already posted
@@ -123,7 +124,7 @@ export async function postBalancedJournalEntry(
   let totalCredit = 0;
   for (const leg of legs) {
     if (!Number.isInteger(leg.amount) || leg.amount <= 0) {
-      throw new Error(`Montant comptable invalide: ${leg.amount}. Doit être un entier FCFA strictement positif.`);
+      throw new BusinessRuleError(`Montant comptable invalide: ${leg.amount}. Doit être un entier FCFA strictement positif.`);
     }
     const meta = (leg.metadata ?? {}) as Record<string, unknown>;
     const side = leg.entrySide ?? meta.entrySide ?? meta.side;
@@ -136,7 +137,7 @@ export async function postBalancedJournalEntry(
       totalCredit += Number(meta.creditAmount ?? 0);
     } else {
       if (leg.debitAccountCode === leg.creditAccountCode) {
-        throw new Error(`Le compte de débit et de crédit ne peuvent pas être identiques: ${leg.debitAccountCode}`);
+        throw new BusinessRuleError(`Le compte de débit et de crédit ne peuvent pas être identiques: ${leg.debitAccountCode}`);
       }
       totalDebit += leg.amount;
       totalCredit += leg.amount;
@@ -144,7 +145,7 @@ export async function postBalancedJournalEntry(
   }
 
   if (totalDebit !== totalCredit) {
-    throw new Error(`Journal déséquilibré: débit ${totalDebit} != crédit ${totalCredit}`);
+    throw new BusinessRuleError(`Journal déséquilibré: débit ${totalDebit} != crédit ${totalCredit}`);
   }
 
   const accountMap = await ensureStandardLedgerAccounts(tx);
@@ -154,10 +155,10 @@ export async function postBalancedJournalEntry(
     const creditAccountId = accountMap.get(leg.creditAccountCode);
 
     if (!debitAccountId) {
-      throw new Error(`Compte de débit introuvable: ${leg.debitAccountCode}`);
+      throw new BusinessRuleError(`Compte de débit introuvable: ${leg.debitAccountCode}`);
     }
     if (!creditAccountId) {
-      throw new Error(`Compte de crédit introuvable: ${leg.creditAccountCode}`);
+      throw new BusinessRuleError(`Compte de crédit introuvable: ${leg.creditAccountCode}`);
     }
 
     await tx.insert(ledgerEntriesTable).values({
@@ -206,7 +207,7 @@ export async function reverseJournalEntry(
     .where(eq(ledgerEntriesTable.journalReference, originalJournalReference));
 
   if (existingEntries.length === 0) {
-    throw new Error(`Écritures introuvables pour le journal ${originalJournalReference}`);
+    throw new BusinessRuleError(`Écritures introuvables pour le journal ${originalJournalReference}`);
   }
 
   // Append-only reversal: flip debit and credit accounts, and preserve side semantics
@@ -350,9 +351,23 @@ export function isNumericMetadataValue(value: unknown): value is string {
  * Builds a null-safe SQL filter comparing a jsonb metadata text field to an
  * integer value. Uses a CASE expression (guaranteed short-circuit in
  * PostgreSQL, unlike AND/OR) so rows with non-numeric or absent metadata
- * values never reach the `::int` cast and cannot crash the query.
+ * values never reach the cast and cannot crash the query.
+ *
+ * Legacy rows can contain arbitrarily long digit strings (e.g. a stray
+ * "999999999999999999999") that still satisfy the numeric-only regex but
+ * would overflow Postgres' `integer` (int4) — and even `bigint` — ranges,
+ * turning `::int`/`::bigint` into a runtime "integer out of range" 500.
+ * Casting to `numeric` instead has no range limit, so the comparison is
+ * always safe regardless of how many digits the legacy value contains.
  */
 export function buildSafeMetadataIntFilter(metadataColumn: AnyPgColumn, key: string, value: number) {
   const pattern = NUMERIC_METADATA_PATTERN.source;
-  return sql`(CASE WHEN ${metadataColumn}->>${key} ~ ${pattern} THEN (${metadataColumn}->>${key})::int ELSE NULL END) = ${value}`;
+  // Guard the caller-supplied filter value too: a non-finite/non-integer
+  // value (e.g. NaN from a malformed query string) can never legitimately
+  // match a legacy integer id, so short-circuit to an always-false
+  // condition instead of handing an invalid literal to the SQL driver.
+  if (!Number.isInteger(value)) {
+    return sql`false`;
+  }
+  return sql`(CASE WHEN ${metadataColumn}->>${key} ~ ${pattern} THEN (${metadataColumn}->>${key})::numeric ELSE NULL END) = ${value}`;
 }

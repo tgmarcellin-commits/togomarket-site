@@ -35,7 +35,7 @@ import {
 } from "drizzle-orm";
 import { isSuperAdmin, isAdminAny } from "../lib/admin-auth";
 import { reverseJournalEntry, getTrialBalance, buildSafeMetadataIntFilter } from "../lib/accounting-ledger";
-import { logAndRespondInternalError } from "../lib/route-errors";
+import { logAndRespondInternalError, respondToRouteError } from "../lib/route-errors";
 
 const router: IRouter = Router();
 
@@ -479,11 +479,12 @@ router.post("/admin/comptabilite/reverse", async (req, res) => {
       return res.status(409).json({ error: "Cette écriture comptable a déjà été contre-passée / annulée." });
     }
 
-    // Inner try/catch: reverseJournalEntry throws deliberate business-rule
-    // errors (e.g. unbalanced journal, missing accounts) that are surfaced to
-    // the admin as a specific 400 message. The outer try/catch below is a
-    // safety net for any other (infra/DB) failure, returning a generic safe
-    // 500 instead of letting it crash to the global "Erreur interne" handler.
+    // Inner try/catch: reverseJournalEntry throws a BusinessRuleError for
+    // deliberate business-rule failures (e.g. unbalanced journal, missing
+    // accounts), which is surfaced to the admin as a specific 400 message.
+    // Any other (infra/DB) failure is classified as unknown by
+    // respondToRouteError and returns a generic safe 500 instead of leaking
+    // the raw error to the client.
     try {
       const result = await reverseJournalEntry({
         originalJournalReference: journalReference,
@@ -508,8 +509,12 @@ router.post("/admin/comptabilite/reverse", async (req, res) => {
         message: `Journal ${journalReference} contre-passé avec succès.`,
       });
     } catch (err) {
-      const msg = err instanceof Error ? err.message : "Erreur lors de l'annulation comptable";
-      return res.status(400).json({ error: msg });
+      respondToRouteError(req, res, err, {
+        route: "POST /admin/comptabilite/reverse",
+        message: "Impossible de contre-passer ce journal comptable.",
+        context: { journalReference },
+      });
+      return;
     }
   } catch (err) {
     logAndRespondInternalError(req, res, {
