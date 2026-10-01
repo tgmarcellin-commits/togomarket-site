@@ -109,3 +109,18 @@ export async function saveAdminDriver(
   }
   return result.driver;
 }
+
+export async function deleteAdminDriver(
+  adminCode: string,
+  driverId: number,
+  fetchImpl: FetchLike = fetch,
+): Promise<void> {
+  const response = await fetchImpl(`/api/admin/drivers/${driverId}`, {
+    method: "DELETE",
+    headers: { "Content-Type": "application/json", "x-admin-code": adminCode },
+  });
+  if (!response.ok) {
+    const result = await response.json().catch(() => ({})) as { error?: string };
+    throw new Error(result.error ?? "Impossible de supprimer ce livreur.");
+  }
+}
