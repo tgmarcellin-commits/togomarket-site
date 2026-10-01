@@ -10,6 +10,7 @@ import AdminLogin from "@/pages/admin-login";
 import AdminDashboard from "@/pages/admin-dashboard";
 import CGU from "@/pages/cgu";
 import DriverConnexion from "@/pages/driver-connexion";
+import SuperadminAccountingPage from "@/pages/superadmin-accounting";
 
 const queryClient = new QueryClient();
 
@@ -57,6 +58,7 @@ function Router() {
       <Route path="/" component={Home} />
       <Route path="/admin-login" component={AdminLogin} />
       <Route path="/admin" component={AdminDashboard} />
+      <Route path="/superadmin/comptabilite" component={SuperadminAccountingPage} />
       <Route path="/driver-connexion" component={DriverConnexion} />
       <Route path="/cgu" component={CGU} />
       <Route component={NotFound} />
