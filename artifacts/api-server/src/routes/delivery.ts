@@ -56,7 +56,10 @@ type DeliveryConversationIdentity =
 async function resolveDeliveryConversationIdentity(
   req: Pick<Request, "headers" | "params">,
 ): Promise<DeliveryConversationIdentity | null> {
-  const requestedConversationId = Number.parseInt(req.params.conversationId ?? "", 10);
+  const rawConversationId = Array.isArray(req.params.conversationId)
+    ? req.params.conversationId[0]
+    : (req.params.conversationId ?? "");
+  const requestedConversationId = Number.parseInt(rawConversationId, 10);
   if (!Number.isInteger(requestedConversationId) || requestedConversationId <= 0) return null;
 
   const buyerToken = typeof req.headers["x-buyer-token"] === "string" ? req.headers["x-buyer-token"] : undefined;
