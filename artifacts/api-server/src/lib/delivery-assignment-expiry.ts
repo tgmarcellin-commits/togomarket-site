@@ -36,6 +36,14 @@ export async function expirePendingAssignments(): Promise<number> {
  * (query + transactional writes) and, like the pre-existing
  * `expirePendingAssignments`, is not unit-tested directly because this repo
  * has no local Postgres/test-DB harness to exercise real transactions.
+ *
+ * Note on `orders.status`: `POST /delivery/assignments/respond` (accept)
+ * moves the order to `IN_TRANSIT` immediately on acceptance, *before* any
+ * payment confirmation; `driverPaymentConfirmedAt` is only ever set later by
+ * the `/fedapay-driver-callback` webhook. So an order sitting in
+ * `IN_TRANSIT` with `driverPaymentConfirmedAt IS NULL` is exactly the
+ * accepted-but-unpaid window this job targets (not a state that never
+ * occurs).
  */
 export async function expireUnpaidAcceptedAssignments(): Promise<number> {
   const now = new Date();
