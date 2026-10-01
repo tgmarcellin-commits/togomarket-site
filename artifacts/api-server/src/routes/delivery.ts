@@ -414,147 +414,147 @@ router.post("/delivery/assignments", async (req, res) => {
   if (!parsed) return res.status(400).json({ error: "Requête invalide." });
 
   try {
-  const [driver] = await db
-    .select()
-    .from(driversTable)
-    .where(eq(driversTable.id, parsed.driverId))
-    .limit(1);
-  if (!driver || !driver.isAvailable) {
-    return res.status(400).json({ error: "Livreur indisponible." });
-  }
+    const [driver] = await db
+      .select()
+      .from(driversTable)
+      .where(eq(driversTable.id, parsed.driverId))
+      .limit(1);
+    if (!driver || !driver.isAvailable) {
+      return res.status(400).json({ error: "Livreur indisponible." });
+    }
 
-  const [order] = await db
-    .select({ id: ordersTable.id, status: ordersTable.status })
-    .from(ordersTable)
-    .where(eq(ordersTable.id, parsed.orderId))
-    .limit(1);
-  if (!order) {
-    return res.status(404).json({ error: "Commande introuvable." });
-  }
-  if (!isOrderAssignableStatus(order.status)) {
-    return res.status(409).json({ error: "Commande non éligible à l'assignation." });
-  }
+    const [order] = await db
+      .select({ id: ordersTable.id, status: ordersTable.status })
+      .from(ordersTable)
+      .where(eq(ordersTable.id, parsed.orderId))
+      .limit(1);
+    if (!order) {
+      return res.status(404).json({ error: "Commande introuvable." });
+    }
+    if (!isOrderAssignableStatus(order.status)) {
+      return res.status(409).json({ error: "Commande non éligible à l'assignation." });
+    }
 
-  const driverActiveJobs = await db
-    .select({
-      acceptanceStatus: deliveryWorkflowJobsTable.acceptanceStatus,
-      assignmentExpiresAt: deliveryWorkflowJobsTable.assignmentExpiresAt,
-    })
-    .from(deliveryWorkflowJobsTable)
-    .innerJoin(ordersTable, eq(deliveryWorkflowJobsTable.orderId, ordersTable.id))
-    .where(and(
-      eq(deliveryWorkflowJobsTable.driverId, driver.id),
-      ne(deliveryWorkflowJobsTable.orderId, parsed.orderId),
-      inArray(deliveryWorkflowJobsTable.acceptanceStatus, ["accepted_by_driver", "pending_driver_response"]),
-      inArray(ordersTable.status, ["PENDING", "ASSIGNED", "IN_TRANSIT", "RETURNING_TO_SELLER", "RETURN_AT_SELLER"]),
+    const driverActiveJobs = await db
+      .select({
+        acceptanceStatus: deliveryWorkflowJobsTable.acceptanceStatus,
+        assignmentExpiresAt: deliveryWorkflowJobsTable.assignmentExpiresAt,
+      })
+      .from(deliveryWorkflowJobsTable)
+      .innerJoin(ordersTable, eq(deliveryWorkflowJobsTable.orderId, ordersTable.id))
+      .where(and(
+        eq(deliveryWorkflowJobsTable.driverId, driver.id),
+        ne(deliveryWorkflowJobsTable.orderId, parsed.orderId),
+        inArray(deliveryWorkflowJobsTable.acceptanceStatus, ["accepted_by_driver", "pending_driver_response"]),
+        inArray(ordersTable.status, ["PENDING", "ASSIGNED", "IN_TRANSIT", "RETURNING_TO_SELLER", "RETURN_AT_SELLER"]),
+      ));
+    if (isDriverBusyForAssignment(driverActiveJobs)) {
+      return res.status(400).json({ error: "Livreur déjà en course." });
+    }
+
+    const [existingJob] = await db
+      .select()
+      .from(deliveryWorkflowJobsTable)
+      .where(eq(deliveryWorkflowJobsTable.orderId, parsed.orderId))
+      .orderBy(desc(deliveryWorkflowJobsTable.updatedAt), desc(deliveryWorkflowJobsTable.createdAt))
+      .limit(1);
+
+    if (existingJob && existingJob.acceptanceStatus === "accepted_by_driver") {
+      return res.status(409).json({ error: "Commande déjà verrouillée par un livreur." });
+    }
+
+    const assignmentExpiresAt = new Date(Date.now() + ASSIGNMENT_TTL_MS);
+    const [job] = existingJob
+      ? await db
+        .update(deliveryWorkflowJobsTable)
+        .set({
+          driverId: parsed.driverId,
+          acceptanceStatus: "pending_driver_response",
+          assignmentExpiresAt,
+          cancelledAt: null,
+          acceptedAt: null,
+          refusedAt: null,
+          updatedAt: new Date(),
+        })
+        .where(eq(deliveryWorkflowJobsTable.id, existingJob.id))
+        .returning()
+      : await db
+        .insert(deliveryWorkflowJobsTable)
+        .values({
+          orderId: parsed.orderId,
+          driverId: parsed.driverId,
+          acceptanceStatus: "pending_driver_response",
+          assignmentExpiresAt,
+        })
+        .returning();
+
+    await db.update(deliveryWorkflowJobsTable).set({
+      acceptanceStatus: "cancelled_by_reassignment",
+      cancelledAt: new Date(),
+      updatedAt: new Date(),
+    }).where(and(
+      eq(deliveryWorkflowJobsTable.orderId, parsed.orderId),
+      ne(deliveryWorkflowJobsTable.id, job.id),
+      eq(deliveryWorkflowJobsTable.acceptanceStatus, "pending_driver_response"),
     ));
-  if (isDriverBusyForAssignment(driverActiveJobs)) {
-    return res.status(400).json({ error: "Livreur déjà en course." });
-  }
 
-  const [existingJob] = await db
-    .select()
-    .from(deliveryWorkflowJobsTable)
-    .where(eq(deliveryWorkflowJobsTable.orderId, parsed.orderId))
-    .orderBy(desc(deliveryWorkflowJobsTable.updatedAt), desc(deliveryWorkflowJobsTable.createdAt))
-    .limit(1);
-
-  if (existingJob && existingJob.acceptanceStatus === "accepted_by_driver") {
-    return res.status(409).json({ error: "Commande déjà verrouillée par un livreur." });
-  }
-
-  const assignmentExpiresAt = new Date(Date.now() + ASSIGNMENT_TTL_MS);
-  const [job] = existingJob
-    ? await db
-      .update(deliveryWorkflowJobsTable)
-      .set({
-        driverId: parsed.driverId,
-        acceptanceStatus: "pending_driver_response",
-        assignmentExpiresAt,
-        cancelledAt: null,
-        acceptedAt: null,
-        refusedAt: null,
-        updatedAt: new Date(),
-      })
-      .where(eq(deliveryWorkflowJobsTable.id, existingJob.id))
-      .returning()
-    : await db
-      .insert(deliveryWorkflowJobsTable)
-      .values({
+    if (
+      parsed.pickupLatitude !== undefined &&
+      parsed.pickupLongitude !== undefined &&
+      parsed.dropoffLatitude !== undefined &&
+      parsed.dropoffLongitude !== undefined
+    ) {
+      const pricing = await computeLockedDeliveryPricing({
+        fromLat: parsed.pickupLatitude,
+        fromLon: parsed.pickupLongitude,
+        toLat: parsed.dropoffLatitude,
+        toLon: parsed.dropoffLongitude,
         orderId: parsed.orderId,
-        driverId: parsed.driverId,
-        acceptanceStatus: "pending_driver_response",
-        assignmentExpiresAt,
-      })
-      .returning();
+      });
+      await db
+        .update(ordersTable)
+        .set({
+          distanceLockedKm: pricing.distanceLockedKm,
+          transportFeeLocked: pricing.transportFeeLocked,
+          distanceSource: pricing.distanceSource,
+          status: "ASSIGNED",
+        })
+        .where(eq(ordersTable.id, parsed.orderId));
+    } else {
+      await db.update(ordersTable).set({ status: "ASSIGNED" }).where(eq(ordersTable.id, parsed.orderId));
+    }
 
-  await db.update(deliveryWorkflowJobsTable).set({
-    acceptanceStatus: "cancelled_by_reassignment",
-    cancelledAt: new Date(),
-    updatedAt: new Date(),
-  }).where(and(
-    eq(deliveryWorkflowJobsTable.orderId, parsed.orderId),
-    ne(deliveryWorkflowJobsTable.id, job.id),
-    eq(deliveryWorkflowJobsTable.acceptanceStatus, "pending_driver_response"),
-  ));
-
-  if (
-    parsed.pickupLatitude !== undefined &&
-    parsed.pickupLongitude !== undefined &&
-    parsed.dropoffLatitude !== undefined &&
-    parsed.dropoffLongitude !== undefined
-  ) {
-    const pricing = await computeLockedDeliveryPricing({
-      fromLat: parsed.pickupLatitude,
-      fromLon: parsed.pickupLongitude,
-      toLat: parsed.dropoffLatitude,
-      toLon: parsed.dropoffLongitude,
-      orderId: parsed.orderId,
+    const status = await notifyDriverAssignment(normalizePhone(driver.whatsappNumber || driver.phone), parsed.orderId);
+    await db.insert(whatsappNotificationsTable).values({
+      recipientPhone: normalizePhone(driver.whatsappNumber || driver.phone),
+      messageContent: `Assignation commande #${parsed.orderId}`,
+      deliveryStatus: status,
     });
-    await db
-      .update(ordersTable)
-      .set({
-        distanceLockedKm: pricing.distanceLockedKm,
-        transportFeeLocked: pricing.transportFeeLocked,
-        distanceSource: pricing.distanceSource,
-        status: "ASSIGNED",
-      })
-      .where(eq(ordersTable.id, parsed.orderId));
-  } else {
-    await db.update(ordersTable).set({ status: "ASSIGNED" }).where(eq(ordersTable.id, parsed.orderId));
-  }
 
-  const status = await notifyDriverAssignment(normalizePhone(driver.whatsappNumber || driver.phone), parsed.orderId);
-  await db.insert(whatsappNotificationsTable).values({
-    recipientPhone: normalizePhone(driver.whatsappNumber || driver.phone),
-    messageContent: `Assignation commande #${parsed.orderId}`,
-    deliveryStatus: status,
-  });
+    if (status === "sent") {
+      await db.update(deliveryWorkflowJobsTable)
+        .set({
+          whatsappNotifiedAt: new Date(),
+          updatedAt: new Date(),
+        })
+        .where(eq(deliveryWorkflowJobsTable.id, job.id));
+    }
 
-  if (status === "sent") {
-    await db.update(deliveryWorkflowJobsTable)
-      .set({
-        whatsappNotifiedAt: new Date(),
-        updatedAt: new Date(),
-      })
-      .where(eq(deliveryWorkflowJobsTable.id, job.id));
-  }
+    const [conversationOrder] = await db
+      .select({ conversationId: conversationDeliveryOrdersTable.conversationId })
+      .from(conversationDeliveryOrdersTable)
+      .where(eq(conversationDeliveryOrdersTable.orderId, parsed.orderId))
+      .orderBy(desc(conversationDeliveryOrdersTable.createdAt))
+      .limit(1);
+    if (conversationOrder) await emitConversationDeliveryState(conversationOrder.conversationId);
 
-  const [conversationOrder] = await db
-    .select({ conversationId: conversationDeliveryOrdersTable.conversationId })
-    .from(conversationDeliveryOrdersTable)
-    .where(eq(conversationDeliveryOrdersTable.orderId, parsed.orderId))
-    .orderBy(desc(conversationDeliveryOrdersTable.createdAt))
-    .limit(1);
-  if (conversationOrder) await emitConversationDeliveryState(conversationOrder.conversationId);
-
-  return res.status(201).json({
-    id: job.id,
-    orderId: job.orderId,
-    driverId: job.driverId,
-    acceptanceStatus: job.acceptanceStatus,
-    assignmentExpiresAt,
-  });
+    return res.status(201).json({
+      id: job.id,
+      orderId: job.orderId,
+      driverId: job.driverId,
+      acceptanceStatus: job.acceptanceStatus,
+      assignmentExpiresAt,
+    });
   } catch (err) {
     logAndRespondInternalError(req, res, {
       route: "POST /delivery/assignments",

@@ -479,38 +479,38 @@ router.post("/admin/comptabilite/reverse", async (req, res) => {
       return res.status(409).json({ error: "Cette écriture comptable a déjà été contre-passée / annulée." });
     }
 
-  // Inner try/catch: reverseJournalEntry throws deliberate business-rule
-  // errors (e.g. unbalanced journal, missing accounts) that are surfaced to
-  // the admin as a specific 400 message. The outer try/catch below is a
-  // safety net for any other (infra/DB) failure, returning a generic safe
-  // 500 instead of letting it crash to the global "Erreur interne" handler.
-  try {
-    const result = await reverseJournalEntry({
-      originalJournalReference: journalReference,
-      reason,
-    });
-
-    await db.insert(deliveryAuditLogsTable).values({
-      actorType: "superadmin",
-      action: "admin_reverse_journal_entry",
-      metadata: {
+    // Inner try/catch: reverseJournalEntry throws deliberate business-rule
+    // errors (e.g. unbalanced journal, missing accounts) that are surfaced to
+    // the admin as a specific 400 message. The outer try/catch below is a
+    // safety net for any other (infra/DB) failure, returning a generic safe
+    // 500 instead of letting it crash to the global "Erreur interne" handler.
+    try {
+      const result = await reverseJournalEntry({
         originalJournalReference: journalReference,
-        reversalJournalReference: result.reversalJournalReference,
         reason,
-        reversedEntriesCount: result.reversedEntriesCount,
-      },
-    });
+      });
 
-    return res.json({
-      success: true,
-      reversalJournalReference: result.reversalJournalReference,
-      reversedEntriesCount: result.reversedEntriesCount,
-      message: `Journal ${journalReference} contre-passé avec succès.`,
-    });
-  } catch (err) {
-    const msg = err instanceof Error ? err.message : "Erreur lors de l'annulation comptable";
-    return res.status(400).json({ error: msg });
-  }
+      await db.insert(deliveryAuditLogsTable).values({
+        actorType: "superadmin",
+        action: "admin_reverse_journal_entry",
+        metadata: {
+          originalJournalReference: journalReference,
+          reversalJournalReference: result.reversalJournalReference,
+          reason,
+          reversedEntriesCount: result.reversedEntriesCount,
+        },
+      });
+
+      return res.json({
+        success: true,
+        reversalJournalReference: result.reversalJournalReference,
+        reversedEntriesCount: result.reversedEntriesCount,
+        message: `Journal ${journalReference} contre-passé avec succès.`,
+      });
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : "Erreur lors de l'annulation comptable";
+      return res.status(400).json({ error: msg });
+    }
   } catch (err) {
     logAndRespondInternalError(req, res, {
       route: "POST /admin/comptabilite/reverse",
@@ -608,10 +608,21 @@ router.get("/admin/comptabilite/export", async (req, res) => {
 // --------------------------------------------------------------------------
 // 4. GET /admin/operations/overview
 // --------------------------------------------------------------------------
+const OVERVIEW_SECTION_NAMES = [
+  "activeMissions",
+  "driverStatus",
+  "disputes",
+  "gpsHealth",
+  "qrHealth",
+  "walletHealth",
+  "fedapayWebhooks",
+] as const;
+type OverviewSectionName = (typeof OVERVIEW_SECTION_NAMES)[number];
+
 router.get("/admin/operations/overview", async (req, res) => {
   if (!(await requireAnyAdmin(req, res))) return;
 
-  const degradedSections: string[] = [];
+  const degradedSections: OverviewSectionName[] = [];
 
   // 1. Active missions & Order breakdown (pushed down to SQL)
   let orderBreakdown: Record<string, number> = {};
@@ -896,8 +907,7 @@ router.get("/admin/operations/overview", async (req, res) => {
     degradedSections.push("fedapayWebhooks");
   }
 
-  const TOTAL_OVERVIEW_SECTIONS = 7;
-  if (degradedSections.length >= TOTAL_OVERVIEW_SECTIONS) {
+  if (degradedSections.length >= OVERVIEW_SECTION_NAMES.length) {
     // Every subsection failed: this is effectively a total outage, not a
     // partial degradation. Do not return a misleading 200 with all-zero
     // stats — surface it as a real failure so monitoring/alerting notices.
