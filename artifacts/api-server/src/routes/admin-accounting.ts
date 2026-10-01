@@ -290,145 +290,145 @@ router.get("/admin/comptabilite/journals", async (req, res) => {
   if (!(await requireSuperAdmin(req, res))) return;
 
   try {
-  const journalType = String(req.query.journalType ?? "all").toLowerCase();
-  const settlementStatus = String(req.query.settlementStatus ?? "all").toLowerCase();
-  const orderId = req.query.orderId ? Number(req.query.orderId) : null;
-  const driverId = req.query.driverId ? Number(req.query.driverId) : null;
-  const walletId = req.query.walletId ? Number(req.query.walletId) : null;
-  const search = String(req.query.search ?? "").trim().toLowerCase();
-  const dateFrom = String(req.query.dateFrom ?? "").trim();
-  const dateTo = String(req.query.dateTo ?? "").trim();
-  const limit = Math.min(Math.max(Number(req.query.limit ?? 100), 1), 500);
-  const offset = Math.max(Number(req.query.offset ?? 0), 0);
+    const journalType = String(req.query.journalType ?? "all").toLowerCase();
+    const settlementStatus = String(req.query.settlementStatus ?? "all").toLowerCase();
+    const orderId = req.query.orderId ? Number(req.query.orderId) : null;
+    const driverId = req.query.driverId ? Number(req.query.driverId) : null;
+    const walletId = req.query.walletId ? Number(req.query.walletId) : null;
+    const search = String(req.query.search ?? "").trim().toLowerCase();
+    const dateFrom = String(req.query.dateFrom ?? "").trim();
+    const dateTo = String(req.query.dateTo ?? "").trim();
+    const limit = Math.min(Math.max(Number(req.query.limit ?? 100), 1), 500);
+    const offset = Math.max(Number(req.query.offset ?? 0), 0);
 
-  // Push SQL filters down to DB level where possible
-  const sqlConditions = [];
-  if (orderId) {
-    sqlConditions.push(
-      or(
-        buildSafeMetadataIntFilter(ledgerEntriesTable.metadata, "orderId", orderId),
-        sql`${ledgerEntriesTable.journalReference} ILIKE ${`%ORDER_${orderId}%`}`,
-        sql`${ledgerEntriesTable.journalReference} ILIKE ${`%_${orderId}_%`}`
-      )
-    );
-  }
-  if (driverId) {
-    sqlConditions.push(buildSafeMetadataIntFilter(ledgerEntriesTable.metadata, "driverId", driverId));
-  }
-  if (walletId) {
-    sqlConditions.push(buildSafeMetadataIntFilter(ledgerEntriesTable.metadata, "walletId", walletId));
-  }
-  if (dateFrom) {
-    sqlConditions.push(sql`${ledgerEntriesTable.createdAt} >= ${new Date(dateFrom)}`);
-  }
-  if (dateTo) {
-    const endInclusive = dateTo.includes("T") ? dateTo : `${dateTo}T23:59:59.999Z`;
-    sqlConditions.push(sql`${ledgerEntriesTable.createdAt} <= ${new Date(endInclusive)}`);
-  }
-  if (search) {
-    sqlConditions.push(
-      or(
-        sql`${ledgerEntriesTable.journalReference} ILIKE ${`%${search}%`}`,
-        sql`${ledgerEntriesTable.description} ILIKE ${`%${search}%`}`
-      )
-    );
-  }
-  if (journalType !== "all") {
-    if (journalType === "delivery") {
-      sqlConditions.push(or(sql`${ledgerEntriesTable.journalReference} ILIKE '%DELIVERY%'`, sql`${ledgerEntriesTable.journalReference} ILIKE '%LIVR%'`));
-    } else if (journalType === "return") {
-      sqlConditions.push(or(sql`${ledgerEntriesTable.journalReference} ILIKE '%RETURN%'`, sql`${ledgerEntriesTable.journalReference} ILIKE '%RETOUR%'`));
-    } else if (journalType === "withdrawal") {
-      sqlConditions.push(or(sql`${ledgerEntriesTable.journalReference} ILIKE '%WITHDRAWAL%'`, sql`${ledgerEntriesTable.journalReference} ILIKE '%RETRAIT%'`, sql`${ledgerEntriesTable.journalReference} ILIKE '%PAYOUT%'`));
-    } else if (journalType === "reversal") {
-      sqlConditions.push(sql`${ledgerEntriesTable.journalReference} LIKE 'REV_%'`);
-    } else if (journalType === "dispute") {
-      sqlConditions.push(or(sql`${ledgerEntriesTable.journalReference} ILIKE '%DISPUTE%'`, sql`${ledgerEntriesTable.journalReference} ILIKE '%LITIGE%'`));
+    // Push SQL filters down to DB level where possible
+    const sqlConditions = [];
+    if (orderId) {
+      sqlConditions.push(
+        or(
+          buildSafeMetadataIntFilter(ledgerEntriesTable.metadata, "orderId", orderId),
+          sql`${ledgerEntriesTable.journalReference} ILIKE ${`%ORDER_${orderId}%`}`,
+          sql`${ledgerEntriesTable.journalReference} ILIKE ${`%_${orderId}_%`}`
+        )
+      );
     }
-  }
+    if (driverId) {
+      sqlConditions.push(buildSafeMetadataIntFilter(ledgerEntriesTable.metadata, "driverId", driverId));
+    }
+    if (walletId) {
+      sqlConditions.push(buildSafeMetadataIntFilter(ledgerEntriesTable.metadata, "walletId", walletId));
+    }
+    if (dateFrom) {
+      sqlConditions.push(sql`${ledgerEntriesTable.createdAt} >= ${new Date(dateFrom)}`);
+    }
+    if (dateTo) {
+      const endInclusive = dateTo.includes("T") ? dateTo : `${dateTo}T23:59:59.999Z`;
+      sqlConditions.push(sql`${ledgerEntriesTable.createdAt} <= ${new Date(endInclusive)}`);
+    }
+    if (search) {
+      sqlConditions.push(
+        or(
+          sql`${ledgerEntriesTable.journalReference} ILIKE ${`%${search}%`}`,
+          sql`${ledgerEntriesTable.description} ILIKE ${`%${search}%`}`
+        )
+      );
+    }
+    if (journalType !== "all") {
+      if (journalType === "delivery") {
+        sqlConditions.push(or(sql`${ledgerEntriesTable.journalReference} ILIKE '%DELIVERY%'`, sql`${ledgerEntriesTable.journalReference} ILIKE '%LIVR%'`));
+      } else if (journalType === "return") {
+        sqlConditions.push(or(sql`${ledgerEntriesTable.journalReference} ILIKE '%RETURN%'`, sql`${ledgerEntriesTable.journalReference} ILIKE '%RETOUR%'`));
+      } else if (journalType === "withdrawal") {
+        sqlConditions.push(or(sql`${ledgerEntriesTable.journalReference} ILIKE '%WITHDRAWAL%'`, sql`${ledgerEntriesTable.journalReference} ILIKE '%RETRAIT%'`, sql`${ledgerEntriesTable.journalReference} ILIKE '%PAYOUT%'`));
+      } else if (journalType === "reversal") {
+        sqlConditions.push(sql`${ledgerEntriesTable.journalReference} LIKE 'REV_%'`);
+      } else if (journalType === "dispute") {
+        sqlConditions.push(or(sql`${ledgerEntriesTable.journalReference} ILIKE '%DISPUTE%'`, sql`${ledgerEntriesTable.journalReference} ILIKE '%LITIGE%'`));
+      }
+    }
 
-  const whereClause = sqlConditions.length > 0 ? and(...sqlConditions) : undefined;
+    const whereClause = sqlConditions.length > 0 ? and(...sqlConditions) : undefined;
 
-  // DB pagination for distinct journals
-  const distinctJournalQuery = db
-    .select({
-      journalReference: ledgerEntriesTable.journalReference,
-      maxCreatedAt: sql<Date>`max(${ledgerEntriesTable.createdAt})`,
-    })
-    .from(ledgerEntriesTable)
-    .where(whereClause)
-    .groupBy(ledgerEntriesTable.journalReference)
-    .orderBy(desc(sql`max(${ledgerEntriesTable.createdAt})`));
-
-  if (settlementStatus === "all") {
-    const [countResult] = await db
-      .select({ count: sql<number>`count(distinct ${ledgerEntriesTable.journalReference})` })
+    // DB pagination for distinct journals
+    const distinctJournalQuery = db
+      .select({
+        journalReference: ledgerEntriesTable.journalReference,
+        maxCreatedAt: sql<Date>`max(${ledgerEntriesTable.createdAt})`,
+      })
       .from(ledgerEntriesTable)
-      .where(whereClause);
-    const total = Number(countResult?.count ?? 0);
+      .where(whereClause)
+      .groupBy(ledgerEntriesTable.journalReference)
+      .orderBy(desc(sql`max(${ledgerEntriesTable.createdAt})`));
 
-    const pagedRefRows = await distinctJournalQuery.limit(limit).offset(offset);
-    const targetRefs = pagedRefRows.map((r) => r.journalReference);
-    const paginated = await buildGroupedJournals(targetRefs);
+    if (settlementStatus === "all") {
+      const [countResult] = await db
+        .select({ count: sql<number>`count(distinct ${ledgerEntriesTable.journalReference})` })
+        .from(ledgerEntriesTable)
+        .where(whereClause);
+      const total = Number(countResult?.count ?? 0);
 
-    const totalDebitSum = paginated.reduce((acc, curr) => acc + curr.totalDebit, 0);
-    const totalCreditSum = paginated.reduce((acc, curr) => acc + curr.totalCredit, 0);
+      const pagedRefRows = await distinctJournalQuery.limit(limit).offset(offset);
+      const targetRefs = pagedRefRows.map((r) => r.journalReference);
+      const paginated = await buildGroupedJournals(targetRefs);
+
+      const totalDebitSum = paginated.reduce((acc, curr) => acc + curr.totalDebit, 0);
+      const totalCreditSum = paginated.reduce((acc, curr) => acc + curr.totalCredit, 0);
+
+      const summary = {
+        totalJournals: total,
+        totalDebitSum,
+        totalCreditSum,
+        isBalanced: totalDebitSum === totalCreditSum,
+        balancedCount: paginated.filter((j) => j.status === "balanced").length,
+        reversedCount: paginated.filter((j) => j.status === "reversed").length,
+        reversalCount: paginated.filter((j) => j.status === "reversal").length,
+        pendingCorrectionCount: paginated.filter((j) => j.status === "pending_correction").length,
+      };
+
+      return res.json({
+        journals: paginated,
+        summary,
+        pagination: {
+          total,
+          limit,
+          offset,
+          hasMore: offset + limit < total,
+        },
+      });
+    }
+
+    // When filtering by specific status ('pending_correction', 'reversed', etc.)
+    const candidateRefRows = await distinctJournalQuery.limit(500);
+    const targetRefs = candidateRefRows.map((r) => r.journalReference);
+    const candidateJournals = await buildGroupedJournals(targetRefs);
+    const filtered = candidateJournals.filter((j) => j.status === settlementStatus);
+
+    const totalDebitSum = filtered.reduce((acc, curr) => acc + curr.totalDebit, 0);
+    const totalCreditSum = filtered.reduce((acc, curr) => acc + curr.totalCredit, 0);
 
     const summary = {
-      totalJournals: total,
+      totalJournals: filtered.length,
       totalDebitSum,
       totalCreditSum,
       isBalanced: totalDebitSum === totalCreditSum,
-      balancedCount: paginated.filter((j) => j.status === "balanced").length,
-      reversedCount: paginated.filter((j) => j.status === "reversed").length,
-      reversalCount: paginated.filter((j) => j.status === "reversal").length,
-      pendingCorrectionCount: paginated.filter((j) => j.status === "pending_correction").length,
+      balancedCount: filtered.filter((j) => j.status === "balanced").length,
+      reversedCount: filtered.filter((j) => j.status === "reversed").length,
+      reversalCount: filtered.filter((j) => j.status === "reversal").length,
+      pendingCorrectionCount: filtered.filter((j) => j.status === "pending_correction").length,
     };
+
+    const paginated = filtered.slice(offset, offset + limit);
 
     return res.json({
       journals: paginated,
       summary,
       pagination: {
-        total,
+        total: filtered.length,
         limit,
         offset,
-        hasMore: offset + limit < total,
+        hasMore: offset + limit < filtered.length,
       },
     });
-  }
-
-  // When filtering by specific status ('pending_correction', 'reversed', etc.)
-  const candidateRefRows = await distinctJournalQuery.limit(500);
-  const targetRefs = candidateRefRows.map((r) => r.journalReference);
-  const candidateJournals = await buildGroupedJournals(targetRefs);
-  const filtered = candidateJournals.filter((j) => j.status === settlementStatus);
-
-  const totalDebitSum = filtered.reduce((acc, curr) => acc + curr.totalDebit, 0);
-  const totalCreditSum = filtered.reduce((acc, curr) => acc + curr.totalCredit, 0);
-
-  const summary = {
-    totalJournals: filtered.length,
-    totalDebitSum,
-    totalCreditSum,
-    isBalanced: totalDebitSum === totalCreditSum,
-    balancedCount: filtered.filter((j) => j.status === "balanced").length,
-    reversedCount: filtered.filter((j) => j.status === "reversed").length,
-    reversalCount: filtered.filter((j) => j.status === "reversal").length,
-    pendingCorrectionCount: filtered.filter((j) => j.status === "pending_correction").length,
-  };
-
-  const paginated = filtered.slice(offset, offset + limit);
-
-  return res.json({
-    journals: paginated,
-    summary,
-    pagination: {
-      total: filtered.length,
-      limit,
-      offset,
-      hasMore: offset + limit < filtered.length,
-    },
-  });
   } catch (err) {
     logAndRespondInternalError(req, res, {
       route: "GET /admin/comptabilite/journals",
@@ -529,72 +529,72 @@ router.get("/admin/comptabilite/export", async (req, res) => {
   if (!(await requireSuperAdmin(req, res))) return;
 
   try {
-  const format = String(req.query.format ?? "csv").toLowerCase();
-  const journals = await buildGroupedJournals();
+    const format = String(req.query.format ?? "csv").toLowerCase();
+    const journals = await buildGroupedJournals();
 
-  if (format === "json") {
-    res.setHeader("Content-Type", "application/json");
-    res.setHeader("Content-Disposition", `attachment; filename="grand-livre-${Date.now()}.json"`);
-    return res.json({
-      exportedAt: new Date().toISOString(),
-      count: journals.length,
-      journals,
-    });
-  }
-
-  // CSV format
-  const escapeCsv = (val: unknown) => {
-    const s = String(val ?? "").replace(/"/g, '""');
-    return `"${s}"`;
-  };
-
-  const header = [
-    "Reference_Journal",
-    "Date_Creation",
-    "Statut",
-    "Est_Annulation",
-    "Annule_De",
-    "Annule_Par",
-    "Motif_Annulation",
-    "ID_Commande",
-    "ID_Livreur",
-    "ID_Portefeuille",
-    "Compte_Debit_Code",
-    "Compte_Debit_Nom",
-    "Compte_Credit_Code",
-    "Compte_Credit_Nom",
-    "Montant_FCFA",
-    "Description",
-  ].join(",");
-
-  const lines: string[] = [header];
-
-  for (const j of journals) {
-    for (const leg of j.legs) {
-      lines.push([
-        escapeCsv(j.journalReference),
-        escapeCsv(j.createdAt),
-        escapeCsv(j.status),
-        escapeCsv(j.isReversal ? "OUI" : "NON"),
-        escapeCsv(j.reversedFrom ?? ""),
-        escapeCsv(j.reversedBy ?? ""),
-        escapeCsv(j.reversalReason ?? ""),
-        escapeCsv(j.orderId ?? ""),
-        escapeCsv(j.driverId ?? ""),
-        escapeCsv(j.walletId ?? ""),
-        escapeCsv(leg.debitAccount.code),
-        escapeCsv(leg.debitAccount.name),
-        escapeCsv(leg.creditAccount.code),
-        escapeCsv(leg.creditAccount.name),
-        leg.amount,
-        escapeCsv(leg.description),
-      ].join(","));
+    if (format === "json") {
+      res.setHeader("Content-Type", "application/json");
+      res.setHeader("Content-Disposition", `attachment; filename="grand-livre-${Date.now()}.json"`);
+      return res.json({
+        exportedAt: new Date().toISOString(),
+        count: journals.length,
+        journals,
+      });
     }
-  }
 
-  res.setHeader("Content-Type", "text/csv; charset=utf-8");
-  res.setHeader("Content-Disposition", `attachment; filename="grand-livre-${Date.now()}.csv"`);
-  return res.send(lines.join("\r\n"));
+    // CSV format
+    const escapeCsv = (val: unknown) => {
+      const s = String(val ?? "").replace(/"/g, '""');
+      return `"${s}"`;
+    };
+
+    const header = [
+      "Reference_Journal",
+      "Date_Creation",
+      "Statut",
+      "Est_Annulation",
+      "Annule_De",
+      "Annule_Par",
+      "Motif_Annulation",
+      "ID_Commande",
+      "ID_Livreur",
+      "ID_Portefeuille",
+      "Compte_Debit_Code",
+      "Compte_Debit_Nom",
+      "Compte_Credit_Code",
+      "Compte_Credit_Nom",
+      "Montant_FCFA",
+      "Description",
+    ].join(",");
+
+    const lines: string[] = [header];
+
+    for (const j of journals) {
+      for (const leg of j.legs) {
+        lines.push([
+          escapeCsv(j.journalReference),
+          escapeCsv(j.createdAt),
+          escapeCsv(j.status),
+          escapeCsv(j.isReversal ? "OUI" : "NON"),
+          escapeCsv(j.reversedFrom ?? ""),
+          escapeCsv(j.reversedBy ?? ""),
+          escapeCsv(j.reversalReason ?? ""),
+          escapeCsv(j.orderId ?? ""),
+          escapeCsv(j.driverId ?? ""),
+          escapeCsv(j.walletId ?? ""),
+          escapeCsv(leg.debitAccount.code),
+          escapeCsv(leg.debitAccount.name),
+          escapeCsv(leg.creditAccount.code),
+          escapeCsv(leg.creditAccount.name),
+          leg.amount,
+          escapeCsv(leg.description),
+        ].join(","));
+      }
+    }
+
+    res.setHeader("Content-Type", "text/csv; charset=utf-8");
+    res.setHeader("Content-Disposition", `attachment; filename="grand-livre-${Date.now()}.csv"`);
+    return res.send(lines.join("\r\n"));
   } catch (err) {
     logAndRespondInternalError(req, res, {
       route: "GET /admin/comptabilite/export",
@@ -979,140 +979,140 @@ router.get("/admin/wallets", async (req, res) => {
   if (!(await requireSuperAdmin(req, res))) return;
 
   try {
-  const ownerTypeFilter = String(req.query.ownerType ?? "all").toLowerCase();
-  const search = String(req.query.search ?? "").trim().toLowerCase();
-  const hasBalanceOnly = req.query.hasBalance === "true";
-  const page = Math.max(1, parseInt(req.query.page as string, 10) || 1);
-  const limit = Math.min(100, Math.max(1, parseInt(req.query.limit as string, 10) || 50));
-  const offset = req.query.offset ? Math.max(0, parseInt(req.query.offset as string, 10)) : (page - 1) * limit;
+    const ownerTypeFilter = String(req.query.ownerType ?? "all").toLowerCase();
+    const search = String(req.query.search ?? "").trim().toLowerCase();
+    const hasBalanceOnly = req.query.hasBalance === "true";
+    const page = Math.max(1, parseInt(req.query.page as string, 10) || 1);
+    const limit = Math.min(100, Math.max(1, parseInt(req.query.limit as string, 10) || 50));
+    const offset = req.query.offset ? Math.max(0, parseInt(req.query.offset as string, 10)) : (page - 1) * limit;
 
-  const conditions = [];
-  if (ownerTypeFilter !== "all" && ["seller", "driver", "buyer"].includes(ownerTypeFilter)) {
-    conditions.push(eq(virtualWalletsTable.ownerType, ownerTypeFilter as any));
-  }
-  if (hasBalanceOnly) {
-    conditions.push(
-      or(
-        gt(virtualWalletsTable.balance, 0),
-        gt(virtualWalletsTable.lockedBalance, 0),
-        gt(virtualWalletsTable.pendingPayoutBalance, 0)
-      )
-    );
-  }
-  if (search) {
-    const searchNum = Number(search);
-    if (!isNaN(searchNum) && Number.isInteger(searchNum)) {
+    const conditions = [];
+    if (ownerTypeFilter !== "all" && ["seller", "driver", "buyer"].includes(ownerTypeFilter)) {
+      conditions.push(eq(virtualWalletsTable.ownerType, ownerTypeFilter as any));
+    }
+    if (hasBalanceOnly) {
       conditions.push(
         or(
-          eq(virtualWalletsTable.id, searchNum),
-          eq(virtualWalletsTable.ownerId, searchNum)
+          gt(virtualWalletsTable.balance, 0),
+          gt(virtualWalletsTable.lockedBalance, 0),
+          gt(virtualWalletsTable.pendingPayoutBalance, 0)
         )
       );
-    } else {
-      conditions.push(sql`${virtualWalletsTable.ownerType}::text ILIKE ${`%${search}%`}`);
     }
-  }
-
-  const whereClause = conditions.length > 0 ? and(...conditions) : undefined;
-
-  // DB-level summary totals
-  const [summary] = await db
-    .select({
-      totalWallets: count(),
-      totalBalance: sql<number>`coalesce(sum(${virtualWalletsTable.balance}), 0)`,
-      totalLocked: sql<number>`coalesce(sum(${virtualWalletsTable.lockedBalance}), 0)`,
-      totalPendingPayout: sql<number>`coalesce(sum(${virtualWalletsTable.pendingPayoutBalance}), 0)`,
-      totalPaidOut: sql<number>`coalesce(sum(${virtualWalletsTable.paidOutBalance}), 0)`,
-    })
-    .from(virtualWalletsTable)
-    .where(whereClause);
-
-  // DB-level paginated wallets query
-  const wallets = await db
-    .select({
-      id: virtualWalletsTable.id,
-      ownerType: virtualWalletsTable.ownerType,
-      ownerId: virtualWalletsTable.ownerId,
-      balance: virtualWalletsTable.balance,
-      lockedBalance: virtualWalletsTable.lockedBalance,
-      pendingPayoutBalance: virtualWalletsTable.pendingPayoutBalance,
-      paidOutBalance: virtualWalletsTable.paidOutBalance,
-      createdAt: virtualWalletsTable.createdAt,
-      updatedAt: virtualWalletsTable.updatedAt,
-    })
-    .from(virtualWalletsTable)
-    .where(whereClause)
-    .orderBy(desc(virtualWalletsTable.balance), desc(virtualWalletsTable.updatedAt))
-    .limit(limit)
-    .offset(offset);
-
-  // Resolve safe owner labels only for the paginated slice
-  const driverIds = wallets.filter((w) => w.ownerType === "driver").map((w) => w.ownerId);
-  const vendorIds = wallets.filter((w) => w.ownerType === "seller").map((w) => w.ownerId);
-
-  const driversMap = new Map<number, { name: string; phone: string }>();
-  if (driverIds.length > 0) {
-    const drivers = await db
-      .select({ id: driversTable.id, firstName: driversTable.firstName, lastName: driversTable.lastName, phone: driversTable.phone })
-      .from(driversTable)
-      .where(inArray(driversTable.id, driverIds));
-    for (const d of drivers) {
-      driversMap.set(d.id, { name: `${d.firstName} ${d.lastName}`, phone: d.phone });
-    }
-  }
-
-  const vendorsMap = new Map<number, { name: string; shopName: string | null; phone: string }>();
-  if (vendorIds.length > 0) {
-    const vendors = await db
-      .select({ id: vendorsTable.id, firstName: vendorsTable.firstName, lastName: vendorsTable.lastName, shopName: vendorsTable.shopName, phone: vendorsTable.phone })
-      .from(vendorsTable)
-      .where(inArray(vendorsTable.id, vendorIds));
-    for (const v of vendors) {
-      vendorsMap.set(v.id, { name: `${v.firstName} ${v.lastName}`, shopName: v.shopName, phone: v.phone });
-    }
-  }
-
-  const formatted = wallets.map((w) => {
-    let ownerName = `Compte #${w.ownerId}`;
-    let contact = "";
-
-    if (w.ownerType === "driver") {
-      const d = driversMap.get(w.ownerId);
-      ownerName = d ? `Livreur: ${d.name}` : `Livreur #${w.ownerId}`;
-      contact = d?.phone ?? "";
-    } else if (w.ownerType === "seller") {
-      const v = vendorsMap.get(w.ownerId);
-      ownerName = v ? `Vendeur: ${v.shopName ? `${v.shopName} (${v.name})` : v.name}` : `Vendeur #${w.ownerId}`;
-      contact = v?.phone ?? "";
-    } else if (w.ownerType === "buyer") {
-      ownerName = `Acheteur #${w.ownerId}`;
+    if (search) {
+      const searchNum = Number(search);
+      if (!isNaN(searchNum) && Number.isInteger(searchNum)) {
+        conditions.push(
+          or(
+            eq(virtualWalletsTable.id, searchNum),
+            eq(virtualWalletsTable.ownerId, searchNum)
+          )
+        );
+      } else {
+        conditions.push(sql`${virtualWalletsTable.ownerType}::text ILIKE ${`%${search}%`}`);
+      }
     }
 
-    return {
-      id: w.id,
-      ownerType: w.ownerType,
-      ownerId: w.ownerId,
-      ownerName,
-      contact,
-      balance: w.balance,
-      lockedBalance: w.lockedBalance,
-      pendingPayoutBalance: w.pendingPayoutBalance,
-      paidOutBalance: w.paidOutBalance,
-      createdAt: w.createdAt.toISOString(),
-      updatedAt: w.updatedAt.toISOString(),
-    };
-  });
+    const whereClause = conditions.length > 0 ? and(...conditions) : undefined;
 
-  return res.json({
-    wallets: formatted,
-    summary: {
-      totalWallets: Number(summary?.totalWallets ?? 0),
-      totalBalance: Number(summary?.totalBalance ?? 0),
-      totalLocked: Number(summary?.totalLocked ?? 0),
-      totalPendingPayout: Number(summary?.totalPendingPayout ?? 0),
-      totalPaidOut: Number(summary?.totalPaidOut ?? 0),
-    },
-  });
+    // DB-level summary totals
+    const [summary] = await db
+      .select({
+        totalWallets: count(),
+        totalBalance: sql<number>`coalesce(sum(${virtualWalletsTable.balance}), 0)`,
+        totalLocked: sql<number>`coalesce(sum(${virtualWalletsTable.lockedBalance}), 0)`,
+        totalPendingPayout: sql<number>`coalesce(sum(${virtualWalletsTable.pendingPayoutBalance}), 0)`,
+        totalPaidOut: sql<number>`coalesce(sum(${virtualWalletsTable.paidOutBalance}), 0)`,
+      })
+      .from(virtualWalletsTable)
+      .where(whereClause);
+
+    // DB-level paginated wallets query
+    const wallets = await db
+      .select({
+        id: virtualWalletsTable.id,
+        ownerType: virtualWalletsTable.ownerType,
+        ownerId: virtualWalletsTable.ownerId,
+        balance: virtualWalletsTable.balance,
+        lockedBalance: virtualWalletsTable.lockedBalance,
+        pendingPayoutBalance: virtualWalletsTable.pendingPayoutBalance,
+        paidOutBalance: virtualWalletsTable.paidOutBalance,
+        createdAt: virtualWalletsTable.createdAt,
+        updatedAt: virtualWalletsTable.updatedAt,
+      })
+      .from(virtualWalletsTable)
+      .where(whereClause)
+      .orderBy(desc(virtualWalletsTable.balance), desc(virtualWalletsTable.updatedAt))
+      .limit(limit)
+      .offset(offset);
+
+    // Resolve safe owner labels only for the paginated slice
+    const driverIds = wallets.filter((w) => w.ownerType === "driver").map((w) => w.ownerId);
+    const vendorIds = wallets.filter((w) => w.ownerType === "seller").map((w) => w.ownerId);
+
+    const driversMap = new Map<number, { name: string; phone: string }>();
+    if (driverIds.length > 0) {
+      const drivers = await db
+        .select({ id: driversTable.id, firstName: driversTable.firstName, lastName: driversTable.lastName, phone: driversTable.phone })
+        .from(driversTable)
+        .where(inArray(driversTable.id, driverIds));
+      for (const d of drivers) {
+        driversMap.set(d.id, { name: `${d.firstName} ${d.lastName}`, phone: d.phone });
+      }
+    }
+
+    const vendorsMap = new Map<number, { name: string; shopName: string | null; phone: string }>();
+    if (vendorIds.length > 0) {
+      const vendors = await db
+        .select({ id: vendorsTable.id, firstName: vendorsTable.firstName, lastName: vendorsTable.lastName, shopName: vendorsTable.shopName, phone: vendorsTable.phone })
+        .from(vendorsTable)
+        .where(inArray(vendorsTable.id, vendorIds));
+      for (const v of vendors) {
+        vendorsMap.set(v.id, { name: `${v.firstName} ${v.lastName}`, shopName: v.shopName, phone: v.phone });
+      }
+    }
+
+    const formatted = wallets.map((w) => {
+      let ownerName = `Compte #${w.ownerId}`;
+      let contact = "";
+
+      if (w.ownerType === "driver") {
+        const d = driversMap.get(w.ownerId);
+        ownerName = d ? `Livreur: ${d.name}` : `Livreur #${w.ownerId}`;
+        contact = d?.phone ?? "";
+      } else if (w.ownerType === "seller") {
+        const v = vendorsMap.get(w.ownerId);
+        ownerName = v ? `Vendeur: ${v.shopName ? `${v.shopName} (${v.name})` : v.name}` : `Vendeur #${w.ownerId}`;
+        contact = v?.phone ?? "";
+      } else if (w.ownerType === "buyer") {
+        ownerName = `Acheteur #${w.ownerId}`;
+      }
+
+      return {
+        id: w.id,
+        ownerType: w.ownerType,
+        ownerId: w.ownerId,
+        ownerName,
+        contact,
+        balance: w.balance,
+        lockedBalance: w.lockedBalance,
+        pendingPayoutBalance: w.pendingPayoutBalance,
+        paidOutBalance: w.paidOutBalance,
+        createdAt: w.createdAt.toISOString(),
+        updatedAt: w.updatedAt.toISOString(),
+      };
+    });
+
+    return res.json({
+      wallets: formatted,
+      summary: {
+        totalWallets: Number(summary?.totalWallets ?? 0),
+        totalBalance: Number(summary?.totalBalance ?? 0),
+        totalLocked: Number(summary?.totalLocked ?? 0),
+        totalPendingPayout: Number(summary?.totalPendingPayout ?? 0),
+        totalPaidOut: Number(summary?.totalPaidOut ?? 0),
+      },
+    });
   } catch (err) {
     logAndRespondInternalError(req, res, {
       route: "GET /admin/wallets",
@@ -1130,56 +1130,56 @@ router.get("/admin/withdrawals", async (req, res) => {
   if (!(await requireSuperAdmin(req, res))) return;
 
   try {
-  const statusFilter = String(req.query.status ?? "all").toLowerCase();
-  const ownerTypeFilter = String(req.query.ownerType ?? "all").toLowerCase();
-  const limit = Math.min(Math.max(Number(req.query.limit ?? 200), 1), 500);
-  const offset = Math.max(Number(req.query.offset ?? 0), 0);
+    const statusFilter = String(req.query.status ?? "all").toLowerCase();
+    const ownerTypeFilter = String(req.query.ownerType ?? "all").toLowerCase();
+    const limit = Math.min(Math.max(Number(req.query.limit ?? 200), 1), 500);
+    const offset = Math.max(Number(req.query.offset ?? 0), 0);
 
-  const conditions = [];
-  if (statusFilter !== "all") {
-    conditions.push(eq(deliveryWithdrawalTicketsTable.status, statusFilter as any));
-  }
-  if (ownerTypeFilter !== "all" && ["seller", "driver", "buyer"].includes(ownerTypeFilter)) {
-    conditions.push(eq(deliveryWithdrawalTicketsTable.ownerType, ownerTypeFilter as any));
-  }
+    const conditions = [];
+    if (statusFilter !== "all") {
+      conditions.push(eq(deliveryWithdrawalTicketsTable.status, statusFilter as any));
+    }
+    if (ownerTypeFilter !== "all" && ["seller", "driver", "buyer"].includes(ownerTypeFilter)) {
+      conditions.push(eq(deliveryWithdrawalTicketsTable.ownerType, ownerTypeFilter as any));
+    }
 
-  const whereClause = conditions.length > 0 ? and(...conditions) : undefined;
+    const whereClause = conditions.length > 0 ? and(...conditions) : undefined;
 
-  const tickets = await db
-    .select({
-      id: deliveryWithdrawalTicketsTable.id,
-      ownerType: deliveryWithdrawalTicketsTable.ownerType,
-      ownerId: deliveryWithdrawalTicketsTable.ownerId,
-      walletId: deliveryWithdrawalTicketsTable.walletId,
-      phoneNumber: deliveryWithdrawalTicketsTable.phoneNumber,
-      amount: deliveryWithdrawalTicketsTable.amount,
-      dailyCumulativeAmount: deliveryWithdrawalTicketsTable.dailyCumulativeAmount,
-      monthlyCumulativeAmount: deliveryWithdrawalTicketsTable.monthlyCumulativeAmount,
-      status: deliveryWithdrawalTicketsTable.status,
-      reviewReason: deliveryWithdrawalTicketsTable.reviewReason,
-      createdAt: deliveryWithdrawalTicketsTable.createdAt,
-      updatedAt: deliveryWithdrawalTicketsTable.updatedAt,
-      fedapayPayoutId: payoutsFedapayTable.fedapayPayoutId,
-      payoutStatus: payoutsFedapayTable.status,
-      failureReason: payoutsFedapayTable.failureReason,
-    })
-    .from(deliveryWithdrawalTicketsTable)
-    .leftJoin(
-      payoutsFedapayTable,
-      eq(deliveryWithdrawalTicketsTable.id, payoutsFedapayTable.withdrawalTicketId),
-    )
-    .where(whereClause)
-    .orderBy(desc(deliveryWithdrawalTicketsTable.createdAt))
-    .limit(limit)
-    .offset(offset);
+    const tickets = await db
+      .select({
+        id: deliveryWithdrawalTicketsTable.id,
+        ownerType: deliveryWithdrawalTicketsTable.ownerType,
+        ownerId: deliveryWithdrawalTicketsTable.ownerId,
+        walletId: deliveryWithdrawalTicketsTable.walletId,
+        phoneNumber: deliveryWithdrawalTicketsTable.phoneNumber,
+        amount: deliveryWithdrawalTicketsTable.amount,
+        dailyCumulativeAmount: deliveryWithdrawalTicketsTable.dailyCumulativeAmount,
+        monthlyCumulativeAmount: deliveryWithdrawalTicketsTable.monthlyCumulativeAmount,
+        status: deliveryWithdrawalTicketsTable.status,
+        reviewReason: deliveryWithdrawalTicketsTable.reviewReason,
+        createdAt: deliveryWithdrawalTicketsTable.createdAt,
+        updatedAt: deliveryWithdrawalTicketsTable.updatedAt,
+        fedapayPayoutId: payoutsFedapayTable.fedapayPayoutId,
+        payoutStatus: payoutsFedapayTable.status,
+        failureReason: payoutsFedapayTable.failureReason,
+      })
+      .from(deliveryWithdrawalTicketsTable)
+      .leftJoin(
+        payoutsFedapayTable,
+        eq(deliveryWithdrawalTicketsTable.id, payoutsFedapayTable.withdrawalTicketId),
+      )
+      .where(whereClause)
+      .orderBy(desc(deliveryWithdrawalTicketsTable.createdAt))
+      .limit(limit)
+      .offset(offset);
 
-  return res.json({
-    withdrawals: tickets.map((t) => ({
-      ...t,
-      createdAt: t.createdAt.toISOString(),
-      updatedAt: t.updatedAt.toISOString(),
-    })),
-  });
+    return res.json({
+      withdrawals: tickets.map((t) => ({
+        ...t,
+        createdAt: t.createdAt.toISOString(),
+        updatedAt: t.updatedAt.toISOString(),
+      })),
+    });
   } catch (err) {
     logAndRespondInternalError(req, res, {
       route: "GET /admin/withdrawals",
@@ -1209,70 +1209,70 @@ router.post("/admin/withdrawals/:ticketId/review", async (req, res) => {
   }
 
   try {
-  const [ticket] = await db
-    .select()
-    .from(deliveryWithdrawalTicketsTable)
-    .where(eq(deliveryWithdrawalTicketsTable.id, ticketId))
-    .limit(1);
+    const [ticket] = await db
+      .select()
+      .from(deliveryWithdrawalTicketsTable)
+      .where(eq(deliveryWithdrawalTicketsTable.id, ticketId))
+      .limit(1);
 
-  if (!ticket) {
-    return res.status(404).json({ error: "Ticket de retrait introuvable." });
-  }
+    if (!ticket) {
+      return res.status(404).json({ error: "Ticket de retrait introuvable." });
+    }
 
-  if (ticket.status !== "withdrawal_review_required") {
-    return res.status(400).json({
-      error: `Ce ticket est au statut '${ticket.status}' et ne peut plus être révisé.`,
+    if (ticket.status !== "withdrawal_review_required") {
+      return res.status(400).json({
+        error: `Ce ticket est au statut '${ticket.status}' et ne peut plus être révisé.`,
+      });
+    }
+
+    if (action === "approve") {
+      await db
+        .update(deliveryWithdrawalTicketsTable)
+        .set({
+          status: "withdrawal_reserved",
+          reviewReason: reason ? `Approuvé par superadmin: ${reason}` : "Approuvé par superadmin",
+          updatedAt: new Date(),
+        })
+        .where(eq(deliveryWithdrawalTicketsTable.id, ticketId));
+
+      await db.insert(deliveryAuditLogsTable).values({
+        actorType: "superadmin",
+        action: "admin_approve_withdrawal_review",
+        metadata: { ticketId, reason, amount: ticket.amount },
+      });
+
+      return res.json({ success: true, status: "withdrawal_reserved" });
+    }
+
+    // Reject: return locked funds back to available balance
+    await db.transaction(async (tx) => {
+      await tx
+        .update(deliveryWithdrawalTicketsTable)
+        .set({
+          status: "failed",
+          reviewReason: reason ? `Rejeté par superadmin: ${reason}` : "Rejeté par superadmin",
+          updatedAt: new Date(),
+        })
+        .where(eq(deliveryWithdrawalTicketsTable.id, ticketId));
+
+      // Release funds in wallet: decrease pendingPayoutBalance and increase balance
+      await tx
+        .update(virtualWalletsTable)
+        .set({
+          balance: sql`${virtualWalletsTable.balance} + ${ticket.amount}`,
+          pendingPayoutBalance: sql`GREATEST(0, ${virtualWalletsTable.pendingPayoutBalance} - ${ticket.amount})`,
+          updatedAt: new Date(),
+        })
+        .where(eq(virtualWalletsTable.id, ticket.walletId));
+
+      await tx.insert(deliveryAuditLogsTable).values({
+        actorType: "superadmin",
+        action: "admin_reject_withdrawal_review",
+        metadata: { ticketId, reason, amount: ticket.amount, walletId: ticket.walletId },
+      });
     });
-  }
 
-  if (action === "approve") {
-    await db
-      .update(deliveryWithdrawalTicketsTable)
-      .set({
-        status: "withdrawal_reserved",
-        reviewReason: reason ? `Approuvé par superadmin: ${reason}` : "Approuvé par superadmin",
-        updatedAt: new Date(),
-      })
-      .where(eq(deliveryWithdrawalTicketsTable.id, ticketId));
-
-    await db.insert(deliveryAuditLogsTable).values({
-      actorType: "superadmin",
-      action: "admin_approve_withdrawal_review",
-      metadata: { ticketId, reason, amount: ticket.amount },
-    });
-
-    return res.json({ success: true, status: "withdrawal_reserved" });
-  }
-
-  // Reject: return locked funds back to available balance
-  await db.transaction(async (tx) => {
-    await tx
-      .update(deliveryWithdrawalTicketsTable)
-      .set({
-        status: "failed",
-        reviewReason: reason ? `Rejeté par superadmin: ${reason}` : "Rejeté par superadmin",
-        updatedAt: new Date(),
-      })
-      .where(eq(deliveryWithdrawalTicketsTable.id, ticketId));
-
-    // Release funds in wallet: decrease pendingPayoutBalance and increase balance
-    await tx
-      .update(virtualWalletsTable)
-      .set({
-        balance: sql`${virtualWalletsTable.balance} + ${ticket.amount}`,
-        pendingPayoutBalance: sql`GREATEST(0, ${virtualWalletsTable.pendingPayoutBalance} - ${ticket.amount})`,
-        updatedAt: new Date(),
-      })
-      .where(eq(virtualWalletsTable.id, ticket.walletId));
-
-    await tx.insert(deliveryAuditLogsTable).values({
-      actorType: "superadmin",
-      action: "admin_reject_withdrawal_review",
-      metadata: { ticketId, reason, amount: ticket.amount, walletId: ticket.walletId },
-    });
-  });
-
-  return res.json({ success: true, status: "failed", reason });
+    return res.json({ success: true, status: "failed", reason });
   } catch (err) {
     logAndRespondInternalError(req, res, {
       route: "POST /admin/withdrawals/:ticketId/review",
@@ -1296,69 +1296,69 @@ router.get("/admin/drivers/:driverId/history", async (req, res) => {
   }
 
   try {
-  const [driver] = await db
-    .select({
-      id: driversTable.id,
-      firstName: driversTable.firstName,
-      lastName: driversTable.lastName,
-      phone: driversTable.phone,
-      workZone: driversTable.workZone,
-      isActive: driversTable.isActive,
-      isAvailable: driversTable.isAvailable,
-      createdAt: driversTable.createdAt,
-    })
-    .from(driversTable)
-    .where(eq(driversTable.id, driverId))
-    .limit(1);
+    const [driver] = await db
+      .select({
+        id: driversTable.id,
+        firstName: driversTable.firstName,
+        lastName: driversTable.lastName,
+        phone: driversTable.phone,
+        workZone: driversTable.workZone,
+        isActive: driversTable.isActive,
+        isAvailable: driversTable.isAvailable,
+        createdAt: driversTable.createdAt,
+      })
+      .from(driversTable)
+      .where(eq(driversTable.id, driverId))
+      .limit(1);
 
-  if (!driver) {
-    return res.status(404).json({ error: "Livreur introuvable." });
-  }
+    if (!driver) {
+      return res.status(404).json({ error: "Livreur introuvable." });
+    }
 
-  const jobs = await db
-    .select({
-      id: deliveryWorkflowJobsTable.id,
-      orderId: deliveryWorkflowJobsTable.orderId,
-      acceptanceStatus: deliveryWorkflowJobsTable.acceptanceStatus,
-      assignmentExpiresAt: deliveryWorkflowJobsTable.assignmentExpiresAt,
-      acceptedAt: deliveryWorkflowJobsTable.acceptedAt,
-      refusedAt: deliveryWorkflowJobsTable.refusedAt,
-      cancelledAt: deliveryWorkflowJobsTable.cancelledAt,
-      createdAt: deliveryWorkflowJobsTable.createdAt,
-      orderStatus: ordersTable.status,
-      distanceKm: ordersTable.distanceLockedKm,
-      transportFee: ordersTable.transportFeeLocked,
-    })
-    .from(deliveryWorkflowJobsTable)
-    .leftJoin(ordersTable, eq(deliveryWorkflowJobsTable.orderId, ordersTable.id))
-    .where(eq(deliveryWorkflowJobsTable.driverId, driverId))
-    .orderBy(desc(deliveryWorkflowJobsTable.createdAt))
-    .limit(50);
+    const jobs = await db
+      .select({
+        id: deliveryWorkflowJobsTable.id,
+        orderId: deliveryWorkflowJobsTable.orderId,
+        acceptanceStatus: deliveryWorkflowJobsTable.acceptanceStatus,
+        assignmentExpiresAt: deliveryWorkflowJobsTable.assignmentExpiresAt,
+        acceptedAt: deliveryWorkflowJobsTable.acceptedAt,
+        refusedAt: deliveryWorkflowJobsTable.refusedAt,
+        cancelledAt: deliveryWorkflowJobsTable.cancelledAt,
+        createdAt: deliveryWorkflowJobsTable.createdAt,
+        orderStatus: ordersTable.status,
+        distanceKm: ordersTable.distanceLockedKm,
+        transportFee: ordersTable.transportFeeLocked,
+      })
+      .from(deliveryWorkflowJobsTable)
+      .leftJoin(ordersTable, eq(deliveryWorkflowJobsTable.orderId, ordersTable.id))
+      .where(eq(deliveryWorkflowJobsTable.driverId, driverId))
+      .orderBy(desc(deliveryWorkflowJobsTable.createdAt))
+      .limit(50);
 
-  const completedCount = jobs.filter((j) => j.orderStatus === "DELIVERED").length;
-  const returnedCount = jobs.filter((j) => j.orderStatus === "RETURN_CONFIRMED" || j.orderStatus === "RETURN_AT_SELLER").length;
-  const refusedCount = jobs.filter((j) => j.acceptanceStatus === "refused_by_driver").length;
-  const acceptedCount = jobs.filter((j) => j.acceptanceStatus === "accepted_by_driver").length;
+    const completedCount = jobs.filter((j) => j.orderStatus === "DELIVERED").length;
+    const returnedCount = jobs.filter((j) => j.orderStatus === "RETURN_CONFIRMED" || j.orderStatus === "RETURN_AT_SELLER").length;
+    const refusedCount = jobs.filter((j) => j.acceptanceStatus === "refused_by_driver").length;
+    const acceptedCount = jobs.filter((j) => j.acceptanceStatus === "accepted_by_driver").length;
 
-  return res.json({
-    driver,
-    stats: {
-      totalAssigned: jobs.length,
-      acceptedCount,
-      refusedCount,
-      completedCount,
-      returnedCount,
-      acceptanceRatePercent: jobs.length > 0 ? Math.round((acceptedCount / jobs.length) * 100) : 100,
-    },
-    history: jobs.map((j) => ({
-      ...j,
-      createdAt: j.createdAt.toISOString(),
-      acceptedAt: j.acceptedAt?.toISOString() ?? null,
-      refusedAt: j.refusedAt?.toISOString() ?? null,
-      cancelledAt: j.cancelledAt?.toISOString() ?? null,
-      assignmentExpiresAt: j.assignmentExpiresAt?.toISOString() ?? null,
-    })),
-  });
+    return res.json({
+      driver,
+      stats: {
+        totalAssigned: jobs.length,
+        acceptedCount,
+        refusedCount,
+        completedCount,
+        returnedCount,
+        acceptanceRatePercent: jobs.length > 0 ? Math.round((acceptedCount / jobs.length) * 100) : 100,
+      },
+      history: jobs.map((j) => ({
+        ...j,
+        createdAt: j.createdAt.toISOString(),
+        acceptedAt: j.acceptedAt?.toISOString() ?? null,
+        refusedAt: j.refusedAt?.toISOString() ?? null,
+        cancelledAt: j.cancelledAt?.toISOString() ?? null,
+        assignmentExpiresAt: j.assignmentExpiresAt?.toISOString() ?? null,
+      })),
+    });
   } catch (err) {
     logAndRespondInternalError(req, res, {
       route: "GET /admin/drivers/:driverId/history",
@@ -1382,120 +1382,120 @@ router.get("/admin/orders/:orderId/audit", async (req, res) => {
   }
 
   try {
-  const [order] = await db
-    .select({
-      id: ordersTable.id,
-      firstName: ordersTable.firstName,
-      lastName: ordersTable.lastName,
-      description: ordersTable.description,
-      status: ordersTable.status,
-      articlePriceLocked: ordersTable.articlePriceLocked,
-      distanceLockedKm: ordersTable.distanceLockedKm,
-      transportFeeLocked: ordersTable.transportFeeLocked,
-      roundTripFeeLocked: ordersTable.roundTripFeeLocked,
-      createdAt: ordersTable.createdAt,
-    })
-    .from(ordersTable)
-    .where(eq(ordersTable.id, orderId))
-    .limit(1);
+    const [order] = await db
+      .select({
+        id: ordersTable.id,
+        firstName: ordersTable.firstName,
+        lastName: ordersTable.lastName,
+        description: ordersTable.description,
+        status: ordersTable.status,
+        articlePriceLocked: ordersTable.articlePriceLocked,
+        distanceLockedKm: ordersTable.distanceLockedKm,
+        transportFeeLocked: ordersTable.transportFeeLocked,
+        roundTripFeeLocked: ordersTable.roundTripFeeLocked,
+        createdAt: ordersTable.createdAt,
+      })
+      .from(ordersTable)
+      .where(eq(ordersTable.id, orderId))
+      .limit(1);
 
-  if (!order) {
-    return res.status(404).json({ error: "Commande introuvable." });
-  }
+    if (!order) {
+      return res.status(404).json({ error: "Commande introuvable." });
+    }
 
-  // Jobs history
-  const jobs = await db
-    .select({
-      id: deliveryWorkflowJobsTable.id,
-      driverId: deliveryWorkflowJobsTable.driverId,
-      driverFirstName: driversTable.firstName,
-      driverLastName: driversTable.lastName,
-      acceptanceStatus: deliveryWorkflowJobsTable.acceptanceStatus,
-      acceptedAt: deliveryWorkflowJobsTable.acceptedAt,
-      refusedAt: deliveryWorkflowJobsTable.refusedAt,
-      cancelledAt: deliveryWorkflowJobsTable.cancelledAt,
-      createdAt: deliveryWorkflowJobsTable.createdAt,
-    })
-    .from(deliveryWorkflowJobsTable)
-    .leftJoin(driversTable, eq(deliveryWorkflowJobsTable.driverId, driversTable.id))
-    .where(eq(deliveryWorkflowJobsTable.orderId, orderId))
-    .orderBy(desc(deliveryWorkflowJobsTable.createdAt));
+    // Jobs history
+    const jobs = await db
+      .select({
+        id: deliveryWorkflowJobsTable.id,
+        driverId: deliveryWorkflowJobsTable.driverId,
+        driverFirstName: driversTable.firstName,
+        driverLastName: driversTable.lastName,
+        acceptanceStatus: deliveryWorkflowJobsTable.acceptanceStatus,
+        acceptedAt: deliveryWorkflowJobsTable.acceptedAt,
+        refusedAt: deliveryWorkflowJobsTable.refusedAt,
+        cancelledAt: deliveryWorkflowJobsTable.cancelledAt,
+        createdAt: deliveryWorkflowJobsTable.createdAt,
+      })
+      .from(deliveryWorkflowJobsTable)
+      .leftJoin(driversTable, eq(deliveryWorkflowJobsTable.driverId, driversTable.id))
+      .where(eq(deliveryWorkflowJobsTable.orderId, orderId))
+      .orderBy(desc(deliveryWorkflowJobsTable.createdAt));
 
-  // QR Tokens
-  const qrTokens = await db
-    .select({
-      id: qrTokensTable.id,
-      stage: qrTokensTable.stage,
-      expiresAt: qrTokensTable.expiresAt,
-      usedAt: qrTokensTable.usedAt,
-      scannedByRole: qrTokensTable.scannedByRole,
-      proximityMeters: qrTokensTable.proximityMeters,
-      createdAt: qrTokensTable.createdAt,
-    })
-    .from(qrTokensTable)
-    .where(eq(qrTokensTable.orderId, orderId))
-    .orderBy(desc(qrTokensTable.createdAt));
+    // QR Tokens
+    const qrTokens = await db
+      .select({
+        id: qrTokensTable.id,
+        stage: qrTokensTable.stage,
+        expiresAt: qrTokensTable.expiresAt,
+        usedAt: qrTokensTable.usedAt,
+        scannedByRole: qrTokensTable.scannedByRole,
+        proximityMeters: qrTokensTable.proximityMeters,
+        createdAt: qrTokensTable.createdAt,
+      })
+      .from(qrTokensTable)
+      .where(eq(qrTokensTable.orderId, orderId))
+      .orderBy(desc(qrTokensTable.createdAt));
 
-  // Audit Logs
-  const auditLogs = await db
-    .select()
-    .from(deliveryAuditLogsTable)
-    .where(eq(deliveryAuditLogsTable.orderId, orderId))
-    .orderBy(desc(deliveryAuditLogsTable.createdAt));
+    // Audit Logs
+    const auditLogs = await db
+      .select()
+      .from(deliveryAuditLogsTable)
+      .where(eq(deliveryAuditLogsTable.orderId, orderId))
+      .orderBy(desc(deliveryAuditLogsTable.createdAt));
 
-  // Accounting Ledger Entries
-  const debitAccountAlias = aliasedTable(ledgerAccountsTable, "debit_acc");
-  const creditAccountAlias = aliasedTable(ledgerAccountsTable, "credit_acc");
+    // Accounting Ledger Entries
+    const debitAccountAlias = aliasedTable(ledgerAccountsTable, "debit_acc");
+    const creditAccountAlias = aliasedTable(ledgerAccountsTable, "credit_acc");
 
-  const ledgerEntries = await db
-    .select({
-      id: ledgerEntriesTable.id,
-      journalReference: ledgerEntriesTable.journalReference,
-      amount: ledgerEntriesTable.amount,
-      description: ledgerEntriesTable.description,
-      createdAt: ledgerEntriesTable.createdAt,
-      debitCode: debitAccountAlias.code,
-      debitName: debitAccountAlias.name,
-      creditCode: creditAccountAlias.code,
-      creditName: creditAccountAlias.name,
-      metadata: ledgerEntriesTable.metadata,
-    })
-    .from(ledgerEntriesTable)
-    .leftJoin(debitAccountAlias, eq(ledgerEntriesTable.debitAccountId, debitAccountAlias.id))
-    .leftJoin(creditAccountAlias, eq(ledgerEntriesTable.creditAccountId, creditAccountAlias.id))
-    .where(
-      sql`${ledgerEntriesTable.metadata}->>'orderId' = ${String(orderId)} OR ${ledgerEntriesTable.journalReference} ILIKE ${`%_${orderId}%`}`,
-    )
-    .orderBy(desc(ledgerEntriesTable.createdAt));
+    const ledgerEntries = await db
+      .select({
+        id: ledgerEntriesTable.id,
+        journalReference: ledgerEntriesTable.journalReference,
+        amount: ledgerEntriesTable.amount,
+        description: ledgerEntriesTable.description,
+        createdAt: ledgerEntriesTable.createdAt,
+        debitCode: debitAccountAlias.code,
+        debitName: debitAccountAlias.name,
+        creditCode: creditAccountAlias.code,
+        creditName: creditAccountAlias.name,
+        metadata: ledgerEntriesTable.metadata,
+      })
+      .from(ledgerEntriesTable)
+      .leftJoin(debitAccountAlias, eq(ledgerEntriesTable.debitAccountId, debitAccountAlias.id))
+      .leftJoin(creditAccountAlias, eq(ledgerEntriesTable.creditAccountId, creditAccountAlias.id))
+      .where(
+        sql`${ledgerEntriesTable.metadata}->>'orderId' = ${String(orderId)} OR ${ledgerEntriesTable.journalReference} ILIKE ${`%_${orderId}%`}`,
+      )
+      .orderBy(desc(ledgerEntriesTable.createdAt));
 
-  return res.json({
-    order: {
-      ...order,
-      createdAt: order.createdAt.toISOString(),
-    },
-    assignments: jobs.map((j) => ({
-      ...j,
-      driverName: j.driverFirstName ? `${j.driverFirstName} ${j.driverLastName}` : `Livreur #${j.driverId}`,
-      createdAt: j.createdAt.toISOString(),
-      acceptedAt: j.acceptedAt?.toISOString() ?? null,
-      refusedAt: j.refusedAt?.toISOString() ?? null,
-      cancelledAt: j.cancelledAt?.toISOString() ?? null,
-    })),
-    qrTokens: qrTokens.map((q) => ({
-      ...q,
-      createdAt: q.createdAt.toISOString(),
-      expiresAt: q.expiresAt.toISOString(),
-      usedAt: q.usedAt?.toISOString() ?? null,
-    })),
-    auditLogs: auditLogs.map((a) => ({
-      ...a,
-      createdAt: a.createdAt.toISOString(),
-    })),
-    ledgerEntries: ledgerEntries.map((l) => ({
-      ...l,
-      createdAt: l.createdAt.toISOString(),
-    })),
-  });
+    return res.json({
+      order: {
+        ...order,
+        createdAt: order.createdAt.toISOString(),
+      },
+      assignments: jobs.map((j) => ({
+        ...j,
+        driverName: j.driverFirstName ? `${j.driverFirstName} ${j.driverLastName}` : `Livreur #${j.driverId}`,
+        createdAt: j.createdAt.toISOString(),
+        acceptedAt: j.acceptedAt?.toISOString() ?? null,
+        refusedAt: j.refusedAt?.toISOString() ?? null,
+        cancelledAt: j.cancelledAt?.toISOString() ?? null,
+      })),
+      qrTokens: qrTokens.map((q) => ({
+        ...q,
+        createdAt: q.createdAt.toISOString(),
+        expiresAt: q.expiresAt.toISOString(),
+        usedAt: q.usedAt?.toISOString() ?? null,
+      })),
+      auditLogs: auditLogs.map((a) => ({
+        ...a,
+        createdAt: a.createdAt.toISOString(),
+      })),
+      ledgerEntries: ledgerEntries.map((l) => ({
+        ...l,
+        createdAt: l.createdAt.toISOString(),
+      })),
+    });
   } catch (err) {
     logAndRespondInternalError(req, res, {
       route: "GET /admin/orders/:orderId/audit",

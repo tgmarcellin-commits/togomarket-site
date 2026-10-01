@@ -571,22 +571,22 @@ router.get("/delivery/conversations/:conversationId/state", async (req, res) => 
   if (!identity) return res.status(401).json({ error: "Accès conversation refusé." });
 
   try {
-  const state = await getConversationDeliveryState(identity.conversationId);
-  if (!state) return res.status(404).json({ error: "Conversation introuvable." });
+    const state = await getConversationDeliveryState(identity.conversationId);
+    if (!state) return res.status(404).json({ error: "Conversation introuvable." });
 
-  return res.json({
-    conversationId: identity.conversationId,
-    orderId: state.orderId,
-    priceConfirmation: state.priceState,
-    confirmations: state.confirmations,
-    order: state.order
-      ? {
-        ...state.order,
-        paymentEnabled: state.hasAcceptedDriver,
-      }
-      : null,
-    assignments: state.assignments,
-  });
+    return res.json({
+      conversationId: identity.conversationId,
+      orderId: state.orderId,
+      priceConfirmation: state.priceState,
+      confirmations: state.confirmations,
+      order: state.order
+        ? {
+          ...state.order,
+          paymentEnabled: state.hasAcceptedDriver,
+        }
+        : null,
+      assignments: state.assignments,
+    });
   } catch (err) {
     logAndRespondInternalError(req, res, {
       route: "GET /delivery/conversations/:conversationId/state",
@@ -609,96 +609,96 @@ router.post("/delivery/conversations/:conversationId/price-confirmation", async 
   const actorType = identity.role === "buyer" ? "buyer" : "vendor";
 
   try {
-  const [upserted] = await db
-    .insert(orderPriceConfirmationsTable)
-    .values({
-      conversationId: identity.conversationId,
-      actorType,
-      amountFcfa,
-      confirmedAt: new Date(),
-      updatedAt: new Date(),
-    })
-    .onConflictDoUpdate({
-      target: [orderPriceConfirmationsTable.conversationId, orderPriceConfirmationsTable.actorType],
-      set: {
+    const [upserted] = await db
+      .insert(orderPriceConfirmationsTable)
+      .values({
+        conversationId: identity.conversationId,
+        actorType,
         amountFcfa,
         confirmedAt: new Date(),
         updatedAt: new Date(),
-      },
-    })
-    .returning({
-      id: orderPriceConfirmationsTable.id,
-    });
-  if (!upserted) return res.status(500).json({ error: "Impossible d'enregistrer la confirmation." });
-
-  const state = await getConversationDeliveryState(identity.conversationId);
-  if (!state) return res.status(404).json({ error: "Conversation introuvable." });
-
-  if (state.priceState.status === "mismatch") {
-    await emitConversationDeliveryState(identity.conversationId);
-    return res.status(409).json({
-      error: "Les montants saisis sont différents. Corrigez puis recommencez la confirmation.",
-      code: "PRICE_MISMATCH",
-    });
-  }
-
-  if (state.priceState.status === "matched" && !state.orderId && state.priceState.buyerAmount !== null) {
-    await db.transaction(async (tx) => {
-      await tx.execute(sql`SELECT id FROM conversations WHERE id = ${identity.conversationId} FOR UPDATE`);
-      const [existingMapping] = await tx
-        .select({ orderId: conversationDeliveryOrdersTable.orderId })
-        .from(conversationDeliveryOrdersTable)
-        .innerJoin(ordersTable, eq(conversationDeliveryOrdersTable.orderId, ordersTable.id))
-        .where(and(
-          eq(conversationDeliveryOrdersTable.conversationId, identity.conversationId),
-          inArray(ordersTable.status, ["PENDING", "ASSIGNED", "IN_TRANSIT", "RETURNING_TO_SELLER"]),
-        ))
-        .orderBy(desc(conversationDeliveryOrdersTable.createdAt))
-        .limit(1);
-      if (existingMapping) return;
-
-      const confirmations = await tx
-        .select({
-          actorType: orderPriceConfirmationsTable.actorType,
-          amountFcfa: orderPriceConfirmationsTable.amountFcfa,
-        })
-        .from(orderPriceConfirmationsTable)
-        .where(eq(orderPriceConfirmationsTable.conversationId, identity.conversationId));
-      const lockedPriceState = getPriceConfirmationState(confirmations
-        .filter((row): row is { actorType: "buyer" | "vendor"; amountFcfa: number } =>
-          row.actorType === "buyer" || row.actorType === "vendor"));
-      if (lockedPriceState.status !== "matched" || lockedPriceState.buyerAmount === null) return;
-
-      const [vendor] = await tx
-        .select({
-          lastName: vendorsTable.lastName,
-        })
-        .from(vendorsTable)
-        .where(eq(vendorsTable.id, state.conversation.vendorId))
-        .limit(1);
-
-      const [createdOrder] = await tx
-        .insert(ordersTable)
-        .values({
-          firstName: state.conversation.buyerName,
-          lastName: vendor?.lastName ?? "Vendeur",
-          phone: state.conversation.buyerPhone,
-          description: state.conversation.listingTitle ?? "Commande créée depuis Messages",
-          articlePriceLocked: lockedPriceState.buyerAmount,
-          status: "PENDING",
-        })
-        .returning({ id: ordersTable.id });
-      if (!createdOrder) return;
-
-      await tx.insert(conversationDeliveryOrdersTable).values({
-        conversationId: identity.conversationId,
-        orderId: createdOrder.id,
+      })
+      .onConflictDoUpdate({
+        target: [orderPriceConfirmationsTable.conversationId, orderPriceConfirmationsTable.actorType],
+        set: {
+          amountFcfa,
+          confirmedAt: new Date(),
+          updatedAt: new Date(),
+        },
+      })
+      .returning({
+        id: orderPriceConfirmationsTable.id,
       });
-    });
-  }
+    if (!upserted) return res.status(500).json({ error: "Impossible d'enregistrer la confirmation." });
 
-  await emitConversationDeliveryState(identity.conversationId);
-  return res.json({ success: true });
+    const state = await getConversationDeliveryState(identity.conversationId);
+    if (!state) return res.status(404).json({ error: "Conversation introuvable." });
+
+    if (state.priceState.status === "mismatch") {
+      await emitConversationDeliveryState(identity.conversationId);
+      return res.status(409).json({
+        error: "Les montants saisis sont différents. Corrigez puis recommencez la confirmation.",
+        code: "PRICE_MISMATCH",
+      });
+    }
+
+    if (state.priceState.status === "matched" && !state.orderId && state.priceState.buyerAmount !== null) {
+      await db.transaction(async (tx) => {
+        await tx.execute(sql`SELECT id FROM conversations WHERE id = ${identity.conversationId} FOR UPDATE`);
+        const [existingMapping] = await tx
+          .select({ orderId: conversationDeliveryOrdersTable.orderId })
+          .from(conversationDeliveryOrdersTable)
+          .innerJoin(ordersTable, eq(conversationDeliveryOrdersTable.orderId, ordersTable.id))
+          .where(and(
+            eq(conversationDeliveryOrdersTable.conversationId, identity.conversationId),
+            inArray(ordersTable.status, ["PENDING", "ASSIGNED", "IN_TRANSIT", "RETURNING_TO_SELLER"]),
+          ))
+          .orderBy(desc(conversationDeliveryOrdersTable.createdAt))
+          .limit(1);
+        if (existingMapping) return;
+
+        const confirmations = await tx
+          .select({
+            actorType: orderPriceConfirmationsTable.actorType,
+            amountFcfa: orderPriceConfirmationsTable.amountFcfa,
+          })
+          .from(orderPriceConfirmationsTable)
+          .where(eq(orderPriceConfirmationsTable.conversationId, identity.conversationId));
+        const lockedPriceState = getPriceConfirmationState(confirmations
+          .filter((row): row is { actorType: "buyer" | "vendor"; amountFcfa: number } =>
+            row.actorType === "buyer" || row.actorType === "vendor"));
+        if (lockedPriceState.status !== "matched" || lockedPriceState.buyerAmount === null) return;
+
+        const [vendor] = await tx
+          .select({
+            lastName: vendorsTable.lastName,
+          })
+          .from(vendorsTable)
+          .where(eq(vendorsTable.id, state.conversation.vendorId))
+          .limit(1);
+
+        const [createdOrder] = await tx
+          .insert(ordersTable)
+          .values({
+            firstName: state.conversation.buyerName,
+            lastName: vendor?.lastName ?? "Vendeur",
+            phone: state.conversation.buyerPhone,
+            description: state.conversation.listingTitle ?? "Commande créée depuis Messages",
+            articlePriceLocked: lockedPriceState.buyerAmount,
+            status: "PENDING",
+          })
+          .returning({ id: ordersTable.id });
+        if (!createdOrder) return;
+
+        await tx.insert(conversationDeliveryOrdersTable).values({
+          conversationId: identity.conversationId,
+          orderId: createdOrder.id,
+        });
+      });
+    }
+
+    await emitConversationDeliveryState(identity.conversationId);
+    return res.json({ success: true });
   } catch (err) {
     logAndRespondInternalError(req, res, {
       route: "POST /delivery/conversations/:conversationId/price-confirmation",
@@ -715,14 +715,14 @@ router.get("/delivery/conversations/:conversationId/drivers", async (req, res) =
   if (!identity) return res.status(401).json({ error: "Accès conversation refusé." });
 
   try {
-  const state = await getConversationDeliveryState(identity.conversationId);
-  if (!state) return res.status(404).json({ error: "Conversation introuvable." });
-  if (state.priceState.status !== "matched") {
-    return res.status(409).json({ error: "Confirmez d'abord le prix article des deux côtés." });
-  }
+    const state = await getConversationDeliveryState(identity.conversationId);
+    if (!state) return res.status(404).json({ error: "Conversation introuvable." });
+    if (state.priceState.status !== "matched") {
+      return res.status(409).json({ error: "Confirmez d'abord le prix article des deux côtés." });
+    }
 
-  const drivers = await buildAvailableDriversWithRatings();
-  return res.json({ drivers });
+    const drivers = await buildAvailableDriversWithRatings();
+    return res.json({ drivers });
   } catch (err) {
     logAndRespondInternalError(req, res, {
       route: "GET /delivery/conversations/:conversationId/drivers",
@@ -741,101 +741,101 @@ router.post("/delivery/conversations/:conversationId/proposals", async (req, res
   if (!driverId) return res.status(400).json({ error: "Requête invalide." });
 
   try {
-  const state = await getConversationDeliveryState(identity.conversationId);
-  if (!state) return res.status(404).json({ error: "Conversation introuvable." });
-  if (state.priceState.status !== "matched" || !state.orderId) {
-    return res.status(409).json({ error: "Prix non confirmé. Assignez d'abord un montant identique." });
-  }
-  if (state.hasAcceptedDriver) {
-    return res.status(409).json({ error: "Commande déjà verrouillée par un livreur." });
-  }
+    const state = await getConversationDeliveryState(identity.conversationId);
+    if (!state) return res.status(404).json({ error: "Conversation introuvable." });
+    if (state.priceState.status !== "matched" || !state.orderId) {
+      return res.status(409).json({ error: "Prix non confirmé. Assignez d'abord un montant identique." });
+    }
+    if (state.hasAcceptedDriver) {
+      return res.status(409).json({ error: "Commande déjà verrouillée par un livreur." });
+    }
 
-  const [driver] = await db
-    .select()
-    .from(driversTable)
-    .where(eq(driversTable.id, driverId))
-    .limit(1);
-  if (!driver || !driver.isAvailable) {
-    return res.status(400).json({ error: "Livreur indisponible." });
-  }
+    const [driver] = await db
+      .select()
+      .from(driversTable)
+      .where(eq(driversTable.id, driverId))
+      .limit(1);
+    if (!driver || !driver.isAvailable) {
+      return res.status(400).json({ error: "Livreur indisponible." });
+    }
 
-  const driverActiveJobs = await db
-    .select({
-      acceptanceStatus: deliveryWorkflowJobsTable.acceptanceStatus,
-      assignmentExpiresAt: deliveryWorkflowJobsTable.assignmentExpiresAt,
-    })
-    .from(deliveryWorkflowJobsTable)
-    .innerJoin(ordersTable, eq(deliveryWorkflowJobsTable.orderId, ordersTable.id))
-    .where(and(
-      eq(deliveryWorkflowJobsTable.driverId, driver.id),
-      ne(deliveryWorkflowJobsTable.orderId, state.orderId),
-      inArray(deliveryWorkflowJobsTable.acceptanceStatus, ["accepted_by_driver", "pending_driver_response"]),
-      inArray(ordersTable.status, ["PENDING", "ASSIGNED", "IN_TRANSIT", "RETURNING_TO_SELLER", "RETURN_AT_SELLER"]),
-    ));
-  if (isDriverBusyForAssignment(driverActiveJobs)) {
-    return res.status(409).json({ error: "Ce livreur a déjà une course en cours." });
-  }
+    const driverActiveJobs = await db
+      .select({
+        acceptanceStatus: deliveryWorkflowJobsTable.acceptanceStatus,
+        assignmentExpiresAt: deliveryWorkflowJobsTable.assignmentExpiresAt,
+      })
+      .from(deliveryWorkflowJobsTable)
+      .innerJoin(ordersTable, eq(deliveryWorkflowJobsTable.orderId, ordersTable.id))
+      .where(and(
+        eq(deliveryWorkflowJobsTable.driverId, driver.id),
+        ne(deliveryWorkflowJobsTable.orderId, state.orderId),
+        inArray(deliveryWorkflowJobsTable.acceptanceStatus, ["accepted_by_driver", "pending_driver_response"]),
+        inArray(ordersTable.status, ["PENDING", "ASSIGNED", "IN_TRANSIT", "RETURNING_TO_SELLER", "RETURN_AT_SELLER"]),
+      ));
+    if (isDriverBusyForAssignment(driverActiveJobs)) {
+      return res.status(409).json({ error: "Ce livreur a déjà une course en cours." });
+    }
 
-  const [existingDriverJob] = await db
-    .select({
-      id: deliveryWorkflowJobsTable.id,
-      orderId: deliveryWorkflowJobsTable.orderId,
-      driverId: deliveryWorkflowJobsTable.driverId,
-      acceptanceStatus: deliveryWorkflowJobsTable.acceptanceStatus,
-    })
-    .from(deliveryWorkflowJobsTable)
-    .where(and(
-      eq(deliveryWorkflowJobsTable.orderId, state.orderId),
-      eq(deliveryWorkflowJobsTable.driverId, driverId),
-    ))
-    .orderBy(desc(deliveryWorkflowJobsTable.updatedAt), desc(deliveryWorkflowJobsTable.createdAt))
-    .limit(1);
-  if (existingDriverJob?.acceptanceStatus === "accepted_by_driver") {
-    return res.status(200).json(existingDriverJob);
-  }
+    const [existingDriverJob] = await db
+      .select({
+        id: deliveryWorkflowJobsTable.id,
+        orderId: deliveryWorkflowJobsTable.orderId,
+        driverId: deliveryWorkflowJobsTable.driverId,
+        acceptanceStatus: deliveryWorkflowJobsTable.acceptanceStatus,
+      })
+      .from(deliveryWorkflowJobsTable)
+      .where(and(
+        eq(deliveryWorkflowJobsTable.orderId, state.orderId),
+        eq(deliveryWorkflowJobsTable.driverId, driverId),
+      ))
+      .orderBy(desc(deliveryWorkflowJobsTable.updatedAt), desc(deliveryWorkflowJobsTable.createdAt))
+      .limit(1);
+    if (existingDriverJob?.acceptanceStatus === "accepted_by_driver") {
+      return res.status(200).json(existingDriverJob);
+    }
 
-  const assignmentExpiresAt = new Date(Date.now() + ASSIGNMENT_TTL_MS);
-  const [job] = await db.insert(deliveryWorkflowJobsTable).values({
-    orderId: state.orderId,
-    driverId,
-    acceptanceStatus: "pending_driver_response",
-    assignmentExpiresAt,
-  }).onConflictDoUpdate({
-    target: [deliveryWorkflowJobsTable.orderId, deliveryWorkflowJobsTable.driverId],
-    set: {
+    const assignmentExpiresAt = new Date(Date.now() + ASSIGNMENT_TTL_MS);
+    const [job] = await db.insert(deliveryWorkflowJobsTable).values({
+      orderId: state.orderId,
+      driverId,
       acceptanceStatus: "pending_driver_response",
       assignmentExpiresAt,
-      acceptedAt: null,
-      refusedAt: null,
-      cancelledAt: null,
-      whatsappNotifiedAt: null,
-      updatedAt: new Date(),
-    },
-    where: inArray(deliveryWorkflowJobsTable.acceptanceStatus, [
-      "pending_driver_response",
-      "refused_by_driver",
-      "expired",
-      "cancelled_by_reassignment",
-    ]),
-  }).returning();
-  if (!job) {
-    return res.status(409).json({ error: "Cette proposition ne peut plus être rouverte." });
-  }
+    }).onConflictDoUpdate({
+      target: [deliveryWorkflowJobsTable.orderId, deliveryWorkflowJobsTable.driverId],
+      set: {
+        acceptanceStatus: "pending_driver_response",
+        assignmentExpiresAt,
+        acceptedAt: null,
+        refusedAt: null,
+        cancelledAt: null,
+        whatsappNotifiedAt: null,
+        updatedAt: new Date(),
+      },
+      where: inArray(deliveryWorkflowJobsTable.acceptanceStatus, [
+        "pending_driver_response",
+        "refused_by_driver",
+        "expired",
+        "cancelled_by_reassignment",
+      ]),
+    }).returning();
+    if (!job) {
+      return res.status(409).json({ error: "Cette proposition ne peut plus être rouverte." });
+    }
 
-  const status = await notifyDriverAssignment(normalizePhone(driver.whatsappNumber || driver.phone), state.orderId);
-  await db.insert(whatsappNotificationsTable).values({
-    recipientPhone: normalizePhone(driver.whatsappNumber || driver.phone),
-    messageContent: `Assignation commande #${state.orderId}`,
-    deliveryStatus: status,
-  });
-  if (status === "sent") {
-    await db.update(deliveryWorkflowJobsTable)
-      .set({ whatsappNotifiedAt: new Date(), updatedAt: new Date() })
-      .where(eq(deliveryWorkflowJobsTable.id, job.id));
-  }
+    const status = await notifyDriverAssignment(normalizePhone(driver.whatsappNumber || driver.phone), state.orderId);
+    await db.insert(whatsappNotificationsTable).values({
+      recipientPhone: normalizePhone(driver.whatsappNumber || driver.phone),
+      messageContent: `Assignation commande #${state.orderId}`,
+      deliveryStatus: status,
+    });
+    if (status === "sent") {
+      await db.update(deliveryWorkflowJobsTable)
+        .set({ whatsappNotifiedAt: new Date(), updatedAt: new Date() })
+        .where(eq(deliveryWorkflowJobsTable.id, job.id));
+    }
 
-  await emitConversationDeliveryState(identity.conversationId);
-  return res.status(201).json({ id: job.id, orderId: job.orderId, driverId: job.driverId });
+    await emitConversationDeliveryState(identity.conversationId);
+    return res.status(201).json({ id: job.id, orderId: job.orderId, driverId: job.driverId });
   } catch (err) {
     logAndRespondInternalError(req, res, {
       route: "POST /delivery/conversations/:conversationId/proposals",
@@ -854,92 +854,92 @@ router.get("/admin/delivery/orders", async (req, res) => {
   }
 
   try {
-  const orders = await db
-    .select({
-      id: ordersTable.id,
-      firstName: ordersTable.firstName,
-      lastName: ordersTable.lastName,
-      phone: ordersTable.phone,
-      description: ordersTable.description,
-      articlePriceLocked: ordersTable.articlePriceLocked,
-      distanceLockedKm: ordersTable.distanceLockedKm,
-      transportFeeLocked: ordersTable.transportFeeLocked,
-      distanceSource: ordersTable.distanceSource,
-      status: ordersTable.status,
-      createdAt: ordersTable.createdAt,
-    })
-    .from(ordersTable)
-    .where(and(
-      inArray(ordersTable.status, ["PENDING", "ASSIGNED", "IN_TRANSIT", "RETURNING_TO_SELLER", "RETURN_AT_SELLER"]),
-      isNotNull(ordersTable.distanceLockedKm),
-      isNotNull(ordersTable.transportFeeLocked),
-    ))
-    .orderBy(desc(ordersTable.createdAt))
-    .limit(100);
-
-  if (orders.length === 0) {
-    return res.json({ orders: [] });
-  }
-
-  const orderIds = orders.map((order) => order.id);
-  const jobs = await db
-    .selectDistinctOn([deliveryWorkflowJobsTable.orderId], {
-      id: deliveryWorkflowJobsTable.id,
-      orderId: deliveryWorkflowJobsTable.orderId,
-      driverId: deliveryWorkflowJobsTable.driverId,
-      acceptanceStatus: deliveryWorkflowJobsTable.acceptanceStatus,
-      assignmentExpiresAt: deliveryWorkflowJobsTable.assignmentExpiresAt,
-      whatsappNotifiedAt: deliveryWorkflowJobsTable.whatsappNotifiedAt,
-      acceptedAt: deliveryWorkflowJobsTable.acceptedAt,
-      refusedAt: deliveryWorkflowJobsTable.refusedAt,
-      cancelledAt: deliveryWorkflowJobsTable.cancelledAt,
-      createdAt: deliveryWorkflowJobsTable.createdAt,
-      updatedAt: deliveryWorkflowJobsTable.updatedAt,
-    })
-    .from(deliveryWorkflowJobsTable)
-    .where(inArray(deliveryWorkflowJobsTable.orderId, orderIds))
-    .orderBy(
-      deliveryWorkflowJobsTable.orderId,
-      desc(deliveryWorkflowJobsTable.updatedAt),
-      desc(deliveryWorkflowJobsTable.createdAt),
-    );
-
-  const driverIds = [...new Set(jobs.map((job) => job.driverId))];
-  const drivers = driverIds.length > 0
-    ? await db
+    const orders = await db
       .select({
-        id: driversTable.id,
-        firstName: driversTable.firstName,
-        lastName: driversTable.lastName,
-        phone: driversTable.phone,
-        isAvailable: driversTable.isAvailable,
+        id: ordersTable.id,
+        firstName: ordersTable.firstName,
+        lastName: ordersTable.lastName,
+        phone: ordersTable.phone,
+        description: ordersTable.description,
+        articlePriceLocked: ordersTable.articlePriceLocked,
+        distanceLockedKm: ordersTable.distanceLockedKm,
+        transportFeeLocked: ordersTable.transportFeeLocked,
+        distanceSource: ordersTable.distanceSource,
+        status: ordersTable.status,
+        createdAt: ordersTable.createdAt,
       })
-      .from(driversTable)
-      .where(inArray(driversTable.id, driverIds))
-    : [];
+      .from(ordersTable)
+      .where(and(
+        inArray(ordersTable.status, ["PENDING", "ASSIGNED", "IN_TRANSIT", "RETURNING_TO_SELLER", "RETURN_AT_SELLER"]),
+        isNotNull(ordersTable.distanceLockedKm),
+        isNotNull(ordersTable.transportFeeLocked),
+      ))
+      .orderBy(desc(ordersTable.createdAt))
+      .limit(100);
 
-  const jobByOrderId = new Map(jobs.map((job) => [job.orderId, job]));
-  const driverById = new Map(drivers.map((driver) => [driver.id, driver]));
+    if (orders.length === 0) {
+      return res.json({ orders: [] });
+    }
 
-  return res.json({
-    orders: orders.map((order) => {
-      const job = jobByOrderId.get(order.id) ?? null;
-      const driver = job ? driverById.get(job.driverId) ?? null : null;
-      return {
-        ...order,
-        createdAt: order.createdAt.toISOString(),
-        assignment: !job ? null : {
-          id: job.id,
-          driverId: job.driverId,
-          acceptanceStatus: job.acceptanceStatus,
-          assignmentExpiresAt: job.assignmentExpiresAt?.toISOString() ?? null,
-          acceptedAt: job.acceptedAt?.toISOString() ?? null,
-          refusedAt: job.refusedAt?.toISOString() ?? null,
-          driver,
-        },
-      };
-    }),
-  });
+    const orderIds = orders.map((order) => order.id);
+    const jobs = await db
+      .selectDistinctOn([deliveryWorkflowJobsTable.orderId], {
+        id: deliveryWorkflowJobsTable.id,
+        orderId: deliveryWorkflowJobsTable.orderId,
+        driverId: deliveryWorkflowJobsTable.driverId,
+        acceptanceStatus: deliveryWorkflowJobsTable.acceptanceStatus,
+        assignmentExpiresAt: deliveryWorkflowJobsTable.assignmentExpiresAt,
+        whatsappNotifiedAt: deliveryWorkflowJobsTable.whatsappNotifiedAt,
+        acceptedAt: deliveryWorkflowJobsTable.acceptedAt,
+        refusedAt: deliveryWorkflowJobsTable.refusedAt,
+        cancelledAt: deliveryWorkflowJobsTable.cancelledAt,
+        createdAt: deliveryWorkflowJobsTable.createdAt,
+        updatedAt: deliveryWorkflowJobsTable.updatedAt,
+      })
+      .from(deliveryWorkflowJobsTable)
+      .where(inArray(deliveryWorkflowJobsTable.orderId, orderIds))
+      .orderBy(
+        deliveryWorkflowJobsTable.orderId,
+        desc(deliveryWorkflowJobsTable.updatedAt),
+        desc(deliveryWorkflowJobsTable.createdAt),
+      );
+
+    const driverIds = [...new Set(jobs.map((job) => job.driverId))];
+    const drivers = driverIds.length > 0
+      ? await db
+        .select({
+          id: driversTable.id,
+          firstName: driversTable.firstName,
+          lastName: driversTable.lastName,
+          phone: driversTable.phone,
+          isAvailable: driversTable.isAvailable,
+        })
+        .from(driversTable)
+        .where(inArray(driversTable.id, driverIds))
+      : [];
+
+    const jobByOrderId = new Map(jobs.map((job) => [job.orderId, job]));
+    const driverById = new Map(drivers.map((driver) => [driver.id, driver]));
+
+    return res.json({
+      orders: orders.map((order) => {
+        const job = jobByOrderId.get(order.id) ?? null;
+        const driver = job ? driverById.get(job.driverId) ?? null : null;
+        return {
+          ...order,
+          createdAt: order.createdAt.toISOString(),
+          assignment: !job ? null : {
+            id: job.id,
+            driverId: job.driverId,
+            acceptanceStatus: job.acceptanceStatus,
+            assignmentExpiresAt: job.assignmentExpiresAt?.toISOString() ?? null,
+            acceptedAt: job.acceptedAt?.toISOString() ?? null,
+            refusedAt: job.refusedAt?.toISOString() ?? null,
+            driver,
+          },
+        };
+      }),
+    });
   } catch (err) {
     logAndRespondInternalError(req, res, {
       route: "GET /admin/delivery/orders",
@@ -1146,98 +1146,98 @@ router.post("/delivery/assignments/respond", async (req, res) => {
   const action = req.body?.action === "accept" || req.body?.action === "refuse" ? req.body.action : null;
   if (!deliveryJobId || !action) return res.status(400).json({ error: "Requête invalide." });
   try {
-  const [job] = await db.select().from(deliveryWorkflowJobsTable).where(eq(deliveryWorkflowJobsTable.id, deliveryJobId)).limit(1);
-  if (!job) return res.status(404).json({ error: "Assignation introuvable." });
-  if (job.driverId !== driver.id) {
-    return res.status(403).json({ error: "Cette assignation n'appartient pas à ce livreur." });
-  }
-  if (job.assignmentExpiresAt && job.assignmentExpiresAt.getTime() < Date.now()) {
-    await db.update(deliveryWorkflowJobsTable).set({ acceptanceStatus: "expired", updatedAt: new Date() }).where(eq(deliveryWorkflowJobsTable.id, job.id));
-    const [conversationOrder] = await db
-      .select({ conversationId: conversationDeliveryOrdersTable.conversationId })
-      .from(conversationDeliveryOrdersTable)
-      .where(eq(conversationDeliveryOrdersTable.orderId, job.orderId))
-      .orderBy(desc(conversationDeliveryOrdersTable.createdAt))
-      .limit(1);
-    if (conversationOrder) await emitConversationDeliveryState(conversationOrder.conversationId);
-    return res.status(409).json({ error: "Assignation expirée." });
-  }
-  if (job.acceptanceStatus !== "pending_driver_response") {
-    return res.status(409).json({ error: "Assignation déjà traitée." });
-  }
-  if (action === "refuse") {
-    await db.update(deliveryWorkflowJobsTable).set({
-      acceptanceStatus: "refused_by_driver",
-      refusedAt: new Date(),
-      updatedAt: new Date(),
-    }).where(eq(deliveryWorkflowJobsTable.id, job.id));
-    const [conversationOrder] = await db
-      .select({ conversationId: conversationDeliveryOrdersTable.conversationId })
-      .from(conversationDeliveryOrdersTable)
-      .where(eq(conversationDeliveryOrdersTable.orderId, job.orderId))
-      .orderBy(desc(conversationDeliveryOrdersTable.createdAt))
-      .limit(1);
-    if (conversationOrder) await emitConversationDeliveryState(conversationOrder.conversationId);
-    return res.json({ status: "refused_by_driver" });
-  }
-  const accepted = await db.transaction(async (tx) => {
-    const [acceptedJob] = await tx.update(deliveryWorkflowJobsTable).set({
-      acceptanceStatus: "accepted_by_driver",
-      acceptedAt: new Date(),
-      updatedAt: new Date(),
-    }).where(and(
-      eq(deliveryWorkflowJobsTable.id, job.id),
-      eq(deliveryWorkflowJobsTable.acceptanceStatus, "pending_driver_response"),
-      sql`NOT EXISTS (
-        SELECT 1 FROM delivery_jobs dj
-        WHERE dj.order_id = ${job.orderId}
-          AND dj.id <> ${job.id}
-          AND dj.acceptance_status = 'accepted_by_driver'
-      )`,
-    )).returning({ id: deliveryWorkflowJobsTable.id });
-    if (!acceptedJob) return null;
-
-    await tx.update(deliveryWorkflowJobsTable).set({
-      acceptanceStatus: "cancelled_by_reassignment",
-      cancelledAt: new Date(),
-      updatedAt: new Date(),
-    }).where(and(
-      eq(deliveryWorkflowJobsTable.orderId, job.orderId),
-      ne(deliveryWorkflowJobsTable.id, job.id),
-      eq(deliveryWorkflowJobsTable.acceptanceStatus, "pending_driver_response"),
-    ));
-    await tx.update(ordersTable).set({ status: "IN_TRANSIT" }).where(eq(ordersTable.id, job.orderId));
-    return acceptedJob;
-  });
-  if (!accepted) {
-    const orderAssignments = await db
-      .select({
-        id: deliveryWorkflowJobsTable.id,
-        acceptanceStatus: deliveryWorkflowJobsTable.acceptanceStatus,
-      })
-      .from(deliveryWorkflowJobsTable)
-      .where(eq(deliveryWorkflowJobsTable.orderId, job.orderId));
-    if (hasAcceptedAssignmentConflict(job.id, orderAssignments)) {
-      return res.status(409).json({ error: "Commande déjà verrouillée par un autre livreur." });
+    const [job] = await db.select().from(deliveryWorkflowJobsTable).where(eq(deliveryWorkflowJobsTable.id, deliveryJobId)).limit(1);
+    if (!job) return res.status(404).json({ error: "Assignation introuvable." });
+    if (job.driverId !== driver.id) {
+      return res.status(403).json({ error: "Cette assignation n'appartient pas à ce livreur." });
     }
-    return res.status(409).json({ error: "Assignation déjà traitée." });
-  }
-  await db.insert(deliveryAuditLogsTable).values({
-    actorType: "driver",
-    actorId: String(job.driverId),
-    orderId: job.orderId,
-    action: "driver_acceptance_locked",
-  });
-  const [conversationOrder] = await db
-    .select({ conversationId: conversationDeliveryOrdersTable.conversationId })
-    .from(conversationDeliveryOrdersTable)
-    .where(eq(conversationDeliveryOrdersTable.orderId, job.orderId))
-    .orderBy(desc(conversationDeliveryOrdersTable.createdAt))
-    .limit(1);
-  if (conversationOrder) {
-    await emitConversationDeliveryState(conversationOrder.conversationId);
-  }
-  return res.json({ status: "accepted_by_driver", paymentPendingWebhookConfirmation: true });
+    if (job.assignmentExpiresAt && job.assignmentExpiresAt.getTime() < Date.now()) {
+      await db.update(deliveryWorkflowJobsTable).set({ acceptanceStatus: "expired", updatedAt: new Date() }).where(eq(deliveryWorkflowJobsTable.id, job.id));
+      const [conversationOrder] = await db
+        .select({ conversationId: conversationDeliveryOrdersTable.conversationId })
+        .from(conversationDeliveryOrdersTable)
+        .where(eq(conversationDeliveryOrdersTable.orderId, job.orderId))
+        .orderBy(desc(conversationDeliveryOrdersTable.createdAt))
+        .limit(1);
+      if (conversationOrder) await emitConversationDeliveryState(conversationOrder.conversationId);
+      return res.status(409).json({ error: "Assignation expirée." });
+    }
+    if (job.acceptanceStatus !== "pending_driver_response") {
+      return res.status(409).json({ error: "Assignation déjà traitée." });
+    }
+    if (action === "refuse") {
+      await db.update(deliveryWorkflowJobsTable).set({
+        acceptanceStatus: "refused_by_driver",
+        refusedAt: new Date(),
+        updatedAt: new Date(),
+      }).where(eq(deliveryWorkflowJobsTable.id, job.id));
+      const [conversationOrder] = await db
+        .select({ conversationId: conversationDeliveryOrdersTable.conversationId })
+        .from(conversationDeliveryOrdersTable)
+        .where(eq(conversationDeliveryOrdersTable.orderId, job.orderId))
+        .orderBy(desc(conversationDeliveryOrdersTable.createdAt))
+        .limit(1);
+      if (conversationOrder) await emitConversationDeliveryState(conversationOrder.conversationId);
+      return res.json({ status: "refused_by_driver" });
+    }
+    const accepted = await db.transaction(async (tx) => {
+      const [acceptedJob] = await tx.update(deliveryWorkflowJobsTable).set({
+        acceptanceStatus: "accepted_by_driver",
+        acceptedAt: new Date(),
+        updatedAt: new Date(),
+      }).where(and(
+        eq(deliveryWorkflowJobsTable.id, job.id),
+        eq(deliveryWorkflowJobsTable.acceptanceStatus, "pending_driver_response"),
+        sql`NOT EXISTS (
+          SELECT 1 FROM delivery_jobs dj
+          WHERE dj.order_id = ${job.orderId}
+            AND dj.id <> ${job.id}
+            AND dj.acceptance_status = 'accepted_by_driver'
+        )`,
+      )).returning({ id: deliveryWorkflowJobsTable.id });
+      if (!acceptedJob) return null;
+
+      await tx.update(deliveryWorkflowJobsTable).set({
+        acceptanceStatus: "cancelled_by_reassignment",
+        cancelledAt: new Date(),
+        updatedAt: new Date(),
+      }).where(and(
+        eq(deliveryWorkflowJobsTable.orderId, job.orderId),
+        ne(deliveryWorkflowJobsTable.id, job.id),
+        eq(deliveryWorkflowJobsTable.acceptanceStatus, "pending_driver_response"),
+      ));
+      await tx.update(ordersTable).set({ status: "IN_TRANSIT" }).where(eq(ordersTable.id, job.orderId));
+      return acceptedJob;
+    });
+    if (!accepted) {
+      const orderAssignments = await db
+        .select({
+          id: deliveryWorkflowJobsTable.id,
+          acceptanceStatus: deliveryWorkflowJobsTable.acceptanceStatus,
+        })
+        .from(deliveryWorkflowJobsTable)
+        .where(eq(deliveryWorkflowJobsTable.orderId, job.orderId));
+      if (hasAcceptedAssignmentConflict(job.id, orderAssignments)) {
+        return res.status(409).json({ error: "Commande déjà verrouillée par un autre livreur." });
+      }
+      return res.status(409).json({ error: "Assignation déjà traitée." });
+    }
+    await db.insert(deliveryAuditLogsTable).values({
+      actorType: "driver",
+      actorId: String(job.driverId),
+      orderId: job.orderId,
+      action: "driver_acceptance_locked",
+    });
+    const [conversationOrder] = await db
+      .select({ conversationId: conversationDeliveryOrdersTable.conversationId })
+      .from(conversationDeliveryOrdersTable)
+      .where(eq(conversationDeliveryOrdersTable.orderId, job.orderId))
+      .orderBy(desc(conversationDeliveryOrdersTable.createdAt))
+      .limit(1);
+    if (conversationOrder) {
+      await emitConversationDeliveryState(conversationOrder.conversationId);
+    }
+    return res.json({ status: "accepted_by_driver", paymentPendingWebhookConfirmation: true });
   } catch (err) {
     logAndRespondInternalError(req, res, {
       route: "POST /delivery/assignments/respond",
@@ -1343,54 +1343,54 @@ router.post("/admin/drivers", async (req, res) => {
   }
 
   try {
-  const [existing] = await db
-    .select({ id: driversTable.id })
-    .from(driversTable)
-    .where(eq(driversTable.phone, phone))
-    .limit(1);
+    const [existing] = await db
+      .select({ id: driversTable.id })
+      .from(driversTable)
+      .where(eq(driversTable.phone, phone))
+      .limit(1);
 
-  if (existing) {
-    return res.status(409).json({ error: "Un livreur avec ce numéro de téléphone existe déjà." });
-  }
+    if (existing) {
+      return res.status(409).json({ error: "Un livreur avec ce numéro de téléphone existe déjà." });
+    }
 
-  const whatsappNumber = req.body?.whatsappNumber ? normalizePhone(String(req.body.whatsappNumber)) : phone;
-  const photoUrl = req.body?.photoUrl ? String(req.body.photoUrl).trim() : null;
-  const workZone = req.body?.workZone ? String(req.body.workZone).trim() : (req.body?.coverageZone ? String(req.body.coverageZone).trim() : "Lomé");
-  const coverageZone = req.body?.coverageZone ? String(req.body.coverageZone).trim() : workZone;
-  const idDocumentNumber = req.body?.idDocumentNumber ? String(req.body.idDocumentNumber).trim() : null;
-  const idDocumentPhotoUrl = req.body?.idDocumentPhotoUrl ? String(req.body.idDocumentPhotoUrl).trim() : null;
-  const isActive = req.body?.isActive !== undefined ? Boolean(req.body.isActive) : true;
-  const isAvailable = req.body?.isAvailable !== undefined ? Boolean(req.body.isAvailable) : true;
+    const whatsappNumber = req.body?.whatsappNumber ? normalizePhone(String(req.body.whatsappNumber)) : phone;
+    const photoUrl = req.body?.photoUrl ? String(req.body.photoUrl).trim() : null;
+    const workZone = req.body?.workZone ? String(req.body.workZone).trim() : (req.body?.coverageZone ? String(req.body.coverageZone).trim() : "Lomé");
+    const coverageZone = req.body?.coverageZone ? String(req.body.coverageZone).trim() : workZone;
+    const idDocumentNumber = req.body?.idDocumentNumber ? String(req.body.idDocumentNumber).trim() : null;
+    const idDocumentPhotoUrl = req.body?.idDocumentPhotoUrl ? String(req.body.idDocumentPhotoUrl).trim() : null;
+    const isActive = req.body?.isActive !== undefined ? Boolean(req.body.isActive) : true;
+    const isAvailable = req.body?.isAvailable !== undefined ? Boolean(req.body.isAvailable) : true;
 
-  const [driver] = await db
-    .insert(driversTable)
-    .values({
-      firstName,
-      lastName,
-      phone,
-      whatsappNumber,
-      photoUrl,
-      workZone,
-      coverageZone,
-      idDocumentNumber,
-      idDocumentPhotoUrl,
-      isActive,
-      isAvailable,
-    })
-    .returning();
+    const [driver] = await db
+      .insert(driversTable)
+      .values({
+        firstName,
+        lastName,
+        phone,
+        whatsappNumber,
+        photoUrl,
+        workZone,
+        coverageZone,
+        idDocumentNumber,
+        idDocumentPhotoUrl,
+        isActive,
+        isAvailable,
+      })
+      .returning();
 
-  await db.insert(deliveryAuditLogsTable).values({
-    actorType: "superadmin",
-    action: "admin_create_driver",
-    metadata: {
-      driverId: driver.id,
-      phone: driver.phone,
-      workZone: driver.workZone,
-      isActive: driver.isActive,
-    },
-  });
+    await db.insert(deliveryAuditLogsTable).values({
+      actorType: "superadmin",
+      action: "admin_create_driver",
+      metadata: {
+        driverId: driver.id,
+        phone: driver.phone,
+        workZone: driver.workZone,
+        isActive: driver.isActive,
+      },
+    });
 
-  return res.status(201).json({ driver });
+    return res.status(201).json({ driver });
   } catch (err) {
     logAndRespondInternalError(req, res, {
       route: "POST /admin/drivers",
@@ -1436,92 +1436,92 @@ router.patch("/admin/drivers/:driverId", async (req, res) => {
   }
 
   try {
-  const [existing] = await db
-    .select()
-    .from(driversTable)
-    .where(eq(driversTable.id, driverId))
-    .limit(1);
+    const [existing] = await db
+      .select()
+      .from(driversTable)
+      .where(eq(driversTable.id, driverId))
+      .limit(1);
 
-  if (!existing) {
-    return res.status(404).json({ error: "Livreur introuvable." });
-  }
-
-  const updates: Partial<typeof driversTable.$inferInsert> = {
-    updatedAt: new Date(),
-  };
-
-  if (typeof req.body?.firstName === "string" && req.body.firstName.trim().length > 0) {
-    updates.firstName = req.body.firstName.trim();
-  }
-  if (typeof req.body?.lastName === "string" && req.body.lastName.trim().length > 0) {
-    updates.lastName = req.body.lastName.trim();
-  }
-  if (typeof req.body?.phone === "string") {
-    const normalized = normalizePhone(req.body.phone);
-    if (!normalized || normalized.length < 8) {
-      return res.status(400).json({ error: "Numéro de téléphone invalide." });
+    if (!existing) {
+      return res.status(404).json({ error: "Livreur introuvable." });
     }
-    if (normalized !== existing.phone) {
-      const [duplicate] = await db
-        .select({ id: driversTable.id })
-        .from(driversTable)
-        .where(eq(driversTable.phone, normalized))
-        .limit(1);
-      if (duplicate) {
-        return res.status(409).json({ error: "Ce numéro de téléphone est déjà utilisé par un autre livreur." });
+
+    const updates: Partial<typeof driversTable.$inferInsert> = {
+      updatedAt: new Date(),
+    };
+
+    if (typeof req.body?.firstName === "string" && req.body.firstName.trim().length > 0) {
+      updates.firstName = req.body.firstName.trim();
+    }
+    if (typeof req.body?.lastName === "string" && req.body.lastName.trim().length > 0) {
+      updates.lastName = req.body.lastName.trim();
+    }
+    if (typeof req.body?.phone === "string") {
+      const normalized = normalizePhone(req.body.phone);
+      if (!normalized || normalized.length < 8) {
+        return res.status(400).json({ error: "Numéro de téléphone invalide." });
       }
-      updates.phone = normalized;
+      if (normalized !== existing.phone) {
+        const [duplicate] = await db
+          .select({ id: driversTable.id })
+          .from(driversTable)
+          .where(eq(driversTable.phone, normalized))
+          .limit(1);
+        if (duplicate) {
+          return res.status(409).json({ error: "Ce numéro de téléphone est déjà utilisé par un autre livreur." });
+        }
+        updates.phone = normalized;
+      }
     }
-  }
-  if (typeof req.body?.whatsappNumber === "string") {
-    updates.whatsappNumber = normalizePhone(req.body.whatsappNumber);
-  }
-  if (req.body?.photoUrl !== undefined) {
-    updates.photoUrl = req.body.photoUrl ? String(req.body.photoUrl).trim() : null;
-  }
-  if (typeof req.body?.workZone === "string") {
-    updates.workZone = req.body.workZone.trim();
-  }
-  if (typeof req.body?.coverageZone === "string") {
-    updates.coverageZone = req.body.coverageZone.trim();
-  }
-  if (req.body?.idDocumentNumber !== undefined) {
-    updates.idDocumentNumber = req.body.idDocumentNumber ? String(req.body.idDocumentNumber).trim() : null;
-  }
-  if (req.body?.idDocumentPhotoUrl !== undefined) {
-    updates.idDocumentPhotoUrl = req.body.idDocumentPhotoUrl ? String(req.body.idDocumentPhotoUrl).trim() : null;
-  }
-  if (typeof req.body?.isActive === "boolean") {
-    updates.isActive = req.body.isActive;
-  }
-  if (typeof req.body?.isAvailable === "boolean") {
-    updates.isAvailable = req.body.isAvailable;
-  }
+    if (typeof req.body?.whatsappNumber === "string") {
+      updates.whatsappNumber = normalizePhone(req.body.whatsappNumber);
+    }
+    if (req.body?.photoUrl !== undefined) {
+      updates.photoUrl = req.body.photoUrl ? String(req.body.photoUrl).trim() : null;
+    }
+    if (typeof req.body?.workZone === "string") {
+      updates.workZone = req.body.workZone.trim();
+    }
+    if (typeof req.body?.coverageZone === "string") {
+      updates.coverageZone = req.body.coverageZone.trim();
+    }
+    if (req.body?.idDocumentNumber !== undefined) {
+      updates.idDocumentNumber = req.body.idDocumentNumber ? String(req.body.idDocumentNumber).trim() : null;
+    }
+    if (req.body?.idDocumentPhotoUrl !== undefined) {
+      updates.idDocumentPhotoUrl = req.body.idDocumentPhotoUrl ? String(req.body.idDocumentPhotoUrl).trim() : null;
+    }
+    if (typeof req.body?.isActive === "boolean") {
+      updates.isActive = req.body.isActive;
+    }
+    if (typeof req.body?.isAvailable === "boolean") {
+      updates.isAvailable = req.body.isAvailable;
+    }
 
-  const [updatedDriver] = await db
-    .update(driversTable)
-    .set(updates)
-    .where(eq(driversTable.id, driverId))
-    .returning();
+    const [updatedDriver] = await db
+      .update(driversTable)
+      .set(updates)
+      .where(eq(driversTable.id, driverId))
+      .returning();
 
-  await db.insert(deliveryAuditLogsTable).values({
-    actorType: "superadmin",
-    action: "admin_update_driver",
-    metadata: {
-      driverId,
-      previous: {
-        firstName: existing.firstName,
-        lastName: existing.lastName,
-        phone: existing.phone,
-        workZone: existing.workZone,
-        isActive: existing.isActive,
-        isAvailable: existing.isAvailable,
+    await db.insert(deliveryAuditLogsTable).values({
+      actorType: "superadmin",
+      action: "admin_update_driver",
+      metadata: {
+        driverId,
+        previous: {
+          firstName: existing.firstName,
+          lastName: existing.lastName,
+          phone: existing.phone,
+          workZone: existing.workZone,
+          isActive: existing.isActive,
+          isAvailable: existing.isAvailable,
+        },
+        updated: updates,
       },
-      updated: updates,
-    },
-  });
+    });
 
-  return res.json({ driver: updatedDriver });
+    return res.json({ driver: updatedDriver });
   } catch (err) {
     logAndRespondInternalError(req, res, {
       route: "PATCH /admin/drivers/:driverId",
