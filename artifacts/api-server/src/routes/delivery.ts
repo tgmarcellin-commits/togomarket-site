@@ -19,7 +19,8 @@ import {
 } from "@workspace/db";
 import { normalizePhone } from "../lib/phone";
 import { paymentWebhookEventHash, verifyFedapayDriverWebhookSignature } from "../lib/fedapay-driver-webhook";
-import { sendWhatsAppText } from "../lib/whatsapp-api";
+import { sendWhatsAppOTP, sendWhatsAppUtilityTemplate, WhatsAppMetaError } from "../lib/whatsapp-api";
+import { TEMPLATE_DRIVER_ASSIGNMENT, TEMPLATE_OTP_AUTH } from "../lib/whatsapp-config";
 import { computeLockedDeliveryPricing, superadminCorrectOrderPricing } from "../lib/distance-pricing";
 import { isSuperAdmin, verifyAdminCode } from "../lib/admin-auth";
 import { createDriverSessionToken, isDriverSessionTokenMatch, parseBearerToken } from "../lib/driver-session";
@@ -396,14 +397,28 @@ function allowWebhookRequest(ip: string): boolean {
 async function notifyDriverAssignment(
   driverPhone: string,
   orderId: number,
-): Promise<"sent" | "failed" | "fallback_triggered"> {
-  const templateName = process.env.WHATSAPP_UTILITY_TEMPLATE_NAME?.trim() || "driver_assignment_utility";
-  const message = `[${templateName}] Nouvelle assignation TogoMarket pour commande #${orderId}. Connectez-vous à /driver-connexion pour accepter ou refuser.`;
+  route: string,
+): Promise<{ status: "sent" | "failed"; providerResponse: Record<string, unknown> }> {
   try {
-    await sendWhatsAppText(driverPhone, message);
-    return "sent";
-  } catch {
-    return "fallback_triggered";
+    await sendWhatsAppUtilityTemplate(driverPhone, TEMPLATE_DRIVER_ASSIGNMENT, [String(orderId)]);
+    return {
+      status: "sent",
+      providerResponse: { provider: "meta", templateName: TEMPLATE_DRIVER_ASSIGNMENT },
+    };
+  } catch (err) {
+    const metaError = err instanceof WhatsAppMetaError
+      ? { status: err.status, body: err.responseBody }
+      : { message: err instanceof Error ? err.message : String(err) };
+    logger.error({
+      route,
+      phone: driverPhone,
+      templateName: TEMPLATE_DRIVER_ASSIGNMENT,
+      metaError,
+    }, "WhatsApp driver assignment template failed");
+    return {
+      status: "failed",
+      providerResponse: { provider: "meta", templateName: TEMPLATE_DRIVER_ASSIGNMENT, error: metaError },
+    };
   }
 }
 
@@ -526,14 +541,19 @@ router.post("/delivery/assignments", async (req, res) => {
       await db.update(ordersTable).set({ status: "ASSIGNED" }).where(eq(ordersTable.id, parsed.orderId));
     }
 
-    const status = await notifyDriverAssignment(normalizePhone(driver.whatsappNumber || driver.phone), parsed.orderId);
+    const notification = await notifyDriverAssignment(
+      normalizePhone(driver.whatsappNumber || driver.phone),
+      parsed.orderId,
+      "POST /delivery/assignments",
+    );
     await db.insert(whatsappNotificationsTable).values({
       recipientPhone: normalizePhone(driver.whatsappNumber || driver.phone),
       messageContent: `Assignation commande #${parsed.orderId}`,
-      deliveryStatus: status,
+      deliveryStatus: notification.status,
+      providerResponse: notification.providerResponse,
     });
 
-    if (status === "sent") {
+    if (notification.status === "sent") {
       await db.update(deliveryWorkflowJobsTable)
         .set({
           whatsappNotifiedAt: new Date(),
@@ -549,6 +569,12 @@ router.post("/delivery/assignments", async (req, res) => {
       .orderBy(desc(conversationDeliveryOrdersTable.createdAt))
       .limit(1);
     if (conversationOrder) await emitConversationDeliveryState(conversationOrder.conversationId);
+
+    if (notification.status === "failed") {
+      return res.status(502).json({
+        error: "L’assignation a été enregistrée, mais la notification WhatsApp n’a pas pu être envoyée.",
+      });
+    }
 
     return res.status(201).json({
       id: job.id,
@@ -895,19 +921,29 @@ router.post("/delivery/conversations/:conversationId/proposals", async (req, res
       return res.status(409).json({ error: "Cette proposition ne peut plus être rouverte." });
     }
 
-    const status = await notifyDriverAssignment(normalizePhone(driver.whatsappNumber || driver.phone), state.orderId);
+    const notification = await notifyDriverAssignment(
+      normalizePhone(driver.whatsappNumber || driver.phone),
+      state.orderId,
+      "POST /delivery/conversations/:conversationId/proposals",
+    );
     await db.insert(whatsappNotificationsTable).values({
       recipientPhone: normalizePhone(driver.whatsappNumber || driver.phone),
       messageContent: `Assignation commande #${state.orderId}`,
-      deliveryStatus: status,
+      deliveryStatus: notification.status,
+      providerResponse: notification.providerResponse,
     });
-    if (status === "sent") {
+    if (notification.status === "sent") {
       await db.update(deliveryWorkflowJobsTable)
         .set({ whatsappNotifiedAt: new Date(), updatedAt: new Date() })
         .where(eq(deliveryWorkflowJobsTable.id, job.id));
     }
 
     await emitConversationDeliveryState(identity.conversationId);
+    if (notification.status === "failed") {
+      return res.status(502).json({
+        error: "La proposition a été enregistrée, mais la notification WhatsApp n’a pas pu être envoyée.",
+      });
+    }
     return res.status(201).json({ id: job.id, orderId: job.orderId, driverId: job.driverId });
   } catch (err) {
     logAndRespondInternalError(req, res, {
@@ -1035,17 +1071,37 @@ router.post("/driver-connexion/request-otp", async (req, res) => {
   await db.update(otpCodesTable).set({ used: true }).where(and(eq(otpCodesTable.phone, normalized), eq(otpCodesTable.used, false)));
   await db.insert(otpCodesTable).values({ phone: normalized, code: otp, expiresAt });
   const deliveryPhone = normalizePhone(driver.whatsappNumber || driver.phone);
-  let sentStatus: "sent" | "fallback_triggered" = "sent";
+  let sentStatus: "sent" | "failed" = "sent";
+  let providerResponse: Record<string, unknown> = {
+    provider: "meta",
+    templateName: TEMPLATE_OTP_AUTH,
+  };
   try {
-    await sendWhatsAppText(deliveryPhone, `Votre code OTP livreur TogoMarket est ${otp}. Il expire dans 5 minutes.`);
-  } catch {
-    sentStatus = "fallback_triggered";
+    await sendWhatsAppOTP(deliveryPhone, otp, driver.firstName);
+  } catch (err) {
+    sentStatus = "failed";
+    const metaError = err instanceof WhatsAppMetaError
+      ? { status: err.status, body: err.responseBody }
+      : { message: err instanceof Error ? err.message : String(err) };
+    providerResponse = { ...providerResponse, error: metaError };
+    logger.error({
+      route: "POST /driver-connexion/request-otp",
+      phone: deliveryPhone,
+      templateName: TEMPLATE_OTP_AUTH,
+      metaError,
+    }, "WhatsApp driver OTP template failed");
   }
   await db.insert(whatsappNotificationsTable).values({
     recipientPhone: deliveryPhone,
-    messageContent: `Votre code OTP livreur TogoMarket est ${otp}.`,
+    messageContent: "Code OTP livreur envoyé via template WhatsApp.",
     deliveryStatus: sentStatus,
+    providerResponse,
   });
+  if (sentStatus === "failed") {
+    return res.status(502).json({
+      error: "Impossible d’envoyer le code par WhatsApp. Vérifiez le numéro ou réessayez plus tard.",
+    });
+  }
   return res.json({ sent: true });
 });
 

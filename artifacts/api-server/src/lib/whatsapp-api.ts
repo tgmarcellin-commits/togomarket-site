@@ -11,6 +11,7 @@ import {
   META_API_VERSION,
   TEMPLATE_OTP_AUTH,
   TEMPLATE_NOTIF_NUDGE,
+  TEMPLATE_DRIVER_ASSIGNMENT,
 } from "./whatsapp-config";
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -28,14 +29,23 @@ export function canSendNudge(vendorId: number): boolean {
 export function markNudgeSent(vendorId: number): void {
   notifNudgeLastSent.set(vendorId, Date.now());
 }
-import { logger } from "./logger";
 import { normalizePhone } from "./phone";
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Fonction interne : appel POST vers l'API Meta Cloud
-// Ne lève une exception que si l'API répond avec une erreur HTTP.
-// L'appelant est responsable de la gestion d'erreur non-fatale.
+// Expose les erreurs HTTP Meta pour que les routes puissent les journaliser
+// et répondre sans transformer un échec d'envoi en faux succès.
 // ─────────────────────────────────────────────────────────────────────────────
+export class WhatsAppMetaError extends Error {
+  constructor(
+    public readonly status: number,
+    public readonly responseBody: string,
+  ) {
+    super(`WhatsApp API ${status}: ${responseBody}`);
+    this.name = "WhatsAppMetaError";
+  }
+}
+
 async function callMetaAPI(payload: unknown): Promise<void> {
   if (!WHATSAPP_ACCESS_TOKEN || !WHATSAPP_PHONE_NUMBER_ID) {
     throw new Error(
@@ -56,10 +66,13 @@ async function callMetaAPI(payload: unknown): Promise<void> {
     signal: AbortSignal.timeout(15_000),
   });
 
-  if (!res.ok) {
-    const errText = await res.text().catch(() => "unknown error");
-    throw new Error(`WhatsApp API ${res.status}: ${errText}`);
+  let responseBody: string;
+  try {
+    responseBody = await res.text();
+  } catch (err) {
+    responseBody = `Unable to read Meta response body: ${err instanceof Error ? err.message : String(err)}`;
   }
+  if (!res.ok) throw new WhatsAppMetaError(res.status, responseBody);
 }
 
 // =============================================================================
@@ -97,9 +110,7 @@ export async function sendWhatsAppText(phone: string, text: string): Promise<voi
 // =============================================================================
 // 1. ENVOI OTP — Template d'Authentification
 // =============================================================================
-// Tente d'envoyer le code via le template Meta de type "Authentication".
-// Si le template n'est pas encore approuvé par Meta, bascule automatiquement
-// en message texte libre (fallback) pour ne pas bloquer l'inscription.
+// Envoie le code uniquement via le template Meta de type "Authentication".
 //
 // ⚠️  Configuration du template dans Meta Business Suite :
 //     Type    : Authentication
@@ -111,57 +122,47 @@ export async function sendWhatsAppText(phone: string, text: string): Promise<voi
 export async function sendWhatsAppOTP(
   phone: string,
   code: string,
-  firstName: string
+  _firstName: string,
 ): Promise<void> {
-  // ── Tentative via template d'Authentification Meta ──────────────────────
-  try {
-    await callMetaAPI({
-      messaging_product: "whatsapp",
-      to: toWhatsAppNumber(phone),
-      type: "template",
-      template: {
-        // ⚠️  Remplacez dans whatsapp-config.ts ou via env WHATSAPP_TEMPLATE_OTP
-        name: TEMPLATE_OTP_AUTH,
-        language: { code: "fr" },
-        components: [
-          {
-            // Paramètre {{1}} du corps : le code OTP à 6 chiffres
-            type: "body",
-            parameters: [{ type: "text", text: code }],
-          },
-          {
-            // Bouton "Copier le code" (index 0 du template Authentication)
-            // Le paramètre est le même code OTP
-            type: "button",
-            sub_type: "url",
-            index: "0",
-            parameters: [{ type: "text", text: code }],
-          },
-        ],
-      },
-    });
-    return; // Succès via template — on s'arrête ici
-  } catch (err) {
-    // Le template n'est peut-être pas encore approuvé — on logue et on continue
-    logger.warn(
-      { err, phone },
-      "Template OTP Auth indisponible — fallback vers message texte libre"
-    );
-  }
-
-  // ── Fallback : texte libre (fonctionne avant approbation Meta) ───────────
-  // À SUPPRIMER une fois le template approuvé par Meta si souhaité.
   await callMetaAPI({
     messaging_product: "whatsapp",
     to: toWhatsAppNumber(phone),
-    type: "text",
-    text: {
-      body:
-        `Bonjour ${firstName} 👋\n\n` +
-        `Votre code de vérification TogoMarket :\n\n` +
-        `*${code}*\n\n` +
-        `Ce code est valable 5 minutes. Ne le partagez avec personne.\n\n` +
-        `— L'équipe TogoMarket`,
+    type: "template",
+    template: {
+      name: TEMPLATE_OTP_AUTH,
+      language: { code: "fr" },
+      components: [
+        {
+          type: "body",
+          parameters: [{ type: "text", text: code }],
+        },
+        {
+          type: "button",
+          sub_type: "url",
+          index: "0",
+          parameters: [{ type: "text", text: code }],
+        },
+      ],
+    },
+  });
+}
+
+export async function sendWhatsAppUtilityTemplate(
+  phone: string,
+  templateName: string,
+  parameters: string[],
+): Promise<void> {
+  await callMetaAPI({
+    messaging_product: "whatsapp",
+    to: toWhatsAppNumber(phone),
+    type: "template",
+    template: {
+      name: templateName || TEMPLATE_DRIVER_ASSIGNMENT,
+      language: { code: "fr" },
+      components: [{
+        type: "body",
+        parameters: parameters.map((text) => ({ type: "text", text })),
+      }],
     },
   });
 }
