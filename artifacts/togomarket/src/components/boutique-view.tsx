@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useMemo } from "react";
 import {
   useVendorGetListings,
   useVendorUpdateListingPrice,
@@ -27,6 +27,8 @@ import { encodeShopToken } from "@/lib/shop-token";
 import { useSiteSettings } from "@/lib/site-settings";
 import { useT } from "@/lib/i18n";
 import { PublishModal } from "@/components/publish-modal";
+import { WalletSummary } from "@/components/delivery-components";
+import { vendorAuthHeaders } from "@/lib/vendor-auth";
 
 function BoutiqueMediaThumb({ path, alt }: { path: string; alt: string }) {
   const [isVid, setIsVid] = useState(isVideoMedia(path));
@@ -165,6 +167,10 @@ export function BoutiqueView({ vendor, vendorPassword, onNeedLogin }: BoutiqueVi
   const t = useT(lang);
   const { toast } = useToast();
   const queryClient = useQueryClient();
+  const walletHeaders = useMemo(
+    () => vendor ? vendorAuthHeaders(vendor.phone, vendorPassword) : {},
+    [vendor?.phone, vendorPassword],
+  );
 
   const [listings, setListings] = useState<Listing[] | null>(null);
   const [isLoading, setIsLoading] = useState(false);
@@ -452,6 +458,15 @@ export function BoutiqueView({ vendor, vendorPassword, onNeedLogin }: BoutiqueVi
           )}
         </div>
       </div>
+
+      <WalletSummary
+        loadUrl={`/api/wallets/seller/${vendor.id}`}
+        withdrawUrl="/api/wallets/withdraw"
+        withdrawBody={{ ownerType: "seller", ownerId: vendor.id }}
+        headers={walletHeaders}
+        phoneNumber={vendor.phone}
+        language={lang === "fr" ? "fr" : "en"}
+      />
 
       {/* Lien partageable de la boutique — validité liée à l'abonnement actif */}
       {vendor.isPublished ? (() => {

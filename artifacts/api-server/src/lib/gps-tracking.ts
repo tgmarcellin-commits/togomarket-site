@@ -90,7 +90,7 @@ export async function ingestDriverLocation(input: IngestLocationInput) {
     .where(eq(ordersTable.id, job.orderId))
     .limit(1);
 
-  if (!order || (order.status !== "IN_TRANSIT" && order.status !== "ASSIGNED")) {
+  if (!order || !["IN_TRANSIT", "ASSIGNED", "RETURNING_TO_SELLER", "RETURN_AT_SELLER"].includes(order.status)) {
     throw new Error(`La commande associée n'est plus active (statut: ${order?.status ?? "inconnu"}). Mise à jour GPS refusée.`);
   }
 

@@ -90,6 +90,50 @@ async function resolveDeliveryConversationIdentity(
   return { role: "vendor", conversationId: conversation.id, vendorId: vendor.id };
 }
 
+async function canAccessWallet(
+  req: Request,
+  ownerType: "buyer" | "seller" | "driver",
+  ownerId: number,
+): Promise<boolean> {
+  if (ownerType === "buyer") {
+    const buyerToken = typeof req.headers["x-buyer-token"] === "string"
+      ? req.headers["x-buyer-token"]
+      : undefined;
+    if (!buyerToken) return false;
+    return (await resolveBuyerConversationId(ownerId, buyerToken)) === ownerId;
+  }
+  if (ownerType === "seller") {
+    const vendor = await authenticateVendorRequest(req);
+    return vendor?.id === ownerId;
+  }
+  return false;
+}
+
+async function canReadDeliveryLocation(req: Request, deliveryJobId: number): Promise<boolean> {
+  const adminCode = String(req.headers["x-admin-code"] ?? "").trim();
+  if (adminCode && await isSuperAdmin(adminCode)) return true;
+
+  const driver = await authenticateDriverSession(req.headers.authorization);
+  if (driver && await canAccessLocation({ deliveryJobId, actor: { role: "driver", driverId: driver.id } })) {
+    return true;
+  }
+
+  const vendor = await authenticateVendorRequest(req);
+  if (vendor && await canAccessLocation({ deliveryJobId, actor: { role: "vendor", vendorId: vendor.id } })) {
+    return true;
+  }
+
+  const buyerToken = typeof req.headers["x-buyer-token"] === "string"
+    ? req.headers["x-buyer-token"]
+    : undefined;
+  const rawConversationId = req.headers["x-conversation-id"];
+  const conversationId = typeof rawConversationId === "string" ? Number(rawConversationId) : 0;
+  if (!buyerToken || !Number.isInteger(conversationId) || conversationId <= 0) return false;
+  const canonicalId = await resolveBuyerConversationId(conversationId, buyerToken);
+  return canonicalId === conversationId
+    && await canAccessLocation({ deliveryJobId, actor: { role: "buyer", conversationId } });
+}
+
 async function buildAvailableDriversWithRatings() {
   const drivers = await db
     .select({
@@ -118,7 +162,7 @@ async function buildAvailableDriversWithRatings() {
     .where(and(
       inArray(deliveryWorkflowJobsTable.driverId, drivers.map((driver) => driver.id)),
       inArray(deliveryWorkflowJobsTable.acceptanceStatus, ["accepted_by_driver", "pending_driver_response"]),
-      inArray(ordersTable.status, ["PENDING", "ASSIGNED", "IN_TRANSIT"]),
+      inArray(ordersTable.status, ["PENDING", "ASSIGNED", "IN_TRANSIT", "RETURNING_TO_SELLER", "RETURN_AT_SELLER"]),
     ));
 
   const assignmentsByDriver = new Map<number, Array<{ acceptanceStatus: string; assignmentExpiresAt: Date | null }>>();
@@ -400,7 +444,7 @@ router.post("/delivery/assignments", async (req, res) => {
       eq(deliveryWorkflowJobsTable.driverId, driver.id),
       ne(deliveryWorkflowJobsTable.orderId, parsed.orderId),
       inArray(deliveryWorkflowJobsTable.acceptanceStatus, ["accepted_by_driver", "pending_driver_response"]),
-      inArray(ordersTable.status, ["PENDING", "ASSIGNED", "IN_TRANSIT"]),
+      inArray(ordersTable.status, ["PENDING", "ASSIGNED", "IN_TRANSIT", "RETURNING_TO_SELLER", "RETURN_AT_SELLER"]),
     ));
   if (isDriverBusyForAssignment(driverActiveJobs)) {
     return res.status(400).json({ error: "Livreur déjà en course." });
@@ -684,7 +728,7 @@ router.post("/delivery/conversations/:conversationId/proposals", async (req, res
       eq(deliveryWorkflowJobsTable.driverId, driver.id),
       ne(deliveryWorkflowJobsTable.orderId, state.orderId),
       inArray(deliveryWorkflowJobsTable.acceptanceStatus, ["accepted_by_driver", "pending_driver_response"]),
-      inArray(ordersTable.status, ["PENDING", "ASSIGNED", "IN_TRANSIT"]),
+      inArray(ordersTable.status, ["PENDING", "ASSIGNED", "IN_TRANSIT", "RETURNING_TO_SELLER", "RETURN_AT_SELLER"]),
     ));
   if (isDriverBusyForAssignment(driverActiveJobs)) {
     return res.status(409).json({ error: "Ce livreur a déjà une course en cours." });
@@ -774,7 +818,7 @@ router.get("/admin/delivery/orders", async (req, res) => {
     })
     .from(ordersTable)
     .where(and(
-      inArray(ordersTable.status, ["PENDING", "ASSIGNED", "IN_TRANSIT"]),
+      inArray(ordersTable.status, ["PENDING", "ASSIGNED", "IN_TRANSIT", "RETURNING_TO_SELLER", "RETURN_AT_SELLER"]),
       isNotNull(ordersTable.distanceLockedKm),
       isNotNull(ordersTable.transportFeeLocked),
     ))
@@ -1459,28 +1503,7 @@ router.get("/delivery/jobs/:deliveryJobId/locations/latest", async (req, res) =>
     return res.status(400).json({ error: "ID de mission invalide." });
   }
 
-  const adminCode = String(req.headers["x-admin-code"] ?? req.query?.adminCode ?? "").trim();
-  const isSuper = adminCode ? await isSuperAdmin(adminCode) : false;
-
-  const driver = await authenticateDriverSession(req.headers.authorization);
-
-  const vendorAuth = req.headers["x-vendor-id"] ?? req.query?.vendorId;
-  const vendorId = vendorAuth ? Number(vendorAuth) : 0;
-
-  const buyerConv = Number(req.headers["x-conversation-id"] ?? req.query?.conversationId ?? 0);
-
-  let hasAccess = isSuper;
-  if (!hasAccess && driver) {
-    hasAccess = await canAccessLocation({ deliveryJobId, actor: { role: "driver", driverId: driver.id } });
-  }
-  if (!hasAccess && vendorId > 0) {
-    hasAccess = await canAccessLocation({ deliveryJobId, actor: { role: "vendor", vendorId } });
-  }
-  if (!hasAccess && buyerConv > 0) {
-    hasAccess = await canAccessLocation({ deliveryJobId, actor: { role: "buyer", conversationId: buyerConv } });
-  }
-
-  if (!hasAccess) {
+  if (!(await canReadDeliveryLocation(req, deliveryJobId))) {
     return res.status(403).json({ error: "Accès non autorisé à la position de cette livraison." });
   }
 
@@ -1515,28 +1538,7 @@ router.get("/delivery/jobs/:deliveryJobId/locations", async (req, res) => {
     return res.status(400).json({ error: "ID de mission invalide." });
   }
 
-  const adminCode = String(req.headers["x-admin-code"] ?? req.query?.adminCode ?? "").trim();
-  const isSuper = adminCode ? await isSuperAdmin(adminCode) : false;
-
-  const driver = await authenticateDriverSession(req.headers.authorization);
-
-  const vendorAuth = req.headers["x-vendor-id"] ?? req.query?.vendorId;
-  const vendorId = vendorAuth ? Number(vendorAuth) : 0;
-
-  const buyerConv = Number(req.headers["x-conversation-id"] ?? req.query?.conversationId ?? 0);
-
-  let hasAccess = isSuper;
-  if (!hasAccess && driver) {
-    hasAccess = await canAccessLocation({ deliveryJobId, actor: { role: "driver", driverId: driver.id } });
-  }
-  if (!hasAccess && vendorId > 0) {
-    hasAccess = await canAccessLocation({ deliveryJobId, actor: { role: "vendor", vendorId } });
-  }
-  if (!hasAccess && buyerConv > 0) {
-    hasAccess = await canAccessLocation({ deliveryJobId, actor: { role: "buyer", conversationId: buyerConv } });
-  }
-
-  if (!hasAccess) {
+  if (!(await canReadDeliveryLocation(req, deliveryJobId))) {
     return res.status(403).json({ error: "Accès non autorisé à l'historique GPS de cette livraison." });
   }
 
@@ -1596,7 +1598,7 @@ router.post("/delivery/jobs/:deliveryJobId/qr/request", async (req, res) => {
 
 router.post("/delivery/qr/scan", async (req, res) => {
   const rawToken = String(req.body?.rawToken ?? req.body?.token ?? "").trim();
-  const scannerRole = String(req.body?.scannerRole ?? req.body?.role ?? "").trim() as "buyer" | "seller" | "driver";
+  const requestedRole = String(req.body?.scannerRole ?? req.body?.role ?? "").trim();
   const scannerLatitude = Number(req.body?.scannerLatitude ?? req.body?.latitude);
   const scannerLongitude = Number(req.body?.scannerLongitude ?? req.body?.longitude);
   const idempotencyKey = req.body?.idempotencyKey ? String(req.body.idempotencyKey) : undefined;
@@ -1604,17 +1606,64 @@ router.post("/delivery/qr/scan", async (req, res) => {
   if (!rawToken) {
     return res.status(400).json({ error: "Token QR requis." });
   }
-  if (scannerRole !== "buyer" && scannerRole !== "seller" && scannerRole !== "driver") {
+  if (requestedRole !== "buyer" && requestedRole !== "seller" && requestedRole !== "driver") {
     return res.status(400).json({ error: "Rôle du scanner invalide (doit être 'buyer' ou 'seller')." });
+  }
+  if (requestedRole === "driver") {
+    return res.status(403).json({ error: "Le livreur ne peut pas auto-confirmer la livraison ou le retour." });
+  }
+
+  let authorizedBuyerConversationId: number | null = null;
+  let authorizedVendorId: number | null = null;
+  if (requestedRole === "buyer") {
+    const buyerToken = typeof req.headers["x-buyer-token"] === "string"
+      ? req.headers["x-buyer-token"]
+      : undefined;
+    const conversationId = Number(req.headers["x-conversation-id"]);
+    if (!buyerToken || !Number.isInteger(conversationId) || conversationId <= 0) {
+      return res.status(401).json({ error: "Session acheteur requise pour scanner ce QR code." });
+    }
+    const canonicalId = await resolveBuyerConversationId(conversationId, buyerToken);
+    if (canonicalId !== conversationId) {
+      return res.status(403).json({ error: "Accès refusé à cette validation de livraison." });
+    }
+    authorizedBuyerConversationId = canonicalId;
+  } else {
+    const vendor = await authenticateVendorRequest(req);
+    if (!vendor) {
+      return res.status(401).json({ error: "Session vendeur requise pour scanner ce QR code." });
+    }
+    authorizedVendorId = vendor.id;
   }
 
   try {
     const result = await scanAndVerifyQrToken({
       rawToken,
-      scannerRole,
+      scannerRole: requestedRole,
       scannerLatitude,
       scannerLongitude,
       idempotencyKey,
+      authorizeScanner: async (orderId) => {
+        const [mapping] = await db
+          .select({ conversationId: conversationDeliveryOrdersTable.conversationId })
+          .from(conversationDeliveryOrdersTable)
+          .where(eq(conversationDeliveryOrdersTable.orderId, orderId))
+          .orderBy(desc(conversationDeliveryOrdersTable.createdAt))
+          .limit(1);
+        if (!mapping) return false;
+        if (authorizedBuyerConversationId !== null) {
+          return mapping.conversationId === authorizedBuyerConversationId;
+        }
+        if (authorizedVendorId !== null) {
+          const [conversation] = await db
+            .select({ vendorId: conversationsTable.vendorId })
+            .from(conversationsTable)
+            .where(eq(conversationsTable.id, mapping.conversationId))
+            .limit(1);
+          return conversation?.vendorId === authorizedVendorId;
+        }
+        return false;
+      },
     });
     return res.status(200).json(result);
   } catch (err) {
@@ -1667,6 +1716,9 @@ router.get("/wallets/:ownerType/:ownerId", async (req, res) => {
   if (!Number.isInteger(ownerId) || ownerId <= 0) {
     return res.status(400).json({ error: "ID propriétaire invalide." });
   }
+  if (!(await canAccessWallet(req, ownerType, ownerId))) {
+    return res.status(403).json({ error: "Accès refusé à ce portefeuille." });
+  }
 
   const summary = await getWalletSummary(ownerType, ownerId);
   return res.json(summary);
@@ -1683,6 +1735,9 @@ router.post("/wallets/withdraw", async (req, res) => {
   }
   if (!Number.isInteger(ownerId) || ownerId <= 0) {
     return res.status(400).json({ error: "ID propriétaire invalide." });
+  }
+  if (!(await canAccessWallet(req, ownerType, ownerId))) {
+    return res.status(403).json({ error: "Accès refusé à ce portefeuille." });
   }
 
   try {

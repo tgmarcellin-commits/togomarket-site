@@ -151,8 +151,9 @@ export async function scanAndVerifyQrToken(params: {
   scannerLatitude: number;
   scannerLongitude: number;
   idempotencyKey?: string;
+  authorizeScanner: (orderId: number) => Promise<boolean>;
 }) {
-  const { rawToken, scannerRole, scannerLatitude, scannerLongitude, idempotencyKey } = params;
+  const { rawToken, scannerRole, scannerLatitude, scannerLongitude, idempotencyKey, authorizeScanner } = params;
 
   if (!rawToken || typeof rawToken !== "string") {
     throw new Error("Token QR requis.");
@@ -193,6 +194,9 @@ export async function scanAndVerifyQrToken(params: {
 
   if (!qrRecord) {
     throw new Error("QR code invalide ou introuvable.");
+  }
+  if (!(await authorizeScanner(qrRecord.orderId))) {
+    throw new Error("Accès refusé à cette validation de livraison.");
   }
 
   // Constant-time token verification
