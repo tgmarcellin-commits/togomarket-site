@@ -19,6 +19,7 @@ import {
 import { loadDeliveryLocations, type DeliveryLocation } from "@/lib/delivery-api";
 import { toPublicDeliveryDriver, type PublicDeliveryDriver } from "@/lib/delivery-ui";
 import { startDriverSessionPolling } from "@/pages/driver-session-polling";
+import { getBuyerBalanceContext } from "@/lib/buyer-balance-context";
 import type { BuyerIdentity } from "./buyer-identity-prompt";
 
 interface ChatMessage {
@@ -294,6 +295,17 @@ export function ChatWindow({
 
   const selfType = auth.kind === "vendor" ? "vendor" : "buyer";
   const isAdminConversation = auth.kind === "vendor" && buyerIdentity.phone === "##007##";
+  const buyerBalanceContext = useMemo(
+    () =>
+      getBuyerBalanceContext({
+        conversationId,
+        buyerName: buyerIdentity.name,
+        buyerPhone: buyerIdentity.phone,
+        authKind: auth.kind,
+        showAssignDriver,
+      }),
+    [conversationId, buyerIdentity.name, buyerIdentity.phone, auth.kind, showAssignDriver],
+  );
 
   // ── Keyboard scroll fix ────────────────────────────────────────────────────
   // When the soft keyboard opens on mobile the scroll area can jump. We save
@@ -948,56 +960,6 @@ export function ChatWindow({
                     onError={(event) => { event.currentTarget.style.display = "none"; }}
                   />
                 )}
-
-                {showAssignDriver && auth.kind === "buyer" && (
-                  <div className="mx-4 mt-3">
-                    <WalletSummary
-                      key={walletRefreshVersion}
-                      loadUrl={`/api/wallets/buyer/${conversationId}`}
-                      withdrawUrl="/api/wallets/withdraw"
-                      withdrawBody={{ ownerType: "buyer", ownerId: conversationId }}
-                      headers={deliveryAuthHeaders}
-                      phoneNumber={buyerIdentity.phone}
-                      language={lang === "fr" ? "fr" : "en"}
-                      onUpdated={refreshDeliveryAfterScan}
-                    />
-                  </div>
-                )}
-
-                {showAssignDriver && acceptedDeliveryJobId !== null && (
-                  <div className="mx-4 mt-3 space-y-3" data-testid="conversation-delivery-tracking">
-                    {deliveryOrderId !== null && (
-                      <p className="text-xs text-muted-foreground" role="status">
-                        {lang === "fr" ? `Commande #${deliveryOrderId} — ` : `Order #${deliveryOrderId} — `}
-                        {deliveryOrderStatus}
-                      </p>
-                    )}
-                    <DeliveryTrackingMap
-                      deliveryJobId={acceptedDeliveryJobId}
-                      acceptanceStatus="accepted_by_driver"
-                      orderStatus={deliveryOrderStatus}
-                      locations={deliveryLocations}
-                      role={auth.kind === "vendor" ? "seller" : "buyer"}
-                      language={lang === "fr" ? "fr" : "en"}
-                    />
-                    {auth.kind === "buyer" && ["ASSIGNED", "IN_TRANSIT"].includes(deliveryOrderStatus) && (
-                      <DeliveryQrScanner
-                        role="buyer"
-                        language={lang === "fr" ? "fr" : "en"}
-                        headers={deliveryAuthHeaders}
-                        onSuccess={refreshDeliveryAfterScan}
-                      />
-                    )}
-                    {auth.kind === "vendor" && ["RETURNING_TO_SELLER", "RETURN_AT_SELLER"].includes(deliveryOrderStatus) && (
-                      <DeliveryQrScanner
-                        role="seller"
-                        language={lang === "fr" ? "fr" : "en"}
-                        headers={deliveryAuthHeaders}
-                        onSuccess={refreshDeliveryAfterScan}
-                      />
-                    )}
-                  </div>
-                )}
               </div>
               <div className="min-w-0">
                 <p className={`text-[9px] uppercase tracking-wide leading-none mb-0.5 ${
@@ -1272,6 +1234,67 @@ export function ChatWindow({
                     : (lang === "fr" ? "Paiement bloqué tant qu'aucun livreur n'a accepté." : "Payment stays blocked until a driver accepts.")}
                 </p>
               </div>
+            )}
+          </div>
+        )}
+
+        {/* Buyer identity + balance context — always visible to the connected
+            buyer while composing messages (not just while assigning a
+            driver), placed next to the "connecté en tant que" identity line
+            to match the equivalent context shown in the conversations list
+            (buyer-inbox.tsx). Scoped to this conversation's own wallet, never
+            another participant's. */}
+        {buyerBalanceContext && (
+          <div className="px-4 pt-3" data-testid="buyer-identity-balance">
+            <div className="text-xs text-muted-foreground bg-muted/40 rounded-lg px-3 py-2 mb-2">
+              {lang === "fr" ? "Connecté en tant que" : "Signed in as"}{" "}
+              <span className="font-semibold text-foreground">{buyerBalanceContext.identityLabel.name}</span>{" "}
+              · {buyerBalanceContext.identityLabel.phone}
+            </div>
+            <WalletSummary
+              key={walletRefreshVersion}
+              loadUrl={buyerBalanceContext.loadUrl}
+              withdrawUrl="/api/wallets/withdraw"
+              withdrawBody={buyerBalanceContext.withdrawBody}
+              headers={deliveryAuthHeaders}
+              phoneNumber={buyerBalanceContext.phoneNumber}
+              language={lang === "fr" ? "fr" : "en"}
+              onUpdated={refreshDeliveryAfterScan}
+            />
+          </div>
+        )}
+
+        {showAssignDriver && acceptedDeliveryJobId !== null && (
+          <div className="px-4 pt-3 space-y-3" data-testid="conversation-delivery-tracking">
+            {deliveryOrderId !== null && (
+              <p className="text-xs text-muted-foreground" role="status">
+                {lang === "fr" ? `Commande #${deliveryOrderId} — ` : `Order #${deliveryOrderId} — `}
+                {deliveryOrderStatus}
+              </p>
+            )}
+            <DeliveryTrackingMap
+              deliveryJobId={acceptedDeliveryJobId}
+              acceptanceStatus="accepted_by_driver"
+              orderStatus={deliveryOrderStatus}
+              locations={deliveryLocations}
+              role={auth.kind === "vendor" ? "seller" : "buyer"}
+              language={lang === "fr" ? "fr" : "en"}
+            />
+            {auth.kind === "buyer" && ["ASSIGNED", "IN_TRANSIT"].includes(deliveryOrderStatus) && (
+              <DeliveryQrScanner
+                role="buyer"
+                language={lang === "fr" ? "fr" : "en"}
+                headers={deliveryAuthHeaders}
+                onSuccess={refreshDeliveryAfterScan}
+              />
+            )}
+            {auth.kind === "vendor" && ["RETURNING_TO_SELLER", "RETURN_AT_SELLER"].includes(deliveryOrderStatus) && (
+              <DeliveryQrScanner
+                role="seller"
+                language={lang === "fr" ? "fr" : "en"}
+                headers={deliveryAuthHeaders}
+                onSuccess={refreshDeliveryAfterScan}
+              />
             )}
           </div>
         )}

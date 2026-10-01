@@ -9,6 +9,7 @@ import {
 import { and, desc, eq, sql } from "drizzle-orm";
 import { normalizePhone } from "./phone";
 import { postBalancedJournalEntry, STANDARD_ACCOUNTS, type DbOrTx } from "./accounting-ledger";
+import { BusinessRuleError } from "./route-errors";
 
 export function generateImmutableHash(params: {
   walletId: number;
@@ -173,12 +174,12 @@ export async function requestWalletWithdrawal(
   const rawPhone = params.phoneNumber ?? params.phone ?? "";
 
   if (!Number.isInteger(amount) || amount <= 0) {
-    throw new Error("Montant de retrait invalide. Doit être un entier FCFA positif.");
+    throw new BusinessRuleError("Montant de retrait invalide. Doit être un entier FCFA positif.");
   }
 
   const normalizedPhone = normalizePhone(rawPhone);
   if (!normalizedPhone || normalizedPhone.length < 8) {
-    throw new Error("Numéro de téléphone invalide pour le retrait.");
+    throw new BusinessRuleError("Numéro de téléphone invalide pour le retrait.");
   }
 
   return await tx.transaction(async (trx: any) => {
@@ -191,11 +192,11 @@ export async function requestWalletWithdrawal(
       .limit(1);
 
     if (!wallet) {
-      throw new Error("Portefeuille introuvable.");
+      throw new BusinessRuleError("Portefeuille introuvable.");
     }
 
     if (wallet.balance < amount) {
-      throw new Error(
+      throw new BusinessRuleError(
         `Solde insuffisant: disponible ${wallet.balance} FCFA, demandé ${amount} FCFA. Les fonds verrouillés (${wallet.lockedBalance} FCFA) ou en attente (${wallet.pendingPayoutBalance} FCFA) ne sont pas retirables.`,
       );
     }
