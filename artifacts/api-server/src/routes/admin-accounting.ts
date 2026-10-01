@@ -896,7 +896,18 @@ router.get("/admin/operations/overview", async (req, res) => {
     degradedSections.push("fedapayWebhooks");
   }
 
-  return res.json({
+  const TOTAL_OVERVIEW_SECTIONS = 7;
+  if (degradedSections.length >= TOTAL_OVERVIEW_SECTIONS) {
+    // Every subsection failed: this is effectively a total outage, not a
+    // partial degradation. Do not return a misleading 200 with all-zero
+    // stats — surface it as a real failure so monitoring/alerting notices.
+    return res.status(503).json({
+      error: "Impossible de charger les indicateurs d'exploitation.",
+      degradedSections,
+    });
+  }
+
+  return res.status(degradedSections.length > 0 ? 207 : 200).json({
     activeMissions: {
       totalActive: totalActiveMissions,
       pendingResponse: pendingResponseCount,

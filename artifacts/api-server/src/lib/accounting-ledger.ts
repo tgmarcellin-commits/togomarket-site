@@ -353,5 +353,6 @@ export function isNumericMetadataValue(value: unknown): value is string {
  * values never reach the `::int` cast and cannot crash the query.
  */
 export function buildSafeMetadataIntFilter(metadataColumn: AnyPgColumn, key: string, value: number) {
-  return sql`(CASE WHEN ${metadataColumn}->>${key} ~ '^-?[0-9]+$' THEN (${metadataColumn}->>${key})::int ELSE NULL END) = ${value}`;
+  const pattern = NUMERIC_METADATA_PATTERN.source;
+  return sql`(CASE WHEN ${metadataColumn}->>${key} ~ ${pattern} THEN (${metadataColumn}->>${key})::int ELSE NULL END) = ${value}`;
 }
