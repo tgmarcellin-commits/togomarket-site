@@ -19,11 +19,19 @@ import {
 } from "@workspace/db";
 import {
   eq,
+  ne,
   and,
+  or,
   desc,
   sql,
   inArray,
+  notInArray,
   aliasedTable,
+  count,
+  sum,
+  avg,
+  gt,
+  isNotNull,
 } from "drizzle-orm";
 import { isSuperAdmin, isAdminAny } from "../lib/admin-auth";
 import { reverseJournalEntry, getTrialBalance } from "../lib/accounting-ledger";
@@ -77,14 +85,57 @@ export interface FormattedJournal {
   legs: FormattedJournalLeg[];
 }
 
+function computeRowDebitCredit(row: {
+  amount: number;
+  debitAccountId: number;
+  creditAccountId: number;
+  metadata?: unknown;
+}): { debit: number; credit: number } {
+  const meta = (row.metadata && typeof row.metadata === "object" ? row.metadata : {}) as Record<string, unknown>;
+  const entrySide = (meta.entrySide ?? meta.side) as string | undefined;
+
+  if (typeof meta.debitAmount === "number" || typeof meta.creditAmount === "number") {
+    const debit = typeof meta.debitAmount === "number" ? Math.max(0, meta.debitAmount) : 0;
+    const credit = typeof meta.creditAmount === "number" ? Math.max(0, meta.creditAmount) : 0;
+    return { debit, credit };
+  }
+
+  if (entrySide === "debit") {
+    return { debit: row.amount, credit: 0 };
+  }
+  if (entrySide === "credit") {
+    return { debit: 0, credit: row.amount };
+  }
+  if (entrySide === "balanced") {
+    if (row.debitAccountId === row.creditAccountId) {
+      return { debit: row.amount, credit: 0 };
+    }
+    return { debit: row.amount, credit: row.amount };
+  }
+
+  // If entrySide is not specified:
+  // If debitAccountId === creditAccountId, it is a single-sided leg recorded with same account ID
+  if (row.debitAccountId === row.creditAccountId) {
+    return { debit: row.amount, credit: 0 };
+  }
+
+  // Paired leg with distinct debit and credit accounts
+  return { debit: row.amount, credit: row.amount };
+}
+
 /**
- * Helper to build and group all ledger entries into journal transactions.
+ * Helper to build and group ledger entries into journal transactions.
+ * When targetRefs is provided, only loads rows for those journal references.
  */
-async function buildGroupedJournals(): Promise<FormattedJournal[]> {
+async function buildGroupedJournals(targetRefs?: string[]): Promise<FormattedJournal[]> {
+  if (targetRefs !== undefined && targetRefs.length === 0) {
+    return [];
+  }
+
   const debitAccountAlias = aliasedTable(ledgerAccountsTable, "debit_account");
   const creditAccountAlias = aliasedTable(ledgerAccountsTable, "credit_account");
 
-  const rows = await db
+  const query = db
     .select({
       id: ledgerEntriesTable.id,
       journalReference: ledgerEntriesTable.journalReference,
@@ -103,11 +154,45 @@ async function buildGroupedJournals(): Promise<FormattedJournal[]> {
     })
     .from(ledgerEntriesTable)
     .leftJoin(debitAccountAlias, eq(ledgerEntriesTable.debitAccountId, debitAccountAlias.id))
-    .leftJoin(creditAccountAlias, eq(ledgerEntriesTable.creditAccountId, creditAccountAlias.id))
-    .orderBy(desc(ledgerEntriesTable.createdAt), desc(ledgerEntriesTable.id));
+    .leftJoin(creditAccountAlias, eq(ledgerEntriesTable.creditAccountId, creditAccountAlias.id));
+
+  if (targetRefs && targetRefs.length > 0) {
+    query.where(inArray(ledgerEntriesTable.journalReference, targetRefs));
+  }
+
+  const rows = await query.orderBy(desc(ledgerEntriesTable.createdAt), desc(ledgerEntriesTable.id));
+
+  // Also query reversals to correctly link reversedBy
+  const reversalRows = await db
+    .select({
+      journalReference: ledgerEntriesTable.journalReference,
+      metadata: ledgerEntriesTable.metadata,
+    })
+    .from(ledgerEntriesTable)
+    .where(
+      or(
+        sql`${ledgerEntriesTable.journalReference} LIKE 'REV_%'`,
+        sql`${ledgerEntriesTable.metadata}->>'reversedFrom' IS NOT NULL`
+      )
+    )
+    .limit(1000);
+
+  const reversalMap = new Map<string, { reversalRef: string; reason: string }>();
+  for (const revRow of reversalRows) {
+    const rMeta = (revRow.metadata && typeof revRow.metadata === "object" ? revRow.metadata : {}) as Record<string, unknown>;
+    const reversedFrom = typeof rMeta.reversedFrom === "string"
+      ? rMeta.reversedFrom
+      : (revRow.journalReference.startsWith("REV_") ? revRow.journalReference.replace(/^REV_/, "") : null);
+    const reversalReason = typeof rMeta.reversalReason === "string" ? rMeta.reversalReason : "Annulation administrative";
+    if (reversedFrom) {
+      reversalMap.set(reversedFrom, {
+        reversalRef: revRow.journalReference,
+        reason: reversalReason,
+      });
+    }
+  }
 
   const journalMap = new Map<string, FormattedJournal>();
-  const reversalMap = new Map<string, { reversalRef: string; reason: string }>();
 
   for (const row of rows) {
     const meta = (row.metadata && typeof row.metadata === "object" ? row.metadata : {}) as Record<string, unknown>;
@@ -121,13 +206,6 @@ async function buildGroupedJournals(): Promise<FormattedJournal[]> {
       ? meta.reversedFrom
       : (row.journalReference.startsWith("REV_") ? row.journalReference.replace(/^REV_/, "") : null);
     const reversalReason = typeof meta.reversalReason === "string" ? meta.reversalReason : null;
-
-    if (reversedFrom) {
-      reversalMap.set(reversedFrom, {
-        reversalRef: row.journalReference,
-        reason: reversalReason ?? "Annulation administrative",
-      });
-    }
 
     const leg: FormattedJournalLeg = {
       id: row.id,
@@ -172,20 +250,21 @@ async function buildGroupedJournals(): Promise<FormattedJournal[]> {
       journalMap.set(row.journalReference, group);
     }
 
+    const { debit: legDebit, credit: legCredit } = computeRowDebitCredit(row);
     group.legs.push(leg);
     group.entriesCount += 1;
-    group.totalDebit += row.amount;
-    group.totalCredit += row.amount;
+    group.totalDebit += legDebit;
+    group.totalCredit += legCredit;
     if (!group.orderId && orderId) group.orderId = orderId;
     if (!group.driverId && driverId) group.driverId = driverId;
     if (!group.walletId && walletId) group.walletId = walletId;
     if (!group.settlementRef && settlementRef) group.settlementRef = settlementRef;
   }
 
-  // Second pass: apply reversal links and status
+  // Second pass: apply true double-entry balance check and reversal status
   const list = Array.from(journalMap.values());
   for (const group of list) {
-    group.isBalanced = group.totalDebit === group.totalCredit;
+    group.isBalanced = group.totalDebit === group.totalCredit && group.totalDebit > 0;
     const rev = reversalMap.get(group.journalReference);
     if (rev) {
       group.reversedBy = rev.reversalRef;
@@ -209,8 +288,6 @@ async function buildGroupedJournals(): Promise<FormattedJournal[]> {
 router.get("/admin/comptabilite/journals", async (req, res) => {
   if (!(await requireSuperAdmin(req, res))) return;
 
-  const journals = await buildGroupedJournals();
-
   const journalType = String(req.query.journalType ?? "all").toLowerCase();
   const settlementStatus = String(req.query.settlementStatus ?? "all").toLowerCase();
   const orderId = req.query.orderId ? Number(req.query.orderId) : null;
@@ -219,66 +296,110 @@ router.get("/admin/comptabilite/journals", async (req, res) => {
   const search = String(req.query.search ?? "").trim().toLowerCase();
   const dateFrom = String(req.query.dateFrom ?? "").trim();
   const dateTo = String(req.query.dateTo ?? "").trim();
+  const limit = Math.min(Math.max(Number(req.query.limit ?? 100), 1), 500);
+  const offset = Math.max(Number(req.query.offset ?? 0), 0);
 
-  const filtered = journals.filter((j) => {
-    // Type filter
-    if (journalType !== "all") {
-      const ref = j.journalReference.toUpperCase();
-      if (journalType === "delivery" && !ref.includes("DELIVERY") && !ref.includes("LIVR")) return false;
-      if (journalType === "return" && !ref.includes("RETURN") && !ref.includes("RETOUR")) return false;
-      if (journalType === "withdrawal" && !ref.includes("WITHDRAWAL") && !ref.includes("RETRAIT") && !ref.includes("PAYOUT")) return false;
-      if (journalType === "reversal" && !j.isReversal) return false;
-      if (journalType === "dispute" && !ref.includes("DISPUTE") && !ref.includes("LITIGE")) return false;
+  // Push SQL filters down to DB level where possible
+  const sqlConditions = [];
+  if (orderId) {
+    sqlConditions.push(
+      or(
+        sql`(${ledgerEntriesTable.metadata}->>'orderId')::int = ${orderId}`,
+        sql`${ledgerEntriesTable.journalReference} ILIKE ${`%ORDER_${orderId}%`}`,
+        sql`${ledgerEntriesTable.journalReference} ILIKE ${`%_${orderId}_%`}`
+      )
+    );
+  }
+  if (driverId) {
+    sqlConditions.push(sql`(${ledgerEntriesTable.metadata}->>'driverId')::int = ${driverId}`);
+  }
+  if (walletId) {
+    sqlConditions.push(sql`(${ledgerEntriesTable.metadata}->>'walletId')::int = ${walletId}`);
+  }
+  if (dateFrom) {
+    sqlConditions.push(sql`${ledgerEntriesTable.createdAt} >= ${new Date(dateFrom)}`);
+  }
+  if (dateTo) {
+    const endInclusive = dateTo.includes("T") ? dateTo : `${dateTo}T23:59:59.999Z`;
+    sqlConditions.push(sql`${ledgerEntriesTable.createdAt} <= ${new Date(endInclusive)}`);
+  }
+  if (search) {
+    sqlConditions.push(
+      or(
+        sql`${ledgerEntriesTable.journalReference} ILIKE ${`%${search}%`}`,
+        sql`${ledgerEntriesTable.description} ILIKE ${`%${search}%`}`
+      )
+    );
+  }
+  if (journalType !== "all") {
+    if (journalType === "delivery") {
+      sqlConditions.push(or(sql`${ledgerEntriesTable.journalReference} ILIKE '%DELIVERY%'`, sql`${ledgerEntriesTable.journalReference} ILIKE '%LIVR%'`));
+    } else if (journalType === "return") {
+      sqlConditions.push(or(sql`${ledgerEntriesTable.journalReference} ILIKE '%RETURN%'`, sql`${ledgerEntriesTable.journalReference} ILIKE '%RETOUR%'`));
+    } else if (journalType === "withdrawal") {
+      sqlConditions.push(or(sql`${ledgerEntriesTable.journalReference} ILIKE '%WITHDRAWAL%'`, sql`${ledgerEntriesTable.journalReference} ILIKE '%RETRAIT%'`, sql`${ledgerEntriesTable.journalReference} ILIKE '%PAYOUT%'`));
+    } else if (journalType === "reversal") {
+      sqlConditions.push(sql`${ledgerEntriesTable.journalReference} LIKE 'REV_%'`);
+    } else if (journalType === "dispute") {
+      sqlConditions.push(or(sql`${ledgerEntriesTable.journalReference} ILIKE '%DISPUTE%'`, sql`${ledgerEntriesTable.journalReference} ILIKE '%LITIGE%'`));
     }
+  }
 
-    // Settlement status
-    if (settlementStatus !== "all" && j.status !== settlementStatus) {
-      return false;
-    }
+  const whereClause = sqlConditions.length > 0 ? and(...sqlConditions) : undefined;
 
-    // Order ID
-    if (orderId && j.orderId !== orderId) {
-      const hasOrderInLeg = j.legs.some((l) => l.metadata?.orderId === orderId);
-      const matchesRef = j.journalReference.includes(`ORDER_${orderId}`) || j.journalReference.includes(`_${orderId}_`);
-      if (!hasOrderInLeg && !matchesRef) return false;
-    }
+  // DB pagination for distinct journals
+  const distinctJournalQuery = db
+    .select({
+      journalReference: ledgerEntriesTable.journalReference,
+      maxCreatedAt: sql<Date>`max(${ledgerEntriesTable.createdAt})`,
+    })
+    .from(ledgerEntriesTable)
+    .where(whereClause)
+    .groupBy(ledgerEntriesTable.journalReference)
+    .orderBy(desc(sql`max(${ledgerEntriesTable.createdAt})`));
 
-    // Driver ID
-    if (driverId && j.driverId !== driverId) {
-      const hasDriverInLeg = j.legs.some((l) => l.metadata?.driverId === driverId);
-      if (!hasDriverInLeg) return false;
-    }
+  if (settlementStatus === "all") {
+    const [countResult] = await db
+      .select({ count: sql<number>`count(distinct ${ledgerEntriesTable.journalReference})` })
+      .from(ledgerEntriesTable)
+      .where(whereClause);
+    const total = Number(countResult?.count ?? 0);
 
-    // Wallet ID
-    if (walletId && j.walletId !== walletId) {
-      const hasWalletInLeg = j.legs.some((l) => l.metadata?.walletId === walletId);
-      if (!hasWalletInLeg) return false;
-    }
+    const pagedRefRows = await distinctJournalQuery.limit(limit).offset(offset);
+    const targetRefs = pagedRefRows.map((r) => r.journalReference);
+    const paginated = await buildGroupedJournals(targetRefs);
 
-    // Date range
-    if (dateFrom && j.createdAt < dateFrom) return false;
-    if (dateTo) {
-      const endInclusive = dateTo.includes("T") ? dateTo : `${dateTo}T23:59:59.999Z`;
-      if (j.createdAt > endInclusive) return false;
-    }
+    const totalDebitSum = paginated.reduce((acc, curr) => acc + curr.totalDebit, 0);
+    const totalCreditSum = paginated.reduce((acc, curr) => acc + curr.totalCredit, 0);
 
-    // Text search
-    if (search) {
-      const inRef = j.journalReference.toLowerCase().includes(search);
-      const inDesc = j.description.toLowerCase().includes(search);
-      const inLegs = j.legs.some(
-        (l) =>
-          l.description.toLowerCase().includes(search) ||
-          l.debitAccount.name.toLowerCase().includes(search) ||
-          l.creditAccount.name.toLowerCase().includes(search) ||
-          l.debitAccount.code.includes(search) ||
-          l.creditAccount.code.includes(search),
-      );
-      if (!inRef && !inDesc && !inLegs) return false;
-    }
+    const summary = {
+      totalJournals: total,
+      totalDebitSum,
+      totalCreditSum,
+      isBalanced: totalDebitSum === totalCreditSum,
+      balancedCount: paginated.filter((j) => j.status === "balanced").length,
+      reversedCount: paginated.filter((j) => j.status === "reversed").length,
+      reversalCount: paginated.filter((j) => j.status === "reversal").length,
+      pendingCorrectionCount: paginated.filter((j) => j.status === "pending_correction").length,
+    };
 
-    return true;
-  });
+    return res.json({
+      journals: paginated,
+      summary,
+      pagination: {
+        total,
+        limit,
+        offset,
+        hasMore: offset + limit < total,
+      },
+    });
+  }
+
+  // When filtering by specific status ('pending_correction', 'reversed', etc.)
+  const candidateRefRows = await distinctJournalQuery.limit(500);
+  const targetRefs = candidateRefRows.map((r) => r.journalReference);
+  const candidateJournals = await buildGroupedJournals(targetRefs);
+  const filtered = candidateJournals.filter((j) => j.status === settlementStatus);
 
   const totalDebitSum = filtered.reduce((acc, curr) => acc + curr.totalDebit, 0);
   const totalCreditSum = filtered.reduce((acc, curr) => acc + curr.totalCredit, 0);
@@ -294,8 +415,6 @@ router.get("/admin/comptabilite/journals", async (req, res) => {
     pendingCorrectionCount: filtered.filter((j) => j.status === "pending_correction").length,
   };
 
-  const limit = Math.min(Math.max(Number(req.query.limit ?? 100), 1), 500);
-  const offset = Math.max(Number(req.query.offset ?? 0), 0);
   const paginated = filtered.slice(offset, offset + limit);
 
   return res.json({
@@ -454,80 +573,101 @@ router.get("/admin/operations/overview", async (req, res) => {
   const now = Date.now();
   const tenMinutesAgo = new Date(now - 10 * 60 * 1000);
 
-  // 1. Active missions
-  const allJobs = await db
+  // 1. Active missions & Order breakdown (pushed down to SQL)
+  const orderBreakdownRows = await db
     .select({
-      id: deliveryWorkflowJobsTable.id,
-      orderId: deliveryWorkflowJobsTable.orderId,
-      driverId: deliveryWorkflowJobsTable.driverId,
-      acceptanceStatus: deliveryWorkflowJobsTable.acceptanceStatus,
-      acceptedAt: deliveryWorkflowJobsTable.acceptedAt,
-      createdAt: deliveryWorkflowJobsTable.createdAt,
-    })
-    .from(deliveryWorkflowJobsTable);
-
-  const pendingResponseCount = allJobs.filter((j) => j.acceptanceStatus === "pending_driver_response").length;
-  const acceptedJobs = allJobs.filter((j) => j.acceptanceStatus === "accepted_by_driver");
-
-  // Orders distribution
-  const allOrders = await db
-    .select({
-      id: ordersTable.id,
       status: ordersTable.status,
+      count: count(),
     })
-    .from(ordersTable);
+    .from(ordersTable)
+    .groupBy(ordersTable.status);
 
   const orderBreakdown: Record<string, number> = {};
-  for (const o of allOrders) {
-    orderBreakdown[o.status] = (orderBreakdown[o.status] ?? 0) + 1;
+  for (const row of orderBreakdownRows) {
+    orderBreakdown[row.status] = Number(row.count);
   }
 
   const inTransitCount = orderBreakdown["IN_TRANSIT"] ?? 0;
   const returningCount = (orderBreakdown["RETURNING_TO_SELLER"] ?? 0) + (orderBreakdown["RETURN_AT_SELLER"] ?? 0);
+
+  const [jobPendingStats] = await db
+    .select({
+      pendingResponseCount: sql<number>`coalesce(count(*) filter (where ${deliveryWorkflowJobsTable.acceptanceStatus} = 'pending_driver_response'), 0)`,
+    })
+    .from(deliveryWorkflowJobsTable);
+
+  const pendingResponseCount = Number(jobPendingStats?.pendingResponseCount ?? 0);
   const totalActiveMissions = inTransitCount + returningCount + pendingResponseCount;
 
   // 2. Drivers status
-  const allDrivers = await db
+  const [driverStats] = await db
     .select({
-      id: driversTable.id,
-      isActive: driversTable.isActive,
-      isAvailable: driversTable.isAvailable,
+      totalDrivers: count(),
+      activeDrivers: sql<number>`coalesce(count(*) filter (where ${driversTable.isActive} = true), 0)`,
+      inactiveDrivers: sql<number>`coalesce(count(*) filter (where ${driversTable.isActive} = false), 0)`,
     })
     .from(driversTable);
 
-  const busyDriverIds = new Set(
-    acceptedJobs
-      .filter((j) => {
-        const order = allOrders.find((o) => o.id === j.orderId);
-        return order && ["IN_TRANSIT", "RETURNING_TO_SELLER", "RETURN_AT_SELLER", "ASSIGNED"].includes(order.status);
-      })
-      .map((j) => j.driverId),
-  );
+  const totalDrivers = Number(driverStats?.totalDrivers ?? 0);
+  const activeDrivers = Number(driverStats?.activeDrivers ?? 0);
+  const inactiveDrivers = Number(driverStats?.inactiveDrivers ?? 0);
 
-  const totalDrivers = allDrivers.length;
-  const activeDrivers = allDrivers.filter((d) => d.isActive).length;
-  const inactiveDrivers = allDrivers.filter((d) => !d.isActive).length;
-  const busyDrivers = allDrivers.filter((d) => d.isActive && busyDriverIds.has(d.id)).length;
-  const availableDrivers = allDrivers.filter((d) => d.isActive && d.isAvailable && !busyDriverIds.has(d.id)).length;
+  // Determine busy vs available drivers via SQL join on active orders
+  const busyDriverRows = await db
+    .selectDistinct({ driverId: deliveryWorkflowJobsTable.driverId })
+    .from(deliveryWorkflowJobsTable)
+    .innerJoin(ordersTable, eq(deliveryWorkflowJobsTable.orderId, ordersTable.id))
+    .where(
+      and(
+        eq(deliveryWorkflowJobsTable.acceptanceStatus, "accepted_by_driver"),
+        inArray(ordersTable.status, ["IN_TRANSIT", "RETURNING_TO_SELLER", "RETURN_AT_SELLER", "ASSIGNED"])
+      )
+    );
+  const busyDriverIds = new Set(busyDriverRows.map((r) => r.driverId));
+
+  const availableDriversRow = await db
+    .select({
+      availableCount: sql<number>`coalesce(count(*) filter (where ${driversTable.isActive} = true and ${driversTable.isAvailable} = true and ${driversTable.id} not in (
+        select ${deliveryWorkflowJobsTable.driverId} from ${deliveryWorkflowJobsTable}
+        inner join ${ordersTable} on ${deliveryWorkflowJobsTable.orderId} = ${ordersTable.id}
+        where ${deliveryWorkflowJobsTable.acceptanceStatus} = 'accepted_by_driver'
+        and ${ordersTable.status} in ('IN_TRANSIT', 'RETURNING_TO_SELLER', 'RETURN_AT_SELLER', 'ASSIGNED')
+      )), 0)`,
+    })
+    .from(driversTable);
+
+  const availableDrivers = Number(availableDriversRow[0]?.availableCount ?? 0);
+  const busyDrivers = Math.max(0, activeDrivers - availableDrivers);
 
   // 3. Open disputes
-  const openDisputes = await db
-    .select({ id: disputesTable.id })
+  const [openDisputes] = await db
+    .select({ count: count() })
     .from(disputesTable)
     .where(eq(disputesTable.status, "open"));
 
   // 4. GPS Freshness check on active missions
-  const activeMissionOrders = allOrders.filter((o) => ["IN_TRANSIT", "RETURNING_TO_SELLER"].includes(o.status));
-  const activeOrderIds = activeMissionOrders.map((o) => o.id);
-  const activeJobs = acceptedJobs.filter((j) => activeOrderIds.includes(j.orderId));
-  const activeJobIds = activeJobs.map((j) => j.id);
+  const activeJobs = await db
+    .select({
+      id: deliveryWorkflowJobsTable.id,
+      orderId: deliveryWorkflowJobsTable.orderId,
+      driverId: deliveryWorkflowJobsTable.driverId,
+    })
+    .from(deliveryWorkflowJobsTable)
+    .innerJoin(ordersTable, eq(deliveryWorkflowJobsTable.orderId, ordersTable.id))
+    .where(
+      and(
+        eq(deliveryWorkflowJobsTable.acceptanceStatus, "accepted_by_driver"),
+        inArray(ordersTable.status, ["IN_TRANSIT", "RETURNING_TO_SELLER"])
+      )
+    );
 
   let freshGpsCount = 0;
   let staleAlertCount = 0;
   let missingGpsCount = 0;
   const staleAlerts: Array<{ orderId: number; driverId: number; ageMinutes: number; lastRecordedAt: string | null }> = [];
 
-  if (activeJobIds.length > 0) {
+  if (activeJobs.length > 0) {
+    const activeJobIds = activeJobs.map((j) => j.id);
     const locRows = await db
       .select({
         deliveryJobId: deliveryLocationsTable.deliveryJobId,
@@ -572,61 +712,64 @@ router.get("/admin/operations/overview", async (req, res) => {
     }
   }
 
-  // 5. QR Token Health
-  const allQrTokens = await db
+  // 5. QR Token Health (SQL aggregation)
+  const [qrStats] = await db
     .select({
-      id: qrTokensTable.id,
-      expiresAt: qrTokensTable.expiresAt,
-      usedAt: qrTokensTable.usedAt,
-      proximityMeters: qrTokensTable.proximityMeters,
+      totalIssued: count(),
+      used: sql<number>`coalesce(count(*) filter (where ${qrTokensTable.usedAt} is not null), 0)`,
+      activePending: sql<number>`coalesce(count(*) filter (where ${qrTokensTable.usedAt} is null and ${qrTokensTable.expiresAt} > now()), 0)`,
+      expired: sql<number>`coalesce(count(*) filter (where ${qrTokensTable.usedAt} is null and ${qrTokensTable.expiresAt} <= now()), 0)`,
+      failedProximityCount: sql<number>`coalesce(count(*) filter (where ${qrTokensTable.proximityMeters} is not null and ${qrTokensTable.proximityMeters} > 150), 0)`,
+      avgProximityMeters: sql<number | null>`round(avg(${qrTokensTable.proximityMeters}))`,
     })
     .from(qrTokensTable);
 
-  const totalQrIssued = allQrTokens.length;
-  const qrUsed = allQrTokens.filter((q) => q.usedAt !== null).length;
-  const qrActivePending = allQrTokens.filter((q) => q.usedAt === null && new Date(q.expiresAt).getTime() > now).length;
-  const qrExpired = allQrTokens.filter((q) => q.usedAt === null && new Date(q.expiresAt).getTime() <= now).length;
-  const failedProximityCount = allQrTokens.filter((q) => q.proximityMeters !== null && q.proximityMeters > 150).length;
+  const totalQrIssued = Number(qrStats?.totalIssued ?? 0);
+  const qrUsed = Number(qrStats?.used ?? 0);
+  const qrActivePending = Number(qrStats?.activePending ?? 0);
+  const qrExpired = Number(qrStats?.expired ?? 0);
+  const failedProximityCount = Number(qrStats?.failedProximityCount ?? 0);
+  const avgProximityMeters = qrStats?.avgProximityMeters != null ? Number(qrStats.avgProximityMeters) : null;
 
-  const validProximityValues = allQrTokens
-    .map((q) => q.proximityMeters)
-    .filter((p): p is number => typeof p === "number" && Number.isFinite(p));
-  const avgProximityMeters = validProximityValues.length > 0
-    ? Math.round(validProximityValues.reduce((a, b) => a + b, 0) / validProximityValues.length)
-    : null;
-
-  // 6. Wallet movement and Payout health summary
-  const allWallets = await db
+  // 6. Wallet movement and Payout health summary (SQL aggregation)
+  const [walletStats] = await db
     .select({
-      balance: virtualWalletsTable.balance,
-      lockedBalance: virtualWalletsTable.lockedBalance,
-      pendingPayoutBalance: virtualWalletsTable.pendingPayoutBalance,
-      paidOutBalance: virtualWalletsTable.paidOutBalance,
+      totalAvailableBalance: sql<number>`coalesce(sum(${virtualWalletsTable.balance}), 0)`,
+      totalLockedBalance: sql<number>`coalesce(sum(${virtualWalletsTable.lockedBalance}), 0)`,
+      totalPendingPayoutBalance: sql<number>`coalesce(sum(${virtualWalletsTable.pendingPayoutBalance}), 0)`,
+      totalPaidOutBalance: sql<number>`coalesce(sum(${virtualWalletsTable.paidOutBalance}), 0)`,
     })
     .from(virtualWalletsTable);
 
-  const totalAvailableBalance = allWallets.reduce((acc, w) => acc + w.balance, 0);
-  const totalLockedBalance = allWallets.reduce((acc, w) => acc + w.lockedBalance, 0);
-  const totalPendingPayoutBalance = allWallets.reduce((acc, w) => acc + w.pendingPayoutBalance, 0);
-  const totalPaidOutBalance = allWallets.reduce((acc, w) => acc + w.paidOutBalance, 0);
+  const totalAvailableBalance = Number(walletStats?.totalAvailableBalance ?? 0);
+  const totalLockedBalance = Number(walletStats?.totalLockedBalance ?? 0);
+  const totalPendingPayoutBalance = Number(walletStats?.totalPendingPayoutBalance ?? 0);
+  const totalPaidOutBalance = Number(walletStats?.totalPaidOutBalance ?? 0);
 
-  const allWithdrawals = await db
+  const [withdrawalStats] = await db
     .select({
-      id: deliveryWithdrawalTicketsTable.id,
-      amount: deliveryWithdrawalTicketsTable.amount,
-      status: deliveryWithdrawalTicketsTable.status,
+      pendingWithdrawalsCount: sql<number>`coalesce(count(*) filter (where ${deliveryWithdrawalTicketsTable.status} in ('pending_otp', 'otp_verified', 'withdrawal_reserved', 'withdrawal_review_required')), 0)`,
+      pendingWithdrawalsAmount: sql<number>`coalesce(sum(${deliveryWithdrawalTicketsTable.amount}) filter (where ${deliveryWithdrawalTicketsTable.status} in ('pending_otp', 'otp_verified', 'withdrawal_reserved', 'withdrawal_review_required')), 0)`,
+      reviewRequiredCount: sql<number>`coalesce(count(*) filter (where ${deliveryWithdrawalTicketsTable.status} = 'withdrawal_review_required'), 0)`,
+      failedWithdrawalsCount: sql<number>`coalesce(count(*) filter (where ${deliveryWithdrawalTicketsTable.status} = 'failed'), 0)`,
     })
     .from(deliveryWithdrawalTicketsTable);
 
-  const pendingWithdrawalStatuses = ["pending_otp", "otp_verified", "withdrawal_reserved", "withdrawal_review_required"];
-  const pendingWithdrawals = allWithdrawals.filter((w) => pendingWithdrawalStatuses.includes(w.status));
-  const pendingWithdrawalsCount = pendingWithdrawals.length;
-  const pendingWithdrawalsAmount = pendingWithdrawals.reduce((acc, w) => acc + w.amount, 0);
-  const reviewRequiredCount = allWithdrawals.filter((w) => w.status === "withdrawal_review_required").length;
-  const failedWithdrawalsCount = allWithdrawals.filter((w) => w.status === "failed").length;
+  const pendingWithdrawalsCount = Number(withdrawalStats?.pendingWithdrawalsCount ?? 0);
+  const pendingWithdrawalsAmount = Number(withdrawalStats?.pendingWithdrawalsAmount ?? 0);
+  const reviewRequiredCount = Number(withdrawalStats?.reviewRequiredCount ?? 0);
+  const failedWithdrawalsCount = Number(withdrawalStats?.failedWithdrawalsCount ?? 0);
 
-  // 7. FedaPay Webhook Events Health
-  const allWebhooks = await db
+  // 7. FedaPay Webhook Events Health (SQL aggregation + targeted single latest rows)
+  const [webhookStats] = await db
+    .select({
+      totalWebhooks: count(),
+      processedWebhooks: sql<number>`coalesce(count(*) filter (where ${paymentWebhooksTable.processed} = true), 0)`,
+      failedWebhooks: sql<number>`coalesce(count(*) filter (where ${paymentWebhooksTable.processed} = false), 0)`,
+    })
+    .from(paymentWebhooksTable);
+
+  const [latestWebhook] = await db
     .select({
       id: paymentWebhooksTable.id,
       eventName: paymentWebhooksTable.eventName,
@@ -635,13 +778,25 @@ router.get("/admin/operations/overview", async (req, res) => {
       createdAt: paymentWebhooksTable.createdAt,
     })
     .from(paymentWebhooksTable)
-    .orderBy(desc(paymentWebhooksTable.createdAt));
+    .orderBy(desc(paymentWebhooksTable.createdAt))
+    .limit(1);
 
-  const totalWebhooks = allWebhooks.length;
-  const processedWebhooks = allWebhooks.filter((w) => w.processed).length;
-  const failedWebhooks = allWebhooks.filter((w) => !w.processed).length;
-  const latestWebhook = allWebhooks[0] ?? null;
-  const latestProcessed = allWebhooks.find((w) => w.processed && w.processedAt) ?? null;
+  const [latestProcessed] = await db
+    .select({
+      id: paymentWebhooksTable.id,
+      eventName: paymentWebhooksTable.eventName,
+      processed: paymentWebhooksTable.processed,
+      processedAt: paymentWebhooksTable.processedAt,
+      createdAt: paymentWebhooksTable.createdAt,
+    })
+    .from(paymentWebhooksTable)
+    .where(and(eq(paymentWebhooksTable.processed, true), isNotNull(paymentWebhooksTable.processedAt)))
+    .orderBy(desc(paymentWebhooksTable.createdAt))
+    .limit(1);
+
+  const totalWebhooks = Number(webhookStats?.totalWebhooks ?? 0);
+  const processedWebhooks = Number(webhookStats?.processedWebhooks ?? 0);
+  const failedWebhooks = Number(webhookStats?.failedWebhooks ?? 0);
 
   return res.json({
     activeMissions: {
@@ -659,7 +814,7 @@ router.get("/admin/operations/overview", async (req, res) => {
     },
     orderBreakdown,
     disputes: {
-      openCount: openDisputes.length,
+      openCount: Number(openDisputes?.count ?? 0),
     },
     gpsHealth: {
       freshCount: freshGpsCount,
@@ -698,7 +853,7 @@ router.get("/admin/operations/overview", async (req, res) => {
 });
 
 // --------------------------------------------------------------------------
-// 5. GET /admin/wallets (Superadmin Wallet Monitoring)
+// 5. GET /admin/wallets (Superadmin Wallet Monitoring - DB Paginated)
 // --------------------------------------------------------------------------
 router.get("/admin/wallets", async (req, res) => {
   if (!(await requireSuperAdmin(req, res))) return;
@@ -706,7 +861,52 @@ router.get("/admin/wallets", async (req, res) => {
   const ownerTypeFilter = String(req.query.ownerType ?? "all").toLowerCase();
   const search = String(req.query.search ?? "").trim().toLowerCase();
   const hasBalanceOnly = req.query.hasBalance === "true";
+  const page = Math.max(1, parseInt(req.query.page as string, 10) || 1);
+  const limit = Math.min(100, Math.max(1, parseInt(req.query.limit as string, 10) || 50));
+  const offset = req.query.offset ? Math.max(0, parseInt(req.query.offset as string, 10)) : (page - 1) * limit;
 
+  const conditions = [];
+  if (ownerTypeFilter !== "all" && ["seller", "driver", "buyer"].includes(ownerTypeFilter)) {
+    conditions.push(eq(virtualWalletsTable.ownerType, ownerTypeFilter as any));
+  }
+  if (hasBalanceOnly) {
+    conditions.push(
+      or(
+        gt(virtualWalletsTable.balance, 0),
+        gt(virtualWalletsTable.lockedBalance, 0),
+        gt(virtualWalletsTable.pendingPayoutBalance, 0)
+      )
+    );
+  }
+  if (search) {
+    const searchNum = Number(search);
+    if (!isNaN(searchNum) && Number.isInteger(searchNum)) {
+      conditions.push(
+        or(
+          eq(virtualWalletsTable.id, searchNum),
+          eq(virtualWalletsTable.ownerId, searchNum)
+        )
+      );
+    } else {
+      conditions.push(sql`${virtualWalletsTable.ownerType}::text ILIKE ${`%${search}%`}`);
+    }
+  }
+
+  const whereClause = conditions.length > 0 ? and(...conditions) : undefined;
+
+  // DB-level summary totals
+  const [summary] = await db
+    .select({
+      totalWallets: count(),
+      totalBalance: sql<number>`coalesce(sum(${virtualWalletsTable.balance}), 0)`,
+      totalLocked: sql<number>`coalesce(sum(${virtualWalletsTable.lockedBalance}), 0)`,
+      totalPendingPayout: sql<number>`coalesce(sum(${virtualWalletsTable.pendingPayoutBalance}), 0)`,
+      totalPaidOut: sql<number>`coalesce(sum(${virtualWalletsTable.paidOutBalance}), 0)`,
+    })
+    .from(virtualWalletsTable)
+    .where(whereClause);
+
+  // DB-level paginated wallets query
   const wallets = await db
     .select({
       id: virtualWalletsTable.id,
@@ -720,9 +920,12 @@ router.get("/admin/wallets", async (req, res) => {
       updatedAt: virtualWalletsTable.updatedAt,
     })
     .from(virtualWalletsTable)
-    .orderBy(desc(virtualWalletsTable.balance), desc(virtualWalletsTable.updatedAt));
+    .where(whereClause)
+    .orderBy(desc(virtualWalletsTable.balance), desc(virtualWalletsTable.updatedAt))
+    .limit(limit)
+    .offset(offset);
 
-  // Resolve safe owner labels
+  // Resolve safe owner labels only for the paginated slice
   const driverIds = wallets.filter((w) => w.ownerType === "driver").map((w) => w.ownerId);
   const vendorIds = wallets.filter((w) => w.ownerType === "seller").map((w) => w.ownerId);
 
@@ -779,26 +982,14 @@ router.get("/admin/wallets", async (req, res) => {
     };
   });
 
-  const filtered = formatted.filter((w) => {
-    if (ownerTypeFilter !== "all" && w.ownerType !== ownerTypeFilter) return false;
-    if (hasBalanceOnly && w.balance === 0 && w.lockedBalance === 0 && w.pendingPayoutBalance === 0) return false;
-    if (search) {
-      const matchName = w.ownerName.toLowerCase().includes(search);
-      const matchContact = w.contact.toLowerCase().includes(search);
-      const matchId = String(w.ownerId).includes(search);
-      if (!matchName && !matchContact && !matchId) return false;
-    }
-    return true;
-  });
-
   return res.json({
-    wallets: filtered,
+    wallets: formatted,
     summary: {
-      totalWallets: filtered.length,
-      totalBalance: filtered.reduce((acc, w) => acc + w.balance, 0),
-      totalLocked: filtered.reduce((acc, w) => acc + w.lockedBalance, 0),
-      totalPendingPayout: filtered.reduce((acc, w) => acc + w.pendingPayoutBalance, 0),
-      totalPaidOut: filtered.reduce((acc, w) => acc + w.paidOutBalance, 0),
+      totalWallets: Number(summary?.totalWallets ?? 0),
+      totalBalance: Number(summary?.totalBalance ?? 0),
+      totalLocked: Number(summary?.totalLocked ?? 0),
+      totalPendingPayout: Number(summary?.totalPendingPayout ?? 0),
+      totalPaidOut: Number(summary?.totalPaidOut ?? 0),
     },
   });
 });
@@ -811,6 +1002,18 @@ router.get("/admin/withdrawals", async (req, res) => {
 
   const statusFilter = String(req.query.status ?? "all").toLowerCase();
   const ownerTypeFilter = String(req.query.ownerType ?? "all").toLowerCase();
+  const limit = Math.min(Math.max(Number(req.query.limit ?? 200), 1), 500);
+  const offset = Math.max(Number(req.query.offset ?? 0), 0);
+
+  const conditions = [];
+  if (statusFilter !== "all") {
+    conditions.push(eq(deliveryWithdrawalTicketsTable.status, statusFilter as any));
+  }
+  if (ownerTypeFilter !== "all" && ["seller", "driver", "buyer"].includes(ownerTypeFilter)) {
+    conditions.push(eq(deliveryWithdrawalTicketsTable.ownerType, ownerTypeFilter as any));
+  }
+
+  const whereClause = conditions.length > 0 ? and(...conditions) : undefined;
 
   const tickets = await db
     .select({
@@ -835,16 +1038,13 @@ router.get("/admin/withdrawals", async (req, res) => {
       payoutsFedapayTable,
       eq(deliveryWithdrawalTicketsTable.id, payoutsFedapayTable.withdrawalTicketId),
     )
-    .orderBy(desc(deliveryWithdrawalTicketsTable.createdAt));
-
-  const filtered = tickets.filter((t) => {
-    if (statusFilter !== "all" && t.status !== statusFilter) return false;
-    if (ownerTypeFilter !== "all" && t.ownerType !== ownerTypeFilter) return false;
-    return true;
-  });
+    .where(whereClause)
+    .orderBy(desc(deliveryWithdrawalTicketsTable.createdAt))
+    .limit(limit)
+    .offset(offset);
 
   return res.json({
-    withdrawals: filtered.map((t) => ({
+    withdrawals: tickets.map((t) => ({
       ...t,
       createdAt: t.createdAt.toISOString(),
       updatedAt: t.updatedAt.toISOString(),
