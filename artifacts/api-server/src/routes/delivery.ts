@@ -649,12 +649,15 @@ router.post("/delivery/conversations/:conversationId/price-confirmation", async 
       // `return`s inside the transaction) so a failure to create the order
       // can be logged and surfaced to the client below, rather than letting
       // the route respond `{ success: true }` while `orderId` stays null.
-      // "not_started" should never be observed: if `db.transaction` throws
-      // before reaching any branch below, that exception propagates to the
-      // route's outer catch (which already logs + responds) instead of
-      // reaching the outcome checks after the transaction call. Tracked via
-      // a boxed object (not a bare `let`) so TypeScript doesn't narrow the
-      // type based on the initializer before the mutating closure runs.
+      // "not_started" is only kept as a defensive fallback: in the expected
+      // control flow, any exception thrown inside `db.transaction` propagates
+      // to the route's outer catch (which already logs + responds) before
+      // the outcome checks below run, so "not_started" should never actually
+      // be observed there — it exists purely so a future code change that
+      // accidentally swallows a transaction error still fails loudly instead
+      // of silently reporting success. Tracked via a boxed object (not a bare
+      // `let`) so TypeScript doesn't narrow the type based on the initializer
+      // before the mutating closure runs.
       const orderCreation: {
         outcome: "not_started" | "created" | "already_exists" | "price_no_longer_matched" | "insert_failed";
       } = { outcome: "not_started" };
