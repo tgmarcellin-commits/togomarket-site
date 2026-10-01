@@ -608,7 +608,7 @@ router.get("/admin/comptabilite/export", async (req, res) => {
 // --------------------------------------------------------------------------
 // 4. GET /admin/operations/overview
 // --------------------------------------------------------------------------
-const OVERVIEW_SECTION_NAMES = [
+export const OVERVIEW_SECTION_NAMES = [
   "activeMissions",
   "driverStatus",
   "disputes",
@@ -627,6 +627,13 @@ function recordSectionFailure(
 ): void {
   req.log?.error({ err, route: "GET /admin/operations/overview", section }, "Operations overview subsection failed");
   degradedSections.push(section);
+}
+
+// Exported for unit testing: every subsection failed means a total outage
+// (not a partial degradation), so we surface a real 503 instead of a
+// misleading 200 with all-zero stats.
+export function getOverviewStatusCode(degradedSections: readonly OverviewSectionName[]): 200 | 503 {
+  return degradedSections.length >= OVERVIEW_SECTION_NAMES.length ? 503 : 200;
 }
 
 router.get("/admin/operations/overview", async (req, res) => {
@@ -910,7 +917,7 @@ router.get("/admin/operations/overview", async (req, res) => {
     recordSectionFailure(req, degradedSections, "fedapayWebhooks", err);
   }
 
-  if (degradedSections.length >= OVERVIEW_SECTION_NAMES.length) {
+  if (getOverviewStatusCode(degradedSections) === 503) {
     // Every subsection failed: this is effectively a total outage, not a
     // partial degradation. Do not return a misleading 200 with all-zero
     // stats — surface it as a real failure so monitoring/alerting notices.
@@ -920,7 +927,7 @@ router.get("/admin/operations/overview", async (req, res) => {
     });
   }
 
-  return res.status(degradedSections.length > 0 ? 207 : 200).json({
+  return res.status(200).json({
     activeMissions: {
       totalActive: totalActiveMissions,
       pendingResponse: pendingResponseCount,
