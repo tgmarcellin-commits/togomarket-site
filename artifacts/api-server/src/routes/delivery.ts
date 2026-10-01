@@ -649,8 +649,15 @@ router.post("/delivery/conversations/:conversationId/price-confirmation", async 
       // `return`s inside the transaction) so a failure to create the order
       // can be logged and surfaced to the client below, rather than letting
       // the route respond `{ success: true }` while `orderId` stays null.
-      let orderCreationOutcome: "created" | "already_exists" | "price_no_longer_matched" | "insert_failed" =
-        "insert_failed";
+      // "not_started" should never be observed: if `db.transaction` throws
+      // before reaching any branch below, that exception propagates to the
+      // route's outer catch (which already logs + responds) instead of
+      // reaching the outcome checks after the transaction call. Tracked via
+      // a boxed object (not a bare `let`) so TypeScript doesn't narrow the
+      // type based on the initializer before the mutating closure runs.
+      const orderCreation: {
+        outcome: "not_started" | "created" | "already_exists" | "price_no_longer_matched" | "insert_failed";
+      } = { outcome: "not_started" };
       await db.transaction(async (tx) => {
         await tx.execute(sql`SELECT id FROM conversations WHERE id = ${identity.conversationId} FOR UPDATE`);
         const [existingMapping] = await tx
@@ -664,7 +671,7 @@ router.post("/delivery/conversations/:conversationId/price-confirmation", async 
           .orderBy(desc(conversationDeliveryOrdersTable.createdAt))
           .limit(1);
         if (existingMapping) {
-          orderCreationOutcome = "already_exists";
+          orderCreation.outcome = "already_exists";
           return;
         }
 
@@ -679,7 +686,7 @@ router.post("/delivery/conversations/:conversationId/price-confirmation", async 
           .filter((row): row is { actorType: "buyer" | "vendor"; amountFcfa: number } =>
             row.actorType === "buyer" || row.actorType === "vendor"));
         if (lockedPriceState.status !== "matched" || lockedPriceState.buyerAmount === null) {
-          orderCreationOutcome = "price_no_longer_matched";
+          orderCreation.outcome = "price_no_longer_matched";
           return;
         }
 
@@ -707,7 +714,7 @@ router.post("/delivery/conversations/:conversationId/price-confirmation", async 
           })
           .returning({ id: ordersTable.id });
         if (!createdOrder) {
-          orderCreationOutcome = "insert_failed";
+          orderCreation.outcome = "insert_failed";
           return;
         }
 
@@ -715,16 +722,35 @@ router.post("/delivery/conversations/:conversationId/price-confirmation", async 
           conversationId: identity.conversationId,
           orderId: createdOrder.id,
         });
-        orderCreationOutcome = "created";
+        orderCreation.outcome = "created";
       });
 
-      if (orderCreationOutcome === "insert_failed") {
+      if (orderCreation.outcome === "price_no_longer_matched") {
+        // Another confirmation changed the amounts between our initial read
+        // and the locked transaction read (race condition); the client
+        // should refresh instead of being told the price is still matched.
+        const log = req.log ?? logger;
+        log.warn(
+          {
+            route: "POST /delivery/conversations/:conversationId/price-confirmation",
+            conversationId: identity.conversationId,
+          },
+          "Price confirmation changed before order auto-creation could run",
+        );
+        await emitConversationDeliveryState(identity.conversationId);
+        return res.status(409).json({
+          error: "Les montants ont changé entre temps. Vérifiez les derniers montants confirmés.",
+          code: "PRICE_STATE_CHANGED",
+        });
+      }
+
+      if (orderCreation.outcome === "insert_failed" || orderCreation.outcome === "not_started") {
         const log = req.log ?? logger;
         log.error(
           {
             route: "POST /delivery/conversations/:conversationId/price-confirmation",
             conversationId: identity.conversationId,
-            orderCreationOutcome,
+            orderCreationOutcome: orderCreation.outcome,
           },
           "Order auto-creation did not produce an order after a matched price confirmation",
         );
@@ -734,6 +760,8 @@ router.post("/delivery/conversations/:conversationId/price-confirmation", async 
           code: "ORDER_CREATION_FAILED",
         });
       }
+
+      // orderCreationOutcome is "created" or "already_exists": fall through to the success response below.
     }
 
     await emitConversationDeliveryState(identity.conversationId);
