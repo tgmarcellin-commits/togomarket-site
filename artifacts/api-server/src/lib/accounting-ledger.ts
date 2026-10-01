@@ -80,6 +80,7 @@ export type JournalLeg = {
   amount: number;
   description: string;
   metadata?: Record<string, unknown>;
+  entrySide?: "debit" | "credit" | "balanced";
 };
 
 export async function postBalancedJournalEntry(
@@ -116,18 +117,29 @@ export async function postBalancedJournalEntry(
     };
   }
 
-  // Verify balanced invariant: each leg has debit == credit = amount
+  // Verify balanced invariant: debits must equal credits across all legs
   let totalDebit = 0;
   let totalCredit = 0;
   for (const leg of legs) {
     if (!Number.isInteger(leg.amount) || leg.amount <= 0) {
       throw new Error(`Montant comptable invalide: ${leg.amount}. Doit être un entier FCFA strictement positif.`);
     }
-    if (leg.debitAccountCode === leg.creditAccountCode) {
-      throw new Error(`Le compte de débit et de crédit ne peuvent pas être identiques: ${leg.debitAccountCode}`);
+    const meta = (leg.metadata ?? {}) as Record<string, unknown>;
+    const side = leg.entrySide ?? meta.entrySide ?? meta.side;
+    if (side === "debit") {
+      totalDebit += leg.amount;
+    } else if (side === "credit") {
+      totalCredit += leg.amount;
+    } else if (typeof meta.debitAmount === "number" || typeof meta.creditAmount === "number") {
+      totalDebit += Number(meta.debitAmount ?? 0);
+      totalCredit += Number(meta.creditAmount ?? 0);
+    } else {
+      if (leg.debitAccountCode === leg.creditAccountCode) {
+        throw new Error(`Le compte de débit et de crédit ne peuvent pas être identiques: ${leg.debitAccountCode}`);
+      }
+      totalDebit += leg.amount;
+      totalCredit += leg.amount;
     }
-    totalDebit += leg.amount;
-    totalCredit += leg.amount;
   }
 
   if (totalDebit !== totalCredit) {
@@ -156,6 +168,7 @@ export async function postBalancedJournalEntry(
       metadata: {
         ...metadata,
         ...leg.metadata,
+        ...(leg.entrySide ? { entrySide: leg.entrySide } : {}),
       },
     });
   }
@@ -195,18 +208,33 @@ export async function reverseJournalEntry(
     throw new Error(`Écritures introuvables pour le journal ${originalJournalReference}`);
   }
 
-  // Append-only reversal: flip debit and credit accounts
+  // Append-only reversal: flip debit and credit accounts, and preserve side semantics
   for (const entry of existingEntries) {
+    const origMeta = (entry.metadata ?? {}) as Record<string, unknown>;
+    const reversedMeta: Record<string, unknown> = {
+      ...origMeta,
+      reversedFrom: originalJournalReference,
+      reversalReason: reason,
+    };
+    if (origMeta.entrySide === "debit" || origMeta.side === "debit") {
+      reversedMeta.entrySide = "credit";
+      reversedMeta.side = "credit";
+    } else if (origMeta.entrySide === "credit" || origMeta.side === "credit") {
+      reversedMeta.entrySide = "debit";
+      reversedMeta.side = "debit";
+    }
+    if (typeof origMeta.debitAmount === "number" || typeof origMeta.creditAmount === "number") {
+      reversedMeta.debitAmount = origMeta.creditAmount ?? 0;
+      reversedMeta.creditAmount = origMeta.debitAmount ?? 0;
+    }
+
     await tx.insert(ledgerEntriesTable).values({
       journalReference: reversalRef,
       debitAccountId: entry.creditAccountId, // flipped
       creditAccountId: entry.debitAccountId, // flipped
       amount: entry.amount,
       description: `Annulation de [${originalJournalReference}]: ${reason}`,
-      metadata: {
-        reversedFrom: originalJournalReference,
-        reversalReason: reason,
-      },
+      metadata: reversedMeta,
     });
   }
 
@@ -241,14 +269,41 @@ export async function getTrialBalance(tx: DbOrTx = db): Promise<{
   let totalCreditSum = 0;
 
   for (const entry of entries) {
-    const debitCurr = debitsByAccount.get(entry.debitAccountId) ?? 0;
-    debitsByAccount.set(entry.debitAccountId, debitCurr + entry.amount);
+    const meta = (entry.metadata ?? {}) as Record<string, unknown>;
+    const side = meta.entrySide ?? meta.side;
 
-    const creditCurr = creditsByAccount.get(entry.creditAccountId) ?? 0;
-    creditsByAccount.set(entry.creditAccountId, creditCurr + entry.amount);
+    if (side === "debit") {
+      const debitCurr = debitsByAccount.get(entry.debitAccountId) ?? 0;
+      debitsByAccount.set(entry.debitAccountId, debitCurr + entry.amount);
+      totalDebitSum += entry.amount;
+    } else if (side === "credit") {
+      const creditCurr = creditsByAccount.get(entry.creditAccountId) ?? 0;
+      creditsByAccount.set(entry.creditAccountId, creditCurr + entry.amount);
+      totalCreditSum += entry.amount;
+    } else if (typeof meta.debitAmount === "number" || typeof meta.creditAmount === "number") {
+      const dAmt = Number(meta.debitAmount ?? 0);
+      const cAmt = Number(meta.creditAmount ?? 0);
+      const debitCurr = debitsByAccount.get(entry.debitAccountId) ?? 0;
+      debitsByAccount.set(entry.debitAccountId, debitCurr + dAmt);
+      const creditCurr = creditsByAccount.get(entry.creditAccountId) ?? 0;
+      creditsByAccount.set(entry.creditAccountId, creditCurr + cAmt);
+      totalDebitSum += dAmt;
+      totalCreditSum += cAmt;
+    } else if (entry.debitAccountId === entry.creditAccountId) {
+      // Debiting and crediting identical account is not a genuine double-entry transfer
+      const debitCurr = debitsByAccount.get(entry.debitAccountId) ?? 0;
+      debitsByAccount.set(entry.debitAccountId, debitCurr + entry.amount);
+      totalDebitSum += entry.amount;
+    } else {
+      const debitCurr = debitsByAccount.get(entry.debitAccountId) ?? 0;
+      debitsByAccount.set(entry.debitAccountId, debitCurr + entry.amount);
 
-    totalDebitSum += entry.amount;
-    totalCreditSum += entry.amount;
+      const creditCurr = creditsByAccount.get(entry.creditAccountId) ?? 0;
+      creditsByAccount.set(entry.creditAccountId, creditCurr + entry.amount);
+
+      totalDebitSum += entry.amount;
+      totalCreditSum += entry.amount;
+    }
   }
 
   const result = accounts.map((acc: any) => {

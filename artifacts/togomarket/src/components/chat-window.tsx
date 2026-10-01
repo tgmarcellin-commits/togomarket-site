@@ -279,6 +279,18 @@ export function ChatWindow({
   const hasScrolledInitiallyRef = useRef(false);
   const previousConversationIdRef = useRef<number | null>(null);
   const previousMessageCountRef = useRef(0);
+  const isNearBottomRef = useRef(true);
+  const assignPanelOpenRef = useRef(assignPanelOpen);
+  assignPanelOpenRef.current = assignPanelOpen;
+  const acceptedDeliveryJobIdRef = useRef(acceptedDeliveryJobId);
+  acceptedDeliveryJobIdRef.current = acceptedDeliveryJobId;
+
+  const handleScroll = useCallback(() => {
+    const area = scrollAreaRef.current;
+    if (!area) return;
+    const distance = area.scrollHeight - area.scrollTop - area.clientHeight;
+    isNearBottomRef.current = distance < 120;
+  }, []);
 
   const selfType = auth.kind === "vendor" ? "vendor" : "buyer";
   const isAdminConversation = auth.kind === "vendor" && buyerIdentity.phone === "##007##";
@@ -294,9 +306,11 @@ export function ChatWindow({
     setTimeout(() => { if (area) area.scrollTop = saved; }, 400);
   }, []);
 
-  const fetchMessages = useCallback(async () => {
+  const fetchMessages = useCallback(async (isInitial = false) => {
     if (!conversationId) return;
-    setLoading(true);
+    if (isInitial) {
+      setLoading(true);
+    }
     try {
       const res = await fetch(`/api/conversations/${conversationId}/messages`, {
         headers: authHeaders(auth),
@@ -321,7 +335,11 @@ export function ChatWindow({
           );
         });
       }
-    } finally { setLoading(false); }
+    } finally {
+      if (isInitial) {
+        setLoading(false);
+      }
+    }
   }, [conversationId, auth, onConversationUnavailable]);
 
   const markMessagesRead = useCallback(async () => {
@@ -438,7 +456,7 @@ export function ChatWindow({
           buyerToken: auth.buyerToken,
         }).catch(() => null);
       }
-      await fetchMessages();
+      await fetchMessages(!hasScrolledInitiallyRef.current);
       await markMessagesRead();
       if (showAssignDriver) await fetchDeliveryState();
     };
@@ -500,10 +518,10 @@ export function ChatWindow({
       setDeliveryOrderId(data.orderId ?? null);
       setDeliveryOrderStatus(data.order?.status ?? "");
       setAcceptedDeliveryJobId(data.assignments?.find((assignment) => assignment.acceptanceStatus === "accepted_by_driver")?.id ?? null);
-      if (assignPanelOpen && data.priceConfirmation?.status === "matched") void fetchAvailableDrivers();
+      if (assignPanelOpenRef.current && data.priceConfirmation?.status === "matched") void fetchAvailableDrivers();
     };
     const onDriverLocation = (location: DeliveryLocation) => {
-      if (location.deliveryJobId !== acceptedDeliveryJobId) return;
+      if (location.deliveryJobId !== acceptedDeliveryJobIdRef.current) return;
       setDeliveryLocations((current) => [
         ...current.filter((item) => item.id !== location.id),
         location,
@@ -535,7 +553,7 @@ export function ChatWindow({
       socket.off("message_deleted", onDeleted);
       socket.off("message_hidden_me", onHiddenMe);
     };
-  }, [open, conversationId, fetchMessages, markMessagesRead, selfType, showAssignDriver, fetchDeliveryState, fetchAvailableDrivers, assignPanelOpen, acceptedDeliveryJobId]);
+  }, [open, conversationId, fetchMessages, markMessagesRead, selfType, showAssignDriver, fetchDeliveryState, fetchAvailableDrivers]);
 
   const messageAuthHeaders = useMemo(
     () => authHeaders(auth),
@@ -585,12 +603,14 @@ export function ChatWindow({
       hasScrolledInitiallyRef.current = false;
       previousConversationIdRef.current = null;
       previousMessageCountRef.current = 0;
+      isNearBottomRef.current = true;
       return;
     }
     if (previousConversationIdRef.current !== conversationId) {
       hasScrolledInitiallyRef.current = false;
       previousConversationIdRef.current = conversationId;
       previousMessageCountRef.current = 0;
+      isNearBottomRef.current = true;
     }
   }, [open, conversationId]);
 
@@ -600,17 +620,51 @@ export function ChatWindow({
     if (!area) return;
 
     if (!hasScrolledInitiallyRef.current) {
+      if (loading || messages.length === 0) return;
       area.scrollTop = area.scrollHeight;
+      requestAnimationFrame(() => {
+        if (area) area.scrollTop = area.scrollHeight;
+      });
       hasScrolledInitiallyRef.current = true;
       previousMessageCountRef.current = messages.length;
+      isNearBottomRef.current = true;
       return;
     }
 
     if (messages.length > previousMessageCountRef.current) {
-      endRef.current?.scrollIntoView({ behavior: "smooth" });
+      if (isNearBottomRef.current) {
+        endRef.current?.scrollIntoView({ behavior: "smooth" });
+      }
     }
     previousMessageCountRef.current = messages.length;
-  }, [messages, open]);
+  }, [messages, open, loading]);
+
+  useEffect(() => {
+    if (!open) return;
+    const area = scrollAreaRef.current;
+    if (!area) return;
+
+    const reAnchorToBottom = () => {
+      if (isNearBottomRef.current || !hasScrolledInitiallyRef.current) {
+        area.scrollTop = area.scrollHeight;
+      }
+    };
+
+    reAnchorToBottom();
+    const frameId = requestAnimationFrame(reAnchorToBottom);
+
+    let ro: ResizeObserver | null = null;
+    if (typeof ResizeObserver !== "undefined") {
+      ro = new ResizeObserver(() => {
+        reAnchorToBottom();
+      });
+      ro.observe(area);
+    }
+    return () => {
+      cancelAnimationFrame(frameId);
+      if (ro) ro.disconnect();
+    };
+  }, [open, assignPanelOpen]);
 
   // ── Adaptation au clavier virtuel (mobile) ─────────────────────────────────
   // Quand le clavier s'ouvre, le viewport visuel rétrécit. Si l'utilisateur
@@ -682,6 +736,7 @@ export function ChatWindow({
   };
 
   const uploadAudioBlob = async (blob: Blob, ext: string) => {
+    isNearBottomRef.current = true;
     setUploading(true);
     try {
       const formData = new FormData();
@@ -704,6 +759,7 @@ export function ChatWindow({
   const sendMessage = async () => {
     const content = input.trim();
     if (!content || sending) return;
+    isNearBottomRef.current = true;
     setSending(true);
     setInput("");
     try {
@@ -736,6 +792,7 @@ export function ChatWindow({
       return;
     }
 
+    isNearBottomRef.current = true;
     setUploading(true);
     try {
       const form = new FormData();
@@ -1281,6 +1338,7 @@ export function ChatWindow({
         {/* Messages */}
         <div
           ref={scrollAreaRef}
+          onScroll={handleScroll}
           className="flex-1 overflow-y-auto px-4 py-3 space-y-2 min-h-0"
           onClick={closeMenu}
         >

@@ -181,3 +181,61 @@ test("accounting ledger: trial balance verifies debit sum equals credit sum", as
   assert.equal(trialBalance.difference, 0);
   assert.equal(trialBalance.totalDebitSum, trialBalance.totalCreditSum);
 });
+
+test("accounting ledger: supports multi-leg balanced entries and rejects unbalanced legs", async () => {
+  // Balanced multi-leg (debit 5000 + 1000 = credit 6000)
+  const balancedRef = `TEST_BALANCED_MULTI_${Date.now()}`;
+  const balancedResult = await postBalancedJournalEntry({
+    journalReference: balancedRef,
+    legs: [
+      {
+        debitAccountCode: STANDARD_ACCOUNTS.BUYER_ESCROW.code,
+        creditAccountCode: STANDARD_ACCOUNTS.SELLER_PAYABLE.code,
+        amount: 5000,
+        entrySide: "debit",
+        description: "Debit escrow 5000",
+      },
+      {
+        debitAccountCode: STANDARD_ACCOUNTS.BUYER_ESCROW.code,
+        creditAccountCode: STANDARD_ACCOUNTS.DRIVER_PAYABLE.code,
+        amount: 1000,
+        entrySide: "debit",
+        description: "Debit escrow 1000",
+      },
+      {
+        debitAccountCode: STANDARD_ACCOUNTS.FEDAPAY_CLEARING.code,
+        creditAccountCode: STANDARD_ACCOUNTS.BUYER_ESCROW.code,
+        amount: 6000,
+        entrySide: "credit",
+        description: "Credit buyer escrow 6000",
+      },
+    ],
+  });
+  assert.equal(balancedResult.success, true);
+
+  // Unbalanced multi-leg should be rejected
+  await assert.rejects(
+    async () => {
+      await postBalancedJournalEntry({
+        journalReference: `TEST_UNBALANCED_${Date.now()}`,
+        legs: [
+          {
+            debitAccountCode: STANDARD_ACCOUNTS.BUYER_ESCROW.code,
+            creditAccountCode: STANDARD_ACCOUNTS.SELLER_PAYABLE.code,
+            amount: 5000,
+            entrySide: "debit",
+            description: "Debit 5000",
+          },
+          {
+            debitAccountCode: STANDARD_ACCOUNTS.FEDAPAY_CLEARING.code,
+            creditAccountCode: STANDARD_ACCOUNTS.BUYER_ESCROW.code,
+            amount: 4000, // Mismatched! 5000 != 4000
+            entrySide: "credit",
+            description: "Credit 4000",
+          },
+        ],
+      });
+    },
+    /Journal déséquilibré/,
+  );
+});
