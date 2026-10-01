@@ -156,6 +156,7 @@ function getDeliveryAssignmentStatusLabel(status: string): string {
     refused_by_driver: "Refusée",
     expired: "Expirée",
     cancelled_by_reassignment: "Réassignée",
+    cancelled_payment_timeout: "Annulée (paiement expiré)",
   };
   return labels[status] ?? status;
 }

@@ -277,7 +277,9 @@ async function getConversationDeliveryState(conversationId: number) {
         id: ordersTable.id,
         status: ordersTable.status,
         articlePriceLocked: ordersTable.articlePriceLocked,
+        distanceLockedKm: ordersTable.distanceLockedKm,
         transportFeeLocked: ordersTable.transportFeeLocked,
+        roundTripFeeLocked: ordersTable.roundTripFeeLocked,
       })
       .from(ordersTable)
       .where(eq(ordersTable.id, conversationOrder.orderId))
@@ -534,6 +536,7 @@ router.post("/delivery/assignments", async (req, res) => {
         .set({
           distanceLockedKm: pricing.distanceLockedKm,
           transportFeeLocked: pricing.transportFeeLocked,
+          roundTripFeeLocked: pricing.roundTripFeeLocked,
           distanceSource: pricing.distanceSource,
           status: "ASSIGNED",
         })
@@ -916,6 +919,7 @@ router.post("/delivery/conversations/:conversationId/proposals", async (req, res
         "refused_by_driver",
         "expired",
         "cancelled_by_reassignment",
+        "cancelled_payment_timeout",
       ]),
     }).returning();
     if (!job) {
@@ -974,6 +978,7 @@ router.get("/admin/delivery/orders", async (req, res) => {
         articlePriceLocked: ordersTable.articlePriceLocked,
         distanceLockedKm: ordersTable.distanceLockedKm,
         transportFeeLocked: ordersTable.transportFeeLocked,
+        roundTripFeeLocked: ordersTable.roundTripFeeLocked,
         distanceSource: ordersTable.distanceSource,
         status: ordersTable.status,
         createdAt: ordersTable.createdAt,
@@ -1409,7 +1414,11 @@ router.post("/fedapay-driver-callback", async (req, res) => {
   const metadata = (tx?.object as Record<string, unknown> | undefined)?.custom_metadata as Record<string, unknown> | undefined;
   const orderId = Number(metadata?.orderId ?? 0);
   if (Number.isInteger(orderId) && orderId > 0 && eventName.includes("approved")) {
-    await db.update(ordersTable).set({ status: "IN_TRANSIT" }).where(eq(ordersTable.id, orderId));
+    const now = new Date();
+    await db.update(ordersTable)
+      .set({ status: "IN_TRANSIT", driverPaymentConfirmedAt: now })
+      .where(eq(ordersTable.id, orderId));
+    logger.info({ orderId }, "Driver payment confirmed via FedaPay webhook");
   }
   return res.status(200).json({ received: true });
 });

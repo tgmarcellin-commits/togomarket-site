@@ -25,6 +25,7 @@ export const acceptanceStatusEnum = pgEnum("delivery_acceptance_status", [
   "refused_by_driver",
   "expired",
   "cancelled_by_reassignment",
+  "cancelled_payment_timeout",
 ]);
 
 export const walletOwnerTypeEnum = pgEnum("wallet_owner_type", ["seller", "driver", "buyer"]);
@@ -75,12 +76,14 @@ export const deliveryWorkflowJobsTable = pgTable(
     acceptedAt: timestamp("accepted_at", { withTimezone: true }),
     refusedAt: timestamp("refused_at", { withTimezone: true }),
     cancelledAt: timestamp("cancelled_at", { withTimezone: true }),
+    cancelReason: text("cancel_reason"),
     createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
     updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
   },
   (t) => ({
     uniqueOrderDriverAssignment: unique("delivery_jobs_order_driver_unique").on(t.orderId, t.driverId),
     orderStatusIdx: index("delivery_jobs_order_status_idx").on(t.orderId, t.acceptanceStatus),
+    acceptanceStatusAcceptedAtIdx: index("delivery_jobs_acceptance_status_accepted_at_idx").on(t.acceptanceStatus, t.acceptedAt),
   }),
 );
 
