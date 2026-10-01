@@ -75,8 +75,14 @@ function toIntegerKm(valueKm: number): number {
 export type LockedDistanceResult = {
   distanceLockedKm: number;
   transportFeeLocked: number;
+  roundTripFeeLocked: number;
   distanceSource: "ors_api" | "fallback_haversine";
 };
+
+/** Round-trip fee is always twice the outbound fee (see computeReturnPricing). */
+function computeRoundTripFeeLocked(transportFeeLocked: number): number {
+  return 2 * transportFeeLocked;
+}
 
 export async function computeLockedDeliveryPricing(input: {
   fromLat: number;
@@ -89,9 +95,11 @@ export async function computeLockedDeliveryPricing(input: {
   const orsKm = await orsDistanceKm(input.fromLat, input.fromLon, input.toLat, input.toLon, orsApiUrl).catch(() => null);
   if (orsKm !== null) {
     const distanceLockedKm = toIntegerKm(orsKm);
+    const transportFeeLocked = distanceLockedKm * FCFA_PER_KM;
     return {
       distanceLockedKm,
-      transportFeeLocked: distanceLockedKm * FCFA_PER_KM,
+      transportFeeLocked,
+      roundTripFeeLocked: computeRoundTripFeeLocked(transportFeeLocked),
       distanceSource: "ors_api",
     };
   }
@@ -115,9 +123,11 @@ export async function computeLockedDeliveryPricing(input: {
     },
   });
 
+  const transportFeeLocked = distanceLockedKm * FCFA_PER_KM;
   return {
     distanceLockedKm,
-    transportFeeLocked: distanceLockedKm * FCFA_PER_KM,
+    transportFeeLocked,
+    roundTripFeeLocked: computeRoundTripFeeLocked(transportFeeLocked),
     distanceSource: "fallback_haversine",
   };
 }

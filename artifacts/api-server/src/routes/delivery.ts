@@ -536,7 +536,7 @@ router.post("/delivery/assignments", async (req, res) => {
         .set({
           distanceLockedKm: pricing.distanceLockedKm,
           transportFeeLocked: pricing.transportFeeLocked,
-          roundTripFeeLocked: pricing.transportFeeLocked * 2,
+          roundTripFeeLocked: pricing.roundTripFeeLocked,
           distanceSource: pricing.distanceSource,
           status: "ASSIGNED",
         })

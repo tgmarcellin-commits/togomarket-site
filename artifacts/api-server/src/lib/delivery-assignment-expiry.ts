@@ -82,20 +82,31 @@ export async function expireUnpaidAcceptedAssignments(): Promise<number> {
       .set({ isAvailable: true, updatedAt: now })
       .where(eq(driversTable.id, candidate.driverId));
 
-    await db.update(ordersTable)
+    const [reassignedOrder] = await db.update(ordersTable)
       .set({ status: "ASSIGNED" })
       .where(and(
         eq(ordersTable.id, candidate.orderId),
         eq(ordersTable.status, "IN_TRANSIT"),
         isNull(ordersTable.driverPaymentConfirmedAt),
-      ));
+      ))
+      .returning({ id: ordersTable.id });
+    if (!reassignedOrder) {
+      logger.warn(
+        { deliveryJobId: candidate.id, orderId: candidate.orderId, driverId: candidate.driverId },
+        "Payment timeout: order status could not be reverted to ASSIGNED (already changed concurrently); job cancelled and driver released, order left untouched for manual review",
+      );
+    }
 
     await db.insert(deliveryAuditLogsTable).values({
       actorType: "system",
       actorId: "delivery-assignment-expiry",
       action: "delivery_payment_timeout_expired",
       orderId: candidate.orderId,
-      metadata: { deliveryJobId: candidate.id, driverId: candidate.driverId },
+      metadata: {
+        deliveryJobId: candidate.id,
+        driverId: candidate.driverId,
+        orderReassigned: Boolean(reassignedOrder),
+      },
     });
 
     logger.warn(
