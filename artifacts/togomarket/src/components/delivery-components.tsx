@@ -138,8 +138,8 @@ export function DeliveryTrackingMap({
       <div ref={mapRef} role="application" aria-label={routeLabels[language][phase]} className="h-56 w-full rounded-lg" />
       <div className="flex flex-wrap gap-x-4 gap-y-1 text-xs text-muted-foreground">
         <span><i className="mr-1 inline-block h-2.5 w-2.5 rounded-full bg-blue-600" />{language === "fr" ? "Livreur" : "Driver"}</span>
-        <span><i className="mr-1 inline-block h-2.5 w-2.5 rounded-full bg-green-600" />{language === "fr" ? "Retrait vendeur" : "Seller pickup"}{!pickup && ` (${language === "fr" ? "position non fournie" : "location unavailable"})`}</span>
-        <span><i className="mr-1 inline-block h-2.5 w-2.5 rounded-full bg-purple-600" />{language === "fr" ? "Acheteur" : "Buyer dropoff"}{!dropoff && ` (${language === "fr" ? "position non fournie" : "location unavailable"})`}</span>
+        <span><i className="mr-1 inline-block h-2.5 w-2.5 rounded-full bg-green-600" />{language === "fr" ? "Retrait vendeur" : "Seller pickup"}{!pickup && ` (${language === "fr" ? "position non fournie" : "no location yet"})`}</span>
+        <span><i className="mr-1 inline-block h-2.5 w-2.5 rounded-full bg-purple-600" />{language === "fr" ? "Acheteur" : "Buyer dropoff"}{!dropoff && ` (${language === "fr" ? "position non fournie" : "no location yet"})`}</span>
         <span className="ml-auto">
           {latest
             ? `${language === "fr" ? "Dernière position" : "Last location"}: ${new Date(latest.recordedAt).toLocaleString(language === "fr" ? "fr-FR" : "en-US")}`
@@ -436,13 +436,19 @@ export function WalletSummary({
   language: Language;
   onUpdated?: () => void;
 }) {
+  // Collapsed by default: the wallet details are hidden behind a "Solde"
+  // toggle button. Click once to reveal the wallet summary, click again
+  // (now labelled "Masquer le solde") to hide it. This avoids showing a
+  // large, often-erroring wallet panel inline in chat / boutique views.
+  const [expanded, setExpanded] = useState(false);
   const [wallet, setWallet] = useState<WalletSummaryResponse | null>(null);
   const [amount, setAmount] = useState("");
-  const [loading, setLoading] = useState(true);
+  const [loading, setLoading] = useState(false);
   const [submitting, setSubmitting] = useState(false);
   const [message, setMessage] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const submitGuard = useRef(createSingleFlightGuard()).current;
+  const hasLoadedRef = useRef(false);
 
   const refresh = async () => {
     const response = await fetch(loadUrl, { headers, credentials: "include" });
@@ -451,6 +457,7 @@ export function WalletSummary({
   };
 
   useEffect(() => {
+    if (!expanded) return;
     let active = true;
     setLoading(true);
     void fetch(loadUrl, { headers, credentials: "include" })
@@ -458,11 +465,11 @@ export function WalletSummary({
         if (!response.ok) throw new Error(language === "fr" ? "Portefeuille indisponible." : "Wallet is unavailable.");
         return await response.json() as WalletSummaryResponse;
       })
-      .then((data) => { if (active) setWallet(data); })
+      .then((data) => { if (active) { setWallet(data); hasLoadedRef.current = true; } })
       .catch((cause: unknown) => { if (active) setError(cause instanceof Error ? cause.message : String(cause)); })
       .finally(() => { if (active) setLoading(false); });
     return () => { active = false; };
-  }, [headers, language, loadUrl]);
+  }, [expanded, headers, language, loadUrl]);
 
   const ready = canWithdrawWallet(wallet);
   const submit = async () => {
@@ -499,12 +506,36 @@ export function WalletSummary({
     }
   };
 
-  if (loading) return <section className="rounded-xl border p-4 text-sm text-muted-foreground">{language === "fr" ? "Chargement du portefeuille…" : "Loading wallet…"}</section>;
+  if (!expanded) {
+    return (
+      <Button
+        type="button"
+        variant="outline"
+        size="sm"
+        onClick={() => setExpanded(true)}
+        data-testid="wallet-summary-toggle"
+      >
+        {language === "fr" ? "Solde" : "Balance"}
+      </Button>
+    );
+  }
 
   return (
     <section className="rounded-xl border bg-card p-4 space-y-3" data-testid="wallet-summary">
-      <h2 className="font-semibold">{language === "fr" ? "Mon portefeuille" : "My wallet"}</h2>
-      {!wallet && <p className="text-sm text-destructive">{error}</p>}
+      <div className="flex items-center justify-between gap-2">
+        <h2 className="font-semibold">{language === "fr" ? "Mon portefeuille" : "My wallet"}</h2>
+        <Button
+          type="button"
+          variant="ghost"
+          size="sm"
+          onClick={() => setExpanded(false)}
+          data-testid="wallet-summary-collapse"
+        >
+          {language === "fr" ? "Masquer le solde" : "Hide balance"}
+        </Button>
+      </div>
+      {loading && <p className="text-sm text-muted-foreground">{language === "fr" ? "Chargement du portefeuille…" : "Loading wallet…"}</p>}
+      {!loading && !wallet && error && <p className="text-sm text-destructive">{error}</p>}
       {wallet && (
         <>
           <div className="grid grid-cols-2 gap-2 text-sm md:grid-cols-4">
