@@ -394,13 +394,14 @@ function allowWebhookRequest(ip: string): boolean {
   return entry.count <= WEBHOOK_RATE_LIMIT.limit;
 }
 
-async function notifyDriverAssignment(
+export async function notifyDriverAssignment(
   driverPhone: string,
-  orderId: number,
+  driverFirstName: string | null | undefined,
   route: string,
 ): Promise<{ status: "sent" | "failed"; providerResponse: Record<string, unknown> }> {
   try {
-    await sendWhatsAppUtilityTemplate(driverPhone, TEMPLATE_DRIVER_ASSIGNMENT, [String(orderId)]);
+    const firstName = driverFirstName?.trim() || "Livreur";
+    await sendWhatsAppUtilityTemplate(driverPhone, TEMPLATE_DRIVER_ASSIGNMENT, [firstName]);
     return {
       status: "sent",
       providerResponse: { provider: "meta", templateName: TEMPLATE_DRIVER_ASSIGNMENT },
@@ -543,7 +544,7 @@ router.post("/delivery/assignments", async (req, res) => {
 
     const notification = await notifyDriverAssignment(
       normalizePhone(driver.whatsappNumber || driver.phone),
-      parsed.orderId,
+      driver.firstName,
       "POST /delivery/assignments",
     );
     await db.insert(whatsappNotificationsTable).values({
@@ -923,7 +924,7 @@ router.post("/delivery/conversations/:conversationId/proposals", async (req, res
 
     const notification = await notifyDriverAssignment(
       normalizePhone(driver.whatsappNumber || driver.phone),
-      state.orderId,
+      driver.firstName,
       "POST /delivery/conversations/:conversationId/proposals",
     );
     await db.insert(whatsappNotificationsTable).values({
