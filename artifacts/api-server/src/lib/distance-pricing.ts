@@ -1,6 +1,6 @@
 import { db, deliveryAuditLogsTable, platformSettingsTable } from "@workspace/db";
 
-const FCFA_PER_KM = 50;
+export const FCFA_PER_KM = 50;
 const FALLBACK_COEFFICIENT_PERMILLE = 1250;
 const DEFAULT_ORS_URL = "https://api.openrouteservice.org/v2/directions/driving-car";
 
@@ -8,7 +8,7 @@ function toRadians(value: number): number {
   return value * (Math.PI / 180);
 }
 
-function haversineDistanceKm(fromLat: number, fromLon: number, toLat: number, toLon: number): number {
+export function haversineDistanceKm(fromLat: number, fromLon: number, toLat: number, toLon: number): number {
   const R = 6371;
   const dLat = toRadians(toLat - fromLat);
   const dLon = toRadians(toLon - fromLon);
@@ -120,3 +120,74 @@ export async function computeLockedDeliveryPricing(input: {
     distanceSource: "fallback_haversine",
   };
 }
+
+export function computeReturnPricing(transportFeeLocked: number, distanceLockedKm: number) {
+  return {
+    returnDistanceKm: distanceLockedKm,
+    returnFee: transportFeeLocked,
+    roundTripFee: 2 * transportFeeLocked,
+  };
+}
+
+export async function superadminCorrectOrderPricing(input: {
+  orderId: number;
+  newDistanceKm: number;
+  reason: string;
+}) {
+  const { orderId, newDistanceKm, reason } = input;
+  if (!Number.isInteger(newDistanceKm) || newDistanceKm < 1) {
+    throw new Error("La distance corrigée doit être un entier en km >= 1.");
+  }
+  if (!reason || reason.trim().length === 0) {
+    throw new Error("Le motif de la correction est obligatoire pour l'audit.");
+  }
+
+  const { ordersTable } = await import("@workspace/db");
+  const { eq } = await import("drizzle-orm");
+
+  const [order] = await db
+    .select()
+    .from(ordersTable)
+    .where(eq(ordersTable.id, orderId))
+    .limit(1);
+
+  if (!order) {
+    throw new Error(`Commande #${orderId} introuvable.`);
+  }
+
+  const transportFeeLocked = newDistanceKm * FCFA_PER_KM;
+  const roundTripFeeLocked = 2 * transportFeeLocked;
+
+  await db
+    .update(ordersTable)
+    .set({
+      distanceLockedKm: newDistanceKm,
+      transportFeeLocked,
+      roundTripFeeLocked,
+    })
+    .where(eq(ordersTable.id, orderId));
+
+  await db.insert(deliveryAuditLogsTable).values({
+    actorType: "superadmin",
+    action: "order_pricing_superadmin_corrected",
+    orderId,
+    metadata: {
+      previousDistanceKm: order.distanceLockedKm,
+      previousTransportFee: order.transportFeeLocked,
+      previousRoundTripFee: order.roundTripFeeLocked,
+      newDistanceKm,
+      newTransportFee: transportFeeLocked,
+      newRoundTripFee: roundTripFeeLocked,
+      reason,
+    },
+  });
+
+  return {
+    orderId,
+    distanceLockedKm: newDistanceKm,
+    transportFeeLocked,
+    roundTripFeeLocked,
+    reason,
+  };
+}
+
