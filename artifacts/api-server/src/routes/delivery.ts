@@ -26,6 +26,7 @@ import { createDriverSessionToken, isDriverSessionTokenMatch, parseBearerToken }
 import { hashOpaqueToken } from "../lib/marketplace-security";
 import { hasActiveOrAcceptedMission, isDriverBusyForAssignment, isOrderAssignableStatus } from "../lib/delivery-assignment-guard";
 import {
+  buildOrderCreationInput,
   getBusyDriverIds,
   getPriceConfirmationState,
   hasAcceptedAssignmentConflict,
@@ -39,6 +40,7 @@ import { requestDeliveryQrToken, scanAndVerifyQrToken } from "../lib/qr-service"
 import { getWalletSummary, requestWalletWithdrawal } from "../lib/wallet-service";
 import { getTrialBalance } from "../lib/accounting-ledger";
 import { logAndRespondInternalError, respondToRouteError } from "../lib/route-errors";
+import { logger } from "../lib/logger";
 
 const router: IRouter = Router();
 const ASSIGNMENT_TTL_MS = 15 * 60 * 1000;
@@ -643,6 +645,12 @@ router.post("/delivery/conversations/:conversationId/price-confirmation", async 
     }
 
     if (state.priceState.status === "matched" && !state.orderId && state.priceState.buyerAmount !== null) {
+      // Outcome is tracked explicitly (instead of relying on silent early
+      // `return`s inside the transaction) so a failure to create the order
+      // can be logged and surfaced to the client below, rather than letting
+      // the route respond `{ success: true }` while `orderId` stays null.
+      let orderCreationOutcome: "created" | "already_exists" | "price_no_longer_matched" | "insert_failed" =
+        "insert_failed";
       await db.transaction(async (tx) => {
         await tx.execute(sql`SELECT id FROM conversations WHERE id = ${identity.conversationId} FOR UPDATE`);
         const [existingMapping] = await tx
@@ -655,7 +663,10 @@ router.post("/delivery/conversations/:conversationId/price-confirmation", async 
           ))
           .orderBy(desc(conversationDeliveryOrdersTable.createdAt))
           .limit(1);
-        if (existingMapping) return;
+        if (existingMapping) {
+          orderCreationOutcome = "already_exists";
+          return;
+        }
 
         const confirmations = await tx
           .select({
@@ -667,7 +678,10 @@ router.post("/delivery/conversations/:conversationId/price-confirmation", async 
         const lockedPriceState = getPriceConfirmationState(confirmations
           .filter((row): row is { actorType: "buyer" | "vendor"; amountFcfa: number } =>
             row.actorType === "buyer" || row.actorType === "vendor"));
-        if (lockedPriceState.status !== "matched" || lockedPriceState.buyerAmount === null) return;
+        if (lockedPriceState.status !== "matched" || lockedPriceState.buyerAmount === null) {
+          orderCreationOutcome = "price_no_longer_matched";
+          return;
+        }
 
         const [vendor] = await tx
           .select({
@@ -677,24 +691,49 @@ router.post("/delivery/conversations/:conversationId/price-confirmation", async 
           .where(eq(vendorsTable.id, state.conversation.vendorId))
           .limit(1);
 
+        const orderInput = buildOrderCreationInput({
+          buyerName: state.conversation.buyerName,
+          buyerPhone: state.conversation.buyerPhone,
+          listingTitle: state.conversation.listingTitle,
+          vendorLastName: vendor?.lastName,
+          lockedBuyerAmount: lockedPriceState.buyerAmount,
+        });
+
         const [createdOrder] = await tx
           .insert(ordersTable)
           .values({
-            firstName: state.conversation.buyerName,
-            lastName: vendor?.lastName ?? "Vendeur",
-            phone: state.conversation.buyerPhone,
-            description: state.conversation.listingTitle ?? "Commande créée depuis Messages",
-            articlePriceLocked: lockedPriceState.buyerAmount,
+            ...orderInput,
             status: "PENDING",
           })
           .returning({ id: ordersTable.id });
-        if (!createdOrder) return;
+        if (!createdOrder) {
+          orderCreationOutcome = "insert_failed";
+          return;
+        }
 
         await tx.insert(conversationDeliveryOrdersTable).values({
           conversationId: identity.conversationId,
           orderId: createdOrder.id,
         });
+        orderCreationOutcome = "created";
       });
+
+      if (orderCreationOutcome === "insert_failed") {
+        const log = req.log ?? logger;
+        log.error(
+          {
+            route: "POST /delivery/conversations/:conversationId/price-confirmation",
+            conversationId: identity.conversationId,
+            orderCreationOutcome,
+          },
+          "Order auto-creation did not produce an order after a matched price confirmation",
+        );
+        await emitConversationDeliveryState(identity.conversationId);
+        return res.status(500).json({
+          error: "Prix confirmé, mais la commande n'a pas pu être créée automatiquement. Réessayez dans quelques instants ou contactez le support.",
+          code: "ORDER_CREATION_FAILED",
+        });
+      }
     }
 
     await emitConversationDeliveryState(identity.conversationId);
@@ -744,7 +783,10 @@ router.post("/delivery/conversations/:conversationId/proposals", async (req, res
     const state = await getConversationDeliveryState(identity.conversationId);
     if (!state) return res.status(404).json({ error: "Conversation introuvable." });
     if (state.priceState.status !== "matched" || !state.orderId) {
-      return res.status(409).json({ error: "Prix non confirmé. Assignez d'abord un montant identique." });
+      return res.status(409).json({
+        error: "Prix non confirmé. Assignez d'abord un montant identique.",
+        code: "PRICE_NOT_CONFIRMED",
+      });
     }
     if (state.hasAcceptedDriver) {
       return res.status(409).json({ error: "Commande déjà verrouillée par un livreur." });

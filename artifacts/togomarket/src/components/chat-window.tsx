@@ -445,7 +445,19 @@ export function ChatWindow({
         body: JSON.stringify({ driverId }),
       });
       if (!res.ok) {
-        const data = await res.json().catch(() => ({})) as { error?: string };
+        const data = await res.json().catch(() => ({})) as { error?: string; code?: string };
+        if (data.code === "PRICE_NOT_CONFIRMED" && deliveryPriceState.status === "matched") {
+          // The UI already showed "matched" with identical amounts, so the raw
+          // backend message would be confusing here. Keep the technical error
+          // in the console for debugging, but show an actionable message.
+          console.error("Delivery proposal rejected despite matched price state:", data.error);
+          setDeliveryError(
+            lang === "fr"
+              ? "Le prix est confirmé mais la commande n'a pas pu être finalisée automatiquement. Réessayez dans quelques secondes ou contactez le support si le problème persiste."
+              : "The price is confirmed but the order could not be finalized automatically. Try again in a few seconds or contact support if the issue persists.",
+          );
+          return;
+        }
         setDeliveryError(data.error ?? (lang === "fr" ? "Proposition impossible." : "Could not propose driver."));
         return;
       }
@@ -454,7 +466,7 @@ export function ChatWindow({
     } finally {
       setDriverSubmittingId(null);
     }
-  }, [auth, conversationId, fetchAvailableDrivers, fetchDeliveryState, lang]);
+  }, [auth, conversationId, deliveryPriceState.status, fetchAvailableDrivers, fetchDeliveryState, lang]);
 
   useEffect(() => {
     if (!open || !conversationId) return;
@@ -1162,12 +1174,30 @@ export function ChatWindow({
             </p>
             <div className="grid grid-cols-2 gap-2 text-xs">
               <div className="rounded-lg border bg-background px-2.5 py-2">
-                <p className="text-muted-foreground">{lang === "fr" ? "Acheteur" : "Buyer"}</p>
-                <p className="font-semibold">{deliveryPriceState.buyerAmount != null ? `${new Intl.NumberFormat("fr-FR").format(deliveryPriceState.buyerAmount)} FCFA` : "—"}</p>
+                <p className="text-muted-foreground flex items-center gap-1">
+                  <span aria-hidden="true">{deliveryPriceState.buyerAmount != null ? "✅" : "⏳"}</span>
+                  {lang === "fr" ? "Acheteur" : "Buyer"}
+                </p>
+                <p className="font-semibold">
+                  {deliveryPriceState.buyerAmount != null
+                    ? (lang === "fr"
+                      ? `Confirmé : ${new Intl.NumberFormat("fr-FR").format(deliveryPriceState.buyerAmount)} FCFA`
+                      : `Confirmed: ${new Intl.NumberFormat("fr-FR").format(deliveryPriceState.buyerAmount)} FCFA`)
+                    : (lang === "fr" ? "En attente" : "Waiting")}
+                </p>
               </div>
               <div className="rounded-lg border bg-background px-2.5 py-2">
-                <p className="text-muted-foreground">{lang === "fr" ? "Vendeur" : "Seller"}</p>
-                <p className="font-semibold">{deliveryPriceState.vendorAmount != null ? `${new Intl.NumberFormat("fr-FR").format(deliveryPriceState.vendorAmount)} FCFA` : "—"}</p>
+                <p className="text-muted-foreground flex items-center gap-1">
+                  <span aria-hidden="true">{deliveryPriceState.vendorAmount != null ? "✅" : "⏳"}</span>
+                  {lang === "fr" ? "Vendeur" : "Seller"}
+                </p>
+                <p className="font-semibold">
+                  {deliveryPriceState.vendorAmount != null
+                    ? (lang === "fr"
+                      ? `Confirmé : ${new Intl.NumberFormat("fr-FR").format(deliveryPriceState.vendorAmount)} FCFA`
+                      : `Confirmed: ${new Intl.NumberFormat("fr-FR").format(deliveryPriceState.vendorAmount)} FCFA`)
+                    : (lang === "fr" ? "En attente" : "Waiting")}
+                </p>
               </div>
             </div>
             <div className="flex items-center gap-2">
@@ -1192,6 +1222,12 @@ export function ChatWindow({
             {deliveryError && <p className="text-xs text-destructive">{deliveryError}</p>}
             {deliveryPriceState.status === "matched" && (
               <div className="space-y-2">
+                <p className="text-xs font-medium text-emerald-600 flex items-center gap-1">
+                  <span aria-hidden="true">✅</span>
+                  {lang === "fr"
+                    ? `Prix confirmé par les deux parties (${new Intl.NumberFormat("fr-FR").format(deliveryPriceState.buyerAmount ?? 0)} FCFA)`
+                    : `Price confirmed by both parties (${new Intl.NumberFormat("fr-FR").format(deliveryPriceState.buyerAmount ?? 0)} FCFA)`}
+                </p>
                 <p className="text-xs font-medium text-foreground">
                   {lang === "fr" ? "Livreurs disponibles" : "Available drivers"}
                 </p>
