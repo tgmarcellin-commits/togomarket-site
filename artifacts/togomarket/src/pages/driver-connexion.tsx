@@ -48,6 +48,7 @@ function getAssignmentStatusLabel(status: string, lang: "fr" | "en") {
     refused_by_driver: { fr: "Refusée", en: "Declined" },
     expired: { fr: "Expirée", en: "Expired" },
     cancelled_by_reassignment: { fr: "Réassignée", en: "Reassigned" },
+    cancelled_payment_timeout: { fr: "Annulée (paiement expiré)", en: "Cancelled (payment timed out)" },
   };
   const normalizedLang = lang === "fr" ? "fr" : "en";
   return labels[status]?.[normalizedLang] ?? status;
@@ -552,7 +553,7 @@ export default function DriverConnexion() {
                           <div className="grid gap-2 text-sm text-muted-foreground md:grid-cols-3">
                             <p>{isFrench ? "Distance vendeur → acheteur" : "Seller → buyer distance"}: <span className="font-medium text-foreground">{assignment.order?.distanceLockedKm ?? "—"} km</span></p>
                             <p>{isFrench ? "Frais aller / paiement prévu" : "Outbound fee / expected payout"}: <span className="font-medium text-foreground">{assignment.order?.transportFeeLocked != null ? `${new Intl.NumberFormat("fr-FR").format(assignment.order.transportFeeLocked)} FCFA` : "—"}</span></p>
-                            <p>{isFrench ? "Frais retour possibles" : "Possible return fee"}: <span className="font-medium text-foreground">{assignment.order?.transportFeeLocked != null ? `${new Intl.NumberFormat("fr-FR").format(assignment.order.transportFeeLocked)} FCFA` : "—"}</span></p>
+                            <p>{isFrench ? "Frais retour possibles" : "Possible return fee"}: <span className="font-medium text-foreground">{assignment.order?.roundTripFeeLocked != null ? `${new Intl.NumberFormat("fr-FR").format(assignment.order.roundTripFeeLocked)} FCFA` : "—"}</span></p>
                           </div>
 
                           {assignment.assignmentExpiresAt && (

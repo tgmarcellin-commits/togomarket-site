@@ -68,7 +68,7 @@ export function DeliveryTrackingMap({
     (newest, location) => !newest || new Date(location.recordedAt) > new Date(newest.recordedAt) ? location : newest,
     null,
   );
-  const stale = isLocationStale(latest?.recordedAt);
+  const stale = latest != null && isLocationStale(latest.recordedAt);
   const phase = getDeliveryRoutePhase(acceptanceStatus, orderStatus);
   const points = useMemo(() => {
     const ordered = [...locations].sort(

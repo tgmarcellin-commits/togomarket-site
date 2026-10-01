@@ -4,6 +4,7 @@ import {
   hasActiveOrAcceptedMission,
   isDriverBusyForAssignment,
   isOrderAssignableStatus,
+  shouldExpireAcceptedAssignmentForPaymentTimeout,
 } from "./delivery-assignment-guard";
 
 test("isDriverBusyForAssignment marks accepted assignments as busy", () => {
@@ -84,6 +85,41 @@ test("hasActiveOrAcceptedMission allows deletion when missions are refused, expi
       { acceptanceStatus: "expired", orderStatus: "ASSIGNED" },
       { acceptanceStatus: "cancelled_by_reassignment", orderStatus: "IN_TRANSIT" },
     ]),
+    false,
+  );
+});
+
+test("shouldExpireAcceptedAssignmentForPaymentTimeout expires an unpaid acceptance after 10 minutes", () => {
+  const acceptedAt = new Date("2026-09-25T06:00:00.000Z");
+  const now = new Date("2026-09-25T06:10:00.000Z");
+  assert.equal(
+    shouldExpireAcceptedAssignmentForPaymentTimeout({ acceptedAt, paymentConfirmedAt: null, now }),
+    true,
+  );
+});
+
+test("shouldExpireAcceptedAssignmentForPaymentTimeout does not expire before the 10 minute deadline", () => {
+  const acceptedAt = new Date("2026-09-25T06:00:00.000Z");
+  const now = new Date("2026-09-25T06:09:59.000Z");
+  assert.equal(
+    shouldExpireAcceptedAssignmentForPaymentTimeout({ acceptedAt, paymentConfirmedAt: null, now }),
+    false,
+  );
+});
+
+test("shouldExpireAcceptedAssignmentForPaymentTimeout never expires once payment is confirmed", () => {
+  const acceptedAt = new Date("2026-09-25T06:00:00.000Z");
+  const paymentConfirmedAt = new Date("2026-09-25T06:05:00.000Z");
+  const now = new Date("2026-09-25T07:00:00.000Z");
+  assert.equal(
+    shouldExpireAcceptedAssignmentForPaymentTimeout({ acceptedAt, paymentConfirmedAt, now }),
+    false,
+  );
+});
+
+test("shouldExpireAcceptedAssignmentForPaymentTimeout is a no-op without an acceptance timestamp", () => {
+  assert.equal(
+    shouldExpireAcceptedAssignmentForPaymentTimeout({ acceptedAt: null, paymentConfirmedAt: null }),
     false,
   );
 });

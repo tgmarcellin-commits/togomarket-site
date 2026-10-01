@@ -18,6 +18,7 @@ router.post("/orders", async (req, res): Promise<void> => {
     "distanceSource",
     "settlementStatus",
     "settlementRef",
+    "driverPaymentConfirmedAt",
   ];
   const forbiddenFields = forbiddenClientPricingFields.filter((field) => Object.prototype.hasOwnProperty.call(req.body, field));
   if (forbiddenFields.length > 0) {

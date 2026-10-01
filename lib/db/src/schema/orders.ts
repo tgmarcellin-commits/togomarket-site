@@ -34,6 +34,7 @@ export const ordersTable = pgTable("orders", {
   sellerConsentAt: timestamp("seller_consent_at", { withTimezone: true }),
   buyerConsented: boolean("buyer_consented").notNull().default(false),
   sellerConsented: boolean("seller_consented").notNull().default(false),
+  driverPaymentConfirmedAt: timestamp("driver_payment_confirmed_at", { withTimezone: true }),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
 });
 

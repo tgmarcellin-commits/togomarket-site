@@ -20,6 +20,26 @@ export function isOrderAssignableStatus(status: string): boolean {
   return status === "PENDING" || status === "ASSIGNED" || status === "IN_TRANSIT";
 }
 
+/** Driver acceptances must be paid within this delay or the mission is released. */
+export const PAYMENT_CONFIRMATION_TIMEOUT_MS = 10 * 60 * 1000;
+
+/**
+ * A driver who accepted a mission must not stay blocked indefinitely if the
+ * buyer never pays: once `PAYMENT_CONFIRMATION_TIMEOUT_MS` has elapsed since
+ * acceptance without a confirmed payment, the acceptance is considered
+ * expired so the driver can be released and the order reassigned.
+ */
+export function shouldExpireAcceptedAssignmentForPaymentTimeout(params: {
+  acceptedAt: Date | null;
+  paymentConfirmedAt: Date | null;
+  now?: Date;
+  timeoutMs?: number;
+}): boolean {
+  const { acceptedAt, paymentConfirmedAt, now = new Date(), timeoutMs = PAYMENT_CONFIRMATION_TIMEOUT_MS } = params;
+  if (!acceptedAt || paymentConfirmedAt) return false;
+  return now.getTime() - acceptedAt.getTime() >= timeoutMs;
+}
+
 type DriverMissionAssignment = {
   acceptanceStatus: string;
   orderStatus: string;
