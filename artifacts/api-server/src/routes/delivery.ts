@@ -1284,8 +1284,8 @@ router.post("/fedapay-driver-callback", async (req, res) => {
   return res.status(200).json({ received: true });
 });
 
-router.get("/drivers/available", async (_req, res) => {
-  const adminCode = String(_req.headers["x-admin-code"] ?? "").trim();
+router.get("/drivers/available", async (req, res) => {
+  const adminCode = String(req.headers["x-admin-code"] ?? "").trim();
   if (!adminCode || !await verifyAdminCode(adminCode)) {
     return res.status(403).json({ error: "Accès administrateur requis." });
   }
@@ -1293,7 +1293,7 @@ router.get("/drivers/available", async (_req, res) => {
     const drivers = await buildAvailableDriversWithRatings();
     return res.json(drivers);
   } catch (err) {
-    logAndRespondInternalError(_req, res, {
+    logAndRespondInternalError(req, res, {
       route: "GET /drivers/available",
       message: "Impossible de charger les livreurs disponibles.",
       err,

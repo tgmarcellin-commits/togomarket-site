@@ -619,6 +619,16 @@ const OVERVIEW_SECTION_NAMES = [
 ] as const;
 type OverviewSectionName = (typeof OVERVIEW_SECTION_NAMES)[number];
 
+function recordSectionFailure(
+  req: Request,
+  degradedSections: OverviewSectionName[],
+  section: OverviewSectionName,
+  err: unknown,
+): void {
+  req.log?.error({ err, route: "GET /admin/operations/overview", section }, "Operations overview subsection failed");
+  degradedSections.push(section);
+}
+
 router.get("/admin/operations/overview", async (req, res) => {
   if (!(await requireAnyAdmin(req, res))) return;
 
@@ -656,8 +666,7 @@ router.get("/admin/operations/overview", async (req, res) => {
     pendingResponseCount = Number(jobPendingStats?.pendingResponseCount ?? 0);
     totalActiveMissions = inTransitCount + returningCount + pendingResponseCount;
   } catch (err) {
-    req.log?.error({ err, route: "GET /admin/operations/overview", section: "activeMissions" }, "Operations overview subsection failed");
-    degradedSections.push("activeMissions");
+    recordSectionFailure(req, degradedSections, "activeMissions", err);
   }
 
   // 2. Drivers status
@@ -693,8 +702,7 @@ router.get("/admin/operations/overview", async (req, res) => {
     availableDrivers = Number(availableDriversRow[0]?.availableCount ?? 0);
     busyDrivers = Math.max(0, activeDrivers - availableDrivers);
   } catch (err) {
-    req.log?.error({ err, route: "GET /admin/operations/overview", section: "driverStatus" }, "Operations overview subsection failed");
-    degradedSections.push("driverStatus");
+    recordSectionFailure(req, degradedSections, "driverStatus", err);
   }
 
   // 3. Open disputes
@@ -706,8 +714,7 @@ router.get("/admin/operations/overview", async (req, res) => {
       .where(eq(disputesTable.status, "open"));
     openDisputesCount = Number(openDisputes?.count ?? 0);
   } catch (err) {
-    req.log?.error({ err, route: "GET /admin/operations/overview", section: "disputes" }, "Operations overview subsection failed");
-    degradedSections.push("disputes");
+    recordSectionFailure(req, degradedSections, "disputes", err);
   }
 
   // 4. GPS Freshness check on active missions
@@ -779,8 +786,7 @@ router.get("/admin/operations/overview", async (req, res) => {
       }
     }
   } catch (err) {
-    req.log?.error({ err, route: "GET /admin/operations/overview", section: "gpsHealth" }, "Operations overview subsection failed");
-    degradedSections.push("gpsHealth");
+    recordSectionFailure(req, degradedSections, "gpsHealth", err);
   }
 
   // 5. QR Token Health (SQL aggregation)
@@ -809,8 +815,7 @@ router.get("/admin/operations/overview", async (req, res) => {
     failedProximityCount = Number(qrStats?.failedProximityCount ?? 0);
     avgProximityMeters = qrStats?.avgProximityMeters != null ? Number(qrStats.avgProximityMeters) : null;
   } catch (err) {
-    req.log?.error({ err, route: "GET /admin/operations/overview", section: "qrHealth" }, "Operations overview subsection failed");
-    degradedSections.push("qrHealth");
+    recordSectionFailure(req, degradedSections, "qrHealth", err);
   }
 
   // 6. Wallet movement and Payout health summary (SQL aggregation)
@@ -851,8 +856,7 @@ router.get("/admin/operations/overview", async (req, res) => {
     reviewRequiredCount = Number(withdrawalStats?.reviewRequiredCount ?? 0);
     failedWithdrawalsCount = Number(withdrawalStats?.failedWithdrawalsCount ?? 0);
   } catch (err) {
-    req.log?.error({ err, route: "GET /admin/operations/overview", section: "walletHealth" }, "Operations overview subsection failed");
-    degradedSections.push("walletHealth");
+    recordSectionFailure(req, degradedSections, "walletHealth", err);
   }
 
   // 7. FedaPay Webhook Events Health (SQL aggregation + targeted single latest rows)
@@ -903,8 +907,7 @@ router.get("/admin/operations/overview", async (req, res) => {
     lastProcessedAt = latestProcessed?.processedAt ? latestProcessed.processedAt.toISOString() : null;
     lastEventName = latestWebhook?.eventName ?? null;
   } catch (err) {
-    req.log?.error({ err, route: "GET /admin/operations/overview", section: "fedapayWebhooks" }, "Operations overview subsection failed");
-    degradedSections.push("fedapayWebhooks");
+    recordSectionFailure(req, degradedSections, "fedapayWebhooks", err);
   }
 
   if (degradedSections.length >= OVERVIEW_SECTION_NAMES.length) {
