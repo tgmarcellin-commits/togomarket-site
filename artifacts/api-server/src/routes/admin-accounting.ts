@@ -479,6 +479,11 @@ router.post("/admin/comptabilite/reverse", async (req, res) => {
       return res.status(409).json({ error: "Cette écriture comptable a déjà été contre-passée / annulée." });
     }
 
+  // Inner try/catch: reverseJournalEntry throws deliberate business-rule
+  // errors (e.g. unbalanced journal, missing accounts) that are surfaced to
+  // the admin as a specific 400 message. The outer try/catch below is a
+  // safety net for any other (infra/DB) failure, returning a generic safe
+  // 500 instead of letting it crash to the global "Erreur interne" handler.
   try {
     const result = await reverseJournalEntry({
       originalJournalReference: journalReference,

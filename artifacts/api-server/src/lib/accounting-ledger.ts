@@ -1,6 +1,7 @@
 import { createHash } from "node:crypto";
 import { db, ledgerAccountsTable, ledgerEntriesTable } from "@workspace/db";
 import { eq, sql } from "drizzle-orm";
+import type { AnyPgColumn } from "drizzle-orm/pg-core";
 
 export type LedgerAccountType = "asset" | "liability" | "equity" | "revenue" | "expense";
 export type DbOrTx = any;
@@ -351,6 +352,6 @@ export function isNumericMetadataValue(value: unknown): value is string {
  * PostgreSQL, unlike AND/OR) so rows with non-numeric or absent metadata
  * values never reach the `::int` cast and cannot crash the query.
  */
-export function buildSafeMetadataIntFilter(metadataColumn: any, key: string, value: number) {
+export function buildSafeMetadataIntFilter(metadataColumn: AnyPgColumn, key: string, value: number) {
   return sql`(CASE WHEN ${metadataColumn}->>${key} ~ '^-?[0-9]+$' THEN (${metadataColumn}->>${key})::int ELSE NULL END) = ${value}`;
 }
