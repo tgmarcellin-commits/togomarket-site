@@ -53,6 +53,9 @@ import { SmartVideo } from "@/components/smart-video";
 import { InboxMessageContent } from "@/components/inbox-message-content";
 import AdminDrivers from "@/pages/admin-drivers";
 import { AdminDeliverySupervisor } from "@/components/delivery-components";
+import { SuperadminAccountingView } from "@/components/superadmin-accounting-view";
+import { DeliveryOperationsOverview } from "@/components/delivery-operations-overview";
+import { WalletsPayoutMonitoring } from "@/components/wallets-payout-monitoring";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import {
@@ -100,6 +103,9 @@ import {
   MoreVertical,
   Pencil,
   Truck,
+  BookOpen,
+  Activity,
+  Wallet,
 } from "lucide-react";
 
 type DashTab =
@@ -107,6 +113,9 @@ type DashTab =
   | "pending"
   | "delivery"
   | "drivers"
+  | "accounting"
+  | "operations"
+  | "wallets"
   | "vendors"
   | "ads"
   | "events"
@@ -1687,6 +1696,9 @@ export default function AdminDashboard() {
     { key: "pending", label: "En attente", icon: <Clock className="w-4 h-4" />, roles: ["superadmin"] },
     { key: "delivery", label: "Livraisons", icon: <Truck className="w-4 h-4" />, roles: ["superadmin"] },
     { key: "drivers", label: "Livreurs", icon: <Truck className="w-4 h-4" />, roles: ["superadmin"] },
+    { key: "accounting", label: "Comptabilité", icon: <BookOpen className="w-4 h-4" />, roles: ["superadmin"] },
+    { key: "operations", label: "Opérations", icon: <Activity className="w-4 h-4" />, roles: ["superadmin"] },
+    { key: "wallets", label: "Portefeuilles", icon: <Wallet className="w-4 h-4" />, roles: ["superadmin"] },
     { key: "vendors", label: "Vendeurs", icon: <Users className="w-4 h-4" />, roles: ["superadmin"] },
     { key: "ads", label: "Publicités", icon: <Megaphone className="w-4 h-4" />, roles: ["superadmin", "admin_pub"] },
     { key: "events", label: "Événements", icon: <Calendar className="w-4 h-4" />, roles: ["superadmin", "admin_event"] },
@@ -2407,6 +2419,18 @@ export default function AdminDashboard() {
 
         {tab === "drivers" && isSuperAdmin && (
           <AdminDrivers adminCode={password} isSuperAdmin={isSuperAdmin} orders={deliveryOrders} />
+        )}
+
+        {tab === "accounting" && isSuperAdmin && (
+          <SuperadminAccountingView adminCode={password} />
+        )}
+
+        {tab === "operations" && isSuperAdmin && (
+          <DeliveryOperationsOverview adminCode={password} />
+        )}
+
+        {tab === "wallets" && isSuperAdmin && (
+          <WalletsPayoutMonitoring adminCode={password} />
         )}
 
         {/* ── VENDEURS ─────────────────────────────────────────── */}

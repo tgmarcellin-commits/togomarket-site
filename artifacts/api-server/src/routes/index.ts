@@ -20,6 +20,7 @@ import vendorNotificationsRouter from "./vendor-notifications";
 import reviewsRouter from "./reviews";
 import deliveryRouter from "./delivery";
 import marketplaceRouter from "./marketplace";
+import adminAccountingRouter from "./admin-accounting";
 
 const router: IRouter = Router();
 
@@ -43,5 +44,6 @@ router.use(vendorNotificationsRouter);
 router.use(reviewsRouter);
 router.use(deliveryRouter);
 router.use(marketplaceRouter);
+router.use(adminAccountingRouter);
 
 export default router;
