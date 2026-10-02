@@ -12,6 +12,7 @@ import {
   settleDeliveredOrder,
   settleReturnedOrder,
 } from "./settlement-service";
+import { computeSellerPayout } from "./platform-fees";
 import {
   getWalletSummary,
   requestWalletWithdrawal,
@@ -73,7 +74,7 @@ test("settlement: successful delivery credits seller and driver, closes order an
   });
 
   assert.equal(settlement.status, "settled");
-  assert.equal(settlement.sellerPayout, articlePrice);
+  assert.equal(settlement.sellerPayout, computeSellerPayout(articlePrice));
   assert.equal(settlement.driverPayout, transportFee);
   assert.equal(settlement.buyerRefund, 0);
 
@@ -87,7 +88,7 @@ test("settlement: successful delivery credits seller and driver, closes order an
 
   // 6. Verify seller wallet credited
   const sellerWallet = await getWalletSummary("seller", sellerId);
-  assert.equal(sellerWallet.availableBalance, articlePrice);
+  assert.equal(sellerWallet.availableBalance, computeSellerPayout(articlePrice));
 
   // 7. Verify driver wallet credited
   const driverWallet = await getWalletSummary("driver", driver.id);
@@ -104,7 +105,7 @@ test("settlement: successful delivery credits seller and driver, closes order an
 
   // Wallets must NOT be double-credited!
   const sellerWalletAfter = await getWalletSummary("seller", sellerId);
-  assert.equal(sellerWalletAfter.availableBalance, articlePrice);
+  assert.equal(sellerWalletAfter.availableBalance, computeSellerPayout(articlePrice));
 });
 
 test("settlement: returned order with sufficient buyer funds pays round trip to driver, refunds buyer, seller gets 0", async () => {
@@ -311,3 +312,4 @@ test("wallet: withdrawal readiness, locked funds prevention, and honest availabi
   assert.equal(summaryAfter.pendingPayoutBalance, 3000);
   assert.equal(summaryAfter.lockedBalance, 2000);
 });
+    
