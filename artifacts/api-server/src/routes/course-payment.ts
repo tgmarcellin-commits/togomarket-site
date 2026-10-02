@@ -15,6 +15,7 @@ import {
 } from "../lib/course-payment";
 import { paymentWebhookEventHash, verifyFedapayDriverWebhookSignature } from "../lib/fedapay-driver-webhook";
 import { computeCourseTotal } from "../lib/platform-fees";
+import { PAYMENT_CONFIRMATION_TIMEOUT_MS } from "../lib/delivery-assignment-guard";
 
 const router: IRouter = Router();
 
@@ -109,6 +110,80 @@ router.post("/delivery/orders/:orderId/course-payment", async (req, res): Promis
 });
 
 /**
+ * GET /api/delivery/conversations/:conversationId/course-payment-status
+ * Header : x-buyer-token
+ * Dit à l'écran de l'acheteur s'il doit afficher « Payer la course » :
+ * le livreur a accepté, la course n'est pas encore payée, et combien il doit payer.
+ */
+router.get("/delivery/conversations/:conversationId/course-payment-status", async (req, res): Promise<void> => {
+  const conversationId = Number(req.params.conversationId);
+  const buyerToken = req.headers["x-buyer-token"];
+  if (!Number.isInteger(conversationId) || conversationId <= 0 || typeof buyerToken !== "string") {
+    res.status(400).json({ error: "Requête invalide" });
+    return;
+  }
+  const resolvedConversationId = await resolveBuyerConversationId(conversationId, buyerToken);
+  if (!resolvedConversationId) {
+    res.status(403).json({ error: "Accès refusé" });
+    return;
+  }
+
+  const [link] = await db
+    .select({ orderId: conversationDeliveryOrdersTable.orderId })
+    .from(conversationDeliveryOrdersTable)
+    .where(eq(conversationDeliveryOrdersTable.conversationId, resolvedConversationId))
+    .orderBy(desc(conversationDeliveryOrdersTable.createdAt))
+    .limit(1);
+  if (!link) {
+    res.json({ orderId: null, driverAccepted: false, paid: false });
+    return;
+  }
+
+  const [order] = await db
+    .select({
+      id: ordersTable.id,
+      status: ordersTable.status,
+      articlePriceLocked: ordersTable.articlePriceLocked,
+      transportFeeLocked: ordersTable.transportFeeLocked,
+      driverPaymentConfirmedAt: ordersTable.driverPaymentConfirmedAt,
+    })
+    .from(ordersTable)
+    .where(eq(ordersTable.id, link.orderId))
+    .limit(1);
+  if (!order) {
+    res.json({ orderId: null, driverAccepted: false, paid: false });
+    return;
+  }
+
+  const [job] = await db
+    .select({ acceptedAt: deliveryWorkflowJobsTable.acceptedAt })
+    .from(deliveryWorkflowJobsTable)
+    .where(and(
+      eq(deliveryWorkflowJobsTable.orderId, order.id),
+      eq(deliveryWorkflowJobsTable.acceptanceStatus, "accepted_by_driver"),
+    ))
+    .limit(1);
+
+  const paid = Boolean(order.driverPaymentConfirmedAt);
+  const driverAccepted = Boolean(job);
+  const timeoutEnabled = process.env.DISABLE_PAYMENT_TIMEOUT !== "true";
+  const paymentDeadlineAt = job?.acceptedAt && !paid && timeoutEnabled
+    ? new Date(job.acceptedAt.getTime() + PAYMENT_CONFIRMATION_TIMEOUT_MS).toISOString()
+    : null;
+
+  res.json({
+    orderId: order.id,
+    orderStatus: order.status,
+    driverAccepted,
+    paid,
+    paidAt: order.driverPaymentConfirmedAt?.toISOString() ?? null,
+    paymentDeadlineAt,
+    // Le détail n'est utile (et exact) que lorsque les frais de transport sont verrouillés
+    breakdown: order.transportFeeLocked && order.transportFeeLocked > 0 ? computeCourseTotal(order) : null,
+  });
+});
+
+/**
  * POST /api/fedapay-driver-callback  (webhook du compte « Marketplace Livraison »)
  * Signature obligatoire (FEDAPAY_DRIVER_WEBHOOK_SECRET). La transaction est relue chez
  * FedaPay avant toute confirmation.
@@ -163,3 +238,4 @@ router.post("/fedapay-driver-callback", async (req: Request, res): Promise<void>
 });
 
 export default router;
+                          
