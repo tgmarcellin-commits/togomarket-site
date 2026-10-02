@@ -23,6 +23,8 @@ import deliveryCancelUnpaidRouter from "./delivery-cancel-unpaid";
 import coursePaymentRouter from "./course-payment";
 import driverNotificationsRouter from "./driver-notifications";
 import driverPushRouter from "./driver-push";
+import partyLocationRouter from "./party-location";
+import driverAssignmentDetailsRouter from "./driver-assignment-details";
 import marketplaceRouter from "./marketplace";
 import adminAccountingRouter from "./admin-accounting";
 
@@ -50,9 +52,12 @@ router.use(reviewsRouter);
 router.use(coursePaymentRouter);
 router.use(driverNotificationsRouter);
 router.use(driverPushRouter);
+router.use(partyLocationRouter);
+router.use(driverAssignmentDetailsRouter);
 router.use(deliveryCancelUnpaidRouter);
 router.use(deliveryRouter);
 router.use(marketplaceRouter);
 router.use(adminAccountingRouter);
 
 export default router;
+  
