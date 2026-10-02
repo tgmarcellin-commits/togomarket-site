@@ -16,6 +16,7 @@ import {
 import { paymentWebhookEventHash, verifyFedapayDriverWebhookSignature } from "../lib/fedapay-driver-webhook";
 import { computeCourseTotal } from "../lib/platform-fees";
 import { PAYMENT_CONFIRMATION_TIMEOUT_MS } from "../lib/delivery-assignment-guard";
+import { ensureOrderPricingLocked } from "../lib/party-locations";
 
 const router: IRouter = Router();
 
@@ -56,6 +57,9 @@ router.post("/delivery/orders/:orderId/course-payment", async (req, res): Promis
     return;
   }
 
+  // Distance et frais calculés ici si les deux positions GPS sont connues et que ce n'est pas encore fait
+  await ensureOrderPricingLocked(orderId).catch(() => undefined);
+
   const [order] = await db
     .select({
       id: ordersTable.id,
@@ -77,7 +81,9 @@ router.post("/delivery/orders/:orderId/course-payment", async (req, res): Promis
     return;
   }
   if (!order.transportFeeLocked || order.transportFeeLocked <= 0) {
-    res.status(409).json({ error: "Les frais de transport ne sont pas encore verrouillés" });
+    res.status(409).json({
+      error: "Les positions GPS de l'acheteur et du vendeur sont nécessaires pour calculer la course. Chacun doit partager sa position dans la conversation.",
+    });
     return;
   }
 
@@ -138,6 +144,8 @@ router.get("/delivery/conversations/:conversationId/course-payment-status", asyn
     res.json({ orderId: null, driverAccepted: false, paid: false });
     return;
   }
+
+  await ensureOrderPricingLocked(link.orderId).catch(() => undefined);
 
   const [order] = await db
     .select({
@@ -238,4 +246,4 @@ router.post("/fedapay-driver-callback", async (req: Request, res): Promise<void>
 });
 
 export default router;
-                          
+  
