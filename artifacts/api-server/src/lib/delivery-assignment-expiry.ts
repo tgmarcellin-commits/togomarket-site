@@ -1,4 +1,4 @@
-import { and, eq, isNull, lte } from "drizzle-orm";
+import { and, eq, inArray, isNull, lte } from "drizzle-orm";
 import { db, deliveryAuditLogsTable, deliveryWorkflowJobsTable, driversTable, ordersTable } from "@workspace/db";
 import { logger } from "./logger";
 import { PAYMENT_CONFIRMATION_TIMEOUT_MS, shouldExpireAcceptedAssignmentForPaymentTimeout } from "./delivery-assignment-guard";
@@ -137,6 +137,84 @@ export async function expireUnpaidAcceptedAssignments(): Promise<number> {
   return expiredCount;
 }
 
+/**
+ * Annulation MANUELLE par le livreur : possible uniquement si la mission est
+ * acceptée, non payée, et que 10 minutes se sont écoulées depuis l'acceptation.
+ * Même effet que l'annulation automatique : mission annulée, livreur libéré,
+ * commande de nouveau assignable.
+ */
+export type CancelUnpaidResult = "cancelled" | "not_found" | "already_paid" | "too_early";
+
+export async function cancelUnpaidAcceptedAssignmentForDriver(
+  deliveryJobId: number,
+  driverId: number,
+): Promise<CancelUnpaidResult> {
+  const now = new Date();
+  return db.transaction(async (tx) => {
+    const [job] = await tx
+      .select({
+        id: deliveryWorkflowJobsTable.id,
+        orderId: deliveryWorkflowJobsTable.orderId,
+        acceptedAt: deliveryWorkflowJobsTable.acceptedAt,
+        paidAt: ordersTable.driverPaymentConfirmedAt,
+      })
+      .from(deliveryWorkflowJobsTable)
+      .innerJoin(ordersTable, eq(deliveryWorkflowJobsTable.orderId, ordersTable.id))
+      .where(and(
+        eq(deliveryWorkflowJobsTable.id, deliveryJobId),
+        eq(deliveryWorkflowJobsTable.driverId, driverId),
+        eq(deliveryWorkflowJobsTable.acceptanceStatus, "accepted_by_driver"),
+      ))
+      .limit(1);
+
+    if (!job) return "not_found";
+    if (job.paidAt) return "already_paid";
+    if (!shouldExpireAcceptedAssignmentForPaymentTimeout({
+      acceptedAt: job.acceptedAt,
+      paymentConfirmedAt: job.paidAt,
+      now,
+    })) {
+      return "too_early";
+    }
+
+    const [order] = await tx.update(ordersTable)
+      .set({ status: "ASSIGNED" })
+      .where(and(
+        eq(ordersTable.id, job.orderId),
+        inArray(ordersTable.status, ["ASSIGNED", "IN_TRANSIT"]),
+        isNull(ordersTable.driverPaymentConfirmedAt),
+      ))
+      .returning({ id: ordersTable.id });
+    if (!order) return "already_paid";
+
+    await tx.update(deliveryWorkflowJobsTable)
+      .set({
+        acceptanceStatus: "cancelled_payment_timeout",
+        cancelledAt: now,
+        cancelReason: "driver_cancelled_unpaid",
+        updatedAt: now,
+      })
+      .where(and(
+        eq(deliveryWorkflowJobsTable.id, job.id),
+        eq(deliveryWorkflowJobsTable.acceptanceStatus, "accepted_by_driver"),
+      ));
+
+    await tx.update(driversTable)
+      .set({ isAvailable: true, updatedAt: now })
+      .where(eq(driversTable.id, driverId));
+
+    await tx.insert(deliveryAuditLogsTable).values({
+      actorType: "driver",
+      actorId: String(driverId),
+      action: "delivery_payment_timeout_cancelled_by_driver",
+      orderId: job.orderId,
+      metadata: { deliveryJobId: job.id, driverId },
+    });
+
+    return "cancelled";
+  });
+}
+
 export function startDeliveryAssignmentExpiryCron(): void {
   if (assignmentExpiryTimer) return;
   assignmentExpiryTimer = setInterval(() => {
@@ -148,6 +226,9 @@ export function startDeliveryAssignmentExpiryCron(): void {
       })
       .catch((err) => logger.error({ err }, "Failed to expire pending delivery assignments"));
 
+    // Interrupteur de sécurité : tant que le bouton de paiement de la course n'est pas en ligne
+    // côté acheteur, mettre DISABLE_PAYMENT_TIMEOUT=true sur Render pour ne pas annuler des missions.
+    if (process.env.DISABLE_PAYMENT_TIMEOUT === "true") return;
     expireUnpaidAcceptedAssignments()
       .then((count) => {
         if (count > 0) {
@@ -156,4 +237,5 @@ export function startDeliveryAssignmentExpiryCron(): void {
       })
       .catch((err) => logger.error({ err }, "Failed to expire accepted delivery assignments for payment timeout"));
   }, ASSIGNMENT_EXPIRY_INTERVAL_MS);
-}
+    }
+      
