@@ -11,6 +11,11 @@ import { eq, desc } from "drizzle-orm";
 import { postBalancedJournalEntry, STANDARD_ACCOUNTS, type DbOrTx } from "./accounting-ledger";
 import { getOrCreateVirtualWallet, recordWalletMovement } from "./wallet-service";
 import { getIo } from "./socket-io";
+import {
+  TOGOMARKET_BUYER_COMMISSION_FCFA,
+  computeSellerCommission,
+  computeSellerPayout,
+} from "./platform-fees";
 
 export type SettlementDeliveredResult = {
   status: "settled" | "already_settled";
@@ -62,7 +67,7 @@ export async function settleDeliveredOrder(params: {
         status: "already_settled",
         orderId: order.id,
         settlementRef: order.settlementRef ?? `SETTLE_DELV_${order.id}`,
-        sellerPayout: order.articlePriceLocked ?? 0,
+        sellerPayout: computeSellerPayout(order.articlePriceLocked ?? 0),
         driverPayout: order.transportFeeLocked ?? 0,
         buyerRefund: 0,
         settledAt: order.settledAt ?? new Date(),
@@ -124,13 +129,19 @@ export async function settleDeliveredOrder(params: {
     // 5. Authoritative amounts from locked fields
     const articlePrice = Number(order.articlePriceLocked ?? 0);
     const transportFee = Number(order.transportFeeLocked ?? 0);
-    const totalBuyerPaid = articlePrice + transportFee;
+    // Commission TogoMarket (cahier des charges, section 5) : 250 FCFA payés par l'acheteur
+    // (inclus dans son paiement) + 250 FCFA déduits du reversement du vendeur.
+    const buyerCommission = TOGOMARKET_BUYER_COMMISSION_FCFA;
+    const sellerCommission = computeSellerCommission(articlePrice);
+    const platformCommission = buyerCommission + sellerCommission;
+    const sellerPayout = computeSellerPayout(articlePrice);
+    const totalBuyerPaid = articlePrice + transportFee + buyerCommission;
     const settlementRef = idempotencyKey ?? `SETTLE_DELV_${order.id}_${Date.now()}`;
     const settledAt = new Date();
 
     // 6. Update Seller Wallet
     const sellerWallet = await getOrCreateVirtualWallet("seller", vendorId, trx);
-    const newSellerBalance = sellerWallet.balance + articlePrice;
+    const newSellerBalance = sellerWallet.balance + sellerPayout;
     await trx
       .update(virtualWalletsTable)
       .set({
@@ -144,11 +155,11 @@ export async function settleDeliveredOrder(params: {
         walletId: sellerWallet.id,
         orderId: order.id,
         entryType: "seller_article_payout",
-        amount: articlePrice,
+        amount: sellerPayout,
         direction: "credit",
         balanceAfter: newSellerBalance,
         settlementRef,
-        metadata: { orderId: order.id, role: "seller" },
+        metadata: { orderId: order.id, role: "seller", articlePrice, sellerCommission },
       },
       trx,
     );
@@ -207,11 +218,11 @@ export async function settleDeliveredOrder(params: {
 
     // 9. Post Balanced Double-Entry Journal
     const legs = [];
-    if (articlePrice > 0) {
+    if (sellerPayout > 0) {
       legs.push({
         debitAccountCode: STANDARD_ACCOUNTS.BUYER_ESCROW.code,
         creditAccountCode: STANDARD_ACCOUNTS.SELLER_PAYABLE.code,
-        amount: articlePrice,
+        amount: sellerPayout,
         description: `Règlement vente article #${order.id} au vendeur #${vendorId}`,
       });
     }
@@ -224,6 +235,14 @@ export async function settleDeliveredOrder(params: {
       });
     }
 
+    if (platformCommission > 0) {
+      legs.push({
+        debitAccountCode: STANDARD_ACCOUNTS.BUYER_ESCROW.code,
+        creditAccountCode: STANDARD_ACCOUNTS.MARKETPLACE_COMMISSION.code,
+        amount: platformCommission,
+        description: `Commission TogoMarket commande #${order.id} (acheteur ${buyerCommission} + vendeur ${sellerCommission})`,
+      });
+    }
     if (legs.length > 0) {
       await postBalancedJournalEntry(
         {
@@ -263,7 +282,10 @@ export async function settleDeliveredOrder(params: {
         settlementRef,
         articlePrice,
         transportFee,
-        sellerPayout: articlePrice,
+        sellerPayout,
+        sellerCommission,
+        buyerCommission,
+        platformCommission,
         driverPayout: transportFee,
         buyerRefund: 0,
       },
@@ -285,7 +307,7 @@ export async function settleDeliveredOrder(params: {
       status: "settled",
       orderId: order.id,
       settlementRef,
-      sellerPayout: articlePrice,
+      sellerPayout,
       driverPayout: transportFee,
       buyerRefund: 0,
       settledAt,
@@ -388,6 +410,8 @@ export async function settleReturnedOrder(params: {
     const outboundFee = Number(order.transportFeeLocked ?? 0);
     const roundTripFee = Number(order.roundTripFeeLocked ?? (2 * outboundFee));
     const amountPaidByBuyer = articlePrice + outboundFee;
+    // La part acheteur de la commission TogoMarket n'est jamais restituée (service déjà rendu)
+    const buyerCommission = TOGOMARKET_BUYER_COMMISSION_FCFA;
 
     // Driver receives min(amountPaidByBuyer, roundTripFee)
     const driverPayout = Math.min(amountPaidByBuyer, roundTripFee);
@@ -433,7 +457,7 @@ export async function settleReturnedOrder(params: {
     // 7. Buyer Wallet: release locked escrow and credit refund if any
     if (conversationBuyerId > 0) {
       const buyerWallet = await getOrCreateVirtualWallet("buyer", conversationBuyerId, trx);
-      const newBuyerLocked = Math.max(0, buyerWallet.lockedBalance - amountPaidByBuyer);
+      const newBuyerLocked = Math.max(0, buyerWallet.lockedBalance - amountPaidByBuyer - buyerCommission);
       const newBuyerBalance = buyerWallet.balance + buyerRefund;
 
       await trx
@@ -481,6 +505,12 @@ export async function settleReturnedOrder(params: {
       });
     }
 
+    legs.push({
+      debitAccountCode: STANDARD_ACCOUNTS.BUYER_ESCROW.code,
+      creditAccountCode: STANDARD_ACCOUNTS.MARKETPLACE_COMMISSION.code,
+      amount: buyerCommission,
+      description: `Commission TogoMarket (part acheteur) retour commande #${order.id}`,
+    });
     if (legs.length > 0) {
       await postBalancedJournalEntry(
         {
@@ -558,4 +588,5 @@ export async function settleReturnedOrder(params: {
       settledAt,
     };
   });
-}
+        }
+        
