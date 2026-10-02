@@ -426,4 +426,3 @@ export const driverPushSubscriptionsTable = pgTable("driver_push_subscriptions",
   keys: jsonb("keys").notNull(), // { auth: string, p256dh: string }
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
 });
-  
