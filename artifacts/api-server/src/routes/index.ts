@@ -21,6 +21,8 @@ import reviewsRouter from "./reviews";
 import deliveryRouter from "./delivery";
 import deliveryCancelUnpaidRouter from "./delivery-cancel-unpaid";
 import coursePaymentRouter from "./course-payment";
+import driverNotificationsRouter from "./driver-notifications";
+import driverPushRouter from "./driver-push";
 import marketplaceRouter from "./marketplace";
 import adminAccountingRouter from "./admin-accounting";
 
@@ -46,6 +48,8 @@ router.use(vendorNotificationsRouter);
 router.use(reviewsRouter);
 // Paiement de la course et annulation : AVANT deliveryRouter
 router.use(coursePaymentRouter);
+router.use(driverNotificationsRouter);
+router.use(driverPushRouter);
 router.use(deliveryCancelUnpaidRouter);
 router.use(deliveryRouter);
 router.use(marketplaceRouter);
