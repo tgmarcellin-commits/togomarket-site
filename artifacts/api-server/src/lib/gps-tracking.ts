@@ -14,6 +14,20 @@ import { BusinessRuleError } from "./route-errors";
 const GPS_THROTTLE_WINDOW_MS = 2000; // 2 seconds server-side throttle per job
 const lastGpsUpdateByJob = new Map<number, number>();
 
+/** Message renvoyé au livreur tant que l'acheteur n'a pas payé la course. */
+export const DRIVER_PAYMENT_REQUIRED_MESSAGE =
+  "Paiement de la course requis avant le partage de la position.";
+
+/**
+ * Verrou « paiement avant position GPS ».
+ * Désactivé par défaut : à activer (REQUIRE_DRIVER_PAYMENT_FOR_GPS=true sur Render)
+ * UNIQUEMENT quand le paiement de la course est réellement en place, sinon aucun
+ * livreur ne pourrait partager sa position.
+ */
+function isDriverPaymentRequiredForGps(): boolean {
+  return process.env.REQUIRE_DRIVER_PAYMENT_FOR_GPS === "true";
+}
+
 export type IngestLocationInput = {
   deliveryJobId: number;
   driverId: number;
@@ -86,13 +100,22 @@ export async function ingestDriverLocation(input: IngestLocationInput) {
 
   // 4. Verify order is active
   const [order] = await db
-    .select({ id: ordersTable.id, status: ordersTable.status })
+    .select({
+      id: ordersTable.id,
+      status: ordersTable.status,
+      driverPaymentConfirmedAt: ordersTable.driverPaymentConfirmedAt,
+    })
     .from(ordersTable)
     .where(eq(ordersTable.id, job.orderId))
     .limit(1);
 
   if (!order || !["IN_TRANSIT", "ASSIGNED", "RETURNING_TO_SELLER", "RETURN_AT_SELLER"].includes(order.status)) {
     throw new BusinessRuleError(`La commande associée n'est plus active (statut: ${order?.status ?? "inconnu"}). Mise à jour GPS refusée.`);
+  }
+
+  // 4b. La course doit être payée par l'acheteur avant tout partage de position
+  if (isDriverPaymentRequiredForGps() && !order.driverPaymentConfirmedAt) {
+    throw new BusinessRuleError(DRIVER_PAYMENT_REQUIRED_MESSAGE, 409);
   }
 
   // 5. Rate-limiting / throttling
@@ -224,4 +247,5 @@ export async function canAccessLocation(params: {
   }
 
   return false;
-}
+    }
+      
