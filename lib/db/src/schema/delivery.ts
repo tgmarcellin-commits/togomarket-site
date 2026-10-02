@@ -426,3 +426,30 @@ export const driverPushSubscriptionsTable = pgTable("driver_push_subscriptions",
   keys: jsonb("keys").notNull(), // { auth: string, p256dh: string }
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
 });
+
+/**
+ * Position GPS de l'acheteur et du vendeur, captée à la validation du prix.
+ * Sert à calculer la distance verrouillée (vendeur -> acheteur) et à fournir les
+ * coordonnées au livreur une fois la course payée. Une ligne par (conversation, rôle).
+ */
+export const conversationPartyLocationsTable = pgTable(
+  "conversation_party_locations",
+  {
+    id: serial("id").primaryKey(),
+    conversationId: integer("conversation_id")
+      .notNull()
+      .references(() => conversationsTable.id, { onDelete: "cascade" }),
+    actorType: text("actor_type").notNull(), // 'buyer' | 'seller'
+    latitude: doublePrecision("latitude").notNull(),
+    longitude: doublePrecision("longitude").notNull(),
+    accuracyMeters: doublePrecision("accuracy_meters"),
+    capturedAt: timestamp("captured_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => ({
+    uniqueConversationActor: unique("conversation_party_locations_conversation_actor_unique").on(
+      t.conversationId,
+      t.actorType,
+    ),
+  }),
+);
+  
