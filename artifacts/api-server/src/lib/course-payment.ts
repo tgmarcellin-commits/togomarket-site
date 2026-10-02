@@ -17,6 +17,8 @@ import { getOrCreateVirtualWallet, recordWalletMovement } from "./wallet-service
 import { getIo } from "./socket-io";
 import { sendWhatsAppUtilityTemplate } from "./whatsapp-api";
 import { logger } from "./logger";
+import { createDriverNotification } from "./driver-notifications";
+import { sendDriverPush } from "./driver-push";
 
 /**
  * Paiement de la course par l'acheteur — compte FedaPay « Marketplace Livraison ».
@@ -301,6 +303,23 @@ async function notifyCoursePaid(
   } catch {
     // serveur socket absent (tests)
   }
+  // Notification dans le tableau de bord du livreur connecté (secours du message WhatsApp).
+  // Créée dans tous les cas : le livreur la voit même si WhatsApp n'est pas livré.
+  await createDriverNotification({
+    driverId: info.driverId,
+    orderId,
+    kind: "course_payment_confirmed",
+    title: "Course payée : vous pouvez partir",
+    body: `Le paiement de la course #${orderId} est confirmé. Rendez-vous chez le vendeur : les détails de la commande sont sur cette page.`,
+  });
+  // Notification Web Push sur les appareils du livreur abonnés (ne lève jamais d'erreur).
+  await sendDriverPush(info.driverId, {
+    title: "Course payée : vous pouvez partir",
+    body: `Le paiement de la course #${orderId} est confirmé. Ouvrez votre espace livreur pour les détails.`,
+    url: "/driver-connexion",
+    tag: `course-paid-${orderId}`,
+  });
+
   const [driver] = await db
     .select({ phone: driversTable.phone, whatsappNumber: driversTable.whatsappNumber })
     .from(driversTable)
@@ -317,14 +336,14 @@ async function notifyCoursePaid(
     await logWhatsAppNotification(target, templateName, orderId, "sent", null);
   } catch (err) {
     logger.warn({ err, orderId }, "WhatsApp : rappel de paiement de course non envoyé");
+    // Statut « fallback_triggered » : WhatsApp a échoué, la notification du tableau de bord prend le relais.
     await logWhatsAppNotification(
       target,
       templateName,
       orderId,
-      "failed",
+      "fallback_triggered",
       err instanceof Error ? err.message : String(err),
     );
-    // Le livreur voit quand même la confirmation sur son espace /driver-connexion (rafraîchi toutes les 30 s).
   }
 }
 
@@ -333,7 +352,7 @@ async function logWhatsAppNotification(
   recipientPhone: string,
   templateName: string,
   orderId: number,
-  deliveryStatus: "sent" | "failed",
+  deliveryStatus: "sent" | "failed" | "fallback_triggered",
   errorMessage: string | null,
 ): Promise<void> {
   try {
@@ -347,3 +366,4 @@ async function logWhatsAppNotification(
     logger.warn({ err, orderId }, "Journal WhatsApp : écriture impossible");
   }
 }
+      
