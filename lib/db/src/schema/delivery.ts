@@ -391,3 +391,39 @@ export const sellerDriverBindingsTable = pgTable("seller_driver_bindings", {
     .references(() => driversTable.id, { onDelete: "cascade" }),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
 });
+
+/**
+ * Notifications affichées dans le tableau de bord du livreur connecté
+ * (notification de secours quand le message WhatsApp n'est pas livré).
+ */
+export const driverNotificationsTable = pgTable(
+  "driver_notifications",
+  {
+    id: serial("id").primaryKey(),
+    driverId: integer("driver_id")
+      .notNull()
+      .references(() => driversTable.id, { onDelete: "cascade" }),
+    orderId: integer("order_id").references(() => ordersTable.id, { onDelete: "cascade" }),
+    kind: text("kind").notNull(),
+    title: text("title").notNull(),
+    body: text("body").notNull(),
+    readAt: timestamp("read_at", { withTimezone: true }),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => ({
+    driverUnreadIdx: index("driver_notifications_driver_unread_idx").on(t.driverId, t.readAt, t.createdAt),
+    uniqueDriverKindOrder: unique("driver_notifications_driver_kind_order_unique").on(t.driverId, t.kind, t.orderId),
+  }),
+);
+
+/** Abonnements Web Push des livreurs (un navigateur/téléphone = un endpoint unique). */
+export const driverPushSubscriptionsTable = pgTable("driver_push_subscriptions", {
+  id: serial("id").primaryKey(),
+  driverId: integer("driver_id")
+    .notNull()
+    .references(() => driversTable.id, { onDelete: "cascade" }),
+  endpoint: text("endpoint").notNull().unique(),
+  keys: jsonb("keys").notNull(), // { auth: string, p256dh: string }
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+});
+  
