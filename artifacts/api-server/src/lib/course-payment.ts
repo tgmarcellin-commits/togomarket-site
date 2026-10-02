@@ -8,19 +8,23 @@ import {
   ordersTable,
   paymentWebhooksTable,
   virtualWalletsTable,
+  whatsappNotificationsTable,
 } from "@workspace/db";
 import { postBalancedJournalEntry, STANDARD_ACCOUNTS } from "./accounting-ledger";
 import { computeCourseTotal } from "./platform-fees";
 import { normalizePhone } from "./phone";
 import { getOrCreateVirtualWallet, recordWalletMovement } from "./wallet-service";
 import { getIo } from "./socket-io";
-import { sendWhatsAppText } from "./whatsapp-api";
+import { sendWhatsAppUtilityTemplate } from "./whatsapp-api";
+import { logger } from "./logger";
 
 /**
  * Paiement de la course par l'acheteur — compte FedaPay « Marketplace Livraison ».
  * N'utilise QUE FEDAPAY_MARKETPLACE_* (jamais FEDAPAY_SECRET_KEY, réservé aux abonnements).
  */
 const COURSE_CURRENCY = "XOF";
+/** Nom du modèle WhatsApp (catégorie Utilitaire) ; surchargeable par WHATSAPP_PAYMENT_TEMPLATE_NAME. */
+const DEFAULT_PAYMENT_TEMPLATE_NAME = "driver_payment_confirmed_utility";
 export const COURSE_ENTITY_TYPE = "driver_course";
 
 function marketplaceSecretKey(): string {
@@ -303,11 +307,43 @@ async function notifyCoursePaid(
     .where(eq(driversTable.id, info.driverId))
     .limit(1);
   const target = driver?.whatsappNumber || driver?.phone;
-  if (target) {
-    // Rappel WhatsApp en texte libre (fenêtre de 24 h après le dernier échange du livreur).
-    await sendWhatsAppText(
+  if (!target) return;
+
+  // Rappel WhatsApp via un modèle UTILITAIRE approuvé par Meta (un texte libre n'est livré
+  // que dans les 24 h suivant un message du livreur). Une seule variable : {{1}} = n° de course.
+  const templateName = process.env.WHATSAPP_PAYMENT_TEMPLATE_NAME?.trim() || DEFAULT_PAYMENT_TEMPLATE_NAME;
+  try {
+    await sendWhatsAppUtilityTemplate(target, templateName, [String(orderId)]);
+    await logWhatsAppNotification(target, templateName, orderId, "sent", null);
+  } catch (err) {
+    logger.warn({ err, orderId }, "WhatsApp : rappel de paiement de course non envoyé");
+    await logWhatsAppNotification(
       target,
-      `TogoMarket : le paiement de la course #${orderId} est confirmé. Vous pouvez partir. Détails sur https://togomarket.site/driver-connexion`,
+      templateName,
+      orderId,
+      "failed",
+      err instanceof Error ? err.message : String(err),
     );
+    // Le livreur voit quand même la confirmation sur son espace /driver-connexion (rafraîchi toutes les 30 s).
+  }
+}
+
+/** Journal des envois WhatsApp (cahier des charges, section 20.5). Ne doit jamais faire échouer le paiement. */
+async function logWhatsAppNotification(
+  recipientPhone: string,
+  templateName: string,
+  orderId: number,
+  deliveryStatus: "sent" | "failed",
+  errorMessage: string | null,
+): Promise<void> {
+  try {
+    await db.insert(whatsappNotificationsTable).values({
+      recipientPhone,
+      messageContent: `[template ${templateName}] course #${orderId} payée`,
+      deliveryStatus,
+      providerResponse: errorMessage ? { error: errorMessage } : null,
+    });
+  } catch (err) {
+    logger.warn({ err, orderId }, "Journal WhatsApp : écriture impossible");
   }
 }
