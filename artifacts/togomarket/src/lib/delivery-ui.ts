@@ -190,6 +190,11 @@ export interface GpsWatchApi {
     options?: PositionOptions,
   ): number;
   clearWatch(watchId: number): void;
+  getCurrentPosition?(
+    success: (position: GpsPositionLike) => void,
+    error: (error: { code?: number }) => void,
+    options?: PositionOptions,
+  ): void;
 }
 
 export function startAutomaticGpsTracking(
@@ -198,21 +203,40 @@ export function startAutomaticGpsTracking(
   onError: (error: { code?: number }) => void,
   now: () => number = Date.now,
   minimumIntervalMs = 2_000,
+  heartbeatMs = 15_000,
 ): () => void {
   let lastSentAt = Number.NEGATIVE_INFINITY;
   let stopped = false;
+  const handlePosition = (position: GpsPositionLike) => {
+    if (stopped || now() - lastSentAt < minimumIntervalMs) return;
+    lastSentAt = now();
+    send(position);
+  };
   const watchId = geolocation.watchPosition(
-    (position) => {
-      if (stopped || now() - lastSentAt < minimumIntervalMs) return;
-      lastSentAt = now();
-      send(position);
-    },
+    handlePosition,
     onError,
     { enableHighAccuracy: true, maximumAge: 5_000, timeout: 20_000 },
   );
 
+  // watchPosition ne se déclenche que lorsque le livreur BOUGE. À l'arrêt (feu rouge,
+  // attente chez le vendeur), plus aucune position n'était envoyée et le suivi devenait
+  // « obsolète » au bout de 60 s. Ce battement de cœur demande donc une position fraîche
+  // toutes les 15 s si rien n'a été envoyé entre-temps.
+  const heartbeat = geolocation.getCurrentPosition && heartbeatMs > 0
+    ? setInterval(() => {
+        if (stopped || now() - lastSentAt < heartbeatMs) return;
+        geolocation.getCurrentPosition?.(
+          handlePosition,
+          onError,
+          { enableHighAccuracy: true, maximumAge: 10_000, timeout: 15_000 },
+        );
+      }, heartbeatMs)
+    : null;
+
   return () => {
     stopped = true;
+    if (heartbeat !== null) clearInterval(heartbeat);
     geolocation.clearWatch(watchId);
   };
 }
+    
