@@ -452,4 +452,18 @@ export const conversationPartyLocationsTable = pgTable(
     ),
   }),
 );
-  
+
+/**
+ * Preuve qu'une conversation acheteur contrôle bien son numéro de téléphone (code à usage unique envoyé sur WhatsApp).
+ * Sans cette preuve, un numéro saisi à la main ne donne accès qu'au solde de SA conversation : jamais à celui
+ * des autres conversations qui portent le même numéro.
+ */
+export const conversationPhoneVerificationsTable = pgTable("conversation_phone_verifications", {
+  id: serial("id").primaryKey(),
+  conversationId: integer("conversation_id")
+    .notNull()
+    .unique()
+    .references(() => conversationsTable.id, { onDelete: "cascade" }),
+  phone: text("phone").notNull(), // numéro normalisé vérifié
+  codeHash: text("code_hash"), // empreinte du code en attente (jamais le code lui-même)
+  expiresAt: timestamp("expires_at", 
