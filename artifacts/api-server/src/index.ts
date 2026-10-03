@@ -6,6 +6,7 @@ import { startRenewalReminderCron } from "./lib/renewal-reminder";
 import { startConversationsCleanupCron } from "./lib/conversations-cleanup";
 import { registerSocketHandlers, setIo } from "./lib/socket-io";
 import { startDeliveryAssignmentExpiryCron } from "./lib/delivery-assignment-expiry";
+import { startPartyLocationPurgeCron } from "./lib/party-location-purge";
 
 const rawPort = process.env["PORT"];
 
@@ -43,4 +44,5 @@ httpServer.listen(port, (err?: Error) => {
   startRenewalReminderCron();
   startConversationsCleanupCron();
   startDeliveryAssignmentExpiryCron();
+  startPartyLocationPurgeCron();
 });
