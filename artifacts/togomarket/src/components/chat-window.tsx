@@ -1360,47 +1360,6 @@ ${content}`;
           </div>
         )}
 
-        {buyerBalanceContext && (
-          <div className="px-4 pt-3" data-testid="buyer-identity-balance">
-            <div className="text-xs text-muted-foreground bg-muted/40 rounded-lg px-3 py-2 mb-2">
-              {lang === "fr" ? "Connecté en tant que" : "Signed in as"}{" "}
-              <span className="font-semibold text-foreground">{buyerBalanceContext.identityLabel.name}</span>{" "}
-              · {buyerBalanceContext.identityLabel.phone}
-            </div>
-            {auth.kind === "buyer" && (
-              <BuyerBalanceSummary conversationId={conversationId} buyerToken={auth.buyerToken} />
-            )}
-            <WalletSummary
-              key={walletRefreshVersion}
-              loadUrl={buyerBalanceContext.loadUrl}
-              withdrawUrl="/api/wallets/withdraw"
-              withdrawBody={buyerBalanceContext.withdrawBody}
-              headers={deliveryAuthHeaders}
-              phoneNumber={buyerBalanceContext.phoneNumber}
-              language={lang === "fr" ? "fr" : "en"}
-              onUpdated={refreshDeliveryAfterScan}
-              toggleLabel={lang === "fr" ? "Mon portefeuille" : "My wallet"}
-              collapseLabel={lang === "fr" ? "Masquer" : "Hide"}
-              availableLabel={lang === "fr" ? "Solde actif total" : "Total active balance"}
-              phoneEditable={false}
-              extraBalances={[{
-                key: "game10defis",
-                label: lang === "fr" ? "Solde 10défis" : "10défis balance",
-                value: game10defis.balance,
-                note: !game10defis.loaded
-                  ? (lang === "fr" ? "Chargement…" : "Loading…")
-                  : game10defis.verified
-                    ? (lang === "fr"
-                      ? "Gagné au challenge « 10Défis ». À dépenser sur TogoMarket, non retirable."
-                      : "Won in the “10Défis” challenge. To spend on TogoMarket, not withdrawable.")
-                    : (lang === "fr"
-                      ? "Vérifiez votre numéro pour voir votre solde 10défis."
-                      : "Verify your number to see your 10défis balance."),
-              }]}
-            />
-          </div>
-        )}
-
         {showAssignDriver && (
           <DriverChangeNotice conversationId={conversationId} headers={authHeaders(auth)} />
         )}
