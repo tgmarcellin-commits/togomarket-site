@@ -200,7 +200,7 @@ export function ListingCard({ listing, isAdmin, adminPassword, commissionRate, w
     const shownPrice = new Intl.NumberFormat("fr-FR").format(listing.promoPrice ?? listing.price);
     const text = [
       `🛍️ *${listing.name}*`,
-      `💰 ${shownPrice} FCFA`,
+      `🏷️ ${shownPrice} FCFA`,
       ...(listing.createdAt ? [`🕒 ${formatDate(listing.createdAt)}`] : []),
       `📍 ${listing.location} — ${listing.country ?? "Togo"}`,
       "",
